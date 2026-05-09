@@ -1,164 +1,172 @@
 # Motion Brief — Codex Studio
-> Правила анимаций — что, когда, как и чего никогда
+
+> Правила анимаций — что, когда, как и чего никогда.
+> Реальные паттерны проекта зафиксированы в `js/animations.js` и в Section "Реальные паттерны".
 
 ---
 
 ## 🎯 Принцип
 
-Анимация существует чтобы направлять внимание, а не развлекать.
-Каждая анимация должна отвечать на вопрос: **«Что это говорит пользователю?»**
-Если ответа нет — анимации нет.
+Анимация направляет внимание, не развлекает. Каждая отвечает на вопрос: **«Что это говорит пользователю?»** Если ответа нет — анимации нет.
 
-**Правило одного сюрприза:** на странице 1–2 «вау»-момента. Остальное — тихая точность.
+**Правило одного сюрприза:** на странице 1–2 «вау»-момента, остальное — тихая точность.
 
 ---
 
 ## ⚙️ Технологии
 
-- **GSAP v3** — все сложные анимации, таймлайны, scroll-driven
-- **GSAP ScrollTrigger** — анимации при скролле, pin-секции
-- **CSS transitions/animations** — простые hover-состояния, fade-эффекты
-- Никаких jQuery animate(), никаких CSS-анимаций там, где нужен GSAP
+- **GSAP 3.13.0** — все сложные анимации, таймлайны, scroll-driven
+- **GSAP ScrollTrigger** — scroll-анимации, batch reveal
+- **GSAP SplitText** — анимация заголовков (бесплатен с 3.13.0); подключается с fallback
+- **CSS transitions/animations** — простые hover, fade, micro-interactions
+- Никаких jQuery animate(), никаких CSS-анимаций там, где нужен GSAP-таймлайн
 
 ---
 
-## 📐 Параметры по умолчанию
+## 📐 Стандартные параметры
 
 ```javascript
-// Регистрация плагина — всегда первой строкой в animations.js
-gsap.registerPlugin(ScrollTrigger);
-
-// Стандартные значения
-const defaults = {
-  duration: 0.6,
-  ease: "power2.out",
-  stagger: 0.08,
+gsap.registerPlugin(ScrollTrigger);          // ВСЕГДА первая исполняемая строка animations.js
+if (typeof SplitText !== 'undefined') {      // SplitText опционально с fallback
+  gsap.registerPlugin(SplitText);
 }
 
-// Scroll Reveal — стандартный паттерн
-gsap.from(".reveal", {
-  scrollTrigger: {
-    trigger: ".reveal",
-    start: "top 85%",
-    toggleActions: "play none none none"
-  },
-  opacity: 0,
-  y: 24,
-  duration: 0.6,
-  ease: "power2.out",
-  stagger: 0.08
-})
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (reduced) return;                          // early-return — никаких GSAP-инициализаций
+
+const EASE      = 'power2.out';
+const LIFT_EASE = 'expo.out';
+const DEFAULT_DURATION = 0.55;
+const DEFAULT_STAGGER  = 0.08;
 ```
 
----
-
-## 🎬 Типы анимаций и правила
-
-### Preloader (загрузка страницы)
-
-Простой preloader обязателен — сайт содержит тяжёлые 3D-рендеры.
-
-```javascript
-// Минимальный preloader с принудительным скрытием через 2 секунды
-const preloader = document.querySelector('.preloader')
-
-function hidePreloader() {
-  gsap.to(preloader, {
-    opacity: 0,
-    duration: 0.5,
-    ease: "power2.out",
-    onComplete: () => preloader.style.display = 'none'
-  })
-  initHeroAnimation()
-}
-
-// Принудительное скрытие — на случай если load не сработает
-const forceHide = setTimeout(() => hidePreloader(), 2000)
-
-window.addEventListener('load', () => {
-  clearTimeout(forceHide)
-  hidePreloader()
-})
-```
-
+CSS-токены easing (см. `tokens.css`):
 ```css
-.preloader {
-  position: fixed;
-  inset: 0;
-  background: var(--color-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-/* Индикатор: простая линия-прогресс или просто логотип */
-```
-
-**Правила preloader:**
-- Максимум 2 секунды ожидания — потом принудительно скрываем
-- Минималистичный дизайн — логотип или точки, не сложная анимация
-- Плавное исчезновение через opacity, не резкое удаление
-
-### Hero-анимация (после preloader)
-
-- Максимум 1.2 секунды до появления главного контента
-- Заголовок: fade + небольшой slide вверх (y: -16px → 0)
-- Подзаголовок: задержка 0.15s после заголовка
-- CTA-кнопка: задержка 0.3s
-
-### Scroll Reveal (появление при скролле)
-
-- Свойства: только `opacity` и `transform` (y/x/scale)
-- Сдвиг: максимум 24–32px (не 100px — это слишком театрально)
-- Никогда не анимировать `height`, `width`, `margin`, `padding` — вызывают layout shift
-- `start: "top 85%"` — стандартный триггер
-
-### Hover-состояния
-
-```css
-transition: color 180ms cubic-bezier(0.16, 1, 0.3, 1),
-            background 180ms cubic-bezier(0.16, 1, 0.3, 1),
-            transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
-```
-- Scale на hover: максимум `scale(1.03)` — не больше
-- Никаких `scale(1.1)` и выше — выглядит мультяшно
-
-### Переходы между секциями
-
-- Page scroll: `scroll-behavior: smooth`
-- Якорные ссылки: `scroll-padding-top` равен высоте header (64px)
-
-### Pin-секции (GSAP ScrollTrigger pin)
-
-```javascript
-// Только там, где нарративно оправдано
-ScrollTrigger.create({
-  trigger: ".pin-section",
-  pin: true,
-  start: "top top",
-  end: "+=600",
-  scrub: 1
-})
+--ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+--ease-in:    cubic-bezier(0.7, 0, 0.84, 0);
+--ease-inout: cubic-bezier(0.87, 0, 0.13, 1);
 ```
 
 ---
 
-## 🚦 Скорости (duration)
+## 🎬 Реальные паттерны проекта (v0.7.10)
+
+### 1. ScrollTrigger.batch для work-cards с custom scroller
+
+Карточки (`.work-card`) лежат внутри `#cards-scroll` (собственный `overflow-y:auto`). Без `scroller: '#cards-scroll'` ScrollTrigger считал бы позиции относительно `window` и нижние карточки никогда не триггерились.
+
+```javascript
+gsap.set(cards, { opacity: 0, y: 16 });
+
+const cardsScroll = document.getElementById('cards-scroll');
+ScrollTrigger.batch(cards, {
+  scroller: cardsScroll || window,
+  start: 'top 85%',
+  once: true,
+  onEnter: batch => {
+    gsap.to(batch, {
+      opacity: 1, y: 0,
+      duration: 0.55, ease: 'power2.out',
+      stagger: 0.08,
+      clearProps: 'transform,opacity'
+    });
+  }
+});
+
+requestAnimationFrame(() => ScrollTrigger.refresh());
+window.addEventListener('load', () => ScrollTrigger.refresh());
+```
+
+**ОБЯЗАТЕЛЬНО:** селектор `.work-card:not(.tag-card)` — иначе на FA `tag-card` (двойной класс) получает `opacity:0` поверх собственных стилей.
+
+### 2. Clip-path reveal для thumbnails
+
+```javascript
+const thumbs = document.querySelectorAll('.work-card__thumb:not(.tag-card__thumb) img');
+thumbs.forEach(img => img.classList.add('is-clip-reveal'));
+
+thumbs.forEach(img => {
+  gsap.to(img, {
+    clipPath: 'inset(0 0% 0 0)',
+    duration: 1.0,
+    ease: 'power3.inOut',
+    scrollTrigger: { trigger: img, scroller: cardsScroll || window, start: 'top 85%', once: true },
+    onComplete: () => {
+      gsap.set(img, { clearProps: 'clipPath' });
+      img.classList.remove('is-clip-reveal');
+    }
+  });
+});
+```
+
+Закрытое начальное состояние — в CSS под `@media (prefers-reduced-motion: no-preference)`. Reduced-пользователи видят картинку сразу (early-return выше до этого блока не доходит).
+
+### 3. Re-animate при смене фильтра
+
+```javascript
+document.addEventListener('codex:filter', () => {
+  const visible = document.querySelectorAll('.work-card:not(.tag-card):not([hidden])');
+  gsap.fromTo(visible, { opacity: 0, y: 12 }, {
+    opacity: 1, y: 0,
+    duration: 0.4, ease: 'power2.out', stagger: 0.04
+  });
+});
+```
+
+### 4. Magnetic tilt hover (только pointer:fine)
+
+CSS-переменные `--tx`, `--ty` обновляются JS при `mousemove` на `.work-card`. На touch — отключено через `@media (hover: hover) and (pointer: fine)`.
+
+### 5. Case-view reveal при открытии кейса
+
+Заголовок кейса опционально через SplitText (chars/words), с fallback на простой fade при отсутствии плагина. Items в `case-scroll__track` появляются через ScrollTrigger с `LIFT_EASE = 'expo.out'` (тот же «sticky» feel, что у нижних карточек sidebar).
+
+### 6. Custom cursor
+
+```javascript
+// Включается только при pointer:fine (НЕ touch)
+if (window.matchMedia('(pointer: fine)').matches && !reduced) {
+  document.documentElement.classList.add('cursor-fine');
+  // GSAP quickTo для x/y следования за курсором
+}
+```
+
+CSS: `body { cursor: none; } .cursor { ... }` — но только когда есть класс `cursor-fine`.
+
+### 7. Theme toggle — обновление meta theme-color
+
+```javascript
+// в applyTheme() в main.js
+const isLight = document.body.dataset.theme === 'light';
+themeMetaColor.setAttribute('content', isLight ? '#f5f5f5' : '#212121');
+```
+
+**Не split с media** — один тег обновляется JS. Иначе FOUC: `<body data-theme="dark">` хардкод + media-rule браузера = рассинхрон фон/адресной строки.
+
+### 8. Light-dropdown для 3D-controls (≤1023px)
+
+Ленивая инициализация global handlers (close-on-outside-click + Escape). Module-level vars `currentLightDdDocClick` / `currentLightDdDocKey` снимаются `removeEventListener` в `destroy3D()` при смене кейса — иначе утечки + race conditions.
+
+---
+
+## 🚦 Скорости
 
 | Элемент | Duration | Ease |
 |---|---|---|
-| Hover кнопок | 180ms | cubic-bezier(0.16, 1, 0.3, 1) |
-| Tooltip/dropdown | 0.2s | power2.out |
-| Scroll reveal | 0.5–0.7s | power2.out |
-| Hero-анимация | 0.8–1.0s | power3.out |
-| Preloader fade-out | 0.5s | power2.out |
-| Сложные таймлайны | 1.0–1.5s | custom |
+| Hover кнопок | 180ms | `cubic-bezier(0.16, 1, 0.3, 1)` |
+| Tooltip / dropdown | 0.2s | `power2.out` |
+| Scroll reveal cards | 0.55s | `power2.out` |
+| Clip-path reveal | 1.0s | `power3.inOut` |
+| Filter re-animate | 0.4s | `power2.out` |
+| Case-view reveal | 0.6–0.8s | `power2.out` |
+| Lift-on-scroll case-items | 0.7–1.0s | `expo.out` |
+| Theme toggle | мгновенно (CSS) | — |
 
-**Никогда:** duration > 2s для UI-элементов (только для кинематографических сцен)
+**Никогда:** duration > 2s для UI-элементов.
 
 ---
 
-## ♿ Доступность (обязательно)
+## ♿ Reduced-motion (обязательно оба слоя)
 
 ```css
 @media (prefers-reduced-motion: reduce) {
@@ -170,12 +178,11 @@ ScrollTrigger.create({
 ```
 
 ```javascript
-// Проверка перед инициализацией GSAP
-const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-if (!prefersReducedMotion) {
-  // инициализировать все GSAP анимации
-}
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (reduced) return;  // early-return перед любым registerPlugin / scrollTrigger
 ```
+
+`!important` в CSS — единственный разрешённый случай в проекте.
 
 ---
 
@@ -183,30 +190,30 @@ if (!prefersReducedMotion) {
 
 | Запрет | Почему |
 |---|---|
-| Бесконечно вращающиеся элементы | Отвлекают, раздражают |
-| Bounce easing для UI | Мультяшно, несерьёзно |
-| Анимация `height: auto` | Ломает layout — использовать `clip-path` или `scaleY` |
-| Параллакс на мобайле | Вызывает укачивание — отключать через media query |
-| Анимации на каждом элементе | «Танцующее кладбище», нет фокуса |
+| Бесконечно вращающиеся UI-элементы | Отвлекают |
+| Bounce / elastic ease для UI | Мультяшно |
+| Анимация `height: auto` / `width` / `margin` / `padding` | Layout shift |
+| Параллакс на mobile | Укачивание (отключать через `matchMedia('(max-width: 768px)')`) |
 | `animation-iteration-count: infinite` для UI | Раздражает при чтении |
-| Сложный preloader (>2s) | Пользователь уйдёт до загрузки |
+| `scale > 1.03` на hover | Мультяшно |
+| Сложный preloader | На сайте preloader-а нет — не добавлять без явного запроса |
+| Markers в production | `markers: false` обязательно (true только при отладке) |
 
 ---
 
-## 🔧 Отладка анимаций
+## 🎭 Pin-секции
+
+Использовать ТОЛЬКО для нарративно-оправданных scroll-storytelling сцен. На текущем сайте pin не используется.
+
+---
+
+## 🔧 Отладка
 
 ```javascript
-// markers только в dev
-ScrollTrigger.create({
-  trigger: ".section",
-  markers: false, // включать вручную при отладке
-  start: "top 80%",
-})
-
-// Refresh при resize
-ScrollTrigger.refresh()
+ScrollTrigger.create({ markers: false });  // markers ТОЛЬКО локально, не в коммитах
+ScrollTrigger.refresh();                    // после dynamic content / resize
 ```
 
 ---
 
-*Версия: 1.1 | Апрель 2026 | Codex Studio*
+*Версия: 2.0 · Май 2026 · Codex Studio v0.7.10*

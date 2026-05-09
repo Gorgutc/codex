@@ -1,124 +1,134 @@
 # Skills Brief — Codex Studio
-> Карта всех Skills, правила активации и рабочий процесс
-> Платформа: Claude.ai Projects | Версия: 2.1 | Апрель 2026
+
+> Карта Skills, правила активации, рабочий процесс.
+> Платформа: Claude.ai Projects / Claude Code / Anthropic SDK.
 
 ---
 
 ## 📋 Назначение
 
-**Project Files = источник истины о проекте** (briefs, rules, texts, structure)
+**Project Files = источник истины** (briefs, rules, texts, structure, **`verify-frozen.js`**)
 **Skills = метод работы** (как генерировать, проверять, ревьюить, деплоить)
 
-В Claude.ai Skills — это `.md` файлы в Project Files.
-Активируются явным упоминанием в запросе или автоматически через Project Instructions.
+Skill-файлы могут устаревать. **`verify-frozen.js` — авторитетнее.** При конфликте: побеждает тест.
 
 ---
 
-## 🗂 Список активных Skills (10 шт.)
+## 🗂 Активные Skills (10)
 
 | # | Skill файл | Триггеры | Приоритет |
 |---|---|---|---|
-| 1 | `skill-code-reviewer.md` | проверь, ревью, audit, debug, найди ошибки | ⭐⭐⭐ |
+| 1 | `skill-code-reviewer.md` | проверь, ревью, audit, debug, найди ошибки, pre-deploy | ⭐⭐⭐ |
 | 2 | `skill-code-generator.md` | создай, напиши код, верстай, секция, блок | ⭐⭐⭐ |
-| 3 | `skill-motion-director.md` | анимация, GSAP, ScrollTrigger, reveal, preloader | ⭐⭐⭐ |
+| 3 | `skill-motion-director.md` | анимация, GSAP, ScrollTrigger, reveal, hover, cursor | ⭐⭐⭐ |
 | 4 | `skill-deploy-auditor.md` | деплой, GitHub Pages, Netlify, go live | ⭐⭐⭐ |
 | 5 | `skill-a11y-performance.md` | accessibility, a11y, Lighthouse, LCP, CLS, INP | ⭐⭐ |
 | 6 | `skill-seo-structured-data.md` | SEO, meta, JSON-LD, schema, Open Graph | ⭐⭐ |
-| 7 | `skill-asset-optimizer.md` | изображение, видео, WebP, SVG, favicon | ⭐⭐ |
+| 7 | `skill-asset-optimizer.md` | изображение, SVG, GLB, HDR, favicon, OG-image | ⭐⭐ |
 | 8 | `skill-copy-polisher.md` | написать текст, copy, CTA, tone | ⭐⭐ |
 | 9 | `skill-reference-analyzer.md` | скриншот, референс, visual inspiration | ⭐ |
-| 10 | `skill-dialog-memory-auditor.md` | прошлые диалоги, повторяющиеся ошибки | ⭐ |
+| 10 | `skill-dialog-memory-auditor.md` | прошлые диалоги, повторяющиеся ошибки, обновить инструкции | ⭐ |
 
 ---
 
 ## 🔄 Стандартный рабочий процесс
 
-### Для кода (новый блок/секция)
+### Для нового кода (блок / секция)
+
 ```
-1. skill-code-generator    → генерация
-2. skill-code-reviewer     → проверка (ОБЯЗАТЕЛЬНО)
-3. skill-motion-director   → если есть анимации
-4. skill-asset-optimizer   → если есть медиа
-5. skill-a11y-performance  → a11y + Core Web Vitals
+1. skill-code-generator     → генерация
+2. skill-code-reviewer      → проверка (ОБЯЗАТЕЛЬНО)
+3. skill-motion-director    → если есть анимации
+4. skill-asset-optimizer    → если есть медиа
+5. skill-a11y-performance   → a11y + Core Web Vitals
 ```
 
 ### Перед деплоем
+
 ```
 6. skill-seo-structured-data → проверка SEO и JSON-LD
-7. skill-deploy-auditor       → финальный гейт (must pass)
+7. skill-deploy-auditor       → финальный гейт
++ node verify-frozen.js       → 56/56 PASS обязательно
 ```
 
 ### Работа с референсами
+
 ```
-skill-reference-analyzer → перед любым заимствованием из другого сайта
+skill-reference-analyzer → перед заимствованием паттернов
 ```
 
 ### Работа с текстом
+
 ```
-skill-copy-polisher → перед добавлением английской копи в HTML
+skill-copy-polisher → перед добавлением английской копии
 ```
 
-### Улучшение проекта (раз в 1–2 недели)
-```
-skill-dialog-memory-auditor → вставь историю диалогов, получи diff-обновления файлов
-```
+### Анализ recurring issues
 
-**Правило:** никогда не принимать сгенерированный код без `skill-code-reviewer`.
+```
+skill-dialog-memory-auditor → вставь историю диалогов / список ошибок,
+                              получи diff-обновления skill-файлов
+```
 
 ---
 
-## 📍 Как активировать Skill в Claude.ai
+## 🥇 Главное правило
 
-### Автоматически (через Project Instructions)
-Skills активируются автоматически если в Project Instructions прописан маппинг.
-Файл с маппингом — `CLAUDE_PROJECT_INSTRUCTIONS.md` → скопировать в Project Settings → Instructions.
+**Никогда не принимать сгенерированный код без `skill-code-reviewer`.**
+**Никогда не деплоить без `node verify-frozen.js` → 56/56 PASS.**
 
-### Явный вызов в запросе
+---
+
+## 📍 Активация Skill
+
+### В Claude Code (агент)
+Skill автоматически подхватывается из `.claude/` папки если совпадают триггеры из YAML frontmatter в файле skill-`*`.md.
+
+### Явный вызов
 ```
 Используй skill-code-reviewer.
 Проверь этот CSS блок. Выведи только BLOCKER ошибки.
 ```
 
 ### Примеры запросов с автоактивацией
-- «Сверстай hero секцию» → `skill-code-generator` + `skill-code-reviewer`
+- «Сверстай блок» → `skill-code-generator` + `skill-code-reviewer`
 - «Проверь этот код перед деплоем» → `skill-code-reviewer` + `skill-deploy-auditor`
 - «Добавь GSAP анимацию появления карточек» → `skill-motion-director`
-- «Проверь Lighthouse score» → `skill-a11y-performance`
+- «Lighthouse score?» → `skill-a11y-performance`
 - «Добавь structured data» → `skill-seo-structured-data`
 
 ---
 
-## 📊 Покрытие задач Skills
+## 📊 Покрытие задач
 
 | Зона проекта | Покрыто Skills |
 |---|---|
 | Генерация HTML/CSS/JS | ✅ skill-code-generator |
-| Ревью и аудит кода | ✅ skill-code-reviewer |
+| Ревью и аудит | ✅ skill-code-reviewer |
 | GSAP анимации | ✅ skill-motion-director |
 | A11y + Core Web Vitals | ✅ skill-a11y-performance |
 | SEO + JSON-LD | ✅ skill-seo-structured-data |
-| Медиа (изображения, видео) | ✅ skill-asset-optimizer |
-| Английская копия | ✅ skill-copy-polisher |
-| Референсы и скриншоты | ✅ skill-reference-analyzer |
-| Деплой на GitHub Pages/Netlify | ✅ skill-deploy-auditor |
-| Улучшение проекта по итогам работы | ✅ skill-dialog-memory-auditor |
+| Медиа (изображения, GLB, HDR) | ✅ skill-asset-optimizer |
+| English copy | ✅ skill-copy-polisher |
+| Референсы | ✅ skill-reference-analyzer |
+| Деплой | ✅ skill-deploy-auditor |
+| Улучшение skill-системы | ✅ skill-dialog-memory-auditor |
 
-**Вердикт покрытия:** полный для портфолио-сайта. Дополнительные Skills не требуются.
-
----
+Дополнительные skills для портфолио-сайта не требуются.
 
 ---
 
-## 🆕 Updated for Golden 0.4 (May 2026)
+## ⚠️ Skill spec drift — известный сценарий
 
-Все 10 Skills обновлены под Golden 0.4. Ключевые изменения:
+Skill может содержать правило, которое проект **сознательно отверг** в более поздней
+итерации. Перед применением правки на основании MAJOR/BLOCKER чека:
 
-- **GSAP:** все упоминания `3.12.5` → `3.13.0`. Третий CDN-скрипт `SplitText.min.js` теперь часть стека.
-- **`code-reviewer`:** добавлены чеки на отсутствие `<link rel="manifest">`, на отсутствие META `theme-color` для light/dark prefers-color-scheme, на наличие `og:image:width/height/alt`, и на raw `&` без encode.
-- **`code-generator`:** требование 3-х CDN-скриптов GSAP вместо 2-х.
-- **`motion-director`:** официально подтверждено использование SplitText (бесплатен в 3.13.0+).
-- **`deploy-auditor`:** обновлён pre-deploy чеклист — раздел Script Order теперь требует 3 CDN-ссылки.
+1. `grep -n "<keyword>" verify-frozen.js`
+2. Если есть тест на обратное поведение — skill устарел, правку НЕ применять
+3. Сообщить пользователю о конфликте; предложить либо откат правки, либо явный refactor с обновлением теста
+
+**Канонический пример:** theme-color split с `media="(prefers-color-scheme: ...)"` был BLOCKER в Golden 0.4 spec, но в v0.6 [Z6] отвергнут (FOUC bug с хардкодным `<body data-theme="dark">`). `verify-frozen.js` тест `META-theme-color-single` требует ровно 1 тег. Skills уже обновлены.
 
 ---
 
-*Версия: 2.2 | Май 2026 | Codex Studio Skills Pack (10 Skills) | Claude.ai Projects | Golden 0.4*
+*Версия: 2.3 · Май 2026 · Codex Studio v0.7.10 · 10 Skills · verify-frozen.js as source of truth*
