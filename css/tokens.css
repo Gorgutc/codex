@@ -45,6 +45,17 @@
   --bp-grid-minor: rgba(50, 122, 174, 0.08);
   --bp-grid-major: rgba(50, 122, 174, 0.18);
 
+  /* v0.7.11 [P2 #11/#12] — Theme-independent overlay tokens.
+     Оба паттерна намеренно одинаковы в dark и light (не переопределяются ниже):
+     • card badge сидит на захардкоженном dark gradient в .work-card__thumb
+     • fullscreen close-btn остаётся dim-dark поверх любого фона страницы. */
+  --color-card-badge-bg:         rgba(20, 20, 20, 0.72);
+  --color-fs-close-bg:           rgba(22, 22, 22, 0.82);
+  --color-fs-close-border:       rgba(255, 255, 255, 0.18);
+  --color-fs-close-border-hover: rgba(255, 255, 255, 0.4);
+  --color-fs-close-text:         rgba(255, 255, 255, 0.72);
+  --color-fs-close-text-hover:   #fff;
+
   /* Secondary */
   --color-secondary:        #2E8B8F;
   --color-secondary-hover:  #267679;

@@ -1,15 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════════════
    FREE ASSETS PAGE — fa-* namespace only
    ──────────────────────────────────────────────────────────────────────
-   Зеркалит .case-view структуру из main.css, но для grid-каталога ассетов.
-   Все sidebar/header/footer стили — из main.css (общие компоненты).
-   v0.4 [B2]: вынесено из inline <style> в free-assets.html.
-═══════════════════════════════════════════════════════════════════════ */
-
-/* ═══════════════════════════════════════════
-   FREE ASSETS PAGE — fa-* namespace only
-   All sidebar/header/footer styles from main.css
-   ═══════════════════════════════════════════ */
+   Зеркалит .case-view структуру для grid-каталога ассетов.
+   Sidebar / header / footer / work-card база — общие, лежат в shared.css.
+   ═══════════════════════════════════════════════════════════════════════ */
 
 /* ── Dropdown option: show category count ── */
 .tags-dropdown__option-count {
@@ -418,7 +412,7 @@
 }
 .tag-card__format {
   /* v0.4 [AX1]: --color-text-faint (#8a8884 = 3.67:1) → --color-text-muted (#a8a6a2 = 5.27:1).
-     Это переопределяет inherit от .work-card__year (заморожен в main.css). WCAG AA ✓.
+     Это переопределяет inherit от .work-card__year (заморожен в shared.css). WCAG AA ✓.
      Если визуал не понравится — вернуть --color-text-faint в этом селекторе. */
   font-size: var(--text-xs); color: var(--color-text-muted); letter-spacing: 0.06em;
 }
@@ -434,8 +428,6 @@
 /* ── Responsive ── */
 @media (max-width: 1100px) and (min-width: 768px) {
   .fa-view { padding: var(--space-4) var(--space-8) 0; }
-  /* v0.7.6: строка `grid-template-columns: repeat(3, 1fr)` УДАЛЕНА — она
-     перебивала auto-fit правило выше и была корнем планшетной проблемы. */
 }
 @media (prefers-reduced-motion: reduce) {
   .fa-card, .fa-card__thumb img, .fa-card__download,
@@ -456,9 +448,9 @@
   }
 
   /* case-mobile-bar: shrink to its natural height, never grow.
-     Reset the negative margin from main.css (that bar was designed for a
+     Reset the negative margin from shared.css (that bar was designed for a
      padded parent container — main-area here has none, so -margin would
-     offset logo outside viewport). Padding: var(--space-4) stays from main.css. */
+     offset logo outside viewport). Padding: var(--space-4) stays from shared.css. */
   .case-mobile-bar {
     flex: 0 0 auto;
     width: 100%;

@@ -610,9 +610,9 @@
 }
 .case-text__meta-item--role {
   color: var(--color-text);
-  /* v0.15.1 [1.4] — border-color с var(--color-text-muted) → #3f3f3f,
-     чтобы role-чип совпадал по обводке с другими метками (дата/стэк). */
-  border-color: #3f3f3f;
+  /* v0.7.11 [P2 #13] — было #3f3f3f, заменено на ближайший токен --color-divider (#404040, Δ1).
+     Цель прежняя: role-чип совпадает по обводке с другими метками (дата/стэк). */
+  border-color: var(--color-divider);
 }
 .case-text__title {
   font-family: var(--font-display);
@@ -785,7 +785,8 @@
   border: 1px solid var(--color-divider);
   border-radius: 4px;
   background:
-    radial-gradient(ellipse at top, rgba(50,122,174,0.06) 0%, transparent 70%),
+    /* v0.7.11 [P2 #14] — заменено на --color-3d-canvas-glow (то же значение, единый источник истины) */
+    radial-gradient(ellipse at top, var(--color-3d-canvas-glow) 0%, transparent 70%),
     var(--color-bg);
   overflow: hidden;
 }
@@ -1627,11 +1628,8 @@
     padding: 12px 14px;
   }
 
-  /* v0.7.3 — env-группа и expo на mobile теперь скрыты (display:none через
-     @media (max-width:1023px) выше). Их контент перенесён в .case-3d__light-dd
-     панель. Controls остаются в одну линию: AUTO, INFO, RESET, FS, ⚙ light-dd.
-     Старые v0.7.0 mobile-стили для .case-3d__ctrl--env / .case-3d__expo удалены —
-     они больше не отображаются на mobile, поэтому override не нужен. */
+  /* v0.7.3 — env-группа и expo на mobile скрыты (см. @media max-width:1023px выше),
+     контент перенесён в .case-3d__light-dd. Controls в одну линию: AUTO, INFO, RESET, FS, ⚙ light-dd. */
   .case-3d__controls {
     gap: 6px;
     max-width: calc(100% - 24px);
@@ -1861,7 +1859,7 @@
   width: auto;
   height: auto;
 }
-/* Close кнопка (contract icon) — правый верх */
+/* Close кнопка (contract icon) — правый верх. v0.7.11 [P2 #12]: цвета из --color-fs-close-* токенов */
 .media-fs__close {
   position: absolute;
   top: 16px;
@@ -1872,18 +1870,18 @@
   width: 32px;
   height: 32px;
   padding: 0;
-  background: rgba(22, 22, 22, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--color-fs-close-bg);
+  border: 1px solid var(--color-fs-close-border);
   border-radius: 3px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--color-fs-close-text);
   cursor: pointer;
   z-index: 2;
   transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out);
 }
 @media (hover: hover) and (pointer: fine) {
   .media-fs__close:hover {
-    color: #fff;
-    border-color: rgba(255, 255, 255, 0.4);
+    color: var(--color-fs-close-text-hover);
+    border-color: var(--color-fs-close-border-hover);
   }
 }
 .media-fs__close:focus-visible {
