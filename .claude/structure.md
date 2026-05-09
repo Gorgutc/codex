@@ -1,200 +1,212 @@
 # Structure — Codex Studio
-> Файловая структура проекта, порядок секций, сетка, навигация
+
+> Файловая структура, порядок CSS/JS, layout страниц.
+> Авторитетный источник архитектуры — `verify-frozen.js`.
 
 ---
 
-## 📁 Файловая структура
+## 📁 Файловая структура (v0.7.10)
 
 ```
-codex-studio/
-├── index.html              ← единственная HTML-страница
+codex/
+├── index.html                  ← основное портфолио (sidebar + case-view)
+├── free-assets.html            ← каталог CC0/CC-BY 3D-ассетов
+├── _beget-placeholder.php      ← дефолт хостинга Beget, к проекту не относится
+├── verify-frozen.js            ← Playwright-регрешен (56 тестов, source of truth)
+├── README.md
+├── CHANGELOG.md
+├── 08–15_*.md                  ← handoff-документы по итерациям (v0.4 → v0.7.10)
+├── llms.txt
+├── robots.txt
+├── sitemap.xml
+│
 ├── css/
-│   ├── tokens.css          ← CSS-переменные из build_rules (цвета, шрифты, отступы)
-│   ├── reset.css           ← Modern CSS Reset (Andy Bell)
-│   └── main.css            ← основные стили (импортирует tokens.css и reset.css)
+│   ├── tokens.css              ← дизайн-токены (цвета/шрифты/отступы) — единственное место
+│   ├── reset.css               ← Andy-Bell-style modern reset
+│   ├── shared.css              ← общие стили (sidebar, header, footer, theme, work-card база, cursor, grain)
+│   ├── portfolio.css           ← только index: case-view, case-3d, case-blueprints, fullscreen, work-card--active
+│   └── free-assets.css         ← только FA: fa-grid, fa-card, tag-cards грид
+│
 ├── js/
-│   ├── animations.js       ← все GSAP-анимации (ScrollTrigger, Hero, etc.)
-│   └── main.js             ← навигация, theme toggle, мелкие взаимодействия
-└── assets/
-    ├── img/
-    │   ├── hero/           ← hero-изображения или видео
-    │   ├── work/           ← превью проектов (карточки портфолио)
-    │   ├── about/          ← фото или изображения для About-секции
-    │   └── og-image.jpg    ← OpenGraph изображение (1200×630px)
-    └── favicon/
-        ├── favicon.ico
-        ├── favicon-32x32.png
-        ├── favicon-16x16.png
-        ├── apple-touch-icon.png
-        └── site.webmanifest
+│   ├── main.js                 ← CARDS_DATA + sidebar UI + case-view + 3D-вьювер + theme + filters (eager)
+│   ├── animations.js           ← все GSAP-анимации (eager, после main.js)
+│   └── model-data.js           ← inline GLB data 1.1 MB — LAZY-LOADED по первому клику на 3D-tab
+│
+├── assets/
+│   ├── cards/                  ← 18 SVG-thumbnail (превью карточек, 800×600 viewBox)
+│   ├── cases/<id>/01..05.svg   ← 18 кейсов × 5 SVG-слайдов (галерея в case-view 2D)
+│   ├── models/                 ← 18 GLB (3D-модели для случев)
+│   ├── models/free/            ← 18 GLB для FA
+│   ├── hdr/                    ← studio.hdr / outdoor.hdr / dark.hdr (Polyhaven CC0, IBL для 3D)
+│   ├── img/
+│   │   ├── og-image.jpg        ← OG для index (1200×630)
+│   │   └── og-free-assets.jpg  ← OG для FA (1200×630)
+│   └── favicon/
+│       ├── favicon.ico
+│       ├── favicon-16.png
+│       ├── favicon-32.png
+│       ├── apple-touch-icon.png   (180×180)
+│       └── site.webmanifest
+│
+└── downloads/                  ← *.zip плейсхолдеры (placeholder 412 B каждый)
 ```
 
 **Правила:**
-- Все пути относительные (`./css/main.css`, `./assets/img/...`)
-- Никаких папок `dist/`, `build/`, `node_modules/` — статический сайт
-- CSS подключается через `<link>` в `<head>`, JS через `<script>` (без defer) перед `</body>`
+- Все пути относительные (`./css/...`, `./assets/...`)
+- В OG/canonical/sitemap/JSON-LD — абсолютные URL `https://codex.promo/...`
+- Никаких `dist/`, `build/`, `node_modules/` — статика
+- Серверного кода нет (Beget-placeholder отдельный артефакт)
 
 ---
 
-## 📐 Структура index.html
+## 📐 Структура `index.html`
 
 ```html
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- мета-теги, title, SEO, OG из texts.md -->
-    <!-- preconnect для Fontshare CDN -->
-    <!-- link: tokens.css, reset.css, main.css -->
-    <!-- link: favicon -->
-  </head>
-  <body data-theme="dark">
+<head>
+  <!-- meta charset/viewport, title, description, canonical -->
+  <!-- og:* (absolute URLs) + twitter:* -->
+  <!-- robots, theme-color (single tag, no media) -->
+  <!-- favicon-комплект + manifest -->
+  <!-- JSON-LD: Organization + WebSite + ItemList -->
+  <!-- preconnect (api.fontshare.com, cdn.jsdelivr.net) + Fontshare CSS -->
+  <!-- CSS: tokens → reset → shared → portfolio -->
+</head>
+<body data-theme="dark">
 
-    <div class="preloader"><!-- логотип или индикатор --></div>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Projects navigator">
+      <header class="site-header" role="banner">
+        <div class="header-top">
+          <a class="logo" id="logo-home" ...>CODEX</a>
+          <div class="header-top__controls">
+            <a class="contact-btn" ...>Contact</a>          <!-- Telegram -->
+            <button class="theme-toggle" id="theme-toggle">…</button>
+            <button class="cards-toggle" id="cards-toggle">‹‹ ›› Hide projects</button>
+          </div>
+        </div>
+        <div class="tags-dropdown" id="tags-dropdown" data-open="false">…</div>
+        <div class="tags-divider"></div>
+        <div class="sidebar__row">
+          <label class="game-switch">…</label>
+          <div class="cards-count">18 projects</div>
+        </div>
+      </header>
 
-    <header>           <!-- фиксированная шапка, nav + theme toggle -->
-    <main>
-      <section id="hero">       <!-- 1. Hero -->
-      <section id="about">      <!-- 2. About -->
-      <section id="services">   <!-- 3. Services / What We Do -->
-      <section id="work">       <!-- 4. Selected Work (портфолио) -->
-      <section id="contact">    <!-- 5. Contact -->
+      <div class="cards-scroll" id="cards-scroll">
+        <div class="cards-list" id="cards-list">
+          <!-- 18 .work-card с data-id, data-category, опционально data-game-asset -->
+        </div>
+      </div>
+
+      <footer class="site-footer">
+        <div class="site-footer__row site-footer__row--actions">
+          <p class="site-footer__stats">DELETED 422 CUBES • CREATED 120 WORKS</p>
+        </div>
+        <div class="site-footer__divider"></div>
+        <div class="site-footer__row site-footer__row--pill">
+          <a class="top-pill top-pill--contact">Contact</a>
+          <a class="top-pill top-pill--free" href="./free-assets.html">Free Assets</a>
+        </div>
+      </footer>
+    </aside>
+
+    <main class="main-area">
+      <section class="case-view" id="case-view">
+        <div class="case-mobile-bar"><!-- mobile only: mini-logo + Back + COPY LINK --></div>
+
+        <div class="case-view__header">
+          <div class="case-view__left">
+            <div class="case-view__meta">…cat · year</div>
+            <h1 class="case-view__title" id="case-title">Orbital Mk.II</h1>
+          </div>
+          <div class="case-view__actions">
+            <div class="case-view__tabs" role="tablist">
+              <button class="case-tab case-tab--active" data-viz="2d">2D</button>
+              <button class="case-tab"                  data-viz="3d">3D</button>
+              <button class="case-tab"                  data-viz="blueprints">Blueprints</button>
+              <div class="case-nav">
+                <button id="case-prev">‹</button>
+                <span class="case-nav__counter">1 / 15</span>
+                <button id="case-next">›</button>
+              </div>
+              <button class="case-share case-share--desktop">COPY LINK</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="case-progress"><div class="case-progress__bar"></div></div>
+
+        <div class="case-scroll" id="case-scroll" role="region" tabindex="0">
+          <div class="case-scroll__track" id="case-scroll-track"><!-- buildItems() --></div>
+        </div>
+        <div class="case-blueprints" id="case-blueprints" hidden><!-- buildBlueprint() --></div>
+        <div class="case-3d"         id="case-3d"         hidden><!-- build3D() лениво --></div>
+      </section>
     </main>
-    <footer>           <!-- копирайт -->
+  </div>
 
-    <!-- JS подключение: GSAP CDN (без defer) → затем наши скрипты (без defer) -->
-    <!-- Важно: все скрипты перед </body>, порядок строго соблюдать -->
-  </body>
+  <div class="cursor" aria-hidden="true"><div class="cursor-dot"></div></div>
+
+  <!-- JS перед </body>: gsap → ScrollTrigger → SplitText → main.js → animations.js -->
+</body>
 </html>
 ```
 
 ---
 
-## 🔗 CDN подключения — СТРОГИЙ ПОРЯДОК
+## 📐 Структура `free-assets.html`
 
-```html
-<!-- В <head> -->
-<!-- 1. Preconnect -->
-<link rel="preconnect" href="https://api.fontshare.com">
+Идентичная sidebar-структура. Отличия:
 
-<!-- 2. Шрифты -->
-<link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap" rel="stylesheet">
+- `<a class="logo" id="logo-back-portfolio" href="./index.html">` (НЕ `id="logo-home"`)
+- `cards-toggle` подписан "Hide categories" (вместо "Hide projects")
+- `tags-dropdown` использует `EXPECTED_FA_TAGS` (`hard-surface / product / game / organic / animation / cad`) с `tags-dropdown__option-count` рядом с каждым лейблом
+- В sidebar — `tag-cards` (специальные карточки-категории), фильтрующие FA-grid в `<main>`
+- `<main>` содержит `fa-grid` с `fa-card` (real download cards)
+- Подключается `./css/free-assets.css` вместо `./css/portfolio.css`
 
-<!-- 3. Стили -->
-<link rel="stylesheet" href="./css/tokens.css">
-<link rel="stylesheet" href="./css/reset.css">
-<link rel="stylesheet" href="./css/main.css">
-```
-
-```html
-<!-- Перед </body> — ВСЕ скрипты БЕЗ defer, строго в этом порядке -->
-
-<!-- 4. GSAP Core -->
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-<!-- 5. ScrollTrigger -->
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-<!-- 6. Наши скрипты — после GSAP, поэтому gsap гарантированно доступен -->
-<script src="./js/main.js"></script>
-<script src="./js/animations.js"></script>
-```
-
-> ⚠️ **Почему без `defer`:** скрипты расположены перед `</body>` — DOM уже построен.
-> `defer` на CDN-скриптах и local-скриптах ломает порядок исполнения: `defer`-скрипты
-> исполняются по порядку после DOMContentLoaded, но смешивание с обычными скриптами
-> создаёт race condition. Решение: все JS-скрипты перед `</body>` — без `defer`.
+`tag-card` имеет ОБА класса `tag-card work-card` (двойной класс — поэтому в `animations.js` обязателен фильтр `:not(.tag-card)` на всех селекторах `.work-card`).
 
 ---
 
-## 🗺 Wireframe — порядок и высота секций
+## 🔗 CDN — строгий порядок (см. `prompt_instructions.md`)
 
-| Секция | ID | Высота | Описание |
-|---|---|---|---|
-| Header | — | 64px (фикс.) | Логотип/имя слева, nav справа, theme toggle |
-| Hero | `#hero` | 100dvh | Крупный H1, subhead, 2 CTA, фоновый визуал |
-| About | `#about` | auto | Текст + опционально фото/render |
-| Services | `#services` | auto | 4 блока услуг, нестандартная раскладка |
-| Work | `#work` | auto | Фильтры + карточки проектов |
-| Contact | `#contact` | auto | Заголовок, CTA-кнопка, контакты |
-| Footer | — | auto | Копирайт |
+В `<head>` — preconnect → Fontshare → tokens → reset → shared → (portfolio | free-assets).
 
-**Правило ритма:** секции намеренно разной высоты — нет монотонного ритма.
+Перед `</body>` — gsap → ScrollTrigger → SplitText → main.js → animations.js. Все БЕЗ `defer` и `type="module"`.
 
 ---
 
-## 🧮 Сетка (Grid System)
+## 📐 Layout
 
-```css
-/* Контентная ширина */
---content-max:  1200px;   /* основной контент */
---content-wide: 1440px;   /* full-bleed секции (hero, work) */
---content-text:  720px;   /* текстовые блоки (about, contact) */
-
-/* Основной контейнер */
-.container {
-  width: 100%;
-  max-width: var(--content-max);
-  margin-inline: auto;
-  padding-inline: clamp(var(--space-4), 5vw, var(--space-16));
-}
-
-/* Wide-контейнер (для hero, portfolio) */
-.container--wide {
-  max-width: var(--content-wide);
-}
-
-/* Текстовый блок */
-.container--text {
-  max-width: var(--content-text);
-}
+```
+┌─────────────────────────────────────────────────────┐
+│ <body data-theme="dark"> (film grain ::before, vignette ::after) │
+│ ┌───────────┬─────────────────────────────────────┐ │
+│ │ aside.    │ main.main-area                      │ │
+│ │ sidebar   │   section.case-view                 │ │
+│ │ width     │     header (title + tabs + nav)     │ │
+│ │ = 340px   │     case-progress                   │ │
+│ │ (var      │     case-scroll (vert. gallery)     │ │
+│ │ --sidebar-w│     case-blueprints (hidden)       │ │
+│ │ )         │     case-3d (hidden, model-viewer)  │ │
+│ │           │                                     │ │
+│ │ header    │                                     │ │
+│ │ scroll    │                                     │ │
+│ │ footer    │                                     │ │
+│ └───────────┴─────────────────────────────────────┘ │
+│ div.cursor (custom cursor, pointer:fine only)       │
+└─────────────────────────────────────────────────────┘
 ```
 
----
+**Состояние `body.cards-collapsed`:** sidebar схлопывается, `main-area` занимает всю ширину, controls (theme/cards/contact) перемещаются в fixed top-right.
 
-## 🔲 Раскладки секций
-
-### Header
-```css
-header {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  z-index: 100;
-  backdrop-filter: blur(12px);
-}
-```
-
-### Services — нестандартный grid (не 3 одинаковые колонки!)
-```css
-/* Desktop: 2 услуги крупно сверху, 2 меньше снизу */
-.services-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-6);
-}
-.service-item:first-child {
-  grid-column: 1 / -1;  /* первая услуга — на всю ширину */
-}
-```
-
-### Work — Portfolio Grid
-```css
-.work-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: var(--space-6);
-}
-/* Первая карточка может быть large (col-span: 2) */
-```
-
----
-
-## 📱 Навигация — мобильная
-
-- Hamburger-меню на `≤768px`
-- Иконка: три линии → крестик (CSS transition)
-- Меню открывается как overlay поверх контента
-- touch target: минимум 44×44px
+**Mobile (≤767px):**
+- Sidebar становится bottom-overlay (или full-screen)
+- `case-mobile-bar` показывается с mini-logo, "Projects" back, COPY LINK
+- 3D-controls (env presets + exposure) сворачиваются в `light-dropdown` (≤1023px)
 
 ---
 
@@ -205,7 +217,7 @@ header {
   "name": "Codex Studio",
   "short_name": "Codex",
   "icons": [
-    { "src": "./assets/favicon/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "./assets/favicon/favicon-32.png", "sizes": "32x32", "type": "image/png" },
     { "src": "./assets/favicon/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
   ],
   "theme_color": "#212121",
@@ -216,4 +228,31 @@ header {
 
 ---
 
-*Версия: 1.1 | Апрель 2026 | Codex Studio*
+## 🔒 Frozen-инварианты (проверяет `verify-frozen.js`)
+
+- `BODY-theme-dark-default` — `<body data-theme="dark">`
+- `META-theme-color-single` — ровно один тег `<meta name="theme-color">`, без `media=""`
+- `META-favicon-16` — favicon-16 присутствует
+- `META-manifest` — `<link rel="manifest">` присутствует
+- `META-og-image-absolute` — og:image начинается с `https?://`
+- `META-og-image-fa-specific` (FA) — og:image оканчивается на `og-free-assets.jpg`
+- `SCRIPTS-no-defer` — ни один `<script>` не имеет `defer`
+- `SCRIPTS-order` — gsap < ScrollTrigger < main.js < animations.js
+- `WORK-cards-18` — на index ровно 18 `.work-card`
+- `WORK-cards-ids` — все `EXPECTED_IDS` присутствуют
+- `WORK-cards-game-assets` — ≥2 карточек с `data-game-asset="true"`
+- `TAGS-buttons` — все `EXPECTED_TAGS` есть в dropdown
+- `CASE-tabs-3` — ровно 3 `.case-tab` (2D/3D/Blueprints)
+- `CASE-share-desktop` / `CASE-share-mobile` — обе кнопки COPY LINK присутствуют
+- `B1-no-logo-home` (FA) — на FA нет id `logo-home`
+- `B1-logo-back-portfolio` (FA) — есть `id="logo-back-portfolio"`
+- `B6-chevron-icons` (FA) — `cards-toggle` использует ‹‹ / ›› (НЕ SVG-глаза)
+- `NO-inline-style-block` (FA) — нет `<style>` в `<head>`
+- `N4-game-keeps-tag-cards` (FA) — game-switch не скрывает tag-cards
+- `CONSOLE-no-internal-errors` — без внутренних ошибок (внешние CDN-403/404 игнорируются)
+
+Любая правка, ломающая эти тесты — отвергается.
+
+---
+
+*Версия: 2.0 · Май 2026 · Codex Studio v0.7.10*

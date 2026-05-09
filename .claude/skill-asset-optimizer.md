@@ -1,180 +1,201 @@
 ---
 name: codex-asset-optimizer
-description: "Use when the user asks to prepare, name, compress, audit, insert, or generate HTML for images, videos, SVG icons, favicons, OG images, hero visuals, portfolio thumbnails, turntable videos, or any media asset for Codex Studio. Trigger on: image, assets, webp, video, turntable, favicon, OG image, hero visual, portfolio image, icon, SVG, media, compress, optimize, naming."
+description: "Use when the user asks to prepare, name, compress, audit, insert, or generate HTML for images, videos, SVG icons, GLB 3D models, HDR environment maps, favicons, OG images, or any media asset for Codex Studio (codex.promo). Trigger on: image, assets, webp, video, favicon, OG image, portfolio image, icon, SVG, GLB, model-viewer, HDR, environment, media, compress, optimize, naming."
 ---
 
 # Codex Studio — Asset Optimizer
 
-You are the asset pipeline specialist for Codex Studio. Performance + Media Engineer role.
+Performance + Media Engineer.
+Real asset inventory v0.7.10 — see `assets_brief.md`. Target: clean, fast, accessible.
 
-## Format rules — immutable
+## Format rules
 
-| Content type        | Primary format | Fallback   | Notes                        |
-|---------------------|---------------|------------|------------------------------|
-| Photos, 3D renders  | WebP          | JPEG       | Best compression + quality   |
-| Transparent images  | WebP (alpha)  | PNG        | Replaces PNG in most cases   |
-| UI icons            | Inline SVG    | —          | Never icon fonts, never PNG  |
-| Logo                | SVG           | —          | Sharp at any resolution      |
-| OG image            | JPEG          | —          | Best social media support    |
-| Animations          | MP4 + WebM    | —          | NEVER GIF                    |
+| Content type | Primary format | Notes |
+|---|---|---|
+| Photos / 3D renders | WebP | Best compression at quality |
+| Card thumbnails | SVG (current) or WebP | 800×600 viewBox; placeholders use inline gradient |
+| Case slides | SVG (current) or WebP | 5 slides per case |
+| Transparent images | WebP (alpha) | Replaces PNG |
+| UI icons | Inline SVG | Never icon fonts, never PNG |
+| Logo | SVG or text `<span class="logo__text">` | Currently text |
+| OG image | JPEG | Best social-media support |
+| 3D model | GLB (binary glTF 2.0) | DRACO compression desirable |
+| HDR (IBL) | RGBE `.hdr` | Polyhaven CC0, 1k resolution |
+| Animations | MP4 + WebM | NEVER GIF |
 
 ## Image dimensions by zone
 
-| Zone              | Size (px)   | Ratio  | Max size | File name                    |
-|-------------------|-------------|--------|----------|------------------------------|
-| Hero desktop      | 1920×1080   | 16:9   | 300 KB   | hero-bg.webp                 |
-| Hero mobile       | 768×900     | 5:6    | 150 KB   | hero-bg-mobile.webp          |
-| Work card         | 800×600     | 4:3    | 120 KB   | work-[slug].webp             |
-| Work card large   | 1200×700    | ~16:9  | 200 KB   | work-[slug]-large.webp       |
-| About section     | 960×720     | 4:3    | 180 KB   | about-visual.webp            |
-| OG image          | 1200×630    | ~1.9:1 | 200 KB   | og-image.jpg                 |
-| Favicon 32px      | 32×32       | 1:1    | —        | favicon-32x32.png            |
-| Favicon 16px      | 16×16       | 1:1    | —        | favicon-16x16.png            |
-| Apple touch icon  | 180×180     | 1:1    | —        | apple-touch-icon.png         |
+| Zone | Size (px) | Ratio | Max KB | Filename pattern |
+|---|---|---|---|---|
+| Card thumbnail | 800×600 | 4:3 | 120 | `<id>.svg` or `<id>.webp` (in `assets/cards/`) |
+| Case slide (wide) | 1600×1000 | 8:5 | 200 | `<id>/01.svg`, `04.svg` (positions 1, 4 = wide) |
+| Case slide (tall) | 800×1000 | 4:5 | 200 | `<id>/02.svg`, `03.svg`, `05.svg` (positions 2, 3, 5 = tall) |
+| OG image (per page) | 1200×630 | ~1.9:1 | 200 | `og-image.jpg`, `og-free-assets.jpg` |
+| Apple touch | 180×180 | 1:1 | — | `apple-touch-icon.png` |
+| Favicon-32 | 32×32 | 1:1 | — | `favicon-32.png` |
+| Favicon-16 | 16×16 | 1:1 | — | `favicon-16.png` |
+| Favicon multi | 16+32 | 1:1 | — | `favicon.ico` |
 
-## Video specifications
-- Format: MP4 (H.264) + WebM (VP9) as fallback
-- Turntable duration: 4–8 seconds, looped
-- Resolution: 1280×720 (sufficient for card previews)
-- Max file size: 8 MB per video
-- preload="metadata" — only load metadata initially
-- playsinline required for iOS Safari
-- autoplay muted loop playsinline for background video
+**Critical:** favicon files use `-N.png` (not `-NxN.png`). The site uses `favicon-16.png` / `favicon-32.png`.
+
+## 3D models (GLB)
+
+Real inventory:
+- `assets/models/<id>.glb` — 18 files for index portfolio
+- `assets/models/free/<id>.glb` — 18 files for FA
+
+Where `<id>` is one of `EXPECTED_IDS` (orbital-mk-ii, vega-shell, ironclad-frame, corten-series, lumen-one, flux-capsule, nightshard, recon-drone, apex-frame, core-rig, helix-reveal, arc-motion, nyx-panther, drift-koi, glint-owl, mech-link, flex-spine, cad-strut).
+
+```html
+<!-- model-viewer is lazy-injected by build3D() in main.js. Generated markup: -->
+<model-viewer
+  src="./assets/models/<id>.glb"
+  alt="<title> — interactive 3D viewer"
+  camera-controls
+  auto-rotate
+  rotation-per-second="30deg"
+  environment-image="./assets/hdr/studio.hdr"
+  exposure="1.0"
+  shadow-intensity="0.6"
+  ar
+  loading="eager">
+</model-viewer>
+```
+
+**Rules:**
+- DRACO compression desirable (5–10× smaller; under 2 MB target)
+- `model-data.js` (1.1 MB inline GLB) is lazy-loaded ONLY via `loadModelData()` in main.js — NEVER include eagerly in HTML
+- `<model-viewer>` CDN script (`@google/model-viewer@4.0.0`) is lazy-injected on first 3D-tab click
+- On `file://` (двойной клик), HDR `fetch()` blocked by CORS → automatic fallback to `environment-image='neutral'` (handled in `build3D()`). On `http(s)://` HDR works.
+- Camera, exposure, env-switcher (Studio / Outdoor / Dark) generated by `build3D()` from `CARDS_DATA[id].modelStats`
+
+## HDR (Polyhaven CC0)
+
+| File | Source | Mood |
+|---|---|---|
+| `studio.hdr` | `studio_small_08` | Low-contrast soft (default) |
+| `outdoor.hdr` | `kloppenheim_06` | Open field with clear sky |
+| `dark.hdr` | `studio_small_03` | High-contrast single-lamp dark mood |
+
+Size: ~1.0–1.5 MB each. 1k resolution sufficient for IBL + mobile.
+
+## Video specifications (if added)
+
+```html
+<video
+  autoplay muted loop playsinline
+  preload="metadata"
+  width="1280" height="720"
+  aria-label="<descriptive>">
+  <source src="./assets/.../<slug>.webm" type="video/webm">
+  <source src="./assets/.../<slug>.mp4"  type="video/mp4">
+</video>
+```
+
+- MP4 (H.264) + WebM (VP9), max 8 MB each
+- `preload="metadata"` mandatory (no eager load)
+- `playsinline` for iOS Safari
+- 1280×720 sufficient for previews
 
 ## File naming rules
-- Lowercase only
-- Hyphen-separated words
-- No spaces, no special characters, no Cyrillic
-- Name describes content, not "img1" or "final_v2"
 
 ```
-✅ work-orbital-mk2.webp
-✅ hero-bg.webp
-✅ work-corten-series-large.webp
-✅ about-studio-visual.webp
-✅ work-orbital-turntable.mp4
+✅ orbital-mk-ii.glb
+✅ corten-series.svg
+✅ apex-frame-large.webp
+✅ og-free-assets.jpg
+✅ studio.hdr
 
-❌ Work Image 1.jpg
-❌ рендер_проекта.png
-❌ IMG_20240315.jpeg
-❌ final_final_v2.webp
-❌ Screenshot 2026.png
+❌ Орбитал.glb              (Cyrillic)
+❌ Work Image 1.jpg          (spaces, uninformative)
+❌ IMG_20240315.png          (irrelevant name)
+❌ final_final_v2.svg        (junk)
+❌ favicon-16x16.png         (we use -16.png)
 ```
 
-## HTML attributes — mandatory for every <img>
+`data-id` on `.work-card` ↔ filename in `assets/cards/<id>.svg`, `assets/cases/<id>/01..05.svg`, `assets/models/<id>.glb`. Strict mapping enforced by `verify-frozen.js`.
+
+## HTML attributes — mandatory for every `<img>`
+
 ```html
-<!-- Non-hero image (standard) -->
+<!-- Standard (lazy) -->
 <img
-  src="./assets/img/work/work-orbital-mk2.webp"
-  alt="Orbital Mk.II — sci-fi hard surface prop, clean topology, game pipeline"
-  width="800"
-  height="600"
+  src="./assets/cards/orbital-mk-ii.svg"
+  alt="Orbital Mk.II — sci-fi hard surface prop"
+  width="800" height="600"
   loading="lazy"
-  decoding="async">
+  decoding="async"
+  onerror="this.remove();">
 
-<!-- Hero image — DIFFERENT rules, never lazy -->
-<img
-  src="./assets/img/hero/hero-bg.webp"
-  alt="Hard surface 3D mechanical assembly — detailed engineering prop"
-  width="1920"
-  height="1080"
-  loading="eager"
-  fetchpriority="high"
-  decoding="async">
-
-<!-- Decorative image (no meaningful content) -->
+<!-- Decorative -->
 <img src="..." alt="" width="..." height="..." loading="lazy" decoding="async">
 
-<!-- Logo -->
-<img src="./assets/img/logo.svg" alt="Codex Studio" width="120" height="32">
+<!-- Logo (currently text, but if SVG used) -->
+<svg class="logo__svg" viewBox="0 0 120 24" aria-hidden="true">...</svg>
+<!-- with aria-label="Codex Studio" on parent <a class="logo"> -->
 ```
+
+**No hero image on this site** — do NOT generate `<link rel="preload" as="image">` for hero. The first content is `case-view` rendered from `CARDS_DATA`.
 
 ## Alt text rules
-- Describe WHAT is in the image, not "image of" or "picture of"
-- Include relevant technical context for 3D renders: topology, style, use case
-- Decorative images (pure aesthetics, no info): alt=""
-- Logo: alt="Codex Studio"
 
-## Head preload (critical performance)
+- Describe WHAT is shown, not "image of" / "picture of"
+- For 3D renders: include topology / pipeline / use-case context (good for image search)
+- Decorative: `alt=""`
+- Logo: `alt="Codex Studio"` or `aria-label` on parent
+
+## Head preload
+
 ```html
-<!-- In <head> — before CSS links -->
-<link rel="preload" as="image" href="./assets/img/hero/hero-bg.webp" fetchpriority="high">
-<link rel="preconnect" href="https://api.fontshare.com">
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
+<!-- No image preload on current site -->
 ```
 
-## Video HTML pattern
-```html
-<!-- Background/turntable video -->
-<video
-  autoplay
-  muted
-  loop
-  playsinline
-  preload="metadata"
-  width="1280"
-  height="720"
-  aria-label="3D turntable — Orbital Mk.II hard surface prop">
-  <source src="./assets/img/work/work-orbital-turntable.webm" type="video/webm">
-  <source src="./assets/img/work/work-orbital-turntable.mp4" type="video/mp4">
-</video>
-```
+## SVG icons pattern
 
-## Hover video on portfolio cards (optional pattern)
 ```html
-<video
-  class="card-video"
-  muted
-  loop
-  playsinline
-  preload="none"
-  aria-hidden="true">
-  <source src="./assets/img/work/work-orbital-turntable.mp4" type="video/mp4">
-</video>
-```
-```javascript
-card.addEventListener('mouseenter', () => video.play());
-card.addEventListener('mouseleave', () => { video.pause(); video.currentTime = 0; });
-```
-
-## SVG icon pattern
-```html
-<!-- Decorative icon (text label present) -->
+<!-- Decorative (text label adjacent) -->
 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
   <path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 </svg>
 
-<!-- Semantic icon (no text label — standalone) -->
-<svg width="20" height="20" viewBox="0 0 20 20" fill="none" role="img" aria-label="View project">
-  <path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-</svg>
+<!-- Semantic (icon-only button) -->
+<button aria-label="Copy link to project">
+  <svg viewBox="..." aria-hidden="true">...</svg>
+</button>
 ```
 
-## Optimization tools (reference for user)
-- WebP conversion: https://squoosh.app
-- MP4 compression: https://handbrake.fr
-- SVG optimization: https://jakearchibald.github.io/svgomg/
+## Optimization tools
+
+- WebP / AVIF: https://squoosh.app
+- MP4 / WebM: https://handbrake.fr
+- SVG: https://jakearchibald.github.io/svgomg/
+- GLB + DRACO: https://github.com/donmccurdy/glTF-Transform / https://gltf.report
 
 ## Prohibited
-- GIF files (use MP4/WebM)
-- PNG for photos or renders (use WebP)
-- Images without explicit width and height (causes CLS)
-- loading="lazy" on hero image (hurts LCP)
-- Icon fonts (use inline SVG)
-- Stock photos of people (Unsplash portraits)
-- File names with Cyrillic, spaces, or special characters
+
+- GIF (use MP4/WebM)
+- PNG for photos/renders (use WebP; PNG only for favicon)
+- `<img>` without `width` + `height` (CLS)
+- `loading="eager"` for non-critical images
+- Icon fonts
+- Stock photos of people
+- Cyrillic / spaces / special chars in filenames
+- Reusing `og-image.jpg` for multiple pages (per-page mandatory)
+- Relative `og:image` URL (must be absolute)
+- Eager-loading `model-data.js` or `<model-viewer>` script
+- Favicon names with `-NxN` suffix (use `-N.png`)
 
 ## Output format
-1. Asset diagnosis: what's wrong or what needs to be created
-2. Correct file names and paths
-3. HTML snippet(s) — labeled with target file
-4. Optimization checklist: size, format, naming, attributes
+
+1. **Asset diagnosis:** what's wrong / what to create
+2. **Correct file names and paths**
+3. **HTML snippet(s)** — labeled with target file
+4. **Optimization checklist:** size, format, naming, attributes
+5. If touches 3D: confirm model is in `assets/models/<id>.glb` (or `assets/models/free/<id>.glb` for FA) and lazy-load path is preserved
 
 ---
 
-## 🆕 Updated for Golden 0.4 (May 2026)
-
-- **Per-page OG-image:** на разных страницах нужны разные OG-файлы. Для index — `og-image.jpg`, для free-assets — `og-free-assets.jpg`. Не переиспользовать.
-- **OG-image размер:** `1200×630px`, JPEG, ≤ 200 KB. Реальный пример Golden 0.4: `og-free-assets.jpg` = 31 KB.
-- **`assets/favicon/site.webmanifest`:** обязательный PWA-манифест (минимум: name, icons 32+180, theme_color, background_color, display).
-- **`favicon-16.png`:** дополнительно к 32×32 — обязателен.
-- **OG-image alt:** `og:image:alt` обязателен (для accessibility соцсетей).
+*Version: 2.0 · May 2026 · Codex Studio v0.7.10*

@@ -1,243 +1,279 @@
 # Texts — Codex Studio
-> Контент сайта — тексты, структура страниц, CTA, подписи
-> Позиционирование: студия. Hard Surface 3D — основное направление. Международный рынок.
 
-> ⚠️ ЗАГЛУШКИ: Замените `hello@codex.studio`, реальные ссылки на Behance/ArtStation/LinkedIn,
-> описания проектов — на ваши реальные работы.
-
----
-
-## 🏠 Hero
-
-### H1 — главный заголовок (выбрать один вариант)
-
-**Вариант A (рекомендуется):**
-```
-We build
-what others
-can't imagine.
-```
-
-**Вариант B:**
-```
-Form follows
-obsession.
-```
-
-### Подзаголовок (subhead)
-```
-Codex — a 3D design studio focused on hard surface,
-product visualization, and world-class craftsmanship.
-Remote. Global. Detail-driven.
-```
-
-### CTA-кнопки
-- **Первичная:** `View Work` → `#work`
-- **Вторичная:** `Get in Touch` → `#contact`
+> Реальный контент сайта v0.7.10. Никаких hero/about/services-секций — это portfolio
+> с двумя страницами на sidebar+case-view архитектуре.
+> Hard-coded UI-тексты — в HTML и `js/main.js` (`CARDS_DATA`).
 
 ---
 
-## 👤 About
+## 🌐 Глобальные мета (обе страницы)
 
-### Заголовок секции
 ```
-About Codex
-```
-
-### Основной текст (краткий — для сайта)
-```
-Codex is a remote 3D design studio built around
-a single obsession: precision.
-
-We specialize in hard surface modeling — the kind of work
-where every edge, bevel, and surface tells a story.
-From product prototypes to game-ready assets,
-we create 3D that holds up at any zoom level.
-
-Blender-native. Detail-obsessed. Available worldwide.
+Domain:        codex.promo
+Language:      English (UI), JSON-LD inLanguage="en"
+robots:        index, follow, max-image-preview:large, max-snippet:-1
+Theme color:   #212121 (single tag, JS обновляет content при toggle)
+Site name:     Codex Studio
 ```
 
-### Расширенный вариант (для секции «More about us»)
-```
-We are Codex — a 3D design studio that works exclusively remote
-and takes on projects across the globe.
+### Контакты (реальные на сайте)
 
-Our core is hard surface modeling: mechanical forms, product design,
-industrial prototypes, hero props for games and film.
-We approach every project as an engineering problem with an aesthetic answer.
+- **Telegram:** `https://t.me/WhiteCatWeb` (CTA "Contact")
+- **ArtStation:** `REPLACE_WITH_REAL` (placeholder в JSON-LD)
+- **Behance:** `REPLACE_WITH_REAL` (placeholder в JSON-LD)
 
-Our workflow is built on Blender — not as a shortcut,
-but because we know it at a depth that shows in the final render.
-
-We don't do volume. We do quality.
-```
-
-### CTA внутри секции (опционально)
-```
-More about us →
-```
+`hello@codex.studio` НЕ используется — старая заглушка из ранних версий.
 
 ---
 
-## 🛠 Services
-
-### Заголовок
-```
-What We Do
-```
-
-### Блоки услуг
-
-```
-Hard Surface Modeling
-Mechanical forms, industrial assets, product shells,
-sci-fi props, vehicle parts — modeled with precision,
-built for any pipeline.
-```
-
-```
-Product Visualization
-3D renders and turntables for physical products —
-from concept stage through launch-ready imagery.
-E-commerce, pitch decks, investor materials.
-```
-
-```
-Game & Film Assets
-Game-ready props and hero assets for AAA pipelines.
-Clean topology, proper LODs, PBR texturing.
-Delivered Blender-native or exported to your format.
-```
-
-```
-3D Prototyping
-Turning concepts into detailed 3D models for review,
-manufacturing reference, or presentation.
-Physical accuracy where it matters.
-```
-
----
-
-## 💼 Work (Portfolio)
-
-### Заголовок секции
-```
-Selected Work
-```
-
-### Фильтры (опционально)
-```
-All  ·  Hard Surface  ·  Product  ·  Game Assets  ·  Prototyping
-```
-
-### Шаблон карточки проекта
-
-```
-[НАЗВАНИЕ ПРОЕКТА]                  ← заменить на реальное
-Hard Surface / Product / Game Asset ← выбрать нужный тег
-[Год]
-
-[1–2 предложения: что моделировалось, для кого, что технически интересно]
-
-→ View Project
-```
-
-**Примеры-заглушки (⚠️ заменить на реальные работы):**
-- `Orbital Mk.II` — sci-fi hard surface prop for game pipeline
-- `Corten Series` — product visualization for industrial furniture brand
-- `Apex Frame` — mechanical component breakdown for engineering client
-- `Nightshard` — hero weapon asset, game-ready, 4K PBR textures
-
----
-
-## 📬 Contact
-
-### Заголовок
-```
-Let's Work
-Together.
-```
-
-### Подзаголовок
-```
-Got a project that needs serious 3D work?
-Tell us what you're building.
-```
-
-### Основной CTA
-```
-Send a Brief →
-```
-*(ведёт на `mailto:` или форму)*
-
-### Подстрочник под CTA
-```
-We work fully remote with clients worldwide.
-Response within 24 hours.
-```
-
-### Контакты (⚠️ заменить заглушки)
-- Email: `hello@codex.studio` ← **ЗАМЕНИТЬ НА РЕАЛЬНЫЙ**
-- Behance: `[ссылка]` ← **ЗАМЕНИТЬ**
-- ArtStation: `[ссылка]` ← **ЗАМЕНИТЬ**
-- LinkedIn: `[ссылка]` ← **ЗАМЕНИТЬ**
-- Telegram: `[ссылка]` ← **ЗАМЕНИТЬ (опционально)**
-
----
-
-## 🔻 Footer
-
-```
-© Codex Studio, 2026
-Built in Blender. Delivered worldwide.
-```
-
----
-
-## 🌐 Meta-теги (SEO)
+## 📄 index.html — Meta
 
 ```html
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codex — 3D Design Studio · Hard Surface &amp; Product Visualization</title>
+<meta name="description" content="Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.">
+<link rel="canonical" href="https://codex.promo/">
 
-  <title>Codex — 3D Design Studio | Hard Surface & Product Visualization</title>
+<meta property="og:url"          content="https://codex.promo/">
+<meta property="og:type"         content="website">
+<meta property="og:site_name"    content="Codex Studio">
+<meta property="og:title"        content="Codex — 3D Design Studio">
+<meta property="og:description"  content="Hard surface modeling, product viz, and 3D prototyping for global clients. Remote. Detail-driven. Blender-native.">
+<meta property="og:image"        content="https://codex.promo/assets/img/og-image.jpg">
+<meta property="og:image:width"  content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt"    content="Codex Studio — 3D design portfolio">
+<meta property="og:locale"       content="en_US">
 
-  <meta name="description"
-    content="Codex is a remote 3D design studio specializing in hard surface modeling,
-    product visualization, and game-ready assets. Built in Blender. Available worldwide.">
-
-  <!-- ✅ og:url — обязательно, без него некоторые соцсети отображают превью некорректно -->
-  <meta property="og:url" content="https://codex.studio">
-  <meta property="og:title" content="Codex — 3D Design Studio">
-  <meta property="og:description"
-    content="Hard surface modeling, product viz, and 3D prototyping for global clients.
-    Remote. Detail-driven. Blender-native.">
-  <!-- ✅ Путь к OG-image: файл лежит в ./assets/img/og-image.jpg -->
-  <meta property="og:image" content="./assets/img/og-image.jpg">
-  <meta property="og:type" content="website">
-
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Codex — 3D Design Studio">
-  <meta name="twitter:description"
-    content="Hard surface modeling, product viz, and 3D prototyping for global clients.">
-  <meta name="twitter:image" content="./assets/img/og-image.jpg">
-
-  <meta name="robots" content="index, follow">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="./assets/favicon/favicon.ico">
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon/favicon-32x32.png">
-  <link rel="apple-touch-icon" href="./assets/favicon/apple-touch-icon.png">
-  <link rel="manifest" href="./assets/favicon/site.webmanifest">
-  <meta name="theme-color" content="#212121">
-</head>
+<meta name="twitter:card"        content="summary_large_image">
+<meta name="twitter:title"       content="Codex — 3D Design Studio">
+<meta name="twitter:description" content="Hard surface modeling, product viz, and 3D prototyping for global clients.">
+<meta name="twitter:image"       content="https://codex.promo/assets/img/og-image.jpg">
 ```
 
-> ⚠️ **Исправленный путь:** `og:image` и `twitter:image` теперь указывают на
-> `./assets/img/og-image.jpg` — в соответствии со структурой файлов из `structure.md`.
-> Предыдущий путь `./assets/og-image.jpg` был ошибочным.
+---
+
+## 📄 free-assets.html — Meta
+
+```html
+<title>Free 3D Assets — Codex Studio · Hard Surface, Game-Ready, CC0</title>
+<meta name="description" content="Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0 / CC-BY.">
+<link rel="canonical" href="https://codex.promo/free-assets.html">
+
+<meta property="og:url"          content="https://codex.promo/free-assets.html">
+<meta property="og:title"        content="Free 3D Assets — Codex Studio">
+<meta property="og:description"  content="Hard surface, game-ready, and product 3D assets. Free for personal and commercial use.">
+<meta property="og:image"        content="https://codex.promo/assets/img/og-free-assets.jpg">
+<meta property="og:image:alt"    content="Codex Studio — Free 3D Assets">
+```
+
+---
+
+## 🧱 Sidebar (UI-тексты, обе страницы)
+
+| Элемент | index.html | free-assets.html |
+|---|---|---|
+| Logo | `CODEX` (текст) | `CODEX` (текст) |
+| Logo aria-label | `Codex — back to first project` | `Codex — back to portfolio` |
+| Contact button | `Contact` | `Contact` |
+| Theme toggle aria-label | `Switch to light theme` | `Switch to light theme` |
+| Cards-toggle (open ‹‹) | `Hide projects` | `Hide categories` |
+| Cards-toggle (closed ››) | (auto-swap) | (auto-swap) |
+| Tags placeholder | `Filter by discipline` | `Filter by category` |
+| Game-switch label | `Game assets only` | `Game assets only` |
+| Counter | `18 projects` (динамика по фильтру) | `N items` (динамика) |
+
+### Tag-фильтры (index.html)
+
+```
+All  ·  Hard Surface  ·  Product  ·  Organic  ·  Prototyping  ·  Animations  ·  CAD
+```
+
+`data-filter` значения: `all`, `hard-surface`, `product`, `organic`, `prototyping`, `animations`, `cad`.
+
+### Tag-фильтры (free-assets.html)
+
+```
+All (6)  ·  Hard Surface (8)  ·  Product Viz (5)  ·  Game Assets (4)  ·  Organic (3)  ·  Animation (2)  ·  CAD
+```
+
+`data-filter` значения: `hard-surface`, `product`, `game`, `organic`, `animation`, `cad`. Числа в скобках — `tags-dropdown__option-count`.
+
+### Site footer
+
+```
+Stats:    DELETED 422 CUBES • CREATED 120 WORKS
+Pills:    [Contact (Telegram)]   [Free Assets (link to free-assets.html)]
+```
+
+---
+
+## 💼 Index — 18 work-cards
+
+Все карточки имеют структуру:
+
+```
+Category · Year
+[Title]
+[Description: 1-2 предложения, технические детали]
+```
+
+Полный список (`data-id`, `data-category`, optional `data-game-asset`):
+
+| # | data-id | Title | Category | Year | Description |
+|---|---|---|---|---|---|
+| 1 | `orbital-mk-ii` | Orbital Mk.II | Hard Surface | 2025 | Sci-fi prop engineered for AAA pipeline. Full PBR, clean topology. |
+| 2 | `vega-shell` | Vega Shell | Hard Surface | 2025 | Modular exo-armor system. 47 individual parts, LOD-ready. |
+| 3 | `ironclad-frame` | Ironclad Frame | Hard Surface | 2024 | Industrial chassis breakdown. Every bolt and seam modeled to spec. |
+| 4 | `corten-series` | Corten Series | Product | 2025 | Product viz for an industrial furniture brand. Launch-ready renders. |
+| 5 | `lumen-one` | Lumen One | Product | 2024 | Architectural lighting unit. Photorealistic turntable for pitch deck. |
+| 6 | `flux-capsule` | Flux Capsule | Product | 2024 | Consumer tech device. E-commerce shot set, studio lighting rig. |
+| 7 | `nightshard` ⭐ Game | Nightshard | Hard Surface | 2025 | Hero weapon asset. 4K PBR textures, optimised for real-time. |
+| 8 | `recon-drone` ⭐ Game | Recon Drone | Hard Surface | 2024 | Tactical UAV prop. Game-ready, LOD0–LOD2, UE5-compatible. |
+| 9 | `apex-frame` | Apex Frame | Prototyping | 2024 | Mechanical component breakdown for engineering client. Mfg-reference accuracy. |
+| 10 | `core-rig` | Core Rig | Prototyping | 2024 | Structural assembly prototype. Modeled for 3D-print validation. |
+| 11 | `helix-reveal` | Helix Reveal | Animations | 2025 | Product reveal animation. 6-second loop, render for hero section. |
+| 12 | `arc-motion` | Arc Motion | Animations | 2024 | Turntable sequence for industrial product. 360° orbit, 4K export. |
+| 13 | `nyx-panther` | Nyx Panther | Organic | 2025 | Stylized feline creature. Hand-sculpted anatomy, dual-coat fur groom. |
+| 14 | `drift-koi` | Drift Koi | Organic | 2024 | Ornamental fish study. Displacement scales, subsurface scattering pass. |
+| 15 | `glint-owl` | Glint Owl | Organic | 2025 | Stylized bird character. Feather grooming with procedural asymmetry. |
+| 16 | `mech-link` | Mech Link | CAD | 2025 | Industrial CAD assembly. Placeholder kit — final GLB + renders in progress. (`data-cad-placeholder="true"`) |
+| 17 | `flex-spine` | Flex Spine | CAD | 2025 | Kinematic spine study. CAD constraints, parametric ribs — work in progress. (`data-cad-placeholder="true"`) |
+| 18 | `cad-strut` | CAD Strut | CAD | 2025 | Structural strut node. CAD-first geometry — final model & textures pending. (`data-cad-placeholder="true"`) |
+
+**Frozen-инвариант:** список `data-id` зафиксирован в `verify-frozen.js` → `EXPECTED_IDS`. Тесты `WORK-cards-18` и `WORK-cards-ids` проверяют точное соответствие.
+
+---
+
+## 🎬 Case-view (UI)
+
+| Элемент | Текст |
+|---|---|
+| Mobile back-btn | `Projects` |
+| Tabs | `2D` / `3D` / `Blueprints` |
+| 3D tab title | `Interactive 3D viewer` |
+| Blueprints tab title | `Technical blueprint view` |
+| Counter | `1 / 15` (динамика, формат `n / N`) |
+| Prev / Next aria-label | `Previous project (←)` / `Next project (→)` |
+| Share button (desktop+mobile) | `COPY LINK` (после клика swap → `COPIED ✓` 1.5s) |
+| Blueprints export | `Export SVG` |
+| Blueprints fullscreen aria-label | `Open blueprint fullscreen` |
+
+---
+
+## 📦 CARDS_DATA — captions per case (`js/main.js`)
+
+Каждый кейс в `CARDS_DATA` имеет:
+
+```javascript
+{
+  role: 'Личный' | 'Клиентский',
+  tools: ['Blender', 'Substance Painter', 'Marmoset', ...],
+  modelSrc: './assets/models/<id>.glb' | 'https://modelviewer.dev/...' (placeholder),
+  modelStats: { triangles, vertices, materials, textures, software },
+  items: makeItems({
+    id: '<id>',
+    palette: [5 background gradients],
+    captions: [5 × { label, desc }],
+    text:   { title, body },          // optional intro text-block
+    inline: { title, body }           // optional inline text alongside one tall image
+  })
+}
+```
+
+**Captions — пример (orbital-mk-ii):**
+
+| Slide | Label | Description |
+|---|---|---|
+| 01 | Hero render | Sci-fi prop engineered for AAA pipeline. Full PBR, clean manifold topology. |
+| 02 | Material breakdown | Substance layer stack — roughness variation separates wear zones from clean panels. |
+| 03 | Topology pass | 18k clean quads. Subdivision-ready and LOD0-certified for real-time integration. |
+| 04 | Detail close-up | Panel seam macro. Bevel widths tuned for 2m viewing distance at 4K resolution. |
+| 05 | Final composite | Lit with 3-point studio HDRI. Denoised in OptiX, tonemapped ACES. |
+
+Полный набор captions для всех 18 кейсов — в `js/main.js` начиная с `var CARDS_DATA = {...}` (строка ~62).
+
+**При смене реальных работ:** заменить captions + palette + (optionally) modelSrc/modelStats. Заголовки и descriptions карточек дублируются в HTML (строки 316–531) — синхронизировать оба места.
+
+---
+
+## 🛠 free-assets.html — UI и категории
+
+Sidebar содержит **tag-cards** (специальные cards-категории) с двойным классом `tag-card work-card`. Главное `<main>` содержит `fa-grid` с `fa-card` (реальные карточки скачивания).
+
+Категории FA:
+
+```
+Hard Surface (8)    — propulsion, mechanical, sci-fi
+Product Viz (5)     — consumer products, industrial
+Game Assets (4)     — UE5/Unity-ready, LOD0–LOD2
+Organic (3)         — creatures, fauna
+Animation (2)       — looped turntables, reveal sequences
+CAD                 — placeholder for engineering geometry
+```
+
+Каждый `fa-card` содержит:
+```
+[Cover image / SVG]
+[Title]
+[Tags chips]
+[License: CC0 / CC-BY]
+[File size · format · poly count]
+[Download button] → /downloads/<slug>.zip (placeholder 412 B)
+```
+
+---
+
+## 🔻 Footer (sidebar)
+
+```
+DELETED 422 CUBES • CREATED 120 WORKS
+
+[Contact]   [Free Assets →]
+```
+
+Stats — статичные, специально подобранные «инсайдерские» цифры, не маркетинговые counter-fluff.
+
+---
+
+## 🧾 JSON-LD Schemas
+
+### Index.html
+
+1. **Organization** (Codex Studio, sameAs Telegram + REPLACE_WITH_REAL ArtStation/Behance)
+2. **WebSite** (Codex Studio)
+3. **ItemList** — 4 featured CreativeWork (Orbital Mk.II / Corten Series / Apex Frame / Nightshard)
+
+### Free-assets.html
+
+1. **Organization** (одинаковая с index)
+2. **WebPage** (Free 3D Assets, primaryImageOfPage = og-free-assets.jpg)
+
+---
+
+## 🌍 llms.txt
+
+```markdown
+# Codex Studio
+> Remote 3D design studio focused on hard surface modeling, product
+> visualization, and game-ready assets. Built natively in Blender.
+
+## Featured works
+- Orbital Mk.II — hard surface, game-ready. Personal.
+- Corten Series — product visualization, industrial design. Client.
+- Apex Frame — hard surface, frame system. Personal.
+- Nightshard — hard surface, game asset. Personal.
+
+## Technical
+- Hand-written HTML + CSS + vanilla JavaScript. No framework.
+- Typography: Clash Display + General Sans (Fontshare).
+- Animation: GSAP 3 (ScrollTrigger, SplitText) via CDN.
+- Accessibility: WCAG 2.1 AA, axe-core clean, prefers-reduced-motion honored, 44px touch targets.
+
+## Contact
+- Telegram: https://t.me/WhiteCatWeb
+- ArtStation: https://www.artstation.com/REPLACE_WITH_REAL
+- Behance:    https://www.behance.net/REPLACE_WITH_REAL
+```
 
 ---
 
@@ -246,19 +282,34 @@ Built in Blender. Delivered worldwide.
 **Голос:** уверенный, лаконичный, профессиональный.
 
 **Делать:**
-- Говорить «we», а не «I»
-- Конкретные глаголы: model, build, craft, deliver, prototype
-- Короткие предложения. Одна идея — одно предложение.
-- Всё на английском
+- Конкретные глаголы: model, build, craft, deliver, render, ship, prototype
+- Короткие декларативные предложения
+- Технические специфики: «4K PBR», «LOD0–LOD2», «UE5-compatible», «manifold topology»
+- Всё на English
 
 **Не делать:**
-- ❌ «We are passionate about 3D design» — клише
-- ❌ «Your one-stop shop for all 3D needs» — маркетплейс
-- ❌ «Over 500 satisfied clients» — без доказательств
-- ❌ Упоминание города / страны — работаем глобально
-- ❌ Смешивать русский и английский в UI-текстах
+- ❌ «We are passionate about 3D» — клише
+- ❌ «Your one-stop shop» — маркетплейс
+- ❌ «500+ satisfied clients» — без доказательств
+- ❌ Упоминание города / страны
+- ❌ Кириллицу в UI
+- ❌ Question-headlines («Looking for quality 3D?»)
+- ❌ Восклицательные знаки в body
+- ❌ Buzzwords: innovative, cutting-edge, synergy, leverage
 
 ---
 
-*Версия: 2.2 | Апрель 2026 | Codex Studio*
-*⚠️ Требует замены всех заглушек реальными данными перед деплоем*
+## ⚠️ Known placeholders / REPLACE_WITH_REAL
+
+При финальном production deploy заменить:
+
+- `https://www.artstation.com/REPLACE_WITH_REAL` (JSON-LD sameAs, llms.txt)
+- `https://www.behance.net/REPLACE_WITH_REAL` (JSON-LD sameAs, llms.txt)
+- `/downloads/*.zip` — все 4 (`apex-frame`, `corten-series`, `nightshard`, `orbital-mk-ii`) сейчас 412 B placeholder
+- Некоторые `modelSrc` в `CARDS_DATA` указывают на `https://modelviewer.dev/shared-assets/...` (Astronaut, RobotExpressive) — заменить на свои GLB из `assets/models/`
+
+Все остальные тексты — реальные UI/контент сайта.
+
+---
+
+*Версия: 2.0 · Май 2026 · Codex Studio v0.7.10*
