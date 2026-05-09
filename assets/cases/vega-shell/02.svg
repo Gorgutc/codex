@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a2030"/>
+<stop offset="1" stop-color="#252e40"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<line x1="0" y1="0" x2="0" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="85" y1="0" x2="85" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="170" y1="0" x2="170" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="255" y1="0" x2="255" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="340" y1="0" x2="340" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="425" y1="0" x2="425" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="510" y1="0" x2="510" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="595" y1="0" x2="595" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="680" y1="0" x2="680" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="765" y1="0" x2="765" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="850" y1="0" x2="850" y2="1200" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="0" x2="900" y2="0" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="85" x2="900" y2="85" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="170" x2="900" y2="170" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="255" x2="900" y2="255" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="340" x2="900" y2="340" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="425" x2="900" y2="425" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="510" x2="900" y2="510" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="595" x2="900" y2="595" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="680" x2="900" y2="680" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="765" x2="900" y2="765" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="850" x2="900" y2="850" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="935" x2="900" y2="935" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="1020" x2="900" y2="1020" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="1105" x2="900" y2="1105" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<line x1="0" y1="1190" x2="900" y2="1190" stroke="#7aa3c8" stroke-width="0.6" opacity="0.12"/>
+<rect x="765" y="340" width="85" height="85" fill="#7aa3c8" opacity="0.33"/>
+<rect x="170" y="595" width="85" height="85" fill="#7aa3c8" opacity="0.27"/>
+<rect x="255" y="255" width="85" height="85" fill="#7aa3c8" opacity="0.24"/>
+<rect x="765" y="680" width="85" height="85" fill="#7aa3c8" opacity="0.15"/>
+<rect x="765" y="1105" width="85" height="85" fill="#7aa3c8" opacity="0.10"/>
+<rect x="765" y="510" width="85" height="85" fill="#7aa3c8" opacity="0.21"/>
+<rect x="170" y="850" width="85" height="85" fill="#7aa3c8" opacity="0.09"/>
+<rect x="765" y="935" width="85" height="85" fill="#7aa3c8" opacity="0.12"/>
+<rect x="255" y="255" width="85" height="85" fill="#7aa3c8" opacity="0.33"/>
+<rect x="85" y="255" width="85" height="85" fill="#7aa3c8" opacity="0.22"/>
+<rect x="510" y="765" width="85" height="85" fill="#7aa3c8" opacity="0.29"/>
+<rect x="85" y="680" width="85" height="85" fill="#7aa3c8" opacity="0.34"/>
+<rect x="680" y="595" width="85" height="85" fill="#7aa3c8" opacity="0.12"/>
+<rect x="765" y="850" width="85" height="85" fill="#7aa3c8" opacity="0.17"/>
+<rect x="765" y="340" width="85" height="85" fill="#7aa3c8" opacity="0.08"/>
+<rect x="85" y="255" width="85" height="85" fill="#7aa3c8" opacity="0.35"/>
+<rect x="255" y="935" width="85" height="85" fill="#7aa3c8" opacity="0.15"/>
+<rect x="680" y="935" width="85" height="85" fill="#7aa3c8" opacity="0.20"/>
+<rect x="255" y="425" width="85" height="85" fill="#7aa3c8" opacity="0.36"/>
+<rect x="510" y="680" width="85" height="85" fill="#7aa3c8" opacity="0.28"/>
+<rect x="425" y="1105" width="85" height="85" fill="#7aa3c8" opacity="0.12"/>
+<rect x="85" y="595" width="85" height="85" fill="#7aa3c8" opacity="0.35"/>
+<rect x="765" y="595" width="85" height="85" fill="#7aa3c8" opacity="0.39"/>
+<line x1="135.0" y1="600.0" x2="765.0" y2="600.0" stroke="#7aa3c8" stroke-width="1.4" opacity="0.55"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">VEGA SHELL</text>
+</svg>

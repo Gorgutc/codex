@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a1a2a"/>
+<stop offset="1" stop-color="#252535"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<polygon points="178.8,484.8 183.9,709.2 302.4,650.6" fill="#9a7ac9" opacity="0.16"/>
+<polygon points="8.3,549.9 -62.2,527.3 149.6,584.7" fill="#9a7ac9" opacity="0.18"/>
+<polygon points="294.9,540.7 173.8,583.2 332.9,711.9" fill="#9a7ac9" opacity="0.19"/>
+<polygon points="799.8,909.6 869.3,974.8 955.6,679.0" fill="#9a7ac9" opacity="0.20"/>
+<polygon points="877.7,148.2 1034.5,116.1 834.6,6.7" fill="#9a7ac9" opacity="0.10"/>
+<polygon points="885.6,640.6 797.2,796.9 937.3,697.4" fill="#9a7ac9" opacity="0.06"/>
+<polygon points="170.4,571.6 98.3,695.8 312.2,792.6" fill="#9a7ac9" opacity="0.09"/>
+<polygon points="816.5,633.5 788.5,412.5 640.2,463.8" fill="#9a7ac9" opacity="0.22"/>
+<polygon points="78.7,964.7 241.8,804.0 -61.7,1072.1" fill="#9a7ac9" opacity="0.18"/>
+<polygon points="162.5,569.0 10.0,359.1 -11.6,438.5" fill="#9a7ac9" opacity="0.18"/>
+<polygon points="51.5,237.5 94.4,250.4 5.0,239.5" fill="#9a7ac9" opacity="0.16"/>
+<polygon points="601.9,792.6 463.9,709.4 653.8,722.5" fill="#9a7ac9" opacity="0.22"/>
+<polygon points="892.7,581.0 850.0,583.9 881.1,777.5" fill="#9a7ac9" opacity="0.10"/>
+<polygon points="798.5,708.7 705.2,593.4 750.2,615.3" fill="#9a7ac9" opacity="0.12"/>
+<polygon points="450.0,420.0 605.9,510.0 605.9,690.0 450.0,780.0 294.1,690.0 294.1,510.0" fill="none" stroke="#9a7ac9" stroke-width="1.6" opacity="0.85"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">NIGHTSHARD</text>
+</svg>

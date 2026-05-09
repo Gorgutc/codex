@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1c2030"/>
+<stop offset="1" stop-color="#28303e"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<rect width="1600" height="900" fill="url(#glow)"/>
+<line x1="800.0" y1="90.0" x2="800.0" y2="810.0" stroke="#7fb2d1" stroke-width="1.6" opacity="0.65"/>
+<line x1="421.7550399367764" y1="135.0" x2="1178.2449600632235" y2="135.0" stroke="#7fb2d1" stroke-width="1" opacity="0.30"/>
+<circle cx="800.0" cy="135.0" r="3" fill="#7fb2d1" opacity="0.85"/>
+<line x1="260.10636836206595" y1="213.8" x2="1339.893631637934" y2="213.8" stroke="#7fb2d1" stroke-width="1" opacity="0.42"/>
+<circle cx="800.0" cy="213.8" r="3" fill="#7fb2d1" opacity="0.85"/>
+<line x1="278.5762689775952" y1="292.5" x2="1321.4237310224048" y2="292.5" stroke="#7fb2d1" stroke-width="1" opacity="0.54"/>
+<circle cx="800.0" cy="292.5" r="3" fill="#7fb2d1" opacity="0.85"/>
+<line x1="499.84264483176696" y1="371.2" x2="1100.1573551682332" y2="371.2" stroke="#7fb2d1" stroke-width="1" opacity="0.30"/>
+<circle cx="800.0" cy="371.2" r="3" fill="#7fb2d1" opacity="0.85"/>
+<line x1="551.1236444612705" y1="450.0" x2="1048.8763555387295" y2="450.0" stroke="#7fb2d1" stroke-width="1" opacity="0.42"/>
+<circle cx="800.0" cy="450.0" r="3" fill="#7fb2d1" opacity="0.85"/>
+<line x1="421.9736627238963" y1="528.8" x2="1178.0263372761037" y2="528.8" stroke="#7fb2d1" stroke-width="1" opacity="0.54"/>
+<circle cx="800.0" cy="528.8" r="3" fill="#7fb2d1" opacity="0.85"/>
+<line x1="306.40666248357667" y1="607.5" x2="1293.5933375164234" y2="607.5" stroke="#7fb2d1" stroke-width="1" opacity="0.30"/>
+<circle cx="800.0" cy="607.5" r="3" fill="#7fb2d1" opacity="0.85"/>
+<line x1="470.6357388137774" y1="686.2" x2="1129.3642611862226" y2="686.2" stroke="#7fb2d1" stroke-width="1" opacity="0.42"/>
+<circle cx="800.0" cy="686.2" r="3" fill="#7fb2d1" opacity="0.85"/><text x="800" y="872" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">RECON DRONE</text>
+</svg>

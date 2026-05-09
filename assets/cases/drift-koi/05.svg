@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#161e24"/>
+<stop offset="1" stop-color="#1f2a34"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<polygon points="899.0,25.8 1019.3,-153.3 999.6,-49.0" fill="#e88a4a" opacity="0.15"/>
+<polygon points="658.8,362.4 505.1,174.1 662.7,419.1" fill="#e88a4a" opacity="0.12"/>
+<polygon points="884.3,163.2 984.9,125.2 1032.2,44.1" fill="#e88a4a" opacity="0.18"/>
+<polygon points="725.8,507.8 845.8,498.9 659.7,270.7" fill="#e88a4a" opacity="0.07"/>
+<polygon points="572.8,970.3 675.8,891.3 427.2,775.1" fill="#e88a4a" opacity="0.18"/>
+<polygon points="191.9,232.6 264.6,136.9 65.3,470.4" fill="#e88a4a" opacity="0.14"/>
+<polygon points="783.2,885.0 769.9,875.9 773.1,805.1" fill="#e88a4a" opacity="0.14"/>
+<polygon points="383.5,143.4 450.1,164.4 378.2,85.5" fill="#e88a4a" opacity="0.12"/>
+<polygon points="672.7,444.7 624.1,230.4 565.1,646.1" fill="#e88a4a" opacity="0.14"/>
+<polygon points="630.1,1172.8 529.0,1027.6 506.8,990.6" fill="#e88a4a" opacity="0.15"/>
+<polygon points="142.3,762.6 54.6,986.1 85.4,542.7" fill="#e88a4a" opacity="0.17"/>
+<polygon points="881.2,1172.0 706.1,1237.7 726.3,1320.9" fill="#e88a4a" opacity="0.18"/>
+<polygon points="398.9,332.2 246.7,305.2 423.6,126.1" fill="#e88a4a" opacity="0.19"/>
+<polygon points="229.7,101.0 224.8,-1.8 152.4,219.6" fill="#e88a4a" opacity="0.11"/>
+<polygon points="408.3,941.1 561.2,842.0 498.2,1084.2" fill="#e88a4a" opacity="0.07"/>
+<polygon points="25.6,747.5 -10.7,736.0 4.0,531.5" fill="#e88a4a" opacity="0.14"/>
+<polygon points="674.5,268.8 730.5,201.2 653.1,478.0" fill="#e88a4a" opacity="0.10"/>
+<polygon points="450.0,420.0 605.9,510.0 605.9,690.0 450.0,780.0 294.1,690.0 294.1,510.0" fill="none" stroke="#e88a4a" stroke-width="1.6" opacity="0.85"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">DRIFT KOI</text>
+</svg>

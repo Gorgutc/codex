@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1c2428"/>
+<stop offset="1" stop-color="#28343a"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="800" height="600" fill="url(#bg)"/>
+<rect width="800" height="600" fill="url(#glow)"/>
+<line x1="400.0" y1="60.0" x2="400.0" y2="540.0" stroke="#8fa3b2" stroke-width="1.6" opacity="0.65"/>
+<line x1="221.98493828976873" y1="90.0" x2="578.0150617102313" y2="90.0" stroke="#8fa3b2" stroke-width="1" opacity="0.30"/>
+<circle cx="400.0" cy="90.0" r="3" fill="#8fa3b2" opacity="0.85"/>
+<line x1="188.5671895497919" y1="136.7" x2="611.4328104502081" y2="136.7" stroke="#8fa3b2" stroke-width="1" opacity="0.42"/>
+<circle cx="400.0" cy="136.7" r="3" fill="#8fa3b2" opacity="0.85"/>
+<line x1="255.6432634422487" y1="183.3" x2="544.3567365577513" y2="183.3" stroke="#8fa3b2" stroke-width="1" opacity="0.54"/>
+<circle cx="400.0" cy="183.3" r="3" fill="#8fa3b2" opacity="0.85"/>
+<line x1="246.45989403939893" y1="230.0" x2="553.5401059606011" y2="230.0" stroke="#8fa3b2" stroke-width="1" opacity="0.30"/>
+<circle cx="400.0" cy="230.0" r="3" fill="#8fa3b2" opacity="0.85"/>
+<line x1="143.95562329888094" y1="276.7" x2="656.0443767011191" y2="276.7" stroke="#8fa3b2" stroke-width="1" opacity="0.42"/>
+<circle cx="400.0" cy="276.7" r="3" fill="#8fa3b2" opacity="0.85"/>
+<line x1="127.25253834160975" y1="323.3" x2="672.7474616583902" y2="323.3" stroke="#8fa3b2" stroke-width="1" opacity="0.54"/>
+<circle cx="400.0" cy="323.3" r="3" fill="#8fa3b2" opacity="0.85"/>
+<line x1="180.92471787686813" y1="370.0" x2="619.0752821231318" y2="370.0" stroke="#8fa3b2" stroke-width="1" opacity="0.30"/>
+<circle cx="400.0" cy="370.0" r="3" fill="#8fa3b2" opacity="0.85"/>
+<line x1="191.117039313564" y1="416.7" x2="608.882960686436" y2="416.7" stroke="#8fa3b2" stroke-width="1" opacity="0.42"/>
+<circle cx="400.0" cy="416.7" r="3" fill="#8fa3b2" opacity="0.85"/>
+<line x1="261.152131044967" y1="463.3" x2="538.8478689550329" y2="463.3" stroke="#8fa3b2" stroke-width="1" opacity="0.54"/>
+<circle cx="400.0" cy="463.3" r="3" fill="#8fa3b2" opacity="0.85"/><text x="400" y="572" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">IRONCLAD FRAME</text>
+</svg>

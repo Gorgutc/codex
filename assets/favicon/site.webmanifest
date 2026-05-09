@@ -1,0 +1,23 @@
+{
+  "name": "Codex Studio",
+  "short_name": "Codex",
+  "description": "Remote 3D design studio. Hard surface modeling, product visualization, game-ready assets.",
+  "icons": [
+    {
+      "src": "./favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "./apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#212121",
+  "background_color": "#212121",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/",
+  "lang": "en"
+}

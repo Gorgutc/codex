@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a1a22"/>
+<stop offset="1" stop-color="#262632"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="800" height="600" fill="url(#bg)"/>
+<rect width="800" height="600" fill="url(#glow)"/>
+<polygon points="453.5,152.8 611.2,68.9 478.1,265.0" fill="#b8a878" opacity="0.21"/>
+<polygon points="613.9,19.7 708.7,45.4 664.1,36.8" fill="#b8a878" opacity="0.06"/>
+<polygon points="684.6,598.0 752.6,594.0 565.9,659.7" fill="#b8a878" opacity="0.12"/>
+<polygon points="400.1,267.2 514.3,268.8 506.9,276.9" fill="#b8a878" opacity="0.18"/>
+<polygon points="470.6,353.3 579.6,272.6 554.1,449.9" fill="#b8a878" opacity="0.15"/>
+<polygon points="470.1,331.1 399.9,394.8 381.7,402.9" fill="#b8a878" opacity="0.16"/>
+<polygon points="598.0,37.1 724.3,-78.9 661.9,154.8" fill="#b8a878" opacity="0.18"/>
+<polygon points="450.5,149.5 410.5,245.9 434.3,82.4" fill="#b8a878" opacity="0.19"/>
+<polygon points="734.6,234.5 860.9,296.2 592.8,323.6" fill="#b8a878" opacity="0.22"/>
+<polygon points="645.1,466.3 613.7,415.3 714.5,466.9" fill="#b8a878" opacity="0.13"/>
+<polygon points="22.2,430.6 24.3,531.6 -99.7,452.3" fill="#b8a878" opacity="0.07"/>
+<polygon points="697.6,266.7 625.2,241.0 643.1,363.2" fill="#b8a878" opacity="0.18"/>
+<polygon points="201.5,50.7 338.8,3.6 211.9,20.0" fill="#b8a878" opacity="0.09"/>
+<polygon points="691.2,219.4 643.4,134.1 727.5,323.3" fill="#b8a878" opacity="0.13"/>
+<polygon points="113.4,24.0 117.9,55.8 243.1,141.2" fill="#b8a878" opacity="0.13"/>
+<polygon points="548.4,518.1 507.0,578.2 469.0,584.1" fill="#b8a878" opacity="0.19"/>
+<polygon points="400.0,180.0 503.9,240.0 503.9,360.0 400.0,420.0 296.1,360.0 296.1,240.0" fill="none" stroke="#b8a878" stroke-width="1.6" opacity="0.85"/><text x="400" y="572" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">GLINT OWL</text>
+</svg>

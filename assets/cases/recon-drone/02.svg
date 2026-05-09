@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1c2030"/>
+<stop offset="1" stop-color="#28303e"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<polygon points="726.5,680.7 458.7,887.9 178.9,697.2 273.8,372.2 612.2,362.0" fill="none" stroke="#7fb2d1" stroke-width="1.4" opacity="0.85"/>
+<line x1="450.0" y1="600.0" x2="726.5" y2="680.7" stroke="#7fb2d1" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="458.7" y2="887.9" stroke="#7fb2d1" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="178.9" y2="697.2" stroke="#7fb2d1" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="273.8" y2="372.2" stroke="#7fb2d1" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="612.2" y2="362.0" stroke="#7fb2d1" stroke-width="0.8" opacity="0.35"/>
+<circle cx="674.7" cy="890.5" r="3" fill="#7fb2d1" opacity="0.8"/>
+<circle cx="244.3" cy="901.9" r="3" fill="#7fb2d1" opacity="0.8"/>
+<circle cx="125.3" cy="505.2" r="3" fill="#7fb2d1" opacity="0.8"/>
+<circle cx="439.5" cy="252.6" r="3" fill="#7fb2d1" opacity="0.8"/>
+<circle cx="788.9" cy="478.5" r="3" fill="#7fb2d1" opacity="0.8"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">RECON DRONE</text>
+</svg>

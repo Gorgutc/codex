@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1c2030"/>
+<stop offset="1" stop-color="#28303e"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="800" height="600" fill="url(#bg)"/>
+<rect width="800" height="600" fill="url(#glow)"/>
+<polygon points="517.2,580.9 505.3,494.5 602.8,578.8" fill="#7fb2d1" opacity="0.13"/>
+<polygon points="575.4,511.6 550.5,584.4 673.8,407.7" fill="#7fb2d1" opacity="0.19"/>
+<polygon points="256.7,379.1 394.4,418.8 252.3,470.0" fill="#7fb2d1" opacity="0.08"/>
+<polygon points="424.4,572.7 407.4,631.0 323.9,669.3" fill="#7fb2d1" opacity="0.13"/>
+<polygon points="182.8,392.1 102.2,273.0 210.5,373.5" fill="#7fb2d1" opacity="0.10"/>
+<polygon points="796.7,344.2 883.9,323.7 714.3,259.1" fill="#7fb2d1" opacity="0.09"/>
+<polygon points="151.4,229.1 118.6,230.6 138.5,256.6" fill="#7fb2d1" opacity="0.14"/>
+<polygon points="51.2,420.3 14.4,449.2 108.9,356.5" fill="#7fb2d1" opacity="0.14"/>
+<polygon points="66.4,455.4 96.4,399.0 194.7,432.6" fill="#7fb2d1" opacity="0.20"/>
+<polygon points="412.9,254.0 261.7,301.0 315.6,244.7" fill="#7fb2d1" opacity="0.20"/>
+<polygon points="300.5,585.8 447.6,518.6 157.1,568.0" fill="#7fb2d1" opacity="0.09"/>
+<polygon points="88.5,484.6 -36.4,476.0 66.1,511.2" fill="#7fb2d1" opacity="0.12"/>
+<polygon points="400.0,180.0 503.9,240.0 503.9,360.0 400.0,420.0 296.1,360.0 296.1,240.0" fill="none" stroke="#7fb2d1" stroke-width="1.6" opacity="0.85"/><text x="400" y="572" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">RECON DRONE</text>
+</svg>

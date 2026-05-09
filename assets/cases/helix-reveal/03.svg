@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a2233"/>
+<stop offset="1" stop-color="#26304a"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<ellipse cx="450.0" cy="600.0" rx="135.0" ry="60.9" fill="none" stroke="#88a5d8" stroke-width="1.1" opacity="0.25" transform="rotate(13.3 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="216.0" ry="119.1" fill="none" stroke="#88a5d8" stroke-width="1.1" opacity="0.35" transform="rotate(5.7 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="297.0" ry="134.4" fill="none" stroke="#88a5d8" stroke-width="1.1" opacity="0.45" transform="rotate(-26.3 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="378.0" ry="229.2" fill="none" stroke="#88a5d8" stroke-width="1.1" opacity="0.55" transform="rotate(-4.7 450.0 600.0)"/>
+<circle cx="450.0" cy="600.0" r="36.0" fill="#88a5d8" opacity="0.9"/>
+<circle cx="450.0" cy="600.0" r="72.0" fill="none" stroke="#88a5d8" stroke-width="1.4" opacity="0.7"/>
+<circle cx="564.3" cy="762.2" r="4.1" fill="#88a5d8" opacity="0.85"/>
+<circle cx="768.2" cy="627.6" r="5.3" fill="#88a5d8" opacity="0.85"/>
+<circle cx="803.7" cy="737.7" r="6.9" fill="#88a5d8" opacity="0.85"/>
+<circle cx="486.0" cy="783.4" r="4.1" fill="#88a5d8" opacity="0.85"/>
+<circle cx="662.4" cy="796.7" r="6.9" fill="#88a5d8" opacity="0.85"/>
+<circle cx="738.8" cy="795.9" r="4.8" fill="#88a5d8" opacity="0.85"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">HELIX REVEAL</text>
+</svg>

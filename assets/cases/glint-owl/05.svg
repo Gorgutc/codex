@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a1a22"/>
+<stop offset="1" stop-color="#262632"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<ellipse cx="450.0" cy="600.0" rx="135.0" ry="72.0" fill="none" stroke="#b8a878" stroke-width="1.1" opacity="0.25" transform="rotate(1.1 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="216.0" ry="130.8" fill="none" stroke="#b8a878" stroke-width="1.1" opacity="0.35" transform="rotate(-3.7 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="297.0" ry="125.5" fill="none" stroke="#b8a878" stroke-width="1.1" opacity="0.45" transform="rotate(8.7 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="378.0" ry="282.0" fill="none" stroke="#b8a878" stroke-width="1.1" opacity="0.55" transform="rotate(4.6 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="459.0" ry="230.7" fill="none" stroke="#b8a878" stroke-width="1.1" opacity="0.65" transform="rotate(-14.9 450.0 600.0)"/>
+<circle cx="450.0" cy="600.0" r="36.0" fill="#b8a878" opacity="0.9"/>
+<circle cx="450.0" cy="600.0" r="72.0" fill="none" stroke="#b8a878" stroke-width="1.4" opacity="0.7"/>
+<circle cx="692.1" cy="638.4" r="5.7" fill="#b8a878" opacity="0.85"/>
+<circle cx="335.9" cy="735.2" r="3.3" fill="#b8a878" opacity="0.85"/>
+<circle cx="636.4" cy="778.3" r="4.6" fill="#b8a878" opacity="0.85"/>
+<circle cx="250.8" cy="613.3" r="6.8" fill="#b8a878" opacity="0.85"/>
+<circle cx="814.0" cy="677.6" r="5.9" fill="#b8a878" opacity="0.85"/>
+<circle cx="174.6" cy="451.8" r="7.0" fill="#b8a878" opacity="0.85"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">GLINT OWL</text>
+</svg>

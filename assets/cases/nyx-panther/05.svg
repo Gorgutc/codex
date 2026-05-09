@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a1816"/>
+<stop offset="1" stop-color="#2a2520"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<polygon points="272.2,373.4 610.6,360.9 727.0,678.8 460.6,887.8 179.6,699.0" fill="none" stroke="#d4a574" stroke-width="1.4" opacity="0.85"/>
+<line x1="450.0" y1="600.0" x2="272.2" y2="373.4" stroke="#d4a574" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="610.6" y2="360.9" stroke="#d4a574" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="727.0" y2="678.8" stroke="#d4a574" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="460.6" y2="887.8" stroke="#d4a574" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="179.6" y2="699.0" stroke="#d4a574" stroke-width="0.8" opacity="0.35"/>
+<circle cx="436.5" cy="235.2" r="3" fill="#d4a574" opacity="0.8"/>
+<circle cx="767.9" cy="483.6" r="3" fill="#d4a574" opacity="0.8"/>
+<circle cx="665.1" cy="874.2" r="3" fill="#d4a574" opacity="0.8"/>
+<circle cx="261.7" cy="880.3" r="3" fill="#d4a574" opacity="0.8"/>
+<circle cx="117.1" cy="505.3" r="3" fill="#d4a574" opacity="0.8"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">NYX PANTHER</text>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a2030"/>
+<stop offset="1" stop-color="#252e40"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<ellipse cx="450.0" cy="600.0" rx="135.0" ry="88.3" fill="none" stroke="#7aa3c8" stroke-width="1.1" opacity="0.25" transform="rotate(-19.9 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="216.0" ry="133.4" fill="none" stroke="#7aa3c8" stroke-width="1.1" opacity="0.35" transform="rotate(19.3 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="297.0" ry="137.9" fill="none" stroke="#7aa3c8" stroke-width="1.1" opacity="0.45" transform="rotate(-17.0 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="378.0" ry="248.9" fill="none" stroke="#7aa3c8" stroke-width="1.1" opacity="0.55" transform="rotate(-7.1 450.0 600.0)"/>
+<ellipse cx="450.0" cy="600.0" rx="459.0" ry="243.2" fill="none" stroke="#7aa3c8" stroke-width="1.1" opacity="0.65" transform="rotate(9.3 450.0 600.0)"/>
+<circle cx="450.0" cy="600.0" r="36.0" fill="#7aa3c8" opacity="0.9"/>
+<circle cx="450.0" cy="600.0" r="72.0" fill="none" stroke="#7aa3c8" stroke-width="1.4" opacity="0.7"/>
+<circle cx="622.0" cy="477.3" r="3.1" fill="#7aa3c8" opacity="0.85"/>
+<circle cx="704.7" cy="741.2" r="3.2" fill="#7aa3c8" opacity="0.85"/>
+<circle cx="435.7" cy="797.0" r="5.3" fill="#7aa3c8" opacity="0.85"/>
+<circle cx="648.6" cy="632.7" r="6.6" fill="#7aa3c8" opacity="0.85"/>
+<circle cx="184.9" cy="393.9" r="3.9" fill="#7aa3c8" opacity="0.85"/>
+<circle cx="609.2" cy="368.4" r="5.8" fill="#7aa3c8" opacity="0.85"/>
+<circle cx="541.7" cy="753.5" r="5.1" fill="#7aa3c8" opacity="0.85"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">VEGA SHELL</text>
+</svg>

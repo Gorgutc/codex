@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a2030"/>
+<stop offset="1" stop-color="#252e40"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<polygon points="228.8,700.5 121.5,735.8 110.4,664.8" fill="#7aa3c8" opacity="0.18"/>
+<polygon points="648.8,566.1 755.6,642.8 803.7,765.1" fill="#7aa3c8" opacity="0.21"/>
+<polygon points="647.4,104.5 498.0,-39.8 684.6,94.8" fill="#7aa3c8" opacity="0.18"/>
+<polygon points="752.0,1134.4 866.4,1292.1 796.4,1114.0" fill="#7aa3c8" opacity="0.19"/>
+<polygon points="523.1,1086.7 655.0,999.6 661.3,1137.7" fill="#7aa3c8" opacity="0.20"/>
+<polygon points="573.1,69.0 426.2,77.6 571.0,61.1" fill="#7aa3c8" opacity="0.13"/>
+<polygon points="681.8,385.8 721.3,464.7 823.5,213.9" fill="#7aa3c8" opacity="0.22"/>
+<polygon points="734.8,1077.6 857.9,1315.8 555.3,1174.1" fill="#7aa3c8" opacity="0.17"/>
+<polygon points="449.1,468.5 466.2,481.1 339.9,342.8" fill="#7aa3c8" opacity="0.08"/>
+<polygon points="466.2,245.3 397.7,230.0 354.1,446.4" fill="#7aa3c8" opacity="0.10"/>
+<polygon points="864.6,738.8 924.1,729.7 715.9,627.4" fill="#7aa3c8" opacity="0.09"/>
+<polygon points="18.7,722.5 187.4,908.2 -81.7,881.0" fill="#7aa3c8" opacity="0.07"/>
+<polygon points="824.3,712.7 709.7,817.1 897.0,783.5" fill="#7aa3c8" opacity="0.21"/>
+<polygon points="695.1,231.3 653.8,453.7 790.9,289.0" fill="#7aa3c8" opacity="0.10"/>
+<polygon points="204.7,586.8 265.0,654.9 88.2,382.6" fill="#7aa3c8" opacity="0.22"/>
+<polygon points="450.0,420.0 605.9,510.0 605.9,690.0 450.0,780.0 294.1,690.0 294.1,510.0" fill="none" stroke="#7aa3c8" stroke-width="1.6" opacity="0.85"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">VEGA SHELL</text>
+</svg>
