@@ -60,7 +60,7 @@
      CARDS_DATA
   ════════════════════════════════════════ */
   var CARDS_DATA = {
-    'orbital-mk-ii': { role: 'Личный', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb', modelStats: { triangles: '18,432', vertices: '9,521', materials: 3, textures: '4 × 4 K', software: 'Blender' }, items: makeItems({
+    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb', modelStats: { triangles: '18,432', vertices: '9,521', materials: 3, textures: '4 × 4 K', software: 'Blender' }, items: makeItems({
       id: 'orbital-mk-ii',
       palette: [
         'linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%)',
@@ -86,7 +86,7 @@
       }
     }) },
 
-    'vega-shell': { role: 'Личный', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: 'https://modelviewer.dev/shared-assets/models/RobotExpressive.glb', modelStats: { triangles: '25,600', vertices: '13,200', materials: 5, textures: '6 × 2 K', software: 'Blender' }, items: makeItems({
+    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: 'https://modelviewer.dev/shared-assets/models/RobotExpressive.glb', modelStats: { triangles: '25,600', vertices: '13,200', materials: 5, textures: '6 × 2 K', software: 'Blender' }, items: makeItems({
       id: 'vega-shell',
       palette: [
         'linear-gradient(135deg,#1a2030 0%,#252e40 100%)',
@@ -138,7 +138,7 @@
       }
     }) },
 
-    'corten-series': { role: 'Клиентский', tools: ['Blender', 'Substance Painter', 'DaVinci Resolve'], modelSrc: './assets/models/corten-series.glb', modelStats: { triangles: '60', vertices: '40', materials: 1, textures: 'Procedural (PBR)', software: 'Blender' }, items: makeItems({
+    'corten-series': { role: 'Client', tools: ['Blender', 'Substance Painter', 'DaVinci Resolve'], modelSrc: './assets/models/corten-series.glb', modelStats: { triangles: '60', vertices: '40', materials: 1, textures: 'Procedural (PBR)', software: 'Blender' }, items: makeItems({
       id: 'corten-series',
       palette: [
         'linear-gradient(135deg,#2a2018 0%,#3a2e22 100%)',
@@ -164,7 +164,7 @@
       }
     }) },
 
-    'lumen-one': { role: 'Клиентский', tools: ['Blender', 'Inkscape'], modelSrc: './assets/models/lumen-one.glb', modelStats: { triangles: '1,352', vertices: '690', materials: 1, textures: '1 × 2 K', software: 'Blender + Substance' }, items: makeItems({
+    'lumen-one': { role: 'Client', tools: ['Blender', 'Inkscape'], modelSrc: './assets/models/lumen-one.glb', modelStats: { triangles: '1,352', vertices: '690', materials: 1, textures: '1 × 2 K', software: 'Blender + Substance' }, items: makeItems({
       id: 'lumen-one',
       palette: [
         'linear-gradient(135deg,#1e2428 0%,#2c3640 100%)',
@@ -216,7 +216,7 @@
       }
     }) },
 
-    'nightshard': { role: 'Личный', tools: ['Blender', 'Substance Painter', 'UE5'], modelSrc: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb', modelStats: { triangles: '15,488', vertices: '8,000', materials: 1, textures: '5 × 4 K', software: 'Blender + Substance' }, items: makeItems({
+    'nightshard': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'UE5'], modelSrc: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb', modelStats: { triangles: '15,488', vertices: '8,000', materials: 1, textures: '5 × 4 K', software: 'Blender + Substance' }, items: makeItems({
       id: 'nightshard',
       palette: [
         'linear-gradient(135deg,#1a1a2a 0%,#252535 100%)',
@@ -242,7 +242,7 @@
       }
     }) },
 
-    'recon-drone': { role: 'Личный', tools: ['Blender', 'Substance Painter', 'UE5'], modelSrc: './assets/models/recon-drone.glb', modelStats: { triangles: '496', vertices: '266', materials: 3, textures: 'Procedural (PBR)', software: 'Blender' }, items: makeItems({
+    'recon-drone': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'UE5'], modelSrc: './assets/models/recon-drone.glb', modelStats: { triangles: '496', vertices: '266', materials: 3, textures: 'Procedural (PBR)', software: 'Blender' }, items: makeItems({
       id: 'recon-drone',
       palette: [
         'linear-gradient(135deg,#1c2030 0%,#28303e 100%)',
@@ -268,7 +268,7 @@
       }
     }) },
 
-    'apex-frame': { role: 'Клиентский', tools: ['Blender', 'CAD export', 'Inkscape'], modelSrc: 'https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb', modelStats: { triangles: '12,200', vertices: '6,300', materials: 4, textures: '4 × 2 K', software: 'ZBrush + Blender' }, items: makeItems({
+    'apex-frame': { role: 'Client', tools: ['Blender', 'CAD export', 'Inkscape'], modelSrc: 'https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb', modelStats: { triangles: '12,200', vertices: '6,300', materials: 4, textures: '4 × 2 K', software: 'ZBrush + Blender' }, items: makeItems({
       id: 'apex-frame',
       palette: [
         'linear-gradient(135deg,#202428 0%,#2c3034 100%)',
@@ -375,7 +375,7 @@
     /* ═══════════════════════════════
        ORGANIC — v0.7.0
     ═══════════════════════════════ */
-    'nyx-panther': { role: 'Личный', tools: ['ZBrush', 'Blender', 'XGen'], modelSrc: './assets/models/nyx-panther.glb', modelStats: { triangles: '1,352', vertices: '690', materials: 1, textures: '1 × 2 K', software: 'ZBrush + Blender' }, items: makeItems({
+    'nyx-panther': { role: 'Personal', tools: ['ZBrush', 'Blender', 'XGen'], modelSrc: './assets/models/nyx-panther.glb', modelStats: { triangles: '1,352', vertices: '690', materials: 1, textures: '1 × 2 K', software: 'ZBrush + Blender' }, items: makeItems({
       id: 'nyx-panther',
       palette: [
         'linear-gradient(135deg,#1a1816 0%,#2a2520 100%)',
@@ -401,7 +401,7 @@
       }
     }) },
 
-    'drift-koi': { role: 'Личный', tools: ['ZBrush', 'Blender', 'Substance Painter'], modelSrc: './assets/models/drift-koi.glb', modelStats: { triangles: '168', vertices: '112', materials: 1, textures: 'Procedural (PBR)', software: 'ZBrush + Blender' }, items: makeItems({
+    'drift-koi': { role: 'Personal', tools: ['ZBrush', 'Blender', 'Substance Painter'], modelSrc: './assets/models/drift-koi.glb', modelStats: { triangles: '168', vertices: '112', materials: 1, textures: 'Procedural (PBR)', software: 'ZBrush + Blender' }, items: makeItems({
       id: 'drift-koi',
       palette: [
         'linear-gradient(135deg,#161e24 0%,#1f2a34 100%)',
@@ -427,7 +427,7 @@
       }
     }) },
 
-    'glint-owl': { role: 'Личный', tools: ['ZBrush', 'Blender', 'Houdini groom'], modelSrc: './assets/models/glint-owl.glb', modelStats: { triangles: '496', vertices: '266', materials: 3, textures: 'Procedural (PBR)', software: 'ZBrush + Blender' }, items: makeItems({
+    'glint-owl': { role: 'Personal', tools: ['ZBrush', 'Blender', 'Houdini groom'], modelSrc: './assets/models/glint-owl.glb', modelStats: { triangles: '496', vertices: '266', materials: 3, textures: 'Procedural (PBR)', software: 'ZBrush + Blender' }, items: makeItems({
       id: 'glint-owl',
       palette: [
         'linear-gradient(135deg,#1a1a22 0%,#262632 100%)',
@@ -613,8 +613,6 @@
   var modelViewerLoading = null;           // v0.11 — Promise загрузки <model-viewer>-скрипта
   var currentMv           = null;          // v0.11.4 — активный <model-viewer> (для cleanup)
   var currentMvReset      = null;          // v0.11.4 — функция reset camera текущего MV (вызываем при возврате в 3D)
-  var currentOrbitProxy   = null;          // v0.11.1 — активный tween-proxy (legacy, больше не используется)
-  var currentWheelListener = null;         // v0.11.1 — legacy (wheel-hijack удалён в v0.11.4)
   var currentLightDdDocClick = null;       // v0.7.3 — global click listener для close-on-outside (cleanup в destroy3D)
   var currentLightDdDocKey   = null;       // v0.7.3 — global keydown listener для Escape (cleanup в destroy3D)
   var pendingScrollReset = false;          // v0.10.2 — отложенный сброс scrollTop на 0
@@ -1738,12 +1736,6 @@
   function destroy3D() {
     // v0.11.4 — явная утилизация предыдущего <model-viewer>: снимаем атрибуты,
     // убиваем tween-ы, удаляем из DOM и обнуляем ссылки, чтобы GC забрал инстанс
-    if (currentOrbitProxy && window.gsap) { gsap.killTweensOf(currentOrbitProxy); }
-    currentOrbitProxy = null;
-    if (currentWheelListener && case3dCanvas) {
-      case3dCanvas.removeEventListener('wheel', currentWheelListener, { capture: true });
-      currentWheelListener = null;
-    }
     // v0.7.3 — cleanup global listeners для light-dropdown (close on outside / Escape)
     if (currentLightDdDocClick) {
       document.removeEventListener('click', currentLightDdDocClick);
@@ -1895,10 +1887,7 @@
         );
       });
 
-      // v0.11.4 — wheel-hijack (scroll→orbit) удалён: возвращён нативный MV zoom.
-      // drag = orbit, wheel = zoom, pinch = zoom на mobile (touch-action: none выше).
-      currentOrbitProxy = null;
-      currentWheelListener = null;
+      // wheel = nativный MV zoom, drag = orbit, pinch = zoom на mobile (touch-action: none выше).
 
       /* UI: hint + controls + info panel */
       // v0.15.1 [1.5] — два варианта хинта для desktop/mobile,
@@ -2439,8 +2428,6 @@
       var isMobile = window.matchMedia('(max-width: 767px)').matches;
       if (isMobile) setCollapsed(true);
     });
-    // keydown больше не нужен: <a> сам активируется Enter. Space на <a> не активирует
-    // — но это спецификация, мы не меняем дефолт.
   });
 
   /* ══════════════════════════════════
@@ -2828,15 +2815,6 @@
   });
 
 })();
-
-/* ══════════════════════════════════════════════════════════════════════
-   SITE FOOTER v0.15.2 [A1]
-   ─────────────────────────────────────────────────────────────────────
-   v0.15.1 [3] вводил mobile reveal-on-scroll — удалён в v0.15.2 [A1]
-   по требованию заказчика (ТЗ: «это работает не совсем очевидно и
-   постоянно видим пустое место»). Подвал виден всегда (CSS-дефолт),
-   JS-логика .is-revealed удалена полностью.
-══════════════════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════════════════
    CUSTOM CURSOR + MAGNETIC v0.13.0

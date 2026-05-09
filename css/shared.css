@@ -290,13 +290,7 @@ body::after {
   #contact-btn { display: none; }
 }
 
-/* ══════════════════════════════════════════════════════════════════════
-   v0.14.0 [7] / v0.15.2 [A3] / v0.4 [N1] — TOP PILLS history
-   Free Assets + Contact pill теперь живут в .site-footer (см. main.css ниже).
-   .top-pills (контейнер-обёртка, fixed top, pointer-events:none) — удалён,
-   так как переехал в footer и больше не fixed.
-   .top-pill (item-стили) — ОСТАВЛЕНЫ: используются в .site-footer обеих страниц.
-══════════════════════════════════════════════════════════════════════ */
+/* TOP PILL — стили item'а; контейнер .top-pills удалён, pill живёт в .site-footer обеих страниц */
 .top-pill {
   pointer-events: auto;
   position: relative;
@@ -1365,7 +1359,7 @@ body::after {
   align-items: center;
   height: 18px;
   padding: 0 6px;
-  background: rgba(20, 20, 20, 0.72);
+  background: var(--color-card-badge-bg);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--color-primary);
@@ -1534,32 +1528,6 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Старый селектор .site-footer__btn больше не используется (кнопки удалены из DOM),
-   но правила оставлены для совместимости, если кнопки вернут. */
-.site-footer__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-tag);
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-  flex-shrink: 0;
-  opacity: 0.72;
-  transition:
-    color 160ms var(--ease-out),
-    border-color 160ms var(--ease-out),
-    background 160ms var(--ease-out);
-}
-.site-footer__btn svg { display: block; }
-.site-footer__btn:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
 /* Free Assets pill в футере — не fixed, не pointer-events:none от .top-pills.
    Сбрасываем потенциальные inherit-эффекты, сохраняем внешний вид .top-pill. */
 .site-footer__free {
@@ -1578,6 +1546,3 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
 @media (min-width: 768px) {
   body.cards-collapsed .site-footer { display: none; }
 }
-
-/* v0.15.2 [A1] — mobile reveal-on-scroll блок удалён.
-   Подвал виден всегда и на mobile, и на desktop. */

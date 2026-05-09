@@ -166,7 +166,8 @@ if (typeof SplitText !== 'undefined') {
       card.addEventListener('pointerenter', onEnter);
       card.addEventListener('pointermove',  onMove);
       card.addEventListener('pointerleave', onLeave);
-      card.addEventListener('blur',         onLeave);
+      // focusout (бабблит) вместо blur — устойчиво к появлению фокусируемых детей в .work-card
+      card.addEventListener('focusout',     onLeave);
     });
   }
 
@@ -399,14 +400,18 @@ if (typeof SplitText !== 'undefined') {
 
     // Reveal блоков
     if (initial) {
-      gsap.from([progress, scrollEl], {
-        opacity: 0,
-        y: 12,
-        duration: 0.6,
-        ease: 'power2.out',
-        stagger: 0.08,
-        clearProps: 'transform,opacity'
-      });
+      // Null-guard: если case-view ещё не собран, пропускаем reveal, чтобы GSAP не падал на null
+      var initialTargets = [progress, scrollEl].filter(Boolean);
+      if (initialTargets.length) {
+        gsap.from(initialTargets, {
+          opacity: 0,
+          y: 12,
+          duration: 0.6,
+          ease: 'power2.out',
+          stagger: 0.08,
+          clearProps: 'transform,opacity'
+        });
+      }
       // header показываем сразу, H1 — через SplitText
       revealCaseTitle();
     } else {
