@@ -271,6 +271,33 @@ if (typeof SplitText !== 'undefined') {
   });
 
   /* ══════════════════════════════════
+     4.2) v0.7.12 [bug] — DESKTOP-аналог 4.1.
+     ----------------------------------------------------------------
+     ROOT CAUSE тот же что и в 4.1 (mobile), но на desktop:
+       setCollapsed(true) ставит scrollEl.hidden=true → display:none.
+       openCase()→scrollIntoView в скрытом контейнере пишет неконсистентный
+       scrollTop, который персистит после re-expand → нижние карточки
+       визуально пропадают до resize.
+     Гард на сторону openCase: см. main.js isCollapsed (заменил isMobileCollapsed).
+     Здесь — доскролл активной + ScrollTrigger.refresh после возврата layout.
+     Mobile-логика 4.1 ([1] scrollLeft, [2] killTweens, [4] invisible cards) —
+     не нужна на desktop.
+  ══════════════════════════════════ */
+  document.addEventListener('codex:toggle', function (e) {
+    if (!e.detail || e.detail.collapsed) return;
+    if (window.matchMedia('(max-width: 767px)').matches) return;  // mobile уже обработан 4.1
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+        var activeCard = document.querySelector('.work-card--active');
+        if (activeCard) {
+          activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+    });
+  });
+
+  /* ══════════════════════════════════
      5) CASE-OPEN — плавный reveal + setup lift-on-scroll
   ══════════════════════════════════ */
   function killItemScrollTriggers() {
