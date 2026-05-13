@@ -1098,22 +1098,23 @@
       card.setAttribute('aria-current', 'page');
       if (!opts.initial) {
         // v0.14.0 [13] — связываем пагинацию и скролл ленты карточек.
-        // 'nearest' прокручивал только когда карточка вне видимости.
         // 'center' — всегда держит активную карточку в центре скролла.
-        // v0.2.2 [П1] ROOT CAUSE горизонтального съезда карточек:
-        //   на mobile во время case-view #cards-scroll имеет display:none (0×0).
+        // v0.2.2 [П1] ROOT CAUSE горизонтального съезда карточек на mobile:
+        //   во время case-view #cards-scroll имеет display:none (0×0).
         //   scrollIntoView({block:'center'}) в таком контейнере вычисляет
         //   scrollLeft = offsetLeft + width/2 ≈ 187px и присваивает его
         //   #cards-scroll.scrollLeft. overflow-x:hidden блокирует жест
         //   пользователя, но не программный scrollLeft. При возврате
         //   все карточки визуально съезжают влево.
-        // Фикс: пропускаем scrollIntoView пока mobile+collapsed;
-        //   прокрутка к активной карточке выполняется в animations.js
-        //   на codex:toggle{collapsed:false}, когда контейнер снова видим.
-        var isMobileCollapsed =
-          window.matchMedia('(max-width: 767px)').matches &&
-          document.body.classList.contains('cards-collapsed');
-        if (!isMobileCollapsed) {
+        // v0.7.12 [bug] DESKTOP: тот же артефакт. setCollapsed(true) на
+        //   desktop ставит scrollEl.hidden=true → display:none. После
+        //   case-nav + re-expand нижние карточки визуально пропадают до
+        //   resize (стейл scrollTop). Универсальный гард: пропускаем
+        //   scrollIntoView пока sidebar collapsed на ЛЮБОМ брейкпоинте.
+        //   Доскролл активной выполняется в animations.js на
+        //   codex:toggle{collapsed:false} (mobile блок 4.1, desktop 4.2).
+        var isCollapsed = document.body.classList.contains('cards-collapsed');
+        if (!isCollapsed) {
           // v0.2.3 [П1] DESKTOP: smooth scrollIntoView, вызванный сразу,
           //   прерывается синхронным reflow из buildItems()/buildBlueprint()
           //   ниже в openCase() — scroll animation сбрасывается к 0 и

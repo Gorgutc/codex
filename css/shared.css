@@ -332,6 +332,24 @@ body::after {
   flex: 0 0 14px;
   color: currentColor;
 }
+/* v0.7.12 [UX] — top-pill--free accent для discoverability (Free Assets и back-to-portfolio).
+   Применяется только в активном (не disabled) состоянии. Border + icon в --color-primary;
+   text остаётся в --color-text для WCAG AA на обоих темах. */
+.top-pill--free:not([disabled]) {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+.top-pill--free:not([disabled]) .top-pill__icon {
+  color: var(--color-primary);
+}
+.top-pill--free:not([disabled]):hover {
+  color: var(--color-text);
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-highlight);
+}
+.top-pill--free:not([disabled]):hover .top-pill__icon {
+  color: var(--color-primary-hover);
+}
 .top-pill--free[disabled] {
   cursor: not-allowed;
   opacity: 0.72;
