@@ -33,6 +33,11 @@
        второй оставался устаревшим). -->
   <meta name="theme-color" content="#212121">
 
+  <!-- v0.17.0 — Preloader anti-flicker (same pattern as index.html).
+       Inline script must run BEFORE stylesheets parse so html.is-loading
+       class hides .layout/.cursor until preloader removes it. -->
+  <script>document.documentElement.classList.add('is-loading');</script>
+
   <link rel="icon" type="image/x-icon" href="./assets/favicon/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="./assets/favicon/favicon-16.png">
@@ -87,6 +92,29 @@
 </head>
 
 <body data-theme="dark">
+
+<!-- v0.17.0 — PRELOADER (shared markup with index.html). Initializes via
+     preloader IIFE in js/main.js. Without [data-gallery] / work-card images
+     on FA, total === 0 → preloader exits in ~200ms hold (intended fast path). -->
+<div class="preloader" id="preloader" role="status" aria-live="polite" aria-label="Loading">
+  <div class="preloader__readout" aria-hidden="true">
+    <span>CODEX_STUDIO</span>
+    <span class="preloader__readout-sep">/</span>
+    <span>LOADING_FREE_ASSETS.HTML</span>
+    <span class="preloader__readout-sep">/</span>
+    <span class="preloader__readout-ts" id="preloader-ts">00:00:00</span>
+  </div>
+  <div class="preloader__center">
+    <div class="preloader__counter" id="preloader-counter" aria-hidden="true">00</div>
+    <div class="preloader__bar" aria-hidden="true">
+      <div class="preloader__bar-fill" id="preloader-bar-fill"></div>
+    </div>
+  </div>
+  <div class="preloader__label" aria-hidden="true">
+    INITIALIZING ASSETS<span class="preloader__dots"><span>.</span><span>.</span><span>.</span></span>
+  </div>
+  <button type="button" class="preloader__skip" id="preloader-skip" data-cursor="link" hidden>ENTER SITE</button>
+</div>
 
 <div class="layout">
 
