@@ -1581,6 +1581,25 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
 }
 .cursor.is-drag .cursor__crosshair { opacity: 1; }
 
+/* FS-GALLERY zone states (v0.20.0) — borderless 64×64 shell с текстом-направлением.
+   Активируются из media-fs zone tracker (main.js setupCursorZones). */
+.cursor.is-fs-prev,
+.cursor.is-fs-next {
+  border-color: transparent;
+}
+.cursor.is-fs-prev .cursor-dot,
+.cursor.is-fs-next .cursor-dot { opacity: 0; }
+.cursor.is-fs-prev .cursor__shell,
+.cursor.is-fs-next .cursor__shell {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  border-color: transparent;
+}
+.cursor.is-fs-prev .cursor__shell-label,
+.cursor.is-fs-next .cursor__shell-label { opacity: 1; }
+.cursor.is-fs-prev .cursor__shell-label::after { content: '← PREV'; }
+.cursor.is-fs-next .cursor__shell-label::after { content: 'NEXT →'; }
+
 /* Form inputs — restore native text cursor over editable fields.
    Custom cursor остаётся видимым поверх (fixed overlay) — это компромисс,
    реальных text-inputs на сайте сейчас нет, правило про запас. */

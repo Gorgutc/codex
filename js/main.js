@@ -1050,8 +1050,12 @@
       if (item.poster) h += 'poster="' + item.poster + '" ';
       h += 'aria-label="' + (item.label || '') + '" onerror="this.remove();"></video>';
     } else if (!isVideo && item.src) {
+      // v0.20.0 — gallery img триггерит fullscreen viewer. tabindex+role+aria
+      // для клавиатурной доступности (Enter/Space в main.js gallery keydown).
       h += '<img class="case-item__img" src="' + item.src + '" alt="' + (item.label || '') + '" ';
-      h += 'loading="lazy" draggable="false" onerror="this.remove();">';
+      h += 'loading="lazy" draggable="false" tabindex="0" role="button" ';
+      h += 'aria-haspopup="dialog" aria-label="Open fullscreen view of ' + (item.label || 'image') + '" ';
+      h += 'onerror="this.remove();">';
     }
     h +=   '<span class="case-item__placeholder" aria-hidden="true">' + (item.label || '') + '</span>';
     /* v0.15.2 [B3] — .case-media-fs-btn удалена для 2D кейсов.
@@ -2887,12 +2891,20 @@
 
   /* ════════════════════════════════════════════
      v0.15.1 [2.1/2.2/2.3] — FULLSCREEN OVERLAY (Variant B)
-     Одна скрытая overlay-плашка в <body>. По клику fs-btn клонируется
-     контент (img/video/model-viewer/svg) в .media-fs__stage. ESC или клик по
-     backdrop закрывают.
+     v0.20.0 — расширен поддержкой gallery: prev/next, counter,
+       aria-live, focus trap, FLIP open/close, touch swipe, cursor
+       zone labels.
+     Одна скрытая overlay-плашка в <body>. По клику fs-btn (3D/BP) или
+     gallery img клонируется контент в .media-fs__stage.
      ════════════════════════════════════════════ */
   var fsOverlay = null, fsStage = null, fsCloseBtn = null;
-  var fsOriginalEl = null; // для video: чтобы синхронизировать время.
+  var fsPrev = null, fsNext = null, fsCounter = null, fsAnnouncer = null;
+  var fsOriginalEl = null;          // для video: чтобы синхронизировать время.
+  var fsContext = null;             // 'gallery' | null — режим overlay
+  var gallery = { list: [], index: 0, triggerEl: null };
+  var focusTrapHandler = null;
+  var fsPreviousFocus = null;       // элемент для возврата фокуса при close
+
   function ensureFsOverlay() {
     if (fsOverlay) return fsOverlay;
     fsOverlay = document.createElement('div');
@@ -2915,14 +2927,58 @@
     fsCloseBtn.innerHTML = '<svg class="media-fs__close-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M6 2v4H2M12 2v4h4M2 12h4v4M12 16v-4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
     fsCloseBtn.addEventListener('click', closeFs);
 
+    // v0.20.0 — gallery prev/next/counter/announcer. hidden до openFsImageGallery.
+    fsPrev = document.createElement('button');
+    fsPrev.type = 'button';
+    fsPrev.className = 'media-fs__prev';
+    fsPrev.setAttribute('aria-label', 'Previous image');
+    fsPrev.setAttribute('data-cursor', 'link');
+    fsPrev.hidden = true;
+    fsPrev.innerHTML = '<svg class="media-fs__nav-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 4L5 9l6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    fsPrev.addEventListener('click', function () { navGallery(-1); });
+
+    fsNext = document.createElement('button');
+    fsNext.type = 'button';
+    fsNext.className = 'media-fs__next';
+    fsNext.setAttribute('aria-label', 'Next image');
+    fsNext.setAttribute('data-cursor', 'link');
+    fsNext.hidden = true;
+    fsNext.innerHTML = '<svg class="media-fs__nav-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4l6 5-6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    fsNext.addEventListener('click', function () { navGallery(+1); });
+
+    fsCounter = document.createElement('div');
+    fsCounter.className = 'media-fs__counter';
+    fsCounter.hidden = true;
+
+    fsAnnouncer = document.createElement('div');
+    fsAnnouncer.className = 'media-fs__announcer';
+    fsAnnouncer.setAttribute('aria-live', 'polite');
+    fsAnnouncer.setAttribute('aria-atomic', 'true');
+
     fsOverlay.appendChild(fsCloseBtn);
+    fsOverlay.appendChild(fsPrev);
+    fsOverlay.appendChild(fsNext);
+    fsOverlay.appendChild(fsCounter);
+    fsOverlay.appendChild(fsAnnouncer);
     fsOverlay.appendChild(fsStage);
     document.body.appendChild(fsOverlay);
 
-    // Клик по backdrop (не по stage-детям) закрывает
+    // Backdrop click: в gallery — навигация по половинам, иначе — close.
     fsOverlay.addEventListener('click', function (e) {
-      if (e.target === fsOverlay || e.target === fsStage) closeFs();
+      if (e.target !== fsOverlay && e.target !== fsStage) return;
+      if (fsContext === 'gallery') {
+        navGallery(e.clientX < window.innerWidth / 2 ? -1 : +1);
+      } else {
+        closeFs();
+      }
     });
+
+    // Touch swipe (gallery only)
+    setupFsSwipe(fsOverlay);
+    // Cursor zone tracker — добавляет is-fs-prev/is-fs-next к .cursor
+    fsOverlay.addEventListener('mousemove', trackFsCursorZones);
+    fsOverlay.addEventListener('mouseleave', clearFsCursorZones);
+
     return fsOverlay;
   }
 
@@ -2979,23 +3035,312 @@
 
   function closeFs() {
     if (!fsOverlay || fsOverlay.hidden) return;
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // v0.20.0 — gallery: reverse FLIP к текущему thumbnail (gallery.triggerEl
+    // обновляется при каждом navGallery, так что закрываем на актуальную миниатюру).
+    if (fsContext === 'gallery' && !reduced && !document.hidden && typeof gsap !== 'undefined') {
+      closeFsImageReverseFlip();
+      return;
+    }
+
     fsOverlay.classList.remove('is-open');
     document.documentElement.style.overflow = '';
-    // v0.16.0 — restart Lenis если case-view не раскрыт; иначе остаётся stopped.
     updateLenisState();
-    // скрываем после трансишна, чистим stage
+    releaseFocusTrap();
+    clearFsCursorZones();
+    var prevFocus = fsPreviousFocus;
     setTimeout(function () {
       if (fsOverlay && !fsOverlay.classList.contains('is-open')) {
         fsOverlay.hidden = true;
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
         fsOriginalEl = null;
+        restoreFsContext();
+        if (prevFocus && typeof prevFocus.focus === 'function') {
+          try { prevFocus.focus({ preventScroll: true }); } catch (_) {}
+        }
       }
     }, 220);
   }
 
-  // Делегированный клик по fs-кнопкам (3D/BP — через делегацию для единообразия).
+  /* ─── v0.20.0 — Gallery FLIP, navigation, focus trap, swipe ────────── */
+
+  function openFsImageGallery(sourceImg) {
+    ensureFsOverlay();
+    // Собираем гал-сcope (data-gallery предок; fallback — одиночный img).
+    var scope = sourceImg.closest('[data-gallery]');
+    var imgs = scope
+      ? Array.prototype.slice.call(scope.querySelectorAll('img'))
+      : [sourceImg];
+    // Отфильтровываем картинки, которые не отрисовались (broken/removed)
+    imgs = imgs.filter(function (i) { return i.isConnected && i.naturalWidth >= 0; });
+    gallery.list = imgs;
+    gallery.index = Math.max(0, imgs.indexOf(sourceImg));
+    gallery.triggerEl = sourceImg;
+    fsContext = 'gallery';
+    fsPreviousFocus = sourceImg;
+
+    fsOverlay.setAttribute('aria-label', 'Image gallery viewer');
+    fsPrev.hidden    = imgs.length < 2;
+    fsNext.hidden    = imgs.length < 2;
+    fsCounter.hidden = imgs.length < 2;
+
+    flipOpen(sourceImg);
+    updateGalleryUI(false);
+    preloadNeighbors();
+  }
+
+  function buildImageClone(srcImg) {
+    var clone = srcImg.cloneNode(false);
+    clone.removeAttribute('class');
+    clone.removeAttribute('tabindex');
+    clone.removeAttribute('role');
+    clone.removeAttribute('aria-haspopup');
+    clone.loading = 'eager';
+    return clone;
+  }
+
+  function flipOpen(sourceImg) {
+    while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+    var clone = buildImageClone(sourceImg);
+    fsStage.appendChild(clone);
+
+    fsOverlay.hidden = false;
+    void fsOverlay.offsetWidth;
+    fsOverlay.classList.add('is-open');
+    document.documentElement.style.overflow = 'hidden';
+    updateLenisState();
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || document.hidden || typeof gsap === 'undefined') {
+      setupFocusTrap();
+      return;
+    }
+
+    // FLIP: получили target rect после layout, ставим transform к source rect,
+    // анимируем к identity. expo.inOut 0.5s.
+    var srcRect = sourceImg.getBoundingClientRect();
+    var tgtRect = clone.getBoundingClientRect();
+    if (tgtRect.width === 0 || tgtRect.height === 0) {
+      // image ещё не загрузилась — fallback на opacity-only
+      setupFocusTrap();
+      return;
+    }
+    var dx = srcRect.left - tgtRect.left;
+    var dy = srcRect.top  - tgtRect.top;
+    var sx = srcRect.width  / tgtRect.width;
+    var sy = srcRect.height / tgtRect.height;
+    gsap.set(clone, { transformOrigin: '0 0', x: dx, y: dy, scaleX: sx, scaleY: sy });
+    gsap.to(clone, {
+      x: 0, y: 0, scaleX: 1, scaleY: 1,
+      duration: 0.5, ease: 'expo.inOut',
+      clearProps: 'transform,transformOrigin',
+      onComplete: setupFocusTrap
+    });
+  }
+
+  function closeFsImageReverseFlip() {
+    var clone = fsStage.firstChild;
+    var thumb = gallery.triggerEl;
+    if (!clone || !thumb || !thumb.isConnected) {
+      // fallback: чистый close без FLIP
+      fsContext = null;
+      closeFs();
+      return;
+    }
+    var stageRect = clone.getBoundingClientRect();
+    var thumbRect = thumb.getBoundingClientRect();
+    if (stageRect.width === 0 || thumbRect.width === 0) {
+      fsContext = null;
+      closeFs();
+      return;
+    }
+    var dx = thumbRect.left - stageRect.left;
+    var dy = thumbRect.top  - stageRect.top;
+    var sx = thumbRect.width  / stageRect.width;
+    var sy = thumbRect.height / stageRect.height;
+
+    releaseFocusTrap();
+    clearFsCursorZones();
+    var prevFocus = thumb;
+
+    gsap.to(clone, {
+      x: dx, y: dy, scaleX: sx, scaleY: sy,
+      transformOrigin: '0 0',
+      duration: 0.5, ease: 'expo.inOut'
+    });
+    gsap.to(fsOverlay, {
+      opacity: 0,
+      duration: 0.4,
+      ease: 'expo.inOut',
+      onComplete: function () {
+        fsOverlay.classList.remove('is-open');
+        fsOverlay.style.opacity = '';
+        fsOverlay.hidden = true;
+        while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+        document.documentElement.style.overflow = '';
+        updateLenisState();
+        restoreFsContext();
+        try { prevFocus.focus({ preventScroll: true }); } catch (_) {}
+      }
+    });
+  }
+
+  function navGallery(direction) {
+    if (fsContext !== 'gallery' || gallery.list.length < 2) return;
+    var prev = gallery.index;
+    var n = gallery.list.length;
+    gallery.index = ((gallery.index + direction) % n + n) % n;
+    var wrapped =
+      (direction === +1 && prev === n - 1) ||
+      (direction === -1 && prev === 0);
+    swapGalleryImage(gallery.list[gallery.index], wrapped);
+  }
+
+  function swapGalleryImage(nextImg, wrapped) {
+    var oldEl = fsStage.firstChild;
+    var newEl = buildImageClone(nextImg);
+    fsStage.appendChild(newEl);
+    gallery.triggerEl = nextImg;
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || document.hidden || typeof gsap === 'undefined') {
+      if (oldEl) oldEl.parentNode && oldEl.parentNode.removeChild(oldEl);
+      updateGalleryUI(wrapped);
+      preloadNeighbors();
+      return;
+    }
+    gsap.set(newEl, { opacity: 0 });
+    gsap.to(newEl, { opacity: 1, duration: 0.25, ease: 'power2.out' });
+    if (oldEl) {
+      gsap.to(oldEl, {
+        opacity: 0, duration: 0.25, ease: 'power2.out',
+        onComplete: function () { if (oldEl.parentNode) oldEl.parentNode.removeChild(oldEl); }
+      });
+    }
+    updateGalleryUI(wrapped);
+    preloadNeighbors();
+  }
+
+  function updateGalleryUI(wrapped) {
+    var i = gallery.index, n = gallery.list.length;
+    if (fsCounter) fsCounter.textContent = (i + 1) + ' / ' + n;
+    if (fsAnnouncer) fsAnnouncer.textContent = 'Image ' + (i + 1) + ' of ' + n;
+    if (wrapped && fsCounter && typeof gsap !== 'undefined' &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.fromTo(fsCounter,
+        { scale: 1 },
+        { scale: 1.15, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' }
+      );
+    }
+  }
+
+  function preloadNeighbors() {
+    var n = gallery.list.length;
+    if (n < 2) return;
+    var nextIdx = (gallery.index + 1) % n;
+    var prevIdx = (gallery.index - 1 + n) % n;
+    [gallery.list[nextIdx], gallery.list[prevIdx]].forEach(function (img) {
+      if (!img || !img.src) return;
+      var pre = new Image();
+      pre.src = img.src;  // browser cache prime
+    });
+  }
+
+  function restoreFsContext() {
+    fsContext = null;
+    gallery.list = [];
+    gallery.index = 0;
+    gallery.triggerEl = null;
+    fsPreviousFocus = null;
+    if (fsPrev)    fsPrev.hidden = true;
+    if (fsNext)    fsNext.hidden = true;
+    if (fsCounter) { fsCounter.hidden = true; fsCounter.textContent = ''; }
+    if (fsAnnouncer) fsAnnouncer.textContent = '';
+    if (fsOverlay) fsOverlay.setAttribute('aria-label', 'Fullscreen view');
+  }
+
+  function setupFocusTrap() {
+    releaseFocusTrap();
+    var focusable = [];
+    if (fsPrev && !fsPrev.hidden) focusable.push(fsPrev);
+    if (fsNext && !fsNext.hidden) focusable.push(fsNext);
+    focusable.push(fsCloseBtn);
+
+    focusTrapHandler = function (e) {
+      if (e.key !== 'Tab') return;
+      var first = focusable[0];
+      var last  = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    };
+    fsOverlay.addEventListener('keydown', focusTrapHandler);
+    try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+  }
+
+  function releaseFocusTrap() {
+    if (focusTrapHandler && fsOverlay) {
+      fsOverlay.removeEventListener('keydown', focusTrapHandler);
+    }
+    focusTrapHandler = null;
+  }
+
+  function setupFsSwipe(target) {
+    var x0 = null, y0 = null;
+    target.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+    }, { passive: true });
+    target.addEventListener('touchend', function (e) {
+      if (x0 == null || fsContext !== 'gallery') { x0 = y0 = null; return; }
+      var t = e.changedTouches[0] || {};
+      var dx = (t.clientX || 0) - x0;
+      var dy = (t.clientY || 0) - y0;
+      x0 = y0 = null;
+      // Horizontal-dominant + threshold 60px
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      navGallery(dx < 0 ? +1 : -1);
+    }, { passive: true });
+  }
+
+  function trackFsCursorZones(e) {
+    if (fsContext !== 'gallery') return;
+    var cursorEl = document.querySelector('.cursor');
+    if (!cursorEl) return;
+    // Над кнопками data-cursor=link уже отрисовывает link-state — сбрасываем зону
+    if (e.target.closest && e.target.closest('.media-fs__prev, .media-fs__next, .media-fs__close')) {
+      cursorEl.classList.remove('is-fs-prev', 'is-fs-next');
+      return;
+    }
+    var dir = e.clientX < window.innerWidth / 2 ? 'prev' : 'next';
+    var addCls = 'is-fs-' + dir;
+    var rmCls  = dir === 'prev' ? 'is-fs-next' : 'is-fs-prev';
+    if (!cursorEl.classList.contains(addCls)) {
+      cursorEl.classList.remove(rmCls);
+      cursorEl.classList.add(addCls);
+    }
+  }
+
+  function clearFsCursorZones() {
+    var cursorEl = document.querySelector('.cursor');
+    if (cursorEl) cursorEl.classList.remove('is-fs-prev', 'is-fs-next');
+  }
+
+  // Делегированный клик по fs-триггерам.
   // v0.15.2 [B3] — 2D ветка удалена вместе с .case-media-fs-btn.
+  // v0.20.0 — 2D ветка восстановлена через [data-gallery] img (без per-image кнопки).
   document.addEventListener('click', function (e) {
+    // Gallery image trigger — поднимаем по closest до img внутри [data-gallery].
+    var galleryImg = e.target.closest && e.target.closest('[data-gallery] img');
+    if (galleryImg) {
+      e.preventDefault();
+      openFsImageGallery(galleryImg);
+      return;
+    }
     // 3D
     var btn3d = e.target.closest('.case-3d__fs-btn');
     if (btn3d) {
@@ -3014,11 +3359,25 @@
     }
   });
 
-  // ESC закрывает
+  // Keyboard: Enter/Space на gallery img открывает; ESC закрывает; стрелки навигируют.
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && fsOverlay && fsOverlay.classList.contains('is-open')) {
+    // Enter/Space на focused gallery img
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches &&
+        e.target.matches('[data-gallery] img')) {
+      e.preventDefault();
+      openFsImageGallery(e.target);
+      return;
+    }
+    if (!fsOverlay || !fsOverlay.classList.contains('is-open')) return;
+    if (e.key === 'Escape') {
       e.preventDefault();
       closeFs();
+    } else if (fsContext === 'gallery' && e.key === 'ArrowLeft') {
+      e.preventDefault();
+      navGallery(-1);
+    } else if (fsContext === 'gallery' && e.key === 'ArrowRight') {
+      e.preventDefault();
+      navGallery(+1);
     }
   });
 

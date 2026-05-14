@@ -1912,6 +1912,94 @@
   height: 16px;
   display: block;
 }
+
+/* ─── Gallery navigation (v0.20.0) ───────────────────────────────────
+   Активируется когда .media-fs открыт в режиме gallery (data-gallery scope).
+   Кнопки скрыты [hidden] до открытия, чтобы не перекрывать 3D/BP fs-режим. */
+.media-fs__prev,
+.media-fs__next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: var(--color-fs-close-bg);
+  border: 1px solid var(--color-fs-close-border);
+  border-radius: 3px;
+  color: var(--color-fs-close-text);
+  cursor: pointer;
+  z-index: 3;
+  transition:
+    color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    opacity 200ms var(--ease-out);
+}
+.media-fs__prev { left: 16px; }
+.media-fs__next { right: 16px; }
+.media-fs__prev[hidden],
+.media-fs__next[hidden] { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .media-fs__prev:hover,
+  .media-fs__next:hover {
+    color: var(--color-fs-close-text-hover);
+    border-color: var(--color-fs-close-border-hover);
+  }
+}
+.media-fs__prev:focus-visible,
+.media-fs__next:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.media-fs__nav-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+@media (max-width: 640px) {
+  .media-fs__prev { left: 8px; }
+  .media-fs__next { right: 8px; }
+}
+
+.media-fs__counter {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--color-text);
+  opacity: 0.6;
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  transform-origin: left center;
+}
+.media-fs__counter[hidden] { display: none; }
+
+/* visually hidden live-region для скринридеров */
+.media-fs__announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Click-affordance внутри case-item__media — курсор pointer
+   (cursor-fine скрывает native, но для touch/no-cursor устройств это нужно). */
+.case-item__media img {
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .media-fs { transition: none; }
   /* v0.7.0 — отключаем transform-анимацию у thumb exposure-слайдера.
