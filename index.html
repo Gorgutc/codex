@@ -158,7 +158,7 @@
   <div class="preloader__label" aria-hidden="true">
     INITIALIZING ASSETS<span class="preloader__dots"><span>.</span><span>.</span><span>.</span></span>
   </div>
-  <button type="button" class="preloader__skip" id="preloader-skip" hidden>ENTER SITE</button>
+  <button type="button" class="preloader__skip" id="preloader-skip" data-cursor="link" hidden>ENTER SITE</button>
 </div>
 
 <div class="layout">
@@ -775,7 +775,7 @@
            role="region"
            aria-label="Project 3D viewer"
            hidden>
-        <div class="case-3d__canvas" id="case-3d-canvas">
+        <div class="case-3d__canvas" id="case-3d-canvas" data-cursor="drag">
           <!-- <model-viewer> инжектится в main.js (build3D) из CARDS_DATA.model -->
         </div>
       </div>

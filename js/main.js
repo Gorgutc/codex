@@ -2142,6 +2142,8 @@
       fsBtn3d.className = 'case-3d__fs-btn';
       fsBtn3d.setAttribute('aria-label', 'Open 3D fullscreen');
       fsBtn3d.setAttribute('title', 'Fullscreen');
+      // v0.19.0 — override drag-state из родительского .case-3d__canvas
+      fsBtn3d.setAttribute('data-cursor', 'link');
       fsBtn3d.innerHTML = '<svg class="case-3d__fs-btn__icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
 
       controls.appendChild(autoBtn);
@@ -2908,6 +2910,8 @@
     fsCloseBtn.className = 'media-fs__close';
     fsCloseBtn.setAttribute('aria-label', 'Close fullscreen');
     fsCloseBtn.setAttribute('title', 'Close fullscreen');
+    // v0.19.0 — media-fs overlay создаётся динамически, помечаем при build
+    fsCloseBtn.setAttribute('data-cursor', 'link');
     fsCloseBtn.innerHTML = '<svg class="media-fs__close-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M6 2v4H2M12 2v4h4M2 12h4v4M12 16v-4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
     fsCloseBtn.addEventListener('click', closeFs);
 
@@ -3052,6 +3056,69 @@
   // `html.cursor-fine * { cursor: none }` в CSS (специфичность выше
   // всех встроенных `cursor: pointer` в дизайн-системе).
   document.documentElement.classList.add('cursor-fine');
+
+  /* ─── v0.19.0 — Extended cursor states (data-cursor delegation) ──────
+     Базовый ring + dot (v0.13.0/v0.14.0) НЕ трогается. Здесь:
+       • строим shell DOM (label + crosshair) внутри .cursor
+       • bulk-помечаем статические элементы data-cursor-атрибутами
+       • делегированный mouseover-listener на document меняет state-класс
+     States: 'link' (фон-инфляция dot'а), 'work' (64px ring + VIEW →),
+     'drag' (32px crosshair). reduced-motion / coarse — IIFE early-return'нул
+     ещё выше, ни одна из этих веток не выполнится. */
+  (function buildShellDom() {
+    if (cursor.querySelector('.cursor__shell')) return;
+    var shell = document.createElement('div');
+    shell.className = 'cursor__shell';
+    shell.setAttribute('aria-hidden', 'true');
+    var label = document.createElement('span');
+    label.className = 'cursor__shell-label';
+    var crosshair = document.createElement('span');
+    crosshair.className = 'cursor__crosshair';
+    crosshair.innerHTML = '<i></i><i></i><i></i><i></i>';
+    shell.appendChild(label);
+    shell.appendChild(crosshair);
+    cursor.appendChild(shell);
+  })();
+
+  // Bulk-mark static interactive elements (idempotent — пропускаем если
+  // атрибут уже стоит в HTML). Это избавляет от ~15 ручных HTML-правок
+  // и не ломает dev-flow поиска по data-cursor в index.html (drag и skip
+  // помечены статически как опорные точки).
+  function markStatic() {
+    document.querySelectorAll('.work-card').forEach(function (e) {
+      if (!e.hasAttribute('data-cursor')) e.setAttribute('data-cursor', 'work');
+    });
+    var LINK_SELECTOR =
+      '.contact-btn, #contact-pill, .case-share, .case-nav__btn, ' +
+      '#blueprint-export-svg, .case-blueprints__fs-btn, ' +
+      '.top-pill--free, #free-assets-footer';
+    document.querySelectorAll(LINK_SELECTOR).forEach(function (e) {
+      if (!e.hasAttribute('data-cursor')) e.setAttribute('data-cursor', 'link');
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', markStatic, { once: true });
+  } else {
+    markStatic();
+  }
+
+  // Делегированный switch состояний. mouseover bubbles → ловим в document.
+  // closest('[data-cursor]') карабкается до ближайшего предка с атрибутом —
+  // child-элементы внутри .work-card / .case-3d__canvas наследуют state.
+  // Когда мышь уходит на background-elements без data-cursor, state=null.
+  var STATE_CLASSES = ['is-link', 'is-work', 'is-drag'];
+  var currentState  = null;
+  function applyCursorState(state) {
+    STATE_CLASSES.forEach(function (c) { cursor.classList.remove(c); });
+    if (state) cursor.classList.add('is-' + state);
+  }
+  document.addEventListener('mouseover', function (e) {
+    var el = e.target.closest && e.target.closest('[data-cursor]');
+    var state = el ? el.getAttribute('data-cursor') : null;
+    if (state === currentState) return;
+    currentState = state;
+    applyCursorState(state);
+  });
 
   /* Магнитные селекторы — уже существующие интерактивные элементы.
      v0.13.1 — две группы силы магнита:
