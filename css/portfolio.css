@@ -649,6 +649,11 @@
   pointer-events: none;
 }
 .case-item__video { pointer-events: auto; }
+/* v0.20.1 — img снова кликабельна (gallery fullscreen trigger,
+   .closest('[data-gallery] img') в main.js delegated click handler
+   из коммита eebae22). Раньше pointer-events:none блокировал клики
+   на img, и FLIP-viewer не активировался. */
+.case-item__img { pointer-events: auto; }
 
 /* v0.13.6 — SplitText-маска для H1 кейса.
    SplitText ставит каждый символ в inline-block-спанс .case-title__char
