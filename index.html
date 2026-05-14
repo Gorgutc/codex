@@ -766,6 +766,11 @@
 </div>
 
 <!-- JS: строго по порядку, без defer -->
+<!-- v0.16.0 — Lenis 1.1.20 smooth scroll. Грузится ПЕРЕД gsap, чтобы
+     инициализация в main.js (duration:1.2 + custom easing, syncTouch:false
+     по дефолту → touch нативный) могла подключить gsap.ticker + ScrollTrigger.
+     prefers-reduced-motion → init пропускается, остаётся native scroll. -->
+<script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js"></script>
 <!-- v0.13.6 — GSAP 3.13.0: SplitText стал бесплатным с мая 2025.
      3.13 drop-in-compatible с 3.12.5, новых breaking нет. -->
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>

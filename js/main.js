@@ -14,6 +14,45 @@
   'use strict';
 
   /* ══════════════════════════════════════════════════════════════════
+     v0.16.0 — LENIS smooth scroll + GSAP ScrollTrigger integration
+     ───────────────────────────────────────────────────────────────
+     • Конфиг: duration 1.2 + custom easing (per ТЗ Phase_1).
+       Lenis 1.1+: duration/lerp взаимоисключаемы — оставляем duration.
+       smoothWheel:true (default). syncTouch не задаём → default false:
+       touch-scroll нативный (pointer:coarse), wheel — сглажен Lenis-ом.
+     • Интеграция: lenis.on('scroll', ScrollTrigger.update) + raf через
+       gsap.ticker (единый rAF-loop). lagSmoothing(0) обязателен —
+       иначе ScrollTrigger.update получает stale time после tab-hidden.
+     • reduced-motion → init пропускается, остаётся native scroll.
+     • Stopped пока case-view раскрыт (body.cards-collapsed) или
+       .media-fs overlay открыт — там работает нативный scroll контента.
+       Триггер: updateLenisState() из setCollapsed() и openFs/closeFs().
+  ══════════════════════════════════════════════════════════════════ */
+  var lenis = null;
+  (function initLenis() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (typeof Lenis === 'undefined' || typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
+
+    lenis = new Lenis({
+      duration: 1.2,
+      easing: function (t) { return Math.min(1, 1.001 - Math.pow(2, -10 * t)); },
+      smoothWheel: true
+    });
+
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add(function (time) { lenis.raf(time * 1000); });
+    gsap.ticker.lagSmoothing(0);
+  })();
+
+  function updateLenisState() {
+    if (!lenis) return;
+    var caseOpen = document.body.classList.contains('cards-collapsed');
+    var fsOpen   = !!(fsOverlay && fsOverlay.classList.contains('is-open'));
+    if (caseOpen || fsOpen) lenis.stop();
+    else lenis.start();
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
      CARDS_DATA — Как добавить / заменить иллюстрации:
      ───────────────────────────────────────────────────────────────
      Каждый кейс = массив items из 6 блоков:
@@ -2455,6 +2494,9 @@
     }
 
     document.dispatchEvent(new CustomEvent('codex:toggle', { detail: { collapsed: collapsed } }));
+
+    // v0.16.0 — case-view раскрыт → отключаем Lenis (нативный scroll #case-scroll).
+    updateLenisState();
   }
 
   if (toggleBtn) {
@@ -2770,12 +2812,16 @@
     fsOverlay.classList.add('is-open');
     document.documentElement.style.overflow = 'hidden';
     try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+    // v0.16.0 — media-fs overlay открыт → нативный scroll внутри stage.
+    updateLenisState();
   }
 
   function closeFs() {
     if (!fsOverlay || fsOverlay.hidden) return;
     fsOverlay.classList.remove('is-open');
     document.documentElement.style.overflow = '';
+    // v0.16.0 — restart Lenis если case-view не раскрыт; иначе остаётся stopped.
+    updateLenisState();
     // скрываем после трансишна, чистим stage
     setTimeout(function () {
       if (fsOverlay && !fsOverlay.classList.contains('is-open')) {
