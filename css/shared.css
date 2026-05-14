@@ -1495,8 +1495,8 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
   position: absolute;
   top: 50%;
   left: 50%;
-  width: var(--cursor-shell-size, 64px);
-  height: var(--cursor-shell-size, 64px);
+  width: var(--cursor-shell-size, 56px);
+  height: var(--cursor-shell-size, 56px);
   border: 1px solid var(--color-text);
   border-radius: 50%;
   opacity: 0;
@@ -1515,8 +1515,8 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
 .cursor__shell-label {
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: var(--text-xs);
-  letter-spacing: 0.1em;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-text);
   opacity: 0;
@@ -1545,13 +1545,16 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
   transition: transform 200ms var(--ease-out), background-color 0.25s var(--ease-out), opacity 0.2s var(--ease-out);
 }
 
-/* LINK state — dot inflates, ring hidden */
+/* LINK state — повторяем паттерн magnetic .is-hover: ring инвертируется
+   на --color-text (white в dark / dark в light, авто через токен), dot
+   scale 1.6. Раньше был border:transparent + translucent primary fill —
+   на reverse'ах (.case-nav__btn, .case-share, .case-3d__fs-btn) почти
+   не читался. Теперь link и magnetic-hover дают одинаковый visible visual. */
 .cursor.is-link {
-  border-color: transparent;
+  border-color: var(--color-text);
 }
 .cursor.is-link .cursor-dot {
-  transform: scale(4.67);
-  background: var(--color-primary-highlight);
+  transform: scale(1.6);
 }
 
 /* WORK state — 64×64 shell with text label, base ring/dot hidden */
