@@ -1559,3 +1559,168 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
 @media (min-width: 768px) {
   body.cards-collapsed .site-footer { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PRELOADER (v0.17.0) — real progress on top-12 work-card SVG decode()
+   ─────────────────────────────────────────────────────────────────────
+   Anti-flicker: html.is-loading hides interactive layout/cursor until
+   the IIFE in main.js removes the overlay and unsets the class.
+   z-index 10000 sits above .media-fs (9999) but BELOW .cursor (10001),
+   which we hide via visibility while loading anyway.
+═══════════════════════════════════════════════════════════════════════ */
+html.is-loading body > .layout,
+html.is-loading body > .cursor {
+  visibility: hidden;
+}
+
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--color-bg);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Explicit inset() start so GSAP can interpolate to inset(0 0 100% 0) on exit. */
+  clip-path: inset(0 0 0% 0);
+  will-change: clip-path, opacity;
+}
+
+.preloader__readout {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.preloader__readout-sep {
+  color: var(--color-text-faint);
+  opacity: 0.6;
+}
+
+.preloader__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.preloader__counter {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-hero);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.preloader__bar {
+  position: relative;
+  width: min(80vw, 480px);
+  height: 1px;
+  background: var(--color-divider);
+  overflow: hidden;
+}
+
+.preloader__bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  background: var(--color-primary);
+}
+
+.preloader__label {
+  position: absolute;
+  bottom: var(--space-12);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+.preloader__dots {
+  display: inline-block;
+  width: 1.4em;
+  text-align: left;
+  margin-left: 0.2em;
+}
+
+.preloader__dots span {
+  display: inline-block;
+  opacity: 0;
+  animation: preloader-dot 1.4s ease-in-out infinite;
+}
+
+.preloader__dots span:nth-child(2) { animation-delay: 0.2s; }
+.preloader__dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes preloader-dot {
+  0%, 80%, 100% { opacity: 0; }
+  40%           { opacity: 1; }
+}
+
+.preloader__skip {
+  position: absolute;
+  bottom: var(--space-24);
+  left: 50%;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-6);
+  cursor: pointer;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition:
+    opacity 0.3s var(--ease-out),
+    transform 0.3s var(--ease-out),
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.preloader__skip[hidden] { display: none; }
+
+.preloader__skip.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.preloader__skip:hover,
+.preloader__skip:focus-visible {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  outline: none;
+}
+
+@media (max-width: 768px) {
+  .preloader__counter { font-size: var(--text-2xl); }
+  .preloader__bar    { width: min(70vw, 320px); }
+}
+
+@media (max-width: 375px) {
+  .preloader__readout { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preloader__dots span { animation: none; opacity: 1; }
+}

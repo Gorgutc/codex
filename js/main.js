@@ -53,6 +53,163 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════
+     v0.17.0 — PRELOADER with REAL asset-loading progress
+     ───────────────────────────────────────────────────────────────
+     • Tracks first 12 work-card SVGs via image.decode() (or load/error
+       fallback) and tweens counter + bar via GSAP (0.4s, power2.out).
+     • Soft timeout 2.5s → force-tween to 100%. After 4s — show SKIP.
+     • Exit: hold 100% for 200ms, then clip-path inset(0 0 100% 0) +
+       opacity 0 (duration 0.9, expo.inOut). On complete: overlay
+       removed, html.is-loading cleared, Lenis state resynced.
+     • prefers-reduced-motion → 50ms instant cut, no GSAP tweens.
+  ══════════════════════════════════════════════════════════════════ */
+  (function initPreloader() {
+    var overlay = document.getElementById('preloader');
+    if (!overlay) return;
+
+    var html      = document.documentElement;
+    var counterEl = overlay.querySelector('#preloader-counter');
+    var barFill   = overlay.querySelector('#preloader-bar-fill');
+    var tsEl      = overlay.querySelector('#preloader-ts');
+    var skipBtn   = overlay.querySelector('#preloader-skip');
+    var reduced   = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Preloader holds page state — Lenis must be silent until cleanup.
+    if (lenis) lenis.stop();
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+    function nowTs() {
+      var d = new Date();
+      return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
+    var tsInt = null;
+    if (tsEl) {
+      tsEl.textContent = nowTs();
+      tsInt = setInterval(function () { tsEl.textContent = nowTs(); }, 1000);
+    }
+
+    var state = { progress: 0 };
+    var lastShown = -1;
+    var exited = false;
+    var cleaned = false;
+    var softTimer = null;
+    var skipTimer = null;
+
+    function renderProgress() {
+      var p = Math.max(0, Math.min(100, Math.round(state.progress)));
+      if (p === lastShown) return;
+      lastShown = p;
+      if (counterEl) counterEl.textContent = pad(p);
+      if (barFill)   barFill.style.width = p + '%';
+    }
+
+    function tweenTo(target, onDone) {
+      if (reduced || typeof gsap === 'undefined') {
+        state.progress = target;
+        renderProgress();
+        if (onDone) onDone();
+        return;
+      }
+      gsap.to(state, {
+        progress: target,
+        duration: 0.4,
+        ease: 'power2.out',
+        overwrite: true,
+        onUpdate: renderProgress,
+        onComplete: onDone
+      });
+    }
+
+    function cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      if (tsInt)     clearInterval(tsInt);
+      if (softTimer) clearTimeout(softTimer);
+      if (skipTimer) clearTimeout(skipTimer);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      html.classList.remove('is-loading');
+      // Resume Lenis taking modal state into account.
+      if (typeof updateLenisState === 'function') updateLenisState();
+      document.dispatchEvent(new CustomEvent('codex:preloader-done'));
+    }
+
+    function exit() {
+      if (exited) return;
+      exited = true;
+      tweenTo(100, function () {
+        setTimeout(function () {
+          if (reduced || typeof gsap === 'undefined') { cleanup(); return; }
+          gsap.to(overlay, {
+            clipPath: 'inset(0 0 100% 0)',
+            opacity: 0,
+            duration: 0.9,
+            ease: 'expo.inOut',
+            onComplete: cleanup
+          });
+        }, 200);
+      });
+    }
+
+    if (reduced) {
+      setTimeout(exit, 50);
+      return;
+    }
+
+    function imgPromise(img) {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      if (typeof img.decode === 'function') return img.decode().catch(function () {});
+      return new Promise(function (res) {
+        img.addEventListener('load',  res, { once: true });
+        img.addEventListener('error', res, { once: true });
+      });
+    }
+
+    function startTracking() {
+      var imgs = Array.prototype.slice.call(
+        document.querySelectorAll('.work-card img')
+      ).slice(0, 12);
+
+      var total = imgs.length;
+      if (total === 0) { tweenTo(100, function () { setTimeout(exit, 200); }); return; }
+
+      var done = 0;
+      var promises = imgs.map(function (img) {
+        return imgPromise(img).then(function () {
+          done++;
+          tweenTo(Math.round((done / total) * 100));
+        });
+      });
+
+      Promise.all(promises).then(function () {
+        if (!exited) setTimeout(exit, 200);
+      });
+
+      // Soft timeout — force-finish if assets stall.
+      softTimer = setTimeout(function () {
+        if (!exited) exit();
+      }, 2500);
+
+      // SKIP affordance at 4s — only if user is still here.
+      skipTimer = setTimeout(function () {
+        if (!exited && skipBtn) {
+          skipBtn.hidden = false;
+          // Force reflow so transition triggers from hidden → visible.
+          void skipBtn.offsetWidth;
+          skipBtn.classList.add('is-visible');
+        }
+      }, 4000);
+
+      if (skipBtn) skipBtn.addEventListener('click', exit, { once: true });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startTracking, { once: true });
+    } else {
+      startTracking();
+    }
+  })();
+
+  /* ══════════════════════════════════════════════════════════════════
      CARDS_DATA — Как добавить / заменить иллюстрации:
      ───────────────────────────────────────────────────────────────
      Каждый кейс = массив items из 6 блоков:
