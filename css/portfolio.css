@@ -270,14 +270,13 @@
     border-color: var(--color-primary-hover);
     background: var(--color-primary-highlight);
   }
-  .case-share:hover svg { color: var(--color-primary-hover); }
 }
 .case-share:active { transform: scale(0.97); }
 .case-share:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
-.case-share svg { flex-shrink: 0; color: var(--color-primary); }
+.case-share svg { flex-shrink: 0; }
 .case-share--copied {
   color: var(--color-primary);
   border-color: var(--color-primary);
@@ -1805,23 +1804,17 @@
   display: block;
 }
 /* v0.7.12 [UX] — case-blueprints__fs-btn accent (одинокая кнопка в углу canvas,
-   нужна повышенная discoverability). Border + icon в --color-primary; text не
-   используется (icon-only). 3D fs-btn остаётся neutral — он живёт в ряду
-   других controls и не нуждается в дополнительном акценте. */
+   нужна повышенная discoverability). v0.7.13: только border в --color-primary,
+   icon оставлен в --color-text (наследует от parent) — согласовано с другими
+   accent-кнопками. 3D fs-btn остаётся neutral — он живёт в ряду controls. */
 .case-blueprints__fs-btn {
   border-color: var(--color-primary);
   color: var(--color-text);
-}
-.case-blueprints__fs-btn .case-blueprints__fs-btn__icon {
-  color: var(--color-primary);
 }
 @media (hover: hover) and (pointer: fine) {
   .case-blueprints__fs-btn:hover {
     border-color: var(--color-primary-hover);
     background: var(--color-primary-highlight);
-  }
-  .case-blueprints__fs-btn:hover .case-blueprints__fs-btn__icon {
-    color: var(--color-primary-hover);
   }
 }
 /* В 3D controls и BP toolbar кнопка встроена в row, сбрасываем absolute */
