@@ -1052,8 +1052,15 @@
     } else if (!isVideo && item.src) {
       // v0.20.0 — gallery img триггерит fullscreen viewer. tabindex+role+aria
       // для клавиатурной доступности (Enter/Space в main.js gallery keydown).
+      // v0.21.0 — width/height (CLS prevention) + decoding=async. Размеры
+      // условные по format ('wide' 1600×900 / 'tall' 600×800) — реальные SVG
+      // имеют тот же aspect через viewBox, браузер использует ratio для
+      // pre-reservation места.
+      var iw = item.format === 'wide' ? 1600 : 600;
+      var ih = item.format === 'wide' ? 900  : 800;
       h += '<img class="case-item__img" src="' + item.src + '" alt="' + (item.label || '') + '" ';
-      h += 'loading="lazy" draggable="false" tabindex="0" role="button" ';
+      h += 'width="' + iw + '" height="' + ih + '" loading="lazy" decoding="async" ';
+      h += 'draggable="false" tabindex="0" role="button" ';
       h += 'aria-haspopup="dialog" aria-label="Open fullscreen view of ' + (item.label || 'image') + '" ';
       h += 'onerror="this.remove();">';
     }

@@ -37,6 +37,33 @@ body {
      • 1s → 1.2s (темп -17%)
    Используем свой SVG-тайл (не внешняя wikimedia картинка) — zero network.
 ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   SKIP-TO-CONTENT (v0.21.0)
+   Visually hidden до :focus — keyboard users (Tab из address bar)
+   получают переход на <main id="main">. Над preloader/cursor (10002).
+═══════════════════════════════════════════════════════════════════ */
+.skip-to-content {
+  position: fixed;
+  top: 0;
+  left: var(--space-2);
+  transform: translateY(-150%);
+  z-index: 10002;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: transform 0.2s var(--ease-out);
+}
+.skip-to-content:focus,
+.skip-to-content:focus-visible {
+  transform: translateY(var(--space-2));
+  outline: none;
+}
+
 body::before {
   content: '';
   position: fixed;

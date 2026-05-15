@@ -80,6 +80,7 @@
   </script>
 
   <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap">
 
@@ -92,6 +93,9 @@
 </head>
 
 <body data-theme="dark">
+
+<!-- v0.21.0 — Skip-to-content для a11y. -->
+<a class="skip-to-content" href="#main">Skip to content</a>
 
 <!-- v0.17.0 — PRELOADER (shared markup with index.html). Initializes via
      preloader IIFE in js/main.js. Without [data-gallery] / work-card images
@@ -256,7 +260,7 @@
           <div class="tag-card__thumb work-card__thumb" data-label="Hard Surface"
                style="background:linear-gradient(135deg,#1e2d3d 0,#2a3a4a 100%)">
             <img src="./assets/cards/orbital-mk-ii.svg" alt="Hard Surface assets preview"
-                 loading="lazy" width="800" height="600" onerror="this.remove()">
+                 loading="eager" fetchpriority="high" decoding="async" width="800" height="600" onerror="this.remove()">
             <span class="tag-card__count-badge">8 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
@@ -275,7 +279,7 @@
           <div class="tag-card__thumb work-card__thumb" data-label="Product Viz"
                style="background:linear-gradient(135deg,#2a2018 0,#3a2e22 100%)">
             <img src="./assets/cards/corten-series.svg" alt="Product Viz preview"
-                 loading="lazy" width="800" height="600" onerror="this.remove()">
+                 loading="lazy" decoding="async" width="800" height="600" onerror="this.remove()">
             <span class="tag-card__count-badge">5 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
@@ -294,7 +298,7 @@
           <div class="tag-card__thumb work-card__thumb" data-label="Game Assets"
                style="background:linear-gradient(135deg,#1a1a2a 0,#252535 100%)">
             <img src="./assets/cards/nightshard.svg" alt="Game Assets preview"
-                 loading="lazy" width="800" height="600" onerror="this.remove()">
+                 loading="lazy" decoding="async" width="800" height="600" onerror="this.remove()">
             <!-- v0.4 [HV3]: убран aria-label на <span> — у span нет implicit role,
                  aria-label игнорируется. Текст "Game" уже семантически достаточен. -->
             <span class="work-card__badge">Game</span>
@@ -317,7 +321,7 @@
           <div class="tag-card__thumb work-card__thumb" data-label="Organic"
                style="background:linear-gradient(135deg,#1a1816 0,#2a2520 100%)">
             <img src="./assets/cards/nyx-panther.svg" alt="Organic preview"
-                 loading="lazy" width="800" height="600" onerror="this.remove()">
+                 loading="lazy" decoding="async" width="800" height="600" onerror="this.remove()">
             <span class="tag-card__count-badge">3 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
@@ -336,7 +340,7 @@
           <div class="tag-card__thumb work-card__thumb" data-label="Animation"
                style="background:linear-gradient(135deg,#1a2233 0,#26304a 100%)">
             <img src="./assets/cards/helix-reveal.svg" alt="Animation preview"
-                 loading="lazy" width="800" height="600" onerror="this.remove()">
+                 loading="lazy" decoding="async" width="800" height="600" onerror="this.remove()">
             <span class="tag-card__count-badge">2 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
@@ -355,7 +359,7 @@
           <div class="tag-card__thumb work-card__thumb" data-label="CAD"
                style="background:linear-gradient(135deg,#1d232a 0,#2a3138 100%)">
             <img src="./assets/cards/mech-link.svg" alt="CAD preview"
-                 loading="lazy" width="800" height="600" onerror="this.remove()">
+                 loading="lazy" decoding="async" width="800" height="600" onerror="this.remove()">
             <span class="tag-card__count-badge">3 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
@@ -411,7 +415,7 @@
        MAIN AREA — asset grid
        ═════════════════════════════════════════ -->
   <!-- v0.4 [HV1]: убран redundant role="main" — <main> уже имеет implicit role -->
-  <main class="main-area">
+  <main class="main-area" id="main">
 
     <!-- Mobile bar (структура как в index.html) -->
     <div class="case-mobile-bar">

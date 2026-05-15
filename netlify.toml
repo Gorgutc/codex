@@ -1,0 +1,23 @@
+## Codex Studio — Netlify config (v0.21.0)
+## Phase 1: only caching headers. Build-step не нужен (статика).
+
+[build]
+  publish = "."
+
+# Long-cache на статические ассеты (immutable — пути не меняются без обновления имени)
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "max-age=31536000, immutable"
+
+# HTML — всегда revalidate (must-revalidate чтобы менялся быстро)
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "max-age=0, must-revalidate"
+
+# Корневой / — тоже html, должен revalidate
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "max-age=0, must-revalidate"
