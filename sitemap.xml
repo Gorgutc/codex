@@ -11,4 +11,10 @@
       <image:title>Codex Studio — 3D design portfolio</image:title>
     </image:image>
   </url>
+  <url>
+    <loc>https://codex.promo/free-assets.html</loc>
+    <lastmod>2026-05-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>

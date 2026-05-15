@@ -67,6 +67,7 @@
   /* Typography */
   --font-display: 'Clash Display', 'Inter', sans-serif;
   --font-body:    'General Sans', 'Inter', sans-serif;
+  --font-mono:    ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
 
   --text-xs:   clamp(0.65rem,  0.6rem  + 0.2vw,  0.75rem);
   --text-sm:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);

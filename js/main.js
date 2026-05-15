@@ -14,6 +14,202 @@
   'use strict';
 
   /* ══════════════════════════════════════════════════════════════════
+     v0.16.0 — LENIS smooth scroll + GSAP ScrollTrigger integration
+     ───────────────────────────────────────────────────────────────
+     • Конфиг: duration 1.2 + custom easing (per ТЗ Phase_1).
+       Lenis 1.1+: duration/lerp взаимоисключаемы — оставляем duration.
+       smoothWheel:true (default). syncTouch не задаём → default false:
+       touch-scroll нативный (pointer:coarse), wheel — сглажен Lenis-ом.
+     • Интеграция: lenis.on('scroll', ScrollTrigger.update) + raf через
+       gsap.ticker (единый rAF-loop). lagSmoothing(0) обязателен —
+       иначе ScrollTrigger.update получает stale time после tab-hidden.
+     • reduced-motion → init пропускается, остаётся native scroll.
+     • Stopped пока case-view раскрыт (body.cards-collapsed) или
+       .media-fs overlay открыт — там работает нативный scroll контента.
+       Триггер: updateLenisState() из setCollapsed() и openFs/closeFs().
+  ══════════════════════════════════════════════════════════════════ */
+  var lenis = null;
+  (function initLenis() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (typeof Lenis === 'undefined' || typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
+
+    lenis = new Lenis({
+      duration: 1.2,
+      easing: function (t) { return Math.min(1, 1.001 - Math.pow(2, -10 * t)); },
+      smoothWheel: true
+    });
+
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add(function (time) { lenis.raf(time * 1000); });
+    gsap.ticker.lagSmoothing(0);
+  })();
+
+  function updateLenisState() {
+    if (!lenis) return;
+    var caseOpen = document.body.classList.contains('cards-collapsed');
+    var fsOpen   = !!(fsOverlay && fsOverlay.classList.contains('is-open'));
+    if (caseOpen || fsOpen) lenis.stop();
+    else lenis.start();
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     v0.17.0 — PRELOADER with REAL asset-loading progress
+     ───────────────────────────────────────────────────────────────
+     • Tracks first 12 work-card SVGs via image.decode() (or load/error
+       fallback) and tweens counter + bar via GSAP (0.4s, power2.out).
+     • Soft timeout 2.5s → force-tween to 100%. After 4s — show SKIP.
+     • Exit: hold 100% for 200ms, then clip-path inset(0 0 100% 0) +
+       opacity 0 (duration 0.9, expo.inOut). On complete: overlay
+       removed, html.is-loading cleared, Lenis state resynced.
+     • prefers-reduced-motion → 50ms instant cut, no GSAP tweens.
+  ══════════════════════════════════════════════════════════════════ */
+  (function initPreloader() {
+    var overlay = document.getElementById('preloader');
+    if (!overlay) return;
+
+    var html      = document.documentElement;
+    var counterEl = overlay.querySelector('#preloader-counter');
+    var barFill   = overlay.querySelector('#preloader-bar-fill');
+    var tsEl      = overlay.querySelector('#preloader-ts');
+    var skipBtn   = overlay.querySelector('#preloader-skip');
+    var reduced   = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Preloader holds page state — Lenis must be silent until cleanup.
+    if (lenis) lenis.stop();
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+    function nowTs() {
+      var d = new Date();
+      return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
+    var tsInt = null;
+    if (tsEl) {
+      tsEl.textContent = nowTs();
+      tsInt = setInterval(function () { tsEl.textContent = nowTs(); }, 1000);
+    }
+
+    var state = { progress: 0 };
+    var lastShown = -1;
+    var exited = false;
+    var cleaned = false;
+    var softTimer = null;
+    var skipTimer = null;
+
+    function renderProgress() {
+      var p = Math.max(0, Math.min(100, Math.round(state.progress)));
+      if (p === lastShown) return;
+      lastShown = p;
+      if (counterEl) counterEl.textContent = pad(p);
+      if (barFill)   barFill.style.width = p + '%';
+    }
+
+    function tweenTo(target, onDone) {
+      if (reduced || typeof gsap === 'undefined') {
+        state.progress = target;
+        renderProgress();
+        if (onDone) onDone();
+        return;
+      }
+      gsap.to(state, {
+        progress: target,
+        duration: 0.4,
+        ease: 'power2.out',
+        overwrite: true,
+        onUpdate: renderProgress,
+        onComplete: onDone
+      });
+    }
+
+    function cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      if (tsInt)     clearInterval(tsInt);
+      if (softTimer) clearTimeout(softTimer);
+      if (skipTimer) clearTimeout(skipTimer);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      html.classList.remove('is-loading');
+      // Resume Lenis taking modal state into account.
+      if (typeof updateLenisState === 'function') updateLenisState();
+      document.dispatchEvent(new CustomEvent('codex:preloader-done'));
+    }
+
+    function exit() {
+      if (exited) return;
+      exited = true;
+      tweenTo(100, function () {
+        setTimeout(function () {
+          if (reduced || typeof gsap === 'undefined') { cleanup(); return; }
+          gsap.to(overlay, {
+            clipPath: 'inset(0 0 100% 0)',
+            opacity: 0,
+            duration: 0.9,
+            ease: 'expo.inOut',
+            onComplete: cleanup
+          });
+        }, 200);
+      });
+    }
+
+    if (reduced) {
+      setTimeout(exit, 50);
+      return;
+    }
+
+    function imgPromise(img) {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      if (typeof img.decode === 'function') return img.decode().catch(function () {});
+      return new Promise(function (res) {
+        img.addEventListener('load',  res, { once: true });
+        img.addEventListener('error', res, { once: true });
+      });
+    }
+
+    function startTracking() {
+      var imgs = Array.prototype.slice.call(
+        document.querySelectorAll('.work-card img')
+      ).slice(0, 12);
+
+      var total = imgs.length;
+      if (total === 0) { tweenTo(100, function () { setTimeout(exit, 200); }); return; }
+
+      var done = 0;
+      var promises = imgs.map(function (img) {
+        return imgPromise(img).then(function () {
+          done++;
+          tweenTo(Math.round((done / total) * 100));
+        });
+      });
+
+      Promise.all(promises).then(function () {
+        if (!exited) setTimeout(exit, 200);
+      });
+
+      // Soft timeout — force-finish if assets stall.
+      softTimer = setTimeout(function () {
+        if (!exited) exit();
+      }, 2500);
+
+      // SKIP affordance at 4s — only if user is still here.
+      skipTimer = setTimeout(function () {
+        if (!exited && skipBtn) {
+          skipBtn.hidden = false;
+          // Force reflow so transition triggers from hidden → visible.
+          void skipBtn.offsetWidth;
+          skipBtn.classList.add('is-visible');
+        }
+      }, 4000);
+
+      if (skipBtn) skipBtn.addEventListener('click', exit, { once: true });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startTracking, { once: true });
+    } else {
+      startTracking();
+    }
+  })();
+
+  /* ══════════════════════════════════════════════════════════════════
      CARDS_DATA — Как добавить / заменить иллюстрации:
      ───────────────────────────────────────────────────────────────
      Каждый кейс = массив items из 6 блоков:
@@ -854,8 +1050,19 @@
       if (item.poster) h += 'poster="' + item.poster + '" ';
       h += 'aria-label="' + (item.label || '') + '" onerror="this.remove();"></video>';
     } else if (!isVideo && item.src) {
+      // v0.20.0 — gallery img триггерит fullscreen viewer. tabindex+role+aria
+      // для клавиатурной доступности (Enter/Space в main.js gallery keydown).
+      // v0.21.0 — width/height (CLS prevention) + decoding=async. Размеры
+      // условные по format ('wide' 1600×900 / 'tall' 600×800) — реальные SVG
+      // имеют тот же aspect через viewBox, браузер использует ratio для
+      // pre-reservation места.
+      var iw = item.format === 'wide' ? 1600 : 600;
+      var ih = item.format === 'wide' ? 900  : 800;
       h += '<img class="case-item__img" src="' + item.src + '" alt="' + (item.label || '') + '" ';
-      h += 'loading="lazy" draggable="false" onerror="this.remove();">';
+      h += 'width="' + iw + '" height="' + ih + '" loading="lazy" decoding="async" ';
+      h += 'draggable="false" tabindex="0" role="button" ';
+      h += 'aria-haspopup="dialog" aria-label="Open fullscreen view of ' + (item.label || 'image') + '" ';
+      h += 'onerror="this.remove();">';
     }
     h +=   '<span class="case-item__placeholder" aria-hidden="true">' + (item.label || '') + '</span>';
     /* v0.15.2 [B3] — .case-media-fs-btn удалена для 2D кейсов.
@@ -1946,6 +2153,8 @@
       fsBtn3d.className = 'case-3d__fs-btn';
       fsBtn3d.setAttribute('aria-label', 'Open 3D fullscreen');
       fsBtn3d.setAttribute('title', 'Fullscreen');
+      // v0.19.0 — override drag-state из родительского .case-3d__canvas
+      fsBtn3d.setAttribute('data-cursor', 'link');
       fsBtn3d.innerHTML = '<svg class="case-3d__fs-btn__icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
 
       controls.appendChild(autoBtn);
@@ -2455,6 +2664,9 @@
     }
 
     document.dispatchEvent(new CustomEvent('codex:toggle', { detail: { collapsed: collapsed } }));
+
+    // v0.16.0 — case-view раскрыт → отключаем Lenis (нативный scroll #case-scroll).
+    updateLenisState();
   }
 
   if (toggleBtn) {
@@ -2686,12 +2898,21 @@
 
   /* ════════════════════════════════════════════
      v0.15.1 [2.1/2.2/2.3] — FULLSCREEN OVERLAY (Variant B)
-     Одна скрытая overlay-плашка в <body>. По клику fs-btn клонируется
-     контент (img/video/model-viewer/svg) в .media-fs__stage. ESC или клик по
-     backdrop закрывают.
+     v0.20.0 — расширен поддержкой gallery: prev/next, counter,
+       aria-live, focus trap, FLIP open/close, touch swipe, cursor
+       zone labels.
+     Одна скрытая overlay-плашка в <body>. По клику fs-btn (3D/BP) или
+     gallery img клонируется контент в .media-fs__stage.
      ════════════════════════════════════════════ */
   var fsOverlay = null, fsStage = null, fsCloseBtn = null;
-  var fsOriginalEl = null; // для video: чтобы синхронизировать время.
+  var fsPrev = null, fsNext = null, fsCounter = null, fsAnnouncer = null;
+  var fsOriginalEl = null;          // для video: чтобы синхронизировать время.
+  var fsContext = null;             // 'gallery' | null — режим overlay
+  var gallery = { list: [], index: 0, triggerEl: null };
+  var fsCurrentEl = null;           // v0.20.2 — текущая видимая картинка в stage
+  var focusTrapHandler = null;
+  var fsPreviousFocus = null;       // элемент для возврата фокуса при close
+
   function ensureFsOverlay() {
     if (fsOverlay) return fsOverlay;
     fsOverlay = document.createElement('div');
@@ -2709,17 +2930,63 @@
     fsCloseBtn.className = 'media-fs__close';
     fsCloseBtn.setAttribute('aria-label', 'Close fullscreen');
     fsCloseBtn.setAttribute('title', 'Close fullscreen');
+    // v0.19.0 — media-fs overlay создаётся динамически, помечаем при build
+    fsCloseBtn.setAttribute('data-cursor', 'link');
     fsCloseBtn.innerHTML = '<svg class="media-fs__close-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M6 2v4H2M12 2v4h4M2 12h4v4M12 16v-4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
     fsCloseBtn.addEventListener('click', closeFs);
 
+    // v0.20.0 — gallery prev/next/counter/announcer. hidden до openFsImageGallery.
+    fsPrev = document.createElement('button');
+    fsPrev.type = 'button';
+    fsPrev.className = 'media-fs__prev';
+    fsPrev.setAttribute('aria-label', 'Previous image');
+    fsPrev.setAttribute('data-cursor', 'link');
+    fsPrev.hidden = true;
+    fsPrev.innerHTML = '<svg class="media-fs__nav-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 4L5 9l6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    fsPrev.addEventListener('click', function () { navGallery(-1); });
+
+    fsNext = document.createElement('button');
+    fsNext.type = 'button';
+    fsNext.className = 'media-fs__next';
+    fsNext.setAttribute('aria-label', 'Next image');
+    fsNext.setAttribute('data-cursor', 'link');
+    fsNext.hidden = true;
+    fsNext.innerHTML = '<svg class="media-fs__nav-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4l6 5-6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    fsNext.addEventListener('click', function () { navGallery(+1); });
+
+    fsCounter = document.createElement('div');
+    fsCounter.className = 'media-fs__counter';
+    fsCounter.hidden = true;
+
+    fsAnnouncer = document.createElement('div');
+    fsAnnouncer.className = 'media-fs__announcer';
+    fsAnnouncer.setAttribute('aria-live', 'polite');
+    fsAnnouncer.setAttribute('aria-atomic', 'true');
+
     fsOverlay.appendChild(fsCloseBtn);
+    fsOverlay.appendChild(fsPrev);
+    fsOverlay.appendChild(fsNext);
+    fsOverlay.appendChild(fsCounter);
+    fsOverlay.appendChild(fsAnnouncer);
     fsOverlay.appendChild(fsStage);
     document.body.appendChild(fsOverlay);
 
-    // Клик по backdrop (не по stage-детям) закрывает
+    // Backdrop click: в gallery — навигация по половинам, иначе — close.
     fsOverlay.addEventListener('click', function (e) {
-      if (e.target === fsOverlay || e.target === fsStage) closeFs();
+      if (e.target !== fsOverlay && e.target !== fsStage) return;
+      if (fsContext === 'gallery') {
+        navGallery(e.clientX < window.innerWidth / 2 ? -1 : +1);
+      } else {
+        closeFs();
+      }
     });
+
+    // Touch swipe (gallery only)
+    setupFsSwipe(fsOverlay);
+    // Cursor zone tracker — добавляет is-fs-prev/is-fs-next к .cursor
+    fsOverlay.addEventListener('mousemove', trackFsCursorZones);
+    fsOverlay.addEventListener('mouseleave', clearFsCursorZones);
+
     return fsOverlay;
   }
 
@@ -2770,25 +3037,343 @@
     fsOverlay.classList.add('is-open');
     document.documentElement.style.overflow = 'hidden';
     try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+    // v0.16.0 — media-fs overlay открыт → нативный scroll внутри stage.
+    updateLenisState();
   }
 
   function closeFs() {
     if (!fsOverlay || fsOverlay.hidden) return;
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // v0.20.0 — gallery: reverse FLIP к текущему thumbnail (gallery.triggerEl
+    // обновляется при каждом navGallery, так что закрываем на актуальную миниатюру).
+    if (fsContext === 'gallery' && !reduced && !document.hidden && typeof gsap !== 'undefined') {
+      closeFsImageReverseFlip();
+      return;
+    }
+
     fsOverlay.classList.remove('is-open');
     document.documentElement.style.overflow = '';
-    // скрываем после трансишна, чистим stage
+    updateLenisState();
+    releaseFocusTrap();
+    clearFsCursorZones();
+    var prevFocus = fsPreviousFocus;
     setTimeout(function () {
       if (fsOverlay && !fsOverlay.classList.contains('is-open')) {
         fsOverlay.hidden = true;
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
         fsOriginalEl = null;
+        restoreFsContext();
+        if (prevFocus && typeof prevFocus.focus === 'function') {
+          try { prevFocus.focus({ preventScroll: true }); } catch (_) {}
+        }
       }
     }, 220);
   }
 
-  // Делегированный клик по fs-кнопкам (3D/BP — через делегацию для единообразия).
+  /* ─── v0.20.0 — Gallery FLIP, navigation, focus trap, swipe ────────── */
+
+  function openFsImageGallery(sourceImg) {
+    ensureFsOverlay();
+    // Собираем гал-сcope (data-gallery предок; fallback — одиночный img).
+    var scope = sourceImg.closest('[data-gallery]');
+    var imgs = scope
+      ? Array.prototype.slice.call(scope.querySelectorAll('img'))
+      : [sourceImg];
+    // Отфильтровываем картинки, которые не отрисовались (broken/removed)
+    imgs = imgs.filter(function (i) { return i.isConnected && i.naturalWidth >= 0; });
+    gallery.list = imgs;
+    gallery.index = Math.max(0, imgs.indexOf(sourceImg));
+    gallery.triggerEl = sourceImg;
+    fsContext = 'gallery';
+    fsPreviousFocus = sourceImg;
+
+    fsOverlay.setAttribute('aria-label', 'Image gallery viewer');
+    fsPrev.hidden    = imgs.length < 2;
+    fsNext.hidden    = imgs.length < 2;
+    fsCounter.hidden = imgs.length < 2;
+
+    flipOpen(sourceImg);
+    updateGalleryUI(false);
+    preloadNeighbors();
+  }
+
+  function buildImageClone(srcImg) {
+    var clone = srcImg.cloneNode(false);
+    clone.removeAttribute('class');
+    clone.removeAttribute('tabindex');
+    clone.removeAttribute('role');
+    clone.removeAttribute('aria-haspopup');
+    // v0.20.4 — Wipe inline style inherited from animations.js setupLift
+    // reveal animation: case-item__img получает clip-path:inset(0 100% 0 0)
+    // (hide-state) либо mid-tween value. cloneNode копирует inline style
+    // полностью; class снимается, но inline остаётся и продолжает скрывать
+    // картинку в fs overlay. GSAP в swap/flip ставит свои inline-стили заново.
+    clone.removeAttribute('style');
+    clone.loading = 'eager';
+    return clone;
+  }
+
+  function flipOpen(sourceImg) {
+    while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+    var clone = buildImageClone(sourceImg);
+    fsStage.appendChild(clone);
+    fsCurrentEl = clone;
+
+    fsOverlay.hidden = false;
+    void fsOverlay.offsetWidth;
+    fsOverlay.classList.add('is-open');
+    document.documentElement.style.overflow = 'hidden';
+    updateLenisState();
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || document.hidden || typeof gsap === 'undefined') {
+      setupFocusTrap();
+      return;
+    }
+
+    // FLIP: получили target rect после layout, ставим transform к source rect,
+    // анимируем к identity. expo.inOut 0.5s.
+    var srcRect = sourceImg.getBoundingClientRect();
+    var tgtRect = clone.getBoundingClientRect();
+    if (tgtRect.width === 0 || tgtRect.height === 0) {
+      // image ещё не загрузилась — fallback на opacity-only
+      setupFocusTrap();
+      return;
+    }
+    var dx = srcRect.left - tgtRect.left;
+    var dy = srcRect.top  - tgtRect.top;
+    var sx = srcRect.width  / tgtRect.width;
+    var sy = srcRect.height / tgtRect.height;
+    gsap.set(clone, { transformOrigin: '0 0', x: dx, y: dy, scaleX: sx, scaleY: sy });
+    gsap.to(clone, {
+      x: 0, y: 0, scaleX: 1, scaleY: 1,
+      duration: 0.5, ease: 'expo.inOut',
+      clearProps: 'transform,transformOrigin',
+      onComplete: setupFocusTrap
+    });
+  }
+
+  function closeFsImageReverseFlip() {
+    // v0.20.2 — fsCurrentEl, не firstChild (после swap firstChild может быть
+    // удаляемой fading-out предыдущей картинкой).
+    if (typeof gsap !== 'undefined') gsap.killTweensOf(fsStage.children);
+    Array.prototype.slice.call(fsStage.children).forEach(function (c) {
+      if (c !== fsCurrentEl && c.parentNode) c.parentNode.removeChild(c);
+    });
+    var clone = fsCurrentEl;
+    var thumb = gallery.triggerEl;
+    if (!clone || !thumb || !thumb.isConnected) {
+      // fallback: чистый close без FLIP
+      fsContext = null;
+      closeFs();
+      return;
+    }
+    var stageRect = clone.getBoundingClientRect();
+    var thumbRect = thumb.getBoundingClientRect();
+    if (stageRect.width === 0 || thumbRect.width === 0) {
+      fsContext = null;
+      closeFs();
+      return;
+    }
+    var dx = thumbRect.left - stageRect.left;
+    var dy = thumbRect.top  - stageRect.top;
+    var sx = thumbRect.width  / stageRect.width;
+    var sy = thumbRect.height / stageRect.height;
+
+    releaseFocusTrap();
+    clearFsCursorZones();
+    var prevFocus = thumb;
+
+    gsap.to(clone, {
+      x: dx, y: dy, scaleX: sx, scaleY: sy,
+      transformOrigin: '0 0',
+      duration: 0.5, ease: 'expo.inOut'
+    });
+    gsap.to(fsOverlay, {
+      opacity: 0,
+      duration: 0.4,
+      ease: 'expo.inOut',
+      onComplete: function () {
+        fsOverlay.classList.remove('is-open');
+        fsOverlay.style.opacity = '';
+        fsOverlay.hidden = true;
+        while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+        document.documentElement.style.overflow = '';
+        updateLenisState();
+        restoreFsContext();
+        try { prevFocus.focus({ preventScroll: true }); } catch (_) {}
+      }
+    });
+  }
+
+  function navGallery(direction) {
+    if (fsContext !== 'gallery' || gallery.list.length < 2) return;
+    var prev = gallery.index;
+    var n = gallery.list.length;
+    gallery.index = ((gallery.index + direction) % n + n) % n;
+    var wrapped =
+      (direction === +1 && prev === n - 1) ||
+      (direction === -1 && prev === 0);
+    swapGalleryImage(gallery.list[gallery.index], wrapped);
+  }
+
+  function swapGalleryImage(nextImg, wrapped) {
+    /* v0.20.3 — Stage children теперь absolutely-centered через CSS
+       (inset+margin:auto), поэтому swap = pure crossfade. Не пиним
+       inline-стилями (имело edge case'ы с unloaded lazy-img и
+       transform-остатками от FLIP). Кленап накопившихся stale
+       fading-out children делается перед каждым swap. */
+    if (typeof gsap !== 'undefined') gsap.killTweensOf(fsStage.children);
+    Array.prototype.slice.call(fsStage.children).forEach(function (c) {
+      if (c !== fsCurrentEl && c.parentNode) c.parentNode.removeChild(c);
+    });
+
+    var oldEl = fsCurrentEl;
+    var newEl = buildImageClone(nextImg);
+    fsStage.appendChild(newEl);
+    fsCurrentEl = newEl;
+    gallery.triggerEl = nextImg;
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || document.hidden || typeof gsap === 'undefined') {
+      if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
+      updateGalleryUI(wrapped);
+      preloadNeighbors();
+      return;
+    }
+    gsap.set(newEl, { opacity: 0 });
+    gsap.to(newEl, { opacity: 1, duration: 0.35, ease: 'power2.out' });
+    if (oldEl) {
+      gsap.to(oldEl, {
+        opacity: 0, duration: 0.35, ease: 'power2.out',
+        onComplete: function () { if (oldEl.parentNode) oldEl.parentNode.removeChild(oldEl); }
+      });
+    }
+    updateGalleryUI(wrapped);
+    preloadNeighbors();
+  }
+
+  function updateGalleryUI(wrapped) {
+    var i = gallery.index, n = gallery.list.length;
+    if (fsCounter) fsCounter.textContent = (i + 1) + ' / ' + n;
+    if (fsAnnouncer) fsAnnouncer.textContent = 'Image ' + (i + 1) + ' of ' + n;
+    if (wrapped && fsCounter && typeof gsap !== 'undefined' &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.fromTo(fsCounter,
+        { scale: 1 },
+        { scale: 1.15, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' }
+      );
+    }
+  }
+
+  function preloadNeighbors() {
+    var n = gallery.list.length;
+    if (n < 2) return;
+    var nextIdx = (gallery.index + 1) % n;
+    var prevIdx = (gallery.index - 1 + n) % n;
+    [gallery.list[nextIdx], gallery.list[prevIdx]].forEach(function (img) {
+      if (!img || !img.src) return;
+      var pre = new Image();
+      pre.src = img.src;  // browser cache prime
+    });
+  }
+
+  function restoreFsContext() {
+    fsContext = null;
+    gallery.list = [];
+    gallery.index = 0;
+    gallery.triggerEl = null;
+    fsCurrentEl = null;
+    fsPreviousFocus = null;
+    if (fsPrev)    fsPrev.hidden = true;
+    if (fsNext)    fsNext.hidden = true;
+    if (fsCounter) { fsCounter.hidden = true; fsCounter.textContent = ''; }
+    if (fsAnnouncer) fsAnnouncer.textContent = '';
+    if (fsOverlay) fsOverlay.setAttribute('aria-label', 'Fullscreen view');
+  }
+
+  function setupFocusTrap() {
+    releaseFocusTrap();
+    var focusable = [];
+    if (fsPrev && !fsPrev.hidden) focusable.push(fsPrev);
+    if (fsNext && !fsNext.hidden) focusable.push(fsNext);
+    focusable.push(fsCloseBtn);
+
+    focusTrapHandler = function (e) {
+      if (e.key !== 'Tab') return;
+      var first = focusable[0];
+      var last  = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    };
+    fsOverlay.addEventListener('keydown', focusTrapHandler);
+    try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+  }
+
+  function releaseFocusTrap() {
+    if (focusTrapHandler && fsOverlay) {
+      fsOverlay.removeEventListener('keydown', focusTrapHandler);
+    }
+    focusTrapHandler = null;
+  }
+
+  function setupFsSwipe(target) {
+    var x0 = null, y0 = null;
+    target.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+    }, { passive: true });
+    target.addEventListener('touchend', function (e) {
+      if (x0 == null || fsContext !== 'gallery') { x0 = y0 = null; return; }
+      var t = e.changedTouches[0] || {};
+      var dx = (t.clientX || 0) - x0;
+      var dy = (t.clientY || 0) - y0;
+      x0 = y0 = null;
+      // Horizontal-dominant + threshold 60px
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      navGallery(dx < 0 ? +1 : -1);
+    }, { passive: true });
+  }
+
+  function trackFsCursorZones(e) {
+    if (fsContext !== 'gallery') return;
+    var cursorEl = document.querySelector('.cursor');
+    if (!cursorEl) return;
+    // Над кнопками data-cursor=link уже отрисовывает link-state — сбрасываем зону
+    if (e.target.closest && e.target.closest('.media-fs__prev, .media-fs__next, .media-fs__close')) {
+      cursorEl.classList.remove('is-fs-prev', 'is-fs-next');
+      return;
+    }
+    var dir = e.clientX < window.innerWidth / 2 ? 'prev' : 'next';
+    var addCls = 'is-fs-' + dir;
+    var rmCls  = dir === 'prev' ? 'is-fs-next' : 'is-fs-prev';
+    if (!cursorEl.classList.contains(addCls)) {
+      cursorEl.classList.remove(rmCls);
+      cursorEl.classList.add(addCls);
+    }
+  }
+
+  function clearFsCursorZones() {
+    var cursorEl = document.querySelector('.cursor');
+    if (cursorEl) cursorEl.classList.remove('is-fs-prev', 'is-fs-next');
+  }
+
+  // Делегированный клик по fs-триггерам.
   // v0.15.2 [B3] — 2D ветка удалена вместе с .case-media-fs-btn.
+  // v0.20.0 — 2D ветка восстановлена через [data-gallery] img (без per-image кнопки).
   document.addEventListener('click', function (e) {
+    // Gallery image trigger — поднимаем по closest до img внутри [data-gallery].
+    var galleryImg = e.target.closest && e.target.closest('[data-gallery] img');
+    if (galleryImg) {
+      e.preventDefault();
+      openFsImageGallery(galleryImg);
+      return;
+    }
     // 3D
     var btn3d = e.target.closest('.case-3d__fs-btn');
     if (btn3d) {
@@ -2807,11 +3392,25 @@
     }
   });
 
-  // ESC закрывает
+  // Keyboard: Enter/Space на gallery img открывает; ESC закрывает; стрелки навигируют.
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && fsOverlay && fsOverlay.classList.contains('is-open')) {
+    // Enter/Space на focused gallery img
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches &&
+        e.target.matches('[data-gallery] img')) {
+      e.preventDefault();
+      openFsImageGallery(e.target);
+      return;
+    }
+    if (!fsOverlay || !fsOverlay.classList.contains('is-open')) return;
+    if (e.key === 'Escape') {
       e.preventDefault();
       closeFs();
+    } else if (fsContext === 'gallery' && e.key === 'ArrowLeft') {
+      e.preventDefault();
+      navGallery(-1);
+    } else if (fsContext === 'gallery' && e.key === 'ArrowRight') {
+      e.preventDefault();
+      navGallery(+1);
     }
   });
 
@@ -2849,6 +3448,69 @@
   // `html.cursor-fine * { cursor: none }` в CSS (специфичность выше
   // всех встроенных `cursor: pointer` в дизайн-системе).
   document.documentElement.classList.add('cursor-fine');
+
+  /* ─── v0.19.0 — Extended cursor states (data-cursor delegation) ──────
+     Базовый ring + dot (v0.13.0/v0.14.0) НЕ трогается. Здесь:
+       • строим shell DOM (label + crosshair) внутри .cursor
+       • bulk-помечаем статические элементы data-cursor-атрибутами
+       • делегированный mouseover-listener на document меняет state-класс
+     States: 'link' (фон-инфляция dot'а), 'work' (64px ring + VIEW →),
+     'drag' (32px crosshair). reduced-motion / coarse — IIFE early-return'нул
+     ещё выше, ни одна из этих веток не выполнится. */
+  (function buildShellDom() {
+    if (cursor.querySelector('.cursor__shell')) return;
+    var shell = document.createElement('div');
+    shell.className = 'cursor__shell';
+    shell.setAttribute('aria-hidden', 'true');
+    var label = document.createElement('span');
+    label.className = 'cursor__shell-label';
+    var crosshair = document.createElement('span');
+    crosshair.className = 'cursor__crosshair';
+    crosshair.innerHTML = '<i></i><i></i><i></i><i></i>';
+    shell.appendChild(label);
+    shell.appendChild(crosshair);
+    cursor.appendChild(shell);
+  })();
+
+  // Bulk-mark static interactive elements (idempotent — пропускаем если
+  // атрибут уже стоит в HTML). Это избавляет от ~15 ручных HTML-правок
+  // и не ломает dev-flow поиска по data-cursor в index.html (drag и skip
+  // помечены статически как опорные точки).
+  function markStatic() {
+    document.querySelectorAll('.work-card').forEach(function (e) {
+      if (!e.hasAttribute('data-cursor')) e.setAttribute('data-cursor', 'work');
+    });
+    var LINK_SELECTOR =
+      '.contact-btn, #contact-pill, .case-share, .case-nav__btn, ' +
+      '#blueprint-export-svg, .case-blueprints__fs-btn, ' +
+      '.top-pill--free, #free-assets-footer';
+    document.querySelectorAll(LINK_SELECTOR).forEach(function (e) {
+      if (!e.hasAttribute('data-cursor')) e.setAttribute('data-cursor', 'link');
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', markStatic, { once: true });
+  } else {
+    markStatic();
+  }
+
+  // Делегированный switch состояний. mouseover bubbles → ловим в document.
+  // closest('[data-cursor]') карабкается до ближайшего предка с атрибутом —
+  // child-элементы внутри .work-card / .case-3d__canvas наследуют state.
+  // Когда мышь уходит на background-elements без data-cursor, state=null.
+  var STATE_CLASSES = ['is-link', 'is-work', 'is-drag'];
+  var currentState  = null;
+  function applyCursorState(state) {
+    STATE_CLASSES.forEach(function (c) { cursor.classList.remove(c); });
+    if (state) cursor.classList.add('is-' + state);
+  }
+  document.addEventListener('mouseover', function (e) {
+    var el = e.target.closest && e.target.closest('[data-cursor]');
+    var state = el ? el.getAttribute('data-cursor') : null;
+    if (state === currentState) return;
+    currentState = state;
+    applyCursorState(state);
+  });
 
   /* Магнитные селекторы — уже существующие интерактивные элементы.
      v0.13.1 — две группы силы магнита:

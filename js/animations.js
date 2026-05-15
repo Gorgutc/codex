@@ -61,7 +61,14 @@ if (typeof SplitText !== 'undefined') {
         duration: 0.55,
         ease: EASE,
         stagger: 0.08,
-        clearProps: 'transform,opacity'
+        clearProps: 'transform,opacity',
+        /* v0.18.0 — mark revealed cards so ResizeObserver / future filter
+           passes can skip re-animating already-shown items.
+           onComplete fires once per stagger group — все карточки batch'а
+           помечаются единовременно после завершения tween-сетки. */
+        onComplete: function () {
+          batch.forEach(function (c) { c.setAttribute('data-revealed', 'true'); });
+        }
       });
     }
   });
@@ -503,4 +510,46 @@ if (typeof SplitText !== 'undefined') {
       ScrollTrigger.refresh();
     });
   });
+
+  /* ══════════════════════════════════════════════════════════════════
+     6) TYPEWRITER (v0.18.0) — type-on effect for [data-typewriter]
+     ─────────────────────────────────────────────────────────────────
+     Opt-in only. Element's textContent сохраняется, очищается,
+     перепечатывается по символам при попадании в viewport. aria-label
+     сохраняет полный текст для screen-readers. once:true — без reverse.
+     Reduced-motion: эта IIFE уже early-return'нула на line 25, поэтому
+     для reduced пользователей текст остаётся как в HTML (без анимации).
+  ══════════════════════════════════════════════════════════════════ */
+  var typewriterEls = document.querySelectorAll('[data-typewriter]');
+  if (typewriterEls.length) {
+    var CHAR_DELAY = 30;
+    typewriterEls.forEach(function (el) {
+      var original = el.textContent;
+      if (!original) return;
+      el.setAttribute('aria-label', original);
+      el.textContent = '';
+      ScrollTrigger.create({
+        trigger: el,
+        start: 'top 90%',
+        once: true,
+        onEnter: function () {
+          var i = 0;
+          (function step() {
+            el.textContent = original.slice(0, i);
+            if (i++ < original.length) setTimeout(step, CHAR_DELAY);
+          })();
+        }
+      });
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     7) PRELOADER GATE — refresh ScrollTrigger after preloader removes
+     itself (v0.17.0). Layouts that were behind .is-loading visibility:
+     hidden may have measured differently before the overlay was
+     unmounted; one extra refresh aligns trigger positions.
+  ══════════════════════════════════════════════════════════════════ */
+  document.addEventListener('codex:preloader-done', function () {
+    requestAnimationFrame(function () { ScrollTrigger.refresh(); });
+  }, { once: true });
 })();

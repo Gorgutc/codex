@@ -37,6 +37,33 @@ body {
      • 1s → 1.2s (темп -17%)
    Используем свой SVG-тайл (не внешняя wikimedia картинка) — zero network.
 ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   SKIP-TO-CONTENT (v0.21.0)
+   Visually hidden до :focus — keyboard users (Tab из address bar)
+   получают переход на <main id="main">. Над preloader/cursor (10002).
+═══════════════════════════════════════════════════════════════════ */
+.skip-to-content {
+  position: fixed;
+  top: 0;
+  left: var(--space-2);
+  transform: translateY(-150%);
+  z-index: 10002;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: transform 0.2s var(--ease-out);
+}
+.skip-to-content:focus,
+.skip-to-content:focus-visible {
+  transform: translateY(var(--space-2));
+  outline: none;
+}
+
 body::before {
   content: '';
   position: fixed;
@@ -1482,6 +1509,143 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   CURSOR EXTENDED STATES (v0.19.0)
+   ─────────────────────────────────────────────────────────────────────
+   Базовый ring 40×40 + dot 6×6 (v0.13.0/v0.14.0) НЕ трогается. Новые
+   состояния добавляют child-overlay (.cursor__shell) и модифицируют
+   существующий .cursor-dot. Делегация — data-cursor="link|work|drag"
+   на интерактивных элементах, обрабатывается mouseover в main.js.
+═══════════════════════════════════════════════════════════════════════ */
+
+/* Shell — общий контейнер для расширенных состояний (work, drag) */
+.cursor__shell {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--cursor-shell-size, 56px);
+  height: var(--cursor-shell-size, 56px);
+  border: 1px solid var(--color-text);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out),
+    border-color 0.2s ease;
+  will-change: transform, opacity;
+}
+
+.cursor__shell-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  opacity: 0;
+  transition: opacity 0.2s var(--ease-out) 0.08s;
+  white-space: nowrap;
+}
+
+.cursor__crosshair {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.25s var(--ease-out);
+  pointer-events: none;
+}
+.cursor__crosshair i {
+  position: absolute;
+  background: var(--color-text);
+}
+.cursor__crosshair i:nth-child(1) { top: 0;    left: 50%; width: 1px; height: 6px; transform: translateX(-50%); }
+.cursor__crosshair i:nth-child(2) { bottom: 0; left: 50%; width: 1px; height: 6px; transform: translateX(-50%); }
+.cursor__crosshair i:nth-child(3) { left: 0;   top: 50%;  width: 6px; height: 1px; transform: translateY(-50%); }
+.cursor__crosshair i:nth-child(4) { right: 0;  top: 50%;  width: 6px; height: 1px; transform: translateY(-50%); }
+
+/* Smooth background transition on the dot — opt-in via new state classes */
+.cursor-dot {
+  transition: transform 200ms var(--ease-out), background-color 0.25s var(--ease-out), opacity 0.2s var(--ease-out);
+}
+
+/* LINK state — повторяем паттерн magnetic .is-hover: ring инвертируется
+   на --color-text (white в dark / dark в light, авто через токен), dot
+   scale 1.6. Раньше был border:transparent + translucent primary fill —
+   на reverse'ах (.case-nav__btn, .case-share, .case-3d__fs-btn) почти
+   не читался. Теперь link и magnetic-hover дают одинаковый visible visual. */
+.cursor.is-link {
+  border-color: var(--color-text);
+}
+.cursor.is-link .cursor-dot {
+  transform: scale(1.6);
+}
+
+/* WORK state — 64×64 shell with text label, base ring/dot hidden */
+.cursor.is-work {
+  border-color: transparent;
+}
+.cursor.is-work .cursor-dot { opacity: 0; }
+.cursor.is-work .cursor__shell {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.cursor.is-work .cursor__shell-label {
+  opacity: 1;
+}
+.cursor.is-work .cursor__shell-label::after { content: 'VIEW →'; }
+
+/* DRAG state — 32×32 borderless shell with crosshair ticks */
+.cursor.is-drag {
+  --cursor-shell-size: 32px;
+  border-color: transparent;
+}
+.cursor.is-drag .cursor-dot { opacity: 0; }
+.cursor.is-drag .cursor__shell {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  border-color: transparent;
+}
+.cursor.is-drag .cursor__crosshair { opacity: 1; }
+
+/* FS-GALLERY zone states (v0.20.0) — borderless 64×64 shell с текстом-направлением.
+   Активируются из media-fs zone tracker (main.js setupCursorZones). */
+.cursor.is-fs-prev,
+.cursor.is-fs-next {
+  border-color: transparent;
+}
+.cursor.is-fs-prev .cursor-dot,
+.cursor.is-fs-next .cursor-dot { opacity: 0; }
+.cursor.is-fs-prev .cursor__shell,
+.cursor.is-fs-next .cursor__shell {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  border-color: transparent;
+}
+.cursor.is-fs-prev .cursor__shell-label,
+.cursor.is-fs-next .cursor__shell-label { opacity: 1; }
+.cursor.is-fs-prev .cursor__shell-label::after { content: '← PREV'; }
+.cursor.is-fs-next .cursor__shell-label::after { content: 'NEXT →'; }
+
+/* Form inputs — restore native text cursor over editable fields.
+   Custom cursor остаётся видимым поверх (fixed overlay) — это компромисс,
+   реальных text-inputs на сайте сейчас нет, правило про запас. */
+html.cursor-fine input[type="text"],
+html.cursor-fine input[type="email"],
+html.cursor-fine input[type="search"],
+html.cursor-fine input[type="number"],
+html.cursor-fine input[type="tel"],
+html.cursor-fine input[type="url"],
+html.cursor-fine input[type="password"],
+html.cursor-fine textarea,
+html.cursor-fine [contenteditable="true"] {
+  cursor: text;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    v0.15.1 [3] — SITE FOOTER (sidebar bottom)
    v0.15.2 [A1] — mobile reveal-on-scroll убран. Подвал виден всегда.
    v0.15.2 [A2] — 3 placeholder-кнопки заменены на .site-footer__stats.
@@ -1558,4 +1722,169 @@ html.cursor-fine .media-fs__close * { cursor: pointer; }
    через translateX, а когда возвращается (case-view открыт) — подвал виден. */
 @media (min-width: 768px) {
   body.cards-collapsed .site-footer { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PRELOADER (v0.17.0) — real progress on top-12 work-card SVG decode()
+   ─────────────────────────────────────────────────────────────────────
+   Anti-flicker: html.is-loading hides interactive layout/cursor until
+   the IIFE in main.js removes the overlay and unsets the class.
+   z-index 10000 sits above .media-fs (9999) but BELOW .cursor (10001),
+   which we hide via visibility while loading anyway.
+═══════════════════════════════════════════════════════════════════════ */
+html.is-loading body > .layout,
+html.is-loading body > .cursor {
+  visibility: hidden;
+}
+
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--color-bg);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Explicit inset() start so GSAP can interpolate to inset(0 0 100% 0) on exit. */
+  clip-path: inset(0 0 0% 0);
+  will-change: clip-path, opacity;
+}
+
+.preloader__readout {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.preloader__readout-sep {
+  color: var(--color-text-faint);
+  opacity: 0.6;
+}
+
+.preloader__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.preloader__counter {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-hero);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.preloader__bar {
+  position: relative;
+  width: min(80vw, 480px);
+  height: 1px;
+  background: var(--color-divider);
+  overflow: hidden;
+}
+
+.preloader__bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  background: var(--color-primary);
+}
+
+.preloader__label {
+  position: absolute;
+  bottom: var(--space-12);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+.preloader__dots {
+  display: inline-block;
+  width: 1.4em;
+  text-align: left;
+  margin-left: 0.2em;
+}
+
+.preloader__dots span {
+  display: inline-block;
+  opacity: 0;
+  animation: preloader-dot 1.4s ease-in-out infinite;
+}
+
+.preloader__dots span:nth-child(2) { animation-delay: 0.2s; }
+.preloader__dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes preloader-dot {
+  0%, 80%, 100% { opacity: 0; }
+  40%           { opacity: 1; }
+}
+
+.preloader__skip {
+  position: absolute;
+  bottom: var(--space-24);
+  left: 50%;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-6);
+  cursor: pointer;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition:
+    opacity 0.3s var(--ease-out),
+    transform 0.3s var(--ease-out),
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.preloader__skip[hidden] { display: none; }
+
+.preloader__skip.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.preloader__skip:hover,
+.preloader__skip:focus-visible {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  outline: none;
+}
+
+@media (max-width: 768px) {
+  .preloader__counter { font-size: var(--text-2xl); }
+  .preloader__bar    { width: min(70vw, 320px); }
+}
+
+@media (max-width: 375px) {
+  .preloader__readout { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preloader__dots span { animation: none; opacity: 1; }
 }
