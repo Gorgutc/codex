@@ -43,6 +43,18 @@
   }
 }
 
+/* v0.21.2 — Desktop ≥1024px: tightening case-view header.
+   .case-view__header уже align-items: flex-end (line 51), но h1
+   .case-view__title имеет line-height: 1.1 (line 87) — это даёт ~5px
+   line-leading ниже visual descender. Actions box (32px tabs) ложится
+   по h1 ELEMENT-bottom, который ниже visual bottom на 5px → визуально
+   buttons row сидит "за" descender'ом, центр buttons смотрится у title
+   bottom edge. Tablet block ниже использует column flex layout, его
+   не задеваем. Mobile тоже свой. */
+@media (min-width: 1024px) {
+  .case-view__title { line-height: 1; }
+}
+
 /* ─── HEADER ─── */
 /* v0.15.3 [П3] — desktop: align-items flex-start → flex-end.
    actions (tabs + case-nav) прижимаются к нижнему краю title. */
