@@ -519,28 +519,47 @@ if (typeof SplitText !== 'undefined') {
      сохраняет полный текст для screen-readers. once:true — без reverse.
      Reduced-motion: эта IIFE уже early-return'нула на line 25, поэтому
      для reduced пользователей текст остаётся как в HTML (без анимации).
+
+     v0.21.5 — Fix race на cold start: раньше использовался
+     ScrollTrigger.create({ start: 'top 90%' }), который зависел от
+     window scroll event'ов для пересчёта. Но window на этой странице
+     НЕ скроллится (sidebar/case-view имеют свой overflow:auto, плюс
+     помечены data-lenis-prevent). Single ScrollTrigger.refresh() из
+     codex:preloader-done handler срабатывал в гонке с layout reflow —
+     иногда ловил footer в позиции, иногда нет → текст оставался
+     навсегда пустым. IntersectionObserver корректно отрабатывает
+     initial intersection state синхронно при observe() и не зависит
+     от scroll-событий window.
   ══════════════════════════════════════════════════════════════════ */
-  var typewriterEls = document.querySelectorAll('[data-typewriter]');
-  if (typewriterEls.length) {
+  function setupTypewriters() {
+    var typewriterEls = document.querySelectorAll('[data-typewriter]');
+    if (!typewriterEls.length) return;
     var CHAR_DELAY = 30;
     typewriterEls.forEach(function (el) {
       var original = el.textContent;
       if (!original) return;
       el.setAttribute('aria-label', original);
       el.textContent = '';
-      ScrollTrigger.create({
-        trigger: el,
-        start: 'top 90%',
-        once: true,
-        onEnter: function () {
+      var io = new IntersectionObserver(function (entries, obs) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          obs.unobserve(entry.target);
           var i = 0;
           (function step() {
             el.textContent = original.slice(0, i);
             if (i++ < original.length) setTimeout(step, CHAR_DELAY);
           })();
-        }
-      });
+        });
+      }, { threshold: 0.1 });
+      io.observe(el);
     });
+  }
+  // Запускаем после preloader-done чтобы layout settled. Если preloader
+  // нет (is-loading не установлен в инлайн-script) — сразу.
+  if (document.documentElement.classList.contains('is-loading')) {
+    document.addEventListener('codex:preloader-done', setupTypewriters, { once: true });
+  } else {
+    setupTypewriters();
   }
 
   /* ══════════════════════════════════════════════════════════════════
