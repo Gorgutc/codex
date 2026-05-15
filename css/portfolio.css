@@ -50,9 +50,21 @@
    по h1 ELEMENT-bottom, который ниже visual bottom на 5px → визуально
    buttons row сидит "за" descender'ом, центр buttons смотрится у title
    bottom edge. Tablet block ниже использует column flex layout, его
-   не задеваем. Mobile тоже свой. */
+   не задеваем. Mobile тоже свой.
+
+   v0.21.3 — Fix регрессии при case-nav: SplitText (animations.js)
+   wraps chars в inline-block .case-title__word с
+   padding-bottom: 0.05em (descender safety при overflow:hidden).
+   Это растягивает h1 line-box на ~1.6px вне зависимости от line-height,
+   buttons возвращаются на element-bottom ниже visual title. Negative
+   margin-bottom -0.1em (~3.2px at 32px font) компенсирует inline-block
+   padding + small leading. h1's effective layout height сокращается,
+   header укорачивается, content ниже rises на эту дельту. */
 @media (min-width: 1024px) {
-  .case-view__title { line-height: 1; }
+  .case-view__title {
+    line-height: 1;
+    margin-bottom: -0.1em;
+  }
 }
 
 /* ─── HEADER ─── */
