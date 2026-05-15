@@ -2902,6 +2902,7 @@
   var fsOriginalEl = null;          // для video: чтобы синхронизировать время.
   var fsContext = null;             // 'gallery' | null — режим overlay
   var gallery = { list: [], index: 0, triggerEl: null };
+  var fsCurrentEl = null;           // v0.20.2 — текущая видимая картинка в stage
   var focusTrapHandler = null;
   var fsPreviousFocus = null;       // элемент для возврата фокуса при close
 
@@ -3104,6 +3105,7 @@
     while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
     var clone = buildImageClone(sourceImg);
     fsStage.appendChild(clone);
+    fsCurrentEl = clone;
 
     fsOverlay.hidden = false;
     void fsOverlay.offsetWidth;
@@ -3140,7 +3142,13 @@
   }
 
   function closeFsImageReverseFlip() {
-    var clone = fsStage.firstChild;
+    // v0.20.2 — fsCurrentEl, не firstChild (после swap firstChild может быть
+    // удаляемой fading-out предыдущей картинкой).
+    if (typeof gsap !== 'undefined') gsap.killTweensOf(fsStage.children);
+    Array.prototype.slice.call(fsStage.children).forEach(function (c) {
+      if (c !== fsCurrentEl && c.parentNode) c.parentNode.removeChild(c);
+    });
+    var clone = fsCurrentEl;
     var thumb = gallery.triggerEl;
     if (!clone || !thumb || !thumb.isConnected) {
       // fallback: чистый close без FLIP
@@ -3198,23 +3206,51 @@
   }
 
   function swapGalleryImage(nextImg, wrapped) {
-    var oldEl = fsStage.firstChild;
+    /* v0.20.2 — Fix jerky transitions:
+       • Stage был flex-centered → две картинки рядом, layout прыгал.
+         Pin старую картинку absolute на её текущий rect → новая занимает
+         flex-центр без смещения.
+       • fsStage.firstChild возвращал уже-fading-out элемент при rapid
+         clicks → tracked currentEl explicitly.
+       • Stale fading children накапливались → cleanup всех не-current
+         перед swap. */
+    if (typeof gsap !== 'undefined') gsap.killTweensOf(fsStage.children);
+    Array.prototype.slice.call(fsStage.children).forEach(function (c) {
+      if (c !== fsCurrentEl && c.parentNode) c.parentNode.removeChild(c);
+    });
+
+    var oldEl = fsCurrentEl;
+
+    // Pin старую absolute на её visual rect — flex flow освобождается.
+    if (oldEl) {
+      var oldRect   = oldEl.getBoundingClientRect();
+      var stageRect = fsStage.getBoundingClientRect();
+      oldEl.style.position  = 'absolute';
+      oldEl.style.left      = (oldRect.left - stageRect.left) + 'px';
+      oldEl.style.top       = (oldRect.top  - stageRect.top)  + 'px';
+      oldEl.style.width     = oldRect.width  + 'px';
+      oldEl.style.height    = oldRect.height + 'px';
+      oldEl.style.maxWidth  = 'none';
+      oldEl.style.maxHeight = 'none';
+    }
+
     var newEl = buildImageClone(nextImg);
     fsStage.appendChild(newEl);
+    fsCurrentEl = newEl;
     gallery.triggerEl = nextImg;
 
     var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced || document.hidden || typeof gsap === 'undefined') {
-      if (oldEl) oldEl.parentNode && oldEl.parentNode.removeChild(oldEl);
+      if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
       updateGalleryUI(wrapped);
       preloadNeighbors();
       return;
     }
     gsap.set(newEl, { opacity: 0 });
-    gsap.to(newEl, { opacity: 1, duration: 0.25, ease: 'power2.out' });
+    gsap.to(newEl, { opacity: 1, duration: 0.35, ease: 'power2.out' });
     if (oldEl) {
       gsap.to(oldEl, {
-        opacity: 0, duration: 0.25, ease: 'power2.out',
+        opacity: 0, duration: 0.35, ease: 'power2.out',
         onComplete: function () { if (oldEl.parentNode) oldEl.parentNode.removeChild(oldEl); }
       });
     }
@@ -3252,6 +3288,7 @@
     gallery.list = [];
     gallery.index = 0;
     gallery.triggerEl = null;
+    fsCurrentEl = null;
     fsPreviousFocus = null;
     if (fsPrev)    fsPrev.hidden = true;
     if (fsNext)    fsNext.hidden = true;
