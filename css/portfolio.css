@@ -88,6 +88,27 @@
   letter-spacing: -0.01em;
 }
 
+/* v0.21.4 — Desktop ≥1024px: tightening case-view header.
+   Размещено ПОСЛЕ базового правила сверху, чтобы CSS cascade override
+   действительно сработал (предыдущие v0.21.2 / v0.21.3 были выше базы
+   в файле и проигрывали по source-order при равной специфичности).
+
+   .case-view__header уже align-items: flex-end — buttons row выровнен
+   по нижнему краю flex-контейнера. Контейнер высота = max(items).
+   .case-view__left высокий: meta + margin + h1 (line-height 1.1 +
+   SplitText inline-block .case-title__word с padding-bottom 0.05em
+   протекает в h1 line-box). Чтобы buttons border-bottom = title visual
+   bottom, надо схлопнуть h1 контрибуцию: line-height 1 убирает ~5px
+   leading, отрицательный margin-bottom компенсирует SplitText padding +
+   подгоняет button-box-bottom к title descender (≈ 14px при 32px font).
+   Tablet/mobile блоки ниже не задеваем. */
+@media (min-width: 1024px) {
+  .case-view__title {
+    line-height: 1;
+    margin-bottom: -0.45em;
+  }
+}
+
 /* ─── CASE VIEW ACTIONS (v0.10, v0.15.2 [B2]) ───
    v0.15.2 [B2]: Contact pill ушла в .site-footer, case-view__actions теперь
    содержит только .case-view__tabs (внутри которого табы + case-nav).
