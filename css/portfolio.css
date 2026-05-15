@@ -1621,6 +1621,14 @@
     min-height: 280px;
   }
 
+  /* v0.21.1 — Pills text swap для mobile: full "AUTO ROTATION"/"MODEL INFO"
+     переносятся по space на 2 строки и ломают layout. Используем short
+     варианты "Auto-R" / "Info" (CSS text-transform: uppercase делает их
+     "AUTO-R" / "INFO" визуально). Раньше swap применялся только к tablet
+     range (768-1023px) — теперь и mobile тоже. */
+  .case-3d__ctrl__txt-full  { display: none; }
+  .case-3d__ctrl__txt-short { display: inline; }
+
   /* v0.11.1 mobile — тогглы крупнее для touch + компактная info-панель */
   .case-3d__ctrl {
     min-height: 36px;

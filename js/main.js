@@ -2120,7 +2120,7 @@
       // .full виден на mobile/desktop (default), .short — на planshet 768-1023
       // (через @media в portfolio.css). На клик меняется только classList,
       // innerHTML не трогается → state preserved. См. main.js:2194 click handler.
-      autoBtn.innerHTML = '<span class="case-3d__ctrl__txt-full">AUTO ROTATION</span><span class="case-3d__ctrl__txt-short">AUTO</span>';
+      autoBtn.innerHTML = '<span class="case-3d__ctrl__txt-full">AUTO ROTATION</span><span class="case-3d__ctrl__txt-short">Auto-R</span>';
 
       var infoBtn = document.createElement('button');
       infoBtn.type = 'button';
@@ -2128,7 +2128,7 @@
       infoBtn.setAttribute('aria-pressed', 'false');
       infoBtn.textContent = '';
       // v0.7.7 [planshet-fix]: dual-text — см. autoBtn выше.
-      infoBtn.innerHTML = '<span class="case-3d__ctrl__txt-full">MODEL INFO</span><span class="case-3d__ctrl__txt-short">INFO</span>';
+      infoBtn.innerHTML = '<span class="case-3d__ctrl__txt-full">MODEL INFO</span><span class="case-3d__ctrl__txt-short">Info</span>';
       // v0.14.0 [4] — MI по умолчанию включен (или то, что было в предыдущем кейсе).
       if (infoOn) {
         infoBtn.classList.add('is-on');
