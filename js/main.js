@@ -3213,34 +3213,17 @@
   }
 
   function swapGalleryImage(nextImg, wrapped) {
-    /* v0.20.2 — Fix jerky transitions:
-       • Stage был flex-centered → две картинки рядом, layout прыгал.
-         Pin старую картинку absolute на её текущий rect → новая занимает
-         flex-центр без смещения.
-       • fsStage.firstChild возвращал уже-fading-out элемент при rapid
-         clicks → tracked currentEl explicitly.
-       • Stale fading children накапливались → cleanup всех не-current
-         перед swap. */
+    /* v0.20.3 — Stage children теперь absolutely-centered через CSS
+       (inset+margin:auto), поэтому swap = pure crossfade. Не пиним
+       inline-стилями (имело edge case'ы с unloaded lazy-img и
+       transform-остатками от FLIP). Кленап накопившихся stale
+       fading-out children делается перед каждым swap. */
     if (typeof gsap !== 'undefined') gsap.killTweensOf(fsStage.children);
     Array.prototype.slice.call(fsStage.children).forEach(function (c) {
       if (c !== fsCurrentEl && c.parentNode) c.parentNode.removeChild(c);
     });
 
     var oldEl = fsCurrentEl;
-
-    // Pin старую absolute на её visual rect — flex flow освобождается.
-    if (oldEl) {
-      var oldRect   = oldEl.getBoundingClientRect();
-      var stageRect = fsStage.getBoundingClientRect();
-      oldEl.style.position  = 'absolute';
-      oldEl.style.left      = (oldRect.left - stageRect.left) + 'px';
-      oldEl.style.top       = (oldRect.top  - stageRect.top)  + 'px';
-      oldEl.style.width     = oldRect.width  + 'px';
-      oldEl.style.height    = oldRect.height + 'px';
-      oldEl.style.maxWidth  = 'none';
-      oldEl.style.maxHeight = 'none';
-    }
-
     var newEl = buildImageClone(nextImg);
     fsStage.appendChild(newEl);
     fsCurrentEl = newEl;

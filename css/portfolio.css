@@ -1855,33 +1855,39 @@
   position: relative;
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  box-sizing: border-box;
 }
-@media (max-width: 640px) {
-  .media-fs__stage { padding: 24px; }
-}
+/* v0.20.3 — Stage children теперь absolutely-centered (inset+margin auto)
+   вместо flex layout. Раньше при swap'е flex клал old+new рядом,
+   layout прыгал, и pin-old-absolute трюк имел edge cases (lazy-img
+   с null rect, transform-остатки от FLIP). Теперь old+new естественно
+   stack по центру → pure opacity crossfade без layout intervention. */
 .media-fs__stage > img,
-.media-fs__stage > video {
-  max-width: 100%;
-  max-height: 100%;
+.media-fs__stage > video,
+.media-fs__stage > svg {
+  position: absolute;
+  inset: 48px;
+  margin: auto;
   width: auto;
   height: auto;
+  max-width: calc(100% - 96px);
+  max-height: calc(100% - 96px);
   object-fit: contain;
   display: block;
 }
 .media-fs__stage > model-viewer {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
 }
-.media-fs__stage > svg {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+@media (max-width: 640px) {
+  .media-fs__stage > img,
+  .media-fs__stage > video,
+  .media-fs__stage > svg {
+    inset: 24px;
+    max-width: calc(100% - 48px);
+    max-height: calc(100% - 48px);
+  }
 }
 /* Close кнопка (contract icon) — правый верх. v0.7.11 [P2 #12]: цвета из --color-fs-close-* токенов */
 .media-fs__close {
