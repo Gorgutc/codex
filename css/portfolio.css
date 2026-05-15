@@ -94,18 +94,20 @@
    в файле и проигрывали по source-order при равной специфичности).
 
    .case-view__header уже align-items: flex-end — buttons row выровнен
-   по нижнему краю flex-контейнера. Контейнер высота = max(items).
-   .case-view__left высокий: meta + margin + h1 (line-height 1.1 +
-   SplitText inline-block .case-title__word с padding-bottom 0.05em
-   протекает в h1 line-box). Чтобы buttons border-bottom = title visual
-   bottom, надо схлопнуть h1 контрибуцию: line-height 1 убирает ~5px
-   leading, отрицательный margin-bottom компенсирует SplitText padding +
-   подгоняет button-box-bottom к title descender (≈ 14px при 32px font).
-   Tablet/mobile блоки ниже не задеваем. */
+   по нижнему краю flex-контейнера. Только line-height: 1 (вместо 1.1)
+   убирает ~5px line-leading ниже descender'а h1. Этого достаточно:
+   buttons border-bottom попадает в район visual descender title,
+   gap до case-progress separator остаётся комфортным ~14-15px (через
+   case-view gap: var(--space-4)).
+
+   v0.21.5 — Откат margin-bottom: -0.45em (был слишком aggressive,
+   схлопывал header так что title визуально упирался в separator,
+   особенно на cold start без SplitText когда h1 element height равен
+   font-size без extra padding'а от .case-title__word). Tablet/mobile
+   блоки ниже не задеваем. */
 @media (min-width: 1024px) {
   .case-view__title {
     line-height: 1;
-    margin-bottom: -0.45em;
   }
 }
 
