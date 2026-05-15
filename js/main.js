@@ -3104,6 +3104,12 @@
     clone.removeAttribute('tabindex');
     clone.removeAttribute('role');
     clone.removeAttribute('aria-haspopup');
+    // v0.20.4 — Wipe inline style inherited from animations.js setupLift
+    // reveal animation: case-item__img получает clip-path:inset(0 100% 0 0)
+    // (hide-state) либо mid-tween value. cloneNode копирует inline style
+    // полностью; class снимается, но inline остаётся и продолжает скрывать
+    // картинку в fs overlay. GSAP в swap/flip ставит свои inline-стили заново.
+    clone.removeAttribute('style');
     clone.loading = 'eager';
     return clone;
   }
