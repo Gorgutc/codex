@@ -126,16 +126,24 @@
   }
   </script>
 
-  <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+  <!-- v0.9.7 — api.fontshare.com preconnect без crossorigin (CSS endpoint
+       не отдаёт matching ACAO). cdn.fontshare.com — crossorigin для woff2.
+       cdn.jsdelivr.net — crossorigin для GSAP-скриптов. -->
+  <link rel="preconnect" href="https://api.fontshare.com">
   <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <!-- v0.9.4 — Fontshare CSS через preload+onload. URL уже содержит
        display=swap (см. ниже), поэтому fallback-шрифт виден сразу,
-       без FOUT. Снимает ≈780ms render-blocking от внешнего CSS. -->
-  <link rel="preload" as="style" crossorigin
+       без FOUT. Снимает ≈780ms render-blocking от внешнего CSS.
+       v0.9.7 — убран crossorigin с preload: Fontshare CSS endpoint
+       возвращает Access-Control-Allow-Origin: https://api.fontshare.com
+       (себя), что блокировало CORS preload. CSS не требует crossorigin
+       (это нужно для woff2-fонtов, они грузятся отдельно с
+       cdn.fontshare.com и крестятся корректно). -->
+  <link rel="preload" as="style"
         href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap"
         onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" crossorigin
+  <noscript><link rel="stylesheet"
         href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap"></noscript>
 
   <link rel="stylesheet" href="./css/tokens.css">
