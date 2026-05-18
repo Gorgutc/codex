@@ -473,3 +473,17 @@
   /* case-back visible on mobile when grid is shown */
   body.cards-collapsed .case-back { display: inline-flex; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v0.8.8b — per-tag thumb backgrounds (6 tag-cards in sidebar).
+   Раньше каждая tag-card имела inline style="background:linear-gradient(...)".
+   Нарушало build-rule B2. Переведено на атрибут-селектор по data-tag.
+   Динамические fa-card в #fa-grid сохраняют style="background:" (data-driven
+   из fa-data.js — 22 категории, вне scope M10).
+═══════════════════════════════════════════════════════════════════════ */
+.tag-card[data-tag="hard-surface"] .tag-card__thumb { background: linear-gradient(135deg,#1e2d3d 0,#2a3a4a 100%); }
+.tag-card[data-tag="product"] .tag-card__thumb { background: linear-gradient(135deg,#2a2018 0,#3a2e22 100%); }
+.tag-card[data-tag="game"] .tag-card__thumb { background: linear-gradient(135deg,#1a1a2a 0,#252535 100%); }
+.tag-card[data-tag="organic"] .tag-card__thumb { background: linear-gradient(135deg,#1a1816 0,#2a2520 100%); }
+.tag-card[data-tag="animation"] .tag-card__thumb { background: linear-gradient(135deg,#1a2233 0,#26304a 100%); }
+.tag-card[data-tag="cad"] .tag-card__thumb { background: linear-gradient(135deg,#1d232a 0,#2a3138 100%); }

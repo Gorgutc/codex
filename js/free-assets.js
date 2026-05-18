@@ -60,7 +60,7 @@ function renderGrid(tag) {
        Если .glb 404/CORS — error handler ниже добавляет .--failed → CSS hide → SVG виден. */
     return '<li class="fa-card">'
       + '<div class="fa-card__thumb" data-label="' + a.title + '" style="background:' + a.bg + '">'
-      + '<img src="./assets/cards/' + a.id + '.svg" alt="" aria-hidden="true" loading="lazy" width="800" height="600" onerror="this.style.display=\'none\'">'
+      + '<img src="./assets/cards/' + a.id + '.svg" alt="" aria-hidden="true" loading="lazy" width="800" height="600">'
       + '<model-viewer class="fa-card__thumb-mv"'
       +   ' src="./assets/models/free/' + a.id + '.glb"'
       +   ' alt="' + a.title + ' — 3D preview"'
@@ -266,6 +266,22 @@ document.addEventListener('DOMContentLoaded', function() {
   // main.js регистрирует listener раньше нас, его init выполнится первым — успевает
   // повесить handler на оригинальный #game-switch. Clone-replace его убирает.
   rebindGameSwitch();
+
+  // v0.8.8b — делегированный error-handler для thumbnail <img> внутри fa-grid.
+  // Раньше каждая fa-card генерировалась с inline onerror="this.style.display='none'"
+  // (нарушало build-rule B2). capture:true — error не bubble'ит.
+  // Tag-cards в #cards-scroll покрыты main.js error-handler'ом из 0.8.8a
+  // (.tag-card__thumb имеет двойной класс .work-card__thumb → ловится тем же
+  // closest('.work-card__thumb') selector'ом).
+  var faGrid = document.getElementById('fa-grid');
+  if (faGrid) {
+    faGrid.addEventListener('error', function (e) {
+      var img = e.target;
+      if (img && img.tagName === 'IMG' && img.closest && img.closest('.fa-card__thumb')) {
+        img.style.display = 'none';
+      }
+    }, true);
+  }
   /* Cursor + theme + collapse handled by main.js */
 });
 
