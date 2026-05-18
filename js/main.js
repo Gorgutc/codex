@@ -2793,6 +2793,18 @@
   if (mq.addEventListener) mq.addEventListener('change', handleBreakpoint);
   else if (mq.addListener) mq.addListener(handleBreakpoint);
 
+  // v0.8.8a — делегированный error-handler для thumbnail <img>. Раньше каждая
+  // из 18 work-card имела inline onerror="this.remove();" (нарушало B2).
+  // capture:true — error не bubble'ит; capture-фаза доходит до scrollEl.
+  if (scrollEl) {
+    scrollEl.addEventListener('error', function (e) {
+      var img = e.target;
+      if (img && img.tagName === 'IMG' && img.closest && img.closest('.work-card__thumb')) {
+        img.remove();
+      }
+    }, true);
+  }
+
   updateCount(cards.length);
 
   /* ══════════════════════════════════
