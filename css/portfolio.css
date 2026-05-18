@@ -34,6 +34,9 @@
   gap: var(--space-4);
   box-sizing: border-box;
   overflow: hidden;
+  /* v0.8.5: position:relative смержен из дубль-объявления (бывший L373)
+     для абсолютного позиционирования .case-scroll-hint ниже. */
+  position: relative;
 }
 
 @media (max-width: 1100px) {
@@ -228,7 +231,10 @@
     border-color 160ms var(--ease-out),
     background 160ms var(--ease-out);
 }
-.case-tab:hover:not(.case-tab--soon) {
+/* v0.8.5: .case-tab--soon, .case-tab__badge удалены — классы не
+   присутствуют в DOM (3 таба 2D/3D/Blueprints всегда активны).
+   :not(.case-tab--soon) из :hover тоже убран. */
+.case-tab:hover {
   color: var(--color-text);
   border-color: var(--color-text-muted);
 }
@@ -240,20 +246,6 @@
   color: var(--color-text);
   border-color: var(--color-primary);
   background: var(--color-primary-highlight);
-}
-.case-tab--soon {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.case-tab__badge {
-  font-size: 0.55rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  color: var(--color-text-faint);
-  border: 1px solid var(--color-divider);
-  border-radius: 2px;
-  padding: 2px 4px;
-  line-height: 1;
 }
 
 /* ═══════════════════════════════════
@@ -380,8 +372,9 @@
    ВАЖНО: translateY указан ДО rotate в transform — иначе стрелка дрожит
    по диагонали (translateY после rotate работает в локальной системе координат).
 ═══════════════════════════════════════════════════════════════════════ */
-/* .case-view получает relative для абсолютного позиционирования стрелки */
-.case-view { position: relative; }
+/* v0.8.5: дубль `.case-view { position: relative }` смержен в основной
+   блок на L27. position:relative нужен для абсолютного позиционирования
+   .case-scroll-hint ниже. */
 .case-scroll-hint {
   position: absolute;
   bottom: var(--space-4);
@@ -396,8 +389,9 @@
   z-index: 5;
   animation: case-scroll-hint 1.6s ease-in-out 1.2s 3 forwards;
 }
-.case-scroll.has-scrolled ~ .case-scroll-hint,
-.case-scroll-hint.is-hidden {
+/* v0.8.5: .case-scroll-hint.is-hidden удалён — класс нигде не toggle'ится
+   в JS. Скрытие происходит через .case-scroll.has-scrolled (~). */
+.case-scroll.has-scrolled ~ .case-scroll-hint {
   display: none;
 }
 @keyframes case-scroll-hint {
