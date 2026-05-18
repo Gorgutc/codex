@@ -1100,9 +1100,10 @@ body::after {
   .main-area { display: none; }
   body.cards-collapsed .main-area { display: flex; }
   /* v0.15.3 [П4] — резервируем пространство под подвал-полосу
-     (чтобы контент case-view не залезал под footer). */
+     (чтобы контент case-view не залезал под footer).
+     v0.22 — 140→124 (синхронизация с .site-footer min-height после shrink). */
   body.cards-collapsed .main-area {
-    padding-bottom: 140px;
+    padding-bottom: 124px;
     box-sizing: border-box;
   }
 
@@ -1612,9 +1613,11 @@ html.cursor-fine [contenteditable="true"] {
 ═══════════════════════════════════════════════════════════════════════ */
 .site-footer {
   flex-shrink: 0;
-  min-height: 140px;
+  /* v0.22 — −16px по вертикали: min-height 140→124, padding-bottom 16→0.
+     Стороны и верх не трогаем (см. ТЗ). */
+  min-height: 124px;
   box-sizing: border-box;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-4) 0;
   display: flex;
   flex-direction: column;
   justify-content: center;

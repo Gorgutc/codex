@@ -803,8 +803,11 @@
             <svg class="case-blueprints__fs-btn__icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>
           </button>
         </div>
-        <div class="case-blueprints__canvas" id="case-blueprints-canvas">
-          <!-- SVG генерируется в main.js (buildBlueprint) из CARDS_DATA.blueprint -->
+        <div class="case-blueprints__canvas" id="case-blueprints-canvas" data-lenis-prevent>
+          <!-- v0.22: рендерер renderBlueprints() в main.js собирает все страницы
+               BLUEPRINT_META[id].pages внутри этого контейнера. На desktop видна
+               только .case-blueprints__page.is-current + pager-overlay (prev/next/counter).
+               На mobile все страницы выводятся колонкой с per-page Export/FS тулбаром. -->
         </div>
       </div>
 
