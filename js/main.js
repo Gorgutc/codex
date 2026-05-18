@@ -2212,27 +2212,33 @@
           });
         }
 
-        var envGroup = document.createElement('div');
-        envGroup.className = 'case-3d__env-group';
-        envGroup.setAttribute('role', 'group');
-        envGroup.setAttribute('aria-label', 'Environment preset');
-
-        ['studio', 'outdoor', 'dark'].forEach(function (key) {
+        // v0.8.6 [M6] — фабрика env-кнопки. Раньше блок ниже дублировался
+        // дважды (desktop envGroup + mobile ddEnvList) — только className
+        // различался; click-handler был идентичен. Закрытие захватывает
+        // currentEnv, mv, syncEnvUI, ENV_PRESETS из scope build3D.
+        function createEnvBtn(key, className) {
           var btn = document.createElement('button');
           btn.type = 'button';
-          btn.className = 'case-3d__ctrl case-3d__ctrl--env' + (key === currentEnv ? ' is-on' : '');
+          btn.className = className + (key === currentEnv ? ' is-on' : '');
           btn.setAttribute('aria-pressed', key === currentEnv ? 'true' : 'false');
           btn.dataset.env = key;
           btn.textContent = key.toUpperCase();
-
           btn.addEventListener('click', function () {
             if (currentEnv === key) return;
             currentEnv = key;
             mv.setAttribute('environment-image', ENV_PRESETS[key]);
             syncEnvUI(key);
           });
+          return btn;
+        }
 
-          envGroup.appendChild(btn);
+        var envGroup = document.createElement('div');
+        envGroup.className = 'case-3d__env-group';
+        envGroup.setAttribute('role', 'group');
+        envGroup.setAttribute('aria-label', 'Environment preset');
+
+        ['studio', 'outdoor', 'dark'].forEach(function (key) {
+          envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
         });
 
         // Exposure slider — диапазон 0.5–2.0, default 1.0, step 0.05.
@@ -2317,22 +2323,9 @@
         ddEnvList.setAttribute('role', 'group');
         ddEnvList.setAttribute('aria-label', 'Environment preset');
 
+        // v0.8.6 [M6] — фабрика createEnvBtn (см. desktop envGroup выше).
         ['studio', 'outdoor', 'dark'].forEach(function (key) {
-          var ddBtn = document.createElement('button');
-          ddBtn.type = 'button';
-          ddBtn.className = 'case-3d__light-dd__env-btn' + (key === currentEnv ? ' is-on' : '');
-          ddBtn.setAttribute('aria-pressed', key === currentEnv ? 'true' : 'false');
-          ddBtn.dataset.env = key;
-          ddBtn.textContent = key.toUpperCase();
-
-          ddBtn.addEventListener('click', function () {
-            if (currentEnv === key) return;
-            currentEnv = key;
-            mv.setAttribute('environment-image', ENV_PRESETS[key]);
-            syncEnvUI(key);
-          });
-
-          ddEnvList.appendChild(ddBtn);
+          ddEnvList.appendChild(createEnvBtn(key, 'case-3d__light-dd__env-btn'));
         });
         lightPanel.appendChild(ddEnvList);
 

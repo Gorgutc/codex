@@ -218,79 +218,68 @@ if (typeof SplitText !== 'undefined') {
         контейнер уже видим (collapsed=false). 'nearest' вместо 'center' —
         не скроллит если карточка в видимости, меньше дергает.
   ══════════════════════════════════ */
-  document.addEventListener('codex:toggle', function (e) {
-    if (!e.detail || e.detail.collapsed) return;
-    var isMobile = window.matchMedia('(max-width: 767px)').matches;
-    if (!isMobile) return;
-    // Два rAF: первый дождётся пока sidebar снова visible, второй — layout flush.
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        // [1] Defensive reset горизонтального scroll offset.
-        if (cardsScroll) {
-          cardsScroll.scrollLeft = 0;
-        }
-
-        // [2] Останавливаем все tween'ы на карточках и чистим накопленные
-        // GSAP-трансформы (кроме opacity — он чистится в [4] по инвизибл).
-        gsap.killTweensOf(cards);
-        gsap.set(cards, {
-          clearProps: 'x,y,xPercent,yPercent,rotation,rotationX,rotationY,scale'
-        });
-
-        // [3] Пересчёт позиций ScrollTrigger после возврата лайаута.
-        if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
-
-        // [4] Ищем карточки с остатками opacity (проблема A из v0.2.1).
-        // getComputedStyle надёжнее gsap.getProperty после killTweensOf.
-        var invisible = [];
-        cards.forEach(function (card) {
-          var op = parseFloat(getComputedStyle(card).opacity);
-          if (isNaN(op) || op < 0.99) invisible.push(card);
-        });
-        if (invisible.length) {
-          gsap.fromTo(invisible,
-            { opacity: 0, y: 8 },
-            {
-              opacity: 1,
-              y: 0,
-              duration: 0.4,
-              ease: EASE,
-              stagger: 0.04,
-              clearProps: 'transform,opacity,translate,rotate,scale'
-            }
-          );
-        }
-
-        // [5] Доброскролл к активной карточке (замена пропущенного
-        // scrollIntoView из case-nav). 'nearest' — корректный block, не
-        // скроллит если карточка уже видима.
-        var activeCard = document.querySelector('.work-card--active');
-        if (activeCard) {
-          activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      });
-    });
-  });
-
   /* ══════════════════════════════════
-     4.2) v0.7.12 [bug] — DESKTOP-аналог 4.1.
-     ----------------------------------------------------------------
-     ROOT CAUSE тот же что и в 4.1 (mobile), но на desktop:
-       setCollapsed(true) ставит scrollEl.hidden=true → display:none.
+     4.2) v0.7.12 [bug] — DESKTOP-аналог 4.1 (same ROOT CAUSE).
+       setCollapsed(true) → scrollEl.hidden=true → display:none.
        openCase()→scrollIntoView в скрытом контейнере пишет неконсистентный
        scrollTop, который персистит после re-expand → нижние карточки
        визуально пропадают до resize.
-     Гард на сторону openCase: см. main.js isCollapsed (заменил isMobileCollapsed).
-     Здесь — доскролл активной + ScrollTrigger.refresh после возврата layout.
-     Mobile-логика 4.1 ([1] scrollLeft, [2] killTweens, [4] invisible cards) —
-     не нужна на desktop.
+       Desktop: достаточно [3] ScrollTrigger.refresh + [5] доскролл.
+       Mobile: дополнительно [1] scrollLeft reset, [2] killTweens,
+       [4] reveal invisible cards.
+       Гард на сторону openCase: см. main.js isCollapsed.
   ══════════════════════════════════ */
+  // v0.8.6 [M5] — раньше было два разных listener'а на один codex:toggle
+  // (mobile в 4.1, desktop в 4.2), 80% общего тела. Объединены в один
+  // с if(isMobile)-веткой; общие шаги [3] и [5] вынесены за условие.
   document.addEventListener('codex:toggle', function (e) {
     if (!e.detail || e.detail.collapsed) return;
-    if (window.matchMedia('(max-width: 767px)').matches) return;  // mobile уже обработан 4.1
+    var isMobile = window.matchMedia('(max-width: 767px)').matches;
+    // Два rAF: первый дождётся пока sidebar снова visible, второй — layout flush.
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
+        if (isMobile) {
+          // [1] Defensive reset горизонтального scroll offset.
+          if (cardsScroll) {
+            cardsScroll.scrollLeft = 0;
+          }
+
+          // [2] Останавливаем все tween'ы на карточках и чистим накопленные
+          // GSAP-трансформы (кроме opacity — он чистится в [4] по инвизибл).
+          gsap.killTweensOf(cards);
+          gsap.set(cards, {
+            clearProps: 'x,y,xPercent,yPercent,rotation,rotationX,rotationY,scale'
+          });
+        }
+
+        // [3] Пересчёт позиций ScrollTrigger после возврата лайаута. Общий.
         if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+
+        if (isMobile) {
+          // [4] Ищем карточки с остатками opacity (проблема A из v0.2.1).
+          // getComputedStyle надёжнее gsap.getProperty после killTweensOf.
+          var invisible = [];
+          cards.forEach(function (card) {
+            var op = parseFloat(getComputedStyle(card).opacity);
+            if (isNaN(op) || op < 0.99) invisible.push(card);
+          });
+          if (invisible.length) {
+            gsap.fromTo(invisible,
+              { opacity: 0, y: 8 },
+              {
+                opacity: 1,
+                y: 0,
+                duration: 0.4,
+                ease: EASE,
+                stagger: 0.04,
+                clearProps: 'transform,opacity,translate,rotate,scale'
+              }
+            );
+          }
+        }
+
+        // [5] Доброскролл к активной карточке. 'nearest' — корректный block,
+        // не скроллит если карточка уже видима. Общий.
         var activeCard = document.querySelector('.work-card--active');
         if (activeCard) {
           activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
