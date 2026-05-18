@@ -143,14 +143,14 @@
   <!-- v0.5 [#3]: main.css разделён на shared.css (для обеих страниц) + portfolio.css (только index).
        Это убрало с FA-страницы ~45 KB неиспользуемого CSS и улучшило Lighthouse Performance. -->
   <link rel="stylesheet" href="./css/shared.css">
-  <!-- v0.9.4 — portfolio.css через preload+onload. case-view изначально
-       скрыт (work-card overview видна без portfolio-стилей), поэтому
-       defer безопасен. К моменту первого клика на карту CSS уже на месте.
-       Снимает ≈600ms render-blocking. -->
-  <link rel="preload" as="style"
-        href="./css/portfolio.css"
-        onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="./css/portfolio.css"></noscript>
+  <!-- v0.9.5 — portfolio.css разрезан на два файла:
+         portfolio-core.css (18 правил, ~1.5 KB) — work-card thumb backgrounds,
+         нужны для initial paint без CLS;
+         portfolio-case.css (269 правил, ~16 KB) — весь case-view/3D/gallery,
+         lazy-load в openCase() через main.js (см. ensureCaseStylesheet).
+       PageSpeed: portfolio.css имел 17.2 KiB unused на initial paint —
+       case-view изначально hidden, его стили не нужны до клика по карте. -->
+  <link rel="stylesheet" href="./css/portfolio-core.css">
 </head>
 <body data-theme="dark">
 
