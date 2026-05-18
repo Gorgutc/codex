@@ -109,16 +109,19 @@ function renderGrid(tag) {
   });
 
   // Entrance animation
+  // v0.9.3 — заменили forEach + gsap.fromTo с individual delay на один
+  // gsap.fromTo со stagger. GSAP batchит scheduling и читает getBoundingClientRect
+  // один раз, а не на каждую карту → меньше forced reflow.
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    grid.querySelectorAll('.fa-card').forEach(function(card, i) {
-      gsap.fromTo(card,
-        { opacity: 0, y: 14 },
-        { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out', delay: i * 0.045 }
-      );
-    });
+    gsap.fromTo(grid.querySelectorAll('.fa-card'),
+      { opacity: 0, y: 14 },
+      { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out', stagger: 0.045 }
+    );
   }
   var scroll = document.getElementById('fa-scroll');
-  if (scroll) scroll.scrollTop = 0;
+  // v0.9.3 — write scrollTop только если != 0 (write на scrollTop всегда
+  // вызывает reflow, даже если значение не меняется).
+  if (scroll && scroll.scrollTop !== 0) scroll.scrollTop = 0;
 
   // v0.9.2 — после каждого renderGrid (включая switch tag) подписываем
   // новые .fa-card__thumb-mv на observer. Если script уже загружен —
