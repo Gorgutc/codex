@@ -112,4 +112,4 @@ HDR (Polyhaven CC0)              ← IBL освещение в 3D-вьювере
 
 ---
 
-*Версия: 2.0 · Май 2026 · Codex Studio v0.7.10 GOLDEN FROZEN*
+*Версия: 2.0 · Май 2026 · Codex Studio v0.7.10 → v0.8 (in progress) GOLDEN FROZEN*
