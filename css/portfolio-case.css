@@ -861,6 +861,76 @@
   display: none;       /* desktop: per-page тулбар скрыт, используется верхний */
 }
 
+/* v0.22.3 — Title-block HTML-оверлей: позиционируется по правому-нижнему
+   углу .case-blueprints__page-canvas (16px от краёв), не уезжает в SVG
+   letterbox на широких экранах. Визуал 1:1 со старой SVG-версией.
+   Для экспортированного .svg блок рендерится внутри SVG (см. buildBlueprintSVG
+   с forExport:true). */
+.case-blueprints__title-block {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 320px;
+  max-width: calc(100% - 32px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.case-blueprints__title-block-top {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.case-blueprints__title-block-bottom {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.case-blueprints__title-block-cell {
+  padding: 6px 12px;
+  border-left: 1px solid var(--color-border);
+  min-width: 0;
+}
+.case-blueprints__title-block-cell:first-child { border-left: none; }
+.case-blueprints__title-block-key {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  line-height: 1.2;
+}
+.case-blueprints__title-block-project {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-top: 4px;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.case-blueprints__title-block-val {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+  margin-top: 4px;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Pager overlay — стрелки + counter поверх canvas (desktop, при N>1). */
 .case-blueprints__pager[hidden] { display: none; }
 .case-blueprints__pager-btn {

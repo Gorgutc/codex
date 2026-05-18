@@ -1572,7 +1572,9 @@
   var BP_PAD_RIGHT  = 280;
   var BP_PAD_BOTTOM = 140;
 
-  function buildBlueprintSVG(id, pageIdx) {
+  function buildBlueprintSVG(id, pageIdx, opts) {
+    opts = opts || {};
+    var forExport = !!opts.forExport;     // v0.22.3: runtime пропускает grid+title-block (живут CSS/HTML-оверлеями); export включает их обратно.
     var pages = getBpPages(id);
     var meta  = pages[pageIdx || 0];
     var data  = CARDS_DATA[id];
@@ -1594,26 +1596,8 @@
         (pages.length > 1 ? ' (page ' + ((pageIdx || 0) + 1) + ' of ' + pages.length + ')' : '')
     });
 
-    /* — defs: grid pattern + размерные стрелки — */
+    /* — defs: размерные стрелки (нужны всегда), grid-pattern только для экспорта — */
     var defs = svgEl('defs');
-    var patMinor = svgEl('pattern', {
-      id: 'bp-grid-minor-' + uid,
-      width: BP_GRID_MINOR, height: BP_GRID_MINOR,
-      patternUnits: 'userSpaceOnUse'
-    });
-    patMinor.appendChild(svgEl('path', {
-      class: 'blueprint__grid-minor',
-      d: 'M ' + BP_GRID_MINOR + ' 0 L 0 0 0 ' + BP_GRID_MINOR
-    }));
-    var patMajor = svgEl('pattern', {
-      id: 'bp-grid-major-' + uid,
-      width: BP_GRID_MAJOR, height: BP_GRID_MAJOR,
-      patternUnits: 'userSpaceOnUse'
-    });
-    patMajor.appendChild(svgEl('path', {
-      class: 'blueprint__grid-major',
-      d: 'M ' + BP_GRID_MAJOR + ' 0 L 0 0 0 ' + BP_GRID_MAJOR
-    }));
     var markerStart = svgEl('marker', {
       id: 'bp-arrow-start-' + uid, viewBox: '0 0 10 10',
       refX: '2', refY: '5', markerWidth: '8', markerHeight: '8',
@@ -1626,23 +1610,45 @@
       orient: 'auto'
     });
     markerEnd.appendChild(svgEl('path', { class: 'blueprint__dim-arrow', d: 'M 10 5 L 0 0 L 2 5 L 0 10 Z' }));
-    defs.appendChild(patMinor);
-    defs.appendChild(patMajor);
     defs.appendChild(markerStart);
     defs.appendChild(markerEnd);
+    if (forExport) {
+      var patMinor = svgEl('pattern', {
+        id: 'bp-grid-minor-' + uid,
+        width: BP_GRID_MINOR, height: BP_GRID_MINOR,
+        patternUnits: 'userSpaceOnUse'
+      });
+      patMinor.appendChild(svgEl('path', {
+        class: 'blueprint__grid-minor',
+        d: 'M ' + BP_GRID_MINOR + ' 0 L 0 0 0 ' + BP_GRID_MINOR
+      }));
+      var patMajor = svgEl('pattern', {
+        id: 'bp-grid-major-' + uid,
+        width: BP_GRID_MAJOR, height: BP_GRID_MAJOR,
+        patternUnits: 'userSpaceOnUse'
+      });
+      patMajor.appendChild(svgEl('path', {
+        class: 'blueprint__grid-major',
+        d: 'M ' + BP_GRID_MAJOR + ' 0 L 0 0 0 ' + BP_GRID_MAJOR
+      }));
+      defs.appendChild(patMinor);
+      defs.appendChild(patMajor);
+    }
     svg.appendChild(defs);
 
-    /* — Сетка от края до края viewBox (без inner frame). — */
-    var gGrid = svgEl('g', { class: 'blueprint__grid' });
-    gGrid.appendChild(svgEl('rect', {
-      x: 0, y: 0, width: BP_VIEW_W, height: BP_VIEW_H,
-      fill: 'url(#bp-grid-minor-' + uid + ')'
-    }));
-    gGrid.appendChild(svgEl('rect', {
-      x: 0, y: 0, width: BP_VIEW_W, height: BP_VIEW_H,
-      fill: 'url(#bp-grid-major-' + uid + ')'
-    }));
-    svg.appendChild(gGrid);
+    /* — Grid от края до края viewBox (только в экспорте; runtime берёт CSS-сетку с canvas). — */
+    if (forExport) {
+      var gGrid = svgEl('g', { class: 'blueprint__grid' });
+      gGrid.appendChild(svgEl('rect', {
+        x: 0, y: 0, width: BP_VIEW_W, height: BP_VIEW_H,
+        fill: 'url(#bp-grid-minor-' + uid + ')'
+      }));
+      gGrid.appendChild(svgEl('rect', {
+        x: 0, y: 0, width: BP_VIEW_W, height: BP_VIEW_H,
+        fill: 'url(#bp-grid-major-' + uid + ')'
+      }));
+      svg.appendChild(gGrid);
+    }
 
     /* — view tag (top-left) — */
     var vg = svgEl('g');
@@ -1825,74 +1831,110 @@
     });
     svg.appendChild(calloutsG);
 
-    /* — Title block: правый нижний (16px от края viewBox) — */
-    var tbW = 320, tbH = 96;
-    var tbX = BP_VIEW_W - 16 - tbW;
-    var tbY = BP_VIEW_H - 16 - tbH;
-    var tbG = svgEl('g', { class: 'blueprint__title-block' });
-    tbG.appendChild(svgEl('rect', {
-      class: 'blueprint__title-block-frame',
-      x: tbX, y: tbY, width: tbW, height: tbH
-    }));
-    // верхний ряд (проект)
-    tbG.appendChild(svgEl('text', {
-      class: 'blueprint__title-block-key',
-      x: tbX + 12, y: tbY + 18
-    }, 'Project'));
-    tbG.appendChild(svgEl('text', {
-      class: 'blueprint__title-block-project',
-      x: tbX + 12, y: tbY + 38
-    }, title));
-    // сепаратор
-    tbG.appendChild(svgEl('line', {
-      class: 'blueprint__title-block-divider',
-      x1: tbX, y1: tbY + 48, x2: tbX + tbW, y2: tbY + 48
-    }));
-    // 3 колонки: Drawing / Scale / Date
-    var colW = tbW / 3;
-    var cells = [
-      { k: 'Drawing No', v: meta.no },
-      { k: 'Scale',      v: '1:' + (meta.unit === 'cm' ? '4' : '8') },
-      { k: 'Date',       v: (year || '—') }
-    ];
-    cells.forEach(function (cell, idx) {
-      var cxTB = tbX + colW * idx + 12;
+    /* — Title block: только в экспорте (runtime использует HTML-оверлей,
+         который позиционируется относительно canvas, а не SVG viewBox,
+         поэтому не уезжает в letterbox на широких экранах). — */
+    if (forExport) {
+      var tbW = 320, tbH = 96;
+      var tbX = BP_VIEW_W - 16 - tbW;
+      var tbY = BP_VIEW_H - 16 - tbH;
+      var tbG = svgEl('g', { class: 'blueprint__title-block' });
+      tbG.appendChild(svgEl('rect', {
+        class: 'blueprint__title-block-frame',
+        x: tbX, y: tbY, width: tbW, height: tbH
+      }));
       tbG.appendChild(svgEl('text', {
         class: 'blueprint__title-block-key',
-        x: cxTB, y: tbY + 64
-      }, cell.k));
+        x: tbX + 12, y: tbY + 18
+      }, 'Project'));
       tbG.appendChild(svgEl('text', {
-        class: 'blueprint__title-block-val',
-        x: cxTB, y: tbY + 82
-      }, cell.v));
-      if (idx < 2) {
-        tbG.appendChild(svgEl('line', {
-          class: 'blueprint__title-block-divider',
-          x1: tbX + colW * (idx + 1), y1: tbY + 48,
-          x2: tbX + colW * (idx + 1), y2: tbY + tbH
-        }));
-      }
-    });
-    svg.appendChild(tbG);
+        class: 'blueprint__title-block-project',
+        x: tbX + 12, y: tbY + 38
+      }, title));
+      tbG.appendChild(svgEl('line', {
+        class: 'blueprint__title-block-divider',
+        x1: tbX, y1: tbY + 48, x2: tbX + tbW, y2: tbY + 48
+      }));
+      var colW = tbW / 3;
+      var cells = [
+        { k: 'Drawing No', v: meta.no },
+        { k: 'Scale',      v: '1:' + (meta.unit === 'cm' ? '4' : '8') },
+        { k: 'Date',       v: (year || '—') }
+      ];
+      cells.forEach(function (cell, idx) {
+        var cxTB = tbX + colW * idx + 12;
+        tbG.appendChild(svgEl('text', {
+          class: 'blueprint__title-block-key',
+          x: cxTB, y: tbY + 64
+        }, cell.k));
+        tbG.appendChild(svgEl('text', {
+          class: 'blueprint__title-block-val',
+          x: cxTB, y: tbY + 82
+        }, cell.v));
+        if (idx < 2) {
+          tbG.appendChild(svgEl('line', {
+            class: 'blueprint__title-block-divider',
+            x1: tbX + colW * (idx + 1), y1: tbY + 48,
+            x2: tbX + colW * (idx + 1), y2: tbY + tbH
+          }));
+        }
+      });
+      svg.appendChild(tbG);
+    }
     return svg;
+  }
+  /* HTML title-block — fixed к нижнему-правому углу page-canvas, 16px от краёв.
+     Содержимое 1:1 с SVG-вариантом, но позиционируется по canvas, а не viewBox. */
+  function makeTitleBlockHTML(id, pageIdx) {
+    var pages = getBpPages(id);
+    var meta = pages[pageIdx || 0];
+    if (!meta) return null;
+    var card = document.querySelector('.work-card[data-id="' + id + '"]');
+    var year = card ? (card.querySelector('.work-card__year') || {}).textContent || '' : '';
+    var title = card ? (card.querySelector('.work-card__title') || {}).textContent || id : id;
+    var scale = '1:' + (meta.unit === 'cm' ? '4' : '8');
+
+    var wrap = document.createElement('div');
+    wrap.className = 'case-blueprints__title-block';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.innerHTML =
+      '<div class="case-blueprints__title-block-top">' +
+        '<span class="case-blueprints__title-block-key">Project</span>' +
+        '<span class="case-blueprints__title-block-project"></span>' +
+      '</div>' +
+      '<div class="case-blueprints__title-block-bottom">' +
+        '<div class="case-blueprints__title-block-cell">' +
+          '<span class="case-blueprints__title-block-key">Drawing No</span>' +
+          '<span class="case-blueprints__title-block-val"></span>' +
+        '</div>' +
+        '<div class="case-blueprints__title-block-cell">' +
+          '<span class="case-blueprints__title-block-key">Scale</span>' +
+          '<span class="case-blueprints__title-block-val"></span>' +
+        '</div>' +
+        '<div class="case-blueprints__title-block-cell">' +
+          '<span class="case-blueprints__title-block-key">Date</span>' +
+          '<span class="case-blueprints__title-block-val"></span>' +
+        '</div>' +
+      '</div>';
+    var vals = wrap.querySelectorAll('.case-blueprints__title-block-val');
+    wrap.querySelector('.case-blueprints__title-block-project').textContent = title;
+    vals[0].textContent = meta.no;
+    vals[1].textContent = scale;
+    vals[2].textContent = year || '—';
+    return wrap;
   }
 
   function animateBlueprintReveal(svg) {
     if (!svg || !window.gsap) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    gsap.from(svg.querySelectorAll('.blueprint__grid > *'), {
-      opacity: 0, duration: 0.4, ease: 'power1.out', stagger: 0.04
-    });
+    // v0.22.3: grid и title-block теперь живут вне SVG (CSS + HTML), реveal только для самой схемы.
     gsap.from(svg.querySelectorAll('.blueprint__parts > *'), {
       opacity: 0, y: 6, duration: 0.35, ease: 'power2.out',
-      stagger: 0.04, delay: 0.15
+      stagger: 0.04, delay: 0.05
     });
     gsap.from(svg.querySelectorAll('.blueprint__dimensions > *, .blueprint__callouts > *'), {
       opacity: 0, duration: 0.3, ease: 'power1.out',
-      stagger: 0.03, delay: 0.35
-    });
-    gsap.from(svg.querySelectorAll('.blueprint__title-block > *'), {
-      opacity: 0, duration: 0.35, ease: 'power1.out', delay: 0.45
+      stagger: 0.03, delay: 0.25
     });
   }
 
@@ -1985,6 +2027,8 @@
       canvas.className = 'case-blueprints__page-canvas';
       var svg = buildBlueprintSVG(id, idx);
       if (svg) canvas.appendChild(svg);
+      var titleBlock = makeTitleBlockHTML(id, idx);
+      if (titleBlock) canvas.appendChild(titleBlock);
       pageEl.appendChild(canvas);
 
       var bar = document.createElement('div');
@@ -2774,10 +2818,23 @@
     var pages = getBpPages(currentCaseId);
     if (!pages.length) return;
     pageIdx = Math.max(0, Math.min(pages.length - 1, pageIdx || 0));
-    var pageEl = caseBlueprintsCanvas.querySelector('.case-blueprints__page[data-bp-page="' + pageIdx + '"]');
-    var svg = pageEl ? pageEl.querySelector('svg') : null;
-    if (!svg) return;
-    exportSvgElement(svg, bpFileSuffix(currentCaseId, pageIdx, pages.length));
+    // v0.22.3: runtime SVG не содержит grid/title-block (они в CSS/HTML).
+    // Для self-contained экспорта собираем полную версию SVG (forExport:true)
+    // и временно крепим её к canvas чтобы getComputedStyle разрешил CSS-классы.
+    var svg = buildBlueprintSVG(currentCaseId, pageIdx, { forExport: true });
+    if (!svg || !caseBlueprintsCanvas) return;
+    svg.style.position = 'absolute';
+    svg.style.left = '-9999px';
+    svg.style.top  = '-9999px';
+    svg.style.width  = BP_VIEW_W + 'px';
+    svg.style.height = BP_VIEW_H + 'px';
+    svg.style.pointerEvents = 'none';
+    caseBlueprintsCanvas.appendChild(svg);
+    try {
+      exportSvgElement(svg, bpFileSuffix(currentCaseId, pageIdx, pages.length));
+    } finally {
+      if (svg.parentNode) svg.parentNode.removeChild(svg);
+    }
   }
   var bpExportBtn = document.getElementById('blueprint-export-svg');
   if (bpExportBtn) bpExportBtn.addEventListener('click', function () { exportBpPage(currentBpPage); });
@@ -3459,7 +3516,9 @@
     fsCounter.hidden = !hasNav;
 
     while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
-    var svg = buildBlueprintSVG(id, blueprintFs.index);
+    // v0.22.3: в FS нужен self-contained SVG (с сеткой и title-block),
+    // потому что fs-stage не имеет CSS-сетки фоном и HTML-overlay'я.
+    var svg = buildBlueprintSVG(id, blueprintFs.index, { forExport: true });
     if (svg) {
       svg.removeAttribute('style');
       fsStage.appendChild(svg);
@@ -3490,7 +3549,7 @@
       if (c !== fsCurrentEl && c.parentNode) c.parentNode.removeChild(c);
     });
     var oldEl = fsCurrentEl;
-    var newEl = buildBlueprintSVG(blueprintFs.id, blueprintFs.index);
+    var newEl = buildBlueprintSVG(blueprintFs.id, blueprintFs.index, { forExport: true });
     if (!newEl) return;
     fsStage.appendChild(newEl);
     fsCurrentEl = newEl;
