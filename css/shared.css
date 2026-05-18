@@ -1100,9 +1100,10 @@ body::after {
   .main-area { display: none; }
   body.cards-collapsed .main-area { display: flex; }
   /* v0.15.3 [П4] — резервируем пространство под подвал-полосу
-     (чтобы контент case-view не залезал под footer). */
+     (чтобы контент case-view не залезал под footer).
+     v0.22 — 140→124 (синхронизация с .site-footer min-height после shrink). */
   body.cards-collapsed .main-area {
-    padding-bottom: 140px;
+    padding-bottom: 124px;
     box-sizing: border-box;
   }
 

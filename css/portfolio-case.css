@@ -808,16 +808,13 @@
 }
 
 .case-blueprints__canvas {
-  position: relative;
+  position: relative;          /* positioning context для pager-overlay */
   flex: 1;
   min-height: 0;
-  border: 1px solid var(--color-divider);
-  border-radius: 4px;
-  background:
-    /* v0.7.11 [P2 #14] — заменено на --color-3d-canvas-glow (то же значение, единый источник истины) */
-    radial-gradient(ellipse at top, var(--color-3d-canvas-glow) 0%, transparent 70%),
-    var(--color-bg);
   overflow: hidden;
+  /* v0.22.2 — рамка/bg/сетка переехали на .case-blueprints__page-canvas,
+     чтобы сетка визуально доходила до краёв canvas на широких экранах (4K)
+     где SVG xMidYMid meet оставляет letterbox по бокам. */
 }
 
 /* v0.22 — Multi-page Blueprints
@@ -840,6 +837,20 @@
   display: flex;
   align-items: stretch;
   justify-content: stretch;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  overflow: hidden;
+  /* v0.22.2 — CSS-сетка фоном: тянется до краёв page-canvas даже на 4K,
+     где SVG xMidYMid meet оставляет letterbox по бокам. Цвета/частота
+     соответствуют SVG-сетке (.blueprint__grid-minor/major) — оба слоя
+     накладываются внутри viewBox и сливаются визуально. */
+  background:
+    repeating-linear-gradient(to right,  var(--bp-grid-major) 0 1px, transparent 1px 100px),
+    repeating-linear-gradient(to bottom, var(--bp-grid-major) 0 1px, transparent 1px 100px),
+    repeating-linear-gradient(to right,  var(--bp-grid-minor) 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(to bottom, var(--bp-grid-minor) 0 1px, transparent 1px 20px),
+    radial-gradient(ellipse at top, var(--color-3d-canvas-glow) 0%, transparent 70%),
+    var(--color-bg);
 }
 .case-blueprints__page-canvas svg {
   display: block;
@@ -1703,10 +1714,13 @@
     flex: 1;
     min-height: 0;
     width: 100%;
+    /* v0.22.2 — explicit overflow-y:auto + overscroll-behavior, чтобы touch-
+       scroll работал стабильно на iOS Safari и не передавался Lenis-у
+       (контейнер также помечен data-lenis-prevent в index.html). */
+    overflow-x: hidden;
     overflow-y: auto;
-    border: none;
-    background: transparent;
-    border-radius: 0;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -1724,23 +1738,27 @@
     width: 100%;
     aspect-ratio: 3 / 2;
     min-height: 240px;
-    border: 1px solid var(--color-divider);
-    border-radius: 4px;
-    background:
-      radial-gradient(ellipse at top, var(--color-3d-canvas-glow) 0%, transparent 70%),
-      var(--color-bg);
-    overflow: hidden;
+    /* border + bg-grid наследуются из base .case-blueprints__page-canvas (v0.22.2). */
   }
   .case-blueprints__page-toolbar {
     display: flex;
-    align-items: center;
-    justify-content: flex-end;
+    align-items: stretch;        /* v0.22.2 — равная высота Export и FS */
     gap: 10px;
+  }
+  /* v0.22.2 — Export заполняет ширину от левого края до FS-кнопки, обе одной высоты (36px). */
+  .case-blueprints__page-export {
+    flex: 1 1 auto;
+    min-height: 36px;
+    padding: 8px 14px;
+    justify-content: center;
   }
   .case-blueprints__page-toolbar .case-blueprints__fs-btn {
     position: static;
     right: auto;
     bottom: auto;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
   }
   /* Pager-overlay на mobile не нужен — заменяет native scroll */
   .case-blueprints__pager { display: none; }
