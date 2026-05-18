@@ -129,14 +129,28 @@
   <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
   <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap">
+  <!-- v0.9.4 — Fontshare CSS через preload+onload. URL уже содержит
+       display=swap (см. ниже), поэтому fallback-шрифт виден сразу,
+       без FOUT. Снимает ≈780ms render-blocking от внешнего CSS. -->
+  <link rel="preload" as="style" crossorigin
+        href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" crossorigin
+        href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap"></noscript>
 
   <link rel="stylesheet" href="./css/tokens.css">
   <link rel="stylesheet" href="./css/reset.css">
   <!-- v0.5 [#3]: main.css разделён на shared.css (для обеих страниц) + portfolio.css (только index).
        Это убрало с FA-страницы ~45 KB неиспользуемого CSS и улучшило Lighthouse Performance. -->
   <link rel="stylesheet" href="./css/shared.css">
-  <link rel="stylesheet" href="./css/portfolio.css">
+  <!-- v0.9.5 — portfolio.css разрезан на два файла:
+         portfolio-core.css (18 правил, ~1.5 KB) — work-card thumb backgrounds,
+         нужны для initial paint без CLS;
+         portfolio-case.css (269 правил, ~16 KB) — весь case-view/3D/gallery,
+         lazy-load в openCase() через main.js (см. ensureCaseStylesheet).
+       PageSpeed: portfolio.css имел 17.2 KiB unused на initial paint —
+       case-view изначально hidden, его стили не нужны до клика по карте. -->
+  <link rel="stylesheet" href="./css/portfolio-core.css">
 </head>
 <body data-theme="dark">
 

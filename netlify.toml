@@ -1,4 +1,4 @@
-## Codex Studio — Netlify config (v0.21.0)
+## Codex Studio — Netlify config (v0.9.1)
 ## Phase 1: only caching headers. Build-step не нужен (статика).
 
 [build]
@@ -9,6 +9,22 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "max-age=31536000, immutable"
+
+# v0.9.1 — CSS/JS получают тот же long-cache что и /assets/. Без cache-bust
+# в именах файлов используем stale-while-revalidate: 1 день hot cache,
+# 30 дней stale-OK с background revalidation. ETag поверх обеспечивает
+# invalidation при реальных изменениях (Netlify ставит ETag по содержимому
+# автоматически). PageSpeed жаловался на «7 дней» default — этот pattern
+# даёт лучший repeat-visit без stale-version риска.
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "max-age=86400, stale-while-revalidate=2592000"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "max-age=86400, stale-while-revalidate=2592000"
 
 # HTML — всегда revalidate (must-revalidate чтобы менялся быстро)
 [[headers]]

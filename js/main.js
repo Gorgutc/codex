@@ -1299,10 +1299,27 @@
   /* ══════════════════════════════════
      openCase(id) — главная точка входа
   ══════════════════════════════════ */
+  // v0.9.5 — lazy-load portfolio-case.css при первом openCase. portfolio.css
+  // разрезан: core (work-card backgrounds, blocking в <head>) + case (case-view,
+  // 3D, gallery, blueprints — 269 правил, 16 KiB). Раньше всё грузилось
+  // eager → 17 KiB unused CSS на initial paint. Теперь грузится один раз
+  // когда пользователь действительно открыл кейс. Идемпотентно через
+  // querySelector — повторный openCase не дублирует <link>.
+  function ensureCaseStylesheet() {
+    if (document.querySelector('link[data-case-css]')) return;
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = './css/portfolio-case.css';
+    link.setAttribute('data-case-css', 'true');
+    document.head.appendChild(link);
+  }
+
   function openCase(id, opts) {
     opts = opts || {};
     var data = CARDS_DATA[id];
     if (!data) return;
+
+    ensureCaseStylesheet();
 
     var card = document.querySelector('.work-card[data-id="' + id + '"]');
 

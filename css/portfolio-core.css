@@ -1,0 +1,38 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   PORTFOLIO-CORE.CSS — Codex Studio v0.5
+   ──────────────────────────────────────────────────────────────────────
+   Стили, нужные для initial paint index.html (sidebar + work-card grid).
+   Содержит: per-card .work-card[data-id="..."] backgrounds (v0.8.8a).
+
+   ВАЖНО: подключать ПОСЛЕ shared.css. Опирается на токены из tokens.css
+   и базовые стили work-card из shared.css.
+
+   Split-out: вынесено из portfolio.css ради LCP — case-view стили
+   ушли в portfolio-case.css и грузятся lazy при открытии кейса.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v0.8.8a — per-card thumb backgrounds (18 work-cards on index.html).
+   Раньше каждая карточка имела inline style="background:linear-gradient(...)".
+   Нарушало build-rule B2 (no inline styles). Переведено на атрибут-селектор
+   по существующему data-id. Default fallback — .work-card__thumb { background: 
+   var(--color-work-card-bg-hover) } в shared.css L929.
+═══════════════════════════════════════════════════════════════════════ */
+.work-card[data-id="orbital-mk-ii"] .work-card__thumb { background: linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%); }
+.work-card[data-id="vega-shell"] .work-card__thumb { background: linear-gradient(135deg,#1a2030 0%,#252e40 100%); }
+.work-card[data-id="ironclad-frame"] .work-card__thumb { background: linear-gradient(135deg,#1c2428 0%,#28343a 100%); }
+.work-card[data-id="corten-series"] .work-card__thumb { background: linear-gradient(135deg,#2a2018 0%,#3a2e22 100%); }
+.work-card[data-id="lumen-one"] .work-card__thumb { background: linear-gradient(135deg,#1e2428 0%,#2c3640 100%); }
+.work-card[data-id="flux-capsule"] .work-card__thumb { background: linear-gradient(135deg,#1e2030 0%,#282a40 100%); }
+.work-card[data-id="nightshard"] .work-card__thumb { background: linear-gradient(135deg,#1a1a2a 0%,#252535 100%); }
+.work-card[data-id="recon-drone"] .work-card__thumb { background: linear-gradient(135deg,#1c2030 0%,#28303e 100%); }
+.work-card[data-id="apex-frame"] .work-card__thumb { background: linear-gradient(135deg,#202428 0%,#2c3034 100%); }
+.work-card[data-id="core-rig"] .work-card__thumb { background: linear-gradient(135deg,#1e2830 0%,#28363e 100%); }
+.work-card[data-id="helix-reveal"] .work-card__thumb { background: linear-gradient(135deg,#1a2233 0%,#26304a 100%); }
+.work-card[data-id="arc-motion"] .work-card__thumb { background: linear-gradient(135deg,#1f1a2a 0%,#2a2438 100%); }
+.work-card[data-id="nyx-panther"] .work-card__thumb { background: linear-gradient(135deg,#1a1816 0%,#2a2520 100%); }
+.work-card[data-id="drift-koi"] .work-card__thumb { background: linear-gradient(135deg,#161e24 0%,#1f2a34 100%); }
+.work-card[data-id="glint-owl"] .work-card__thumb { background: linear-gradient(135deg,#1a1a22 0%,#262632 100%); }
+.work-card[data-id="mech-link"] .work-card__thumb { background: linear-gradient(135deg,#1d232a 0%,#2a3138 100%); }
+.work-card[data-id="flex-spine"] .work-card__thumb { background: linear-gradient(135deg,#21272d 0%,#2e353c 100%); }
+.work-card[data-id="cad-strut"] .work-card__thumb { background: linear-gradient(135deg,#1f2429 0%,#2b3138 100%); }
