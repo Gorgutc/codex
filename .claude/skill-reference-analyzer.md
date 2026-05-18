@@ -111,4 +111,4 @@ If yes → how did they do it → how does Codex adapt within constraints.
 
 ---
 
-*Version: 2.0 · May 2026 · Codex Studio v0.7.10*
+*Version: 2.0 · May 2026 · Codex Studio v0.8 GOLDEN*

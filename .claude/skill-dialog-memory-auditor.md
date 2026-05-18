@@ -222,4 +222,4 @@ For these topics — ALWAYS `grep` `verify-frozen.js` first:
 
 ---
 
-*Version: 2.0 · May 2026 · Codex Studio v0.7.10 · verify-frozen.js as source of truth*
+*Version: 2.0 · May 2026 · Codex Studio v0.8 GOLDEN · verify-frozen.js as source of truth*

@@ -198,4 +198,4 @@ Size: ~1.0–1.5 MB each. 1k resolution sufficient for IBL + mobile.
 
 ---
 
-*Version: 2.0 · May 2026 · Codex Studio v0.7.10*
+*Version: 2.0 · May 2026 · Codex Studio v0.8 GOLDEN*

@@ -749,15 +749,8 @@
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
-  function shuffleSeeded(arr, seed) {
-    var a = arr.slice();
-    var rand = mulberry32(seed);
-    for (var i = a.length - 1; i > 0; i--) {
-      var j = Math.floor(rand() * (i + 1));
-      var t = a[i]; a[i] = a[j]; a[j] = t;
-    }
-    return a;
-  }
+  /* v0.8.2: shuffleSeeded удалён — buildItems использует локальную
+     shuffleInPlace (line 1179). */
 
   /* ══════════════════════════════════
      DOM refs
@@ -812,7 +805,9 @@
   var currentLightDdDocClick = null;       // v0.7.3 — global click listener для close-on-outside (cleanup в destroy3D)
   var currentLightDdDocKey   = null;       // v0.7.3 — global keydown listener для Escape (cleanup в destroy3D)
   var pendingScrollReset = false;          // v0.10.2 — отложенный сброс scrollTop на 0
-  var currentCategory = 'all';
+  // v0.8.2: currentCategory удалён — переменная только писалась внутри
+  // applyFilters и сразу же шла в evt.detail. Поле detail.category
+  // оставлено для обратной совместимости публичного API codex:filter.
   var gameOnly = false;
 
   // v0.15.5 [П2] — массив выбранных дисциплин (OR-логика). Пусто или ['all'] → все кейсы.
@@ -871,11 +866,10 @@
       }
     }
     updateNavCounter();
-    // v0.15.5 [П2] — currentCategory для совместимости: primary = первый фильтр или 'all'
-    currentCategory = allActive ? 'all' : selectedFilters[0];
     document.dispatchEvent(new CustomEvent('codex:filter', {
       detail: {
-        category: currentCategory,
+        // v0.15.5 [П2] — category: primary = первый фильтр или 'all' (legacy field).
+        category: allActive ? 'all' : selectedFilters[0],
         filters: allActive ? ['all'] : selectedFilters.slice(),
         gameOnly: gameOnly,
         visible: visible
@@ -1025,7 +1019,15 @@
   // Инициализация: selectedFilters=[] → все кейсы. Синхронизируем UI.
   updateFilterState();
 
-  if (gameSwitch) {
+  // v0.8.7 [M9] — FA-guard. На free-assets.html main.js загружается раньше
+  // free-assets.js, и без этого guard'а оба подписывались на game-switch:
+  // applyFilters в main.js ходит по cards (двойной класс .tag-card.work-card),
+  // ставит body.filter-game и hidden=true на tag-cards. Раньше free-assets.js
+  // снимал это через clone-replace (хрупкий race с порядком DOMContentLoaded).
+  // Теперь main.js сам пропускает game-switch на FA, опознавая страницу по
+  // существованию #fa-grid. Clone-replace в free-assets.js остаётся как
+  // belt + suspenders на случай будущих регрессий.
+  if (gameSwitch && !document.getElementById('fa-grid')) {
     gameSwitch.addEventListener('change', function () {
       gameOnly = gameSwitch.checked;
       gameSwitch.setAttribute('aria-checked', gameOnly ? 'true' : 'false');
@@ -1256,9 +1258,20 @@
     var pct = max > 0 ? (caseScroll.scrollTop / max) * 100 : 0;
     progressBar.style.width = pct.toFixed(2) + '%';
   }
+  // v0.8.4 [M4] — resize-handler читает scrollHeight/clientHeight (layout-thrash
+  // на каждый resize-tick). Throttle через rAF: один пересчёт за кадр.
+  var progressResizeQueued = false;
+  function updateProgressOnResize() {
+    if (progressResizeQueued) return;
+    progressResizeQueued = true;
+    requestAnimationFrame(function () {
+      progressResizeQueued = false;
+      updateProgress();
+    });
+  }
   if (caseScroll) {
     caseScroll.addEventListener('scroll', updateProgress, { passive: true });
-    window.addEventListener('resize', updateProgress);
+    window.addEventListener('resize', updateProgressOnResize);
     // v0.6 [Z7] — scroll-hint: помечаем caseScroll классом .has-scrolled при первом скролле,
     // чтобы CSS-стрелка пропала. once: true — listener auto-remove после первого срабатывания.
     // Класс persistent — после первого скролла стрелка не появляется на других кейсах.
@@ -1465,6 +1478,9 @@
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     var t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    // v0.8.1 [H1] — при открытом fs-overlay стрелки управляют только галереей
+    // (см. navGallery handler ниже). Иначе кейс листался под фуллскрином.
+    if (fsOverlay && fsOverlay.classList.contains('is-open')) return;
     // На мобильном стрелки работают только когда case-view виден (sidebar свернут)
     var isMobile = window.matchMedia('(max-width: 767px)').matches;
     if (isMobile && !document.body.classList.contains('cards-collapsed')) return;
@@ -1527,7 +1543,7 @@
 
     var rng = mulberry32(hashStr(id + '-bp'));
     function rand(min, max) { return min + rng() * (max - min); }
-    function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+    // v0.8.2: randInt удалён — нигде не вызывался.
 
     /* — SVG корень — */
     var svg = svgEl('svg', {
@@ -2204,27 +2220,33 @@
           });
         }
 
-        var envGroup = document.createElement('div');
-        envGroup.className = 'case-3d__env-group';
-        envGroup.setAttribute('role', 'group');
-        envGroup.setAttribute('aria-label', 'Environment preset');
-
-        ['studio', 'outdoor', 'dark'].forEach(function (key) {
+        // v0.8.6 [M6] — фабрика env-кнопки. Раньше блок ниже дублировался
+        // дважды (desktop envGroup + mobile ddEnvList) — только className
+        // различался; click-handler был идентичен. Закрытие захватывает
+        // currentEnv, mv, syncEnvUI, ENV_PRESETS из scope build3D.
+        function createEnvBtn(key, className) {
           var btn = document.createElement('button');
           btn.type = 'button';
-          btn.className = 'case-3d__ctrl case-3d__ctrl--env' + (key === currentEnv ? ' is-on' : '');
+          btn.className = className + (key === currentEnv ? ' is-on' : '');
           btn.setAttribute('aria-pressed', key === currentEnv ? 'true' : 'false');
           btn.dataset.env = key;
           btn.textContent = key.toUpperCase();
-
           btn.addEventListener('click', function () {
             if (currentEnv === key) return;
             currentEnv = key;
             mv.setAttribute('environment-image', ENV_PRESETS[key]);
             syncEnvUI(key);
           });
+          return btn;
+        }
 
-          envGroup.appendChild(btn);
+        var envGroup = document.createElement('div');
+        envGroup.className = 'case-3d__env-group';
+        envGroup.setAttribute('role', 'group');
+        envGroup.setAttribute('aria-label', 'Environment preset');
+
+        ['studio', 'outdoor', 'dark'].forEach(function (key) {
+          envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
         });
 
         // Exposure slider — диапазон 0.5–2.0, default 1.0, step 0.05.
@@ -2309,22 +2331,9 @@
         ddEnvList.setAttribute('role', 'group');
         ddEnvList.setAttribute('aria-label', 'Environment preset');
 
+        // v0.8.6 [M6] — фабрика createEnvBtn (см. desktop envGroup выше).
         ['studio', 'outdoor', 'dark'].forEach(function (key) {
-          var ddBtn = document.createElement('button');
-          ddBtn.type = 'button';
-          ddBtn.className = 'case-3d__light-dd__env-btn' + (key === currentEnv ? ' is-on' : '');
-          ddBtn.setAttribute('aria-pressed', key === currentEnv ? 'true' : 'false');
-          ddBtn.dataset.env = key;
-          ddBtn.textContent = key.toUpperCase();
-
-          ddBtn.addEventListener('click', function () {
-            if (currentEnv === key) return;
-            currentEnv = key;
-            mv.setAttribute('environment-image', ENV_PRESETS[key]);
-            syncEnvUI(key);
-          });
-
-          ddEnvList.appendChild(ddBtn);
+          ddEnvList.appendChild(createEnvBtn(key, 'case-3d__light-dd__env-btn'));
         });
         lightPanel.appendChild(ddEnvList);
 
@@ -2784,6 +2793,18 @@
   if (mq.addEventListener) mq.addEventListener('change', handleBreakpoint);
   else if (mq.addListener) mq.addListener(handleBreakpoint);
 
+  // v0.8.8a — делегированный error-handler для thumbnail <img>. Раньше каждая
+  // из 18 work-card имела inline onerror="this.remove();" (нарушало B2).
+  // capture:true — error не bubble'ит; capture-фаза доходит до scrollEl.
+  if (scrollEl) {
+    scrollEl.addEventListener('error', function (e) {
+      var img = e.target;
+      if (img && img.tagName === 'IMG' && img.closest && img.closest('.work-card__thumb')) {
+        img.remove();
+      }
+    }, true);
+  }
+
   updateCount(cards.length);
 
   /* ══════════════════════════════════
@@ -2794,11 +2815,13 @@
   ══════════════════════════════════ */
   setTimeout(function () {
     var initialId = null;
+    var fromHash = false;
     var rawHash = (window.location.hash || '').replace(/^#/, '');
     if (rawHash) {
       var hashCard = document.querySelector('.work-card[data-id="' + rawHash.replace(/"/g, '') + '"]');
       if (hashCard && hashCard.dataset.id && !hashCard.hasAttribute('hidden')) {
         initialId = hashCard.dataset.id;
+        fromHash = true;
       }
     }
     if (!initialId) {
@@ -2807,8 +2830,13 @@
     }
     if (initialId) {
       openCase(initialId, { initial: true });
-      // v0.2.3 [П2]: deep-link на mobile — сразу показать case-view, а не sidebar.
-      if (rawHash && initialId !== (document.querySelector('.work-card[data-id]:not([hidden])') || {}).dataset?.id) {
+      // v0.8.7 [M3]: на mobile при любом валидном deep-link сразу
+      // показываем case-view вместо sidebar. Раньше сравнивалось с первой
+      // видимой картой через optional-chaining — пользователь приходил по
+      // #orbital-mk-ii (первый кейс) и оставался на cards-screen, тогда
+      // как по любой другой ссылке sidebar сворачивался. Теперь логика
+      // одна: hash валидно указал на видимую карту → mobile collapse.
+      if (fromHash) {
         var isMobileInit = window.matchMedia('(max-width: 767px)').matches;
         if (isMobileInit) setCollapsed(true);
       }
@@ -2906,7 +2934,9 @@
      ════════════════════════════════════════════ */
   var fsOverlay = null, fsStage = null, fsCloseBtn = null;
   var fsPrev = null, fsNext = null, fsCounter = null, fsAnnouncer = null;
-  var fsOriginalEl = null;          // для video: чтобы синхронизировать время.
+  // v0.8.2: fsOriginalEl удалён — задумывался для video time-sync, но
+  // video в fs-overlay не реализовано; переменная только писалась, никем
+  // не читалась.
   var fsContext = null;             // 'gallery' | null — режим overlay
   var gallery = { list: [], index: 0, triggerEl: null };
   var fsCurrentEl = null;           // v0.20.2 — текущая видимая картинка в stage
@@ -3030,7 +3060,6 @@
       fsStage.appendChild(clone);
     }
 
-    fsOriginalEl = sourceEl || null;
     fsOverlay.hidden = false;
     // force reflow для transition
     void fsOverlay.offsetWidth;
@@ -3062,7 +3091,6 @@
       if (fsOverlay && !fsOverlay.classList.contains('is-open')) {
         fsOverlay.hidden = true;
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
-        fsOriginalEl = null;
         restoreFsContext();
         if (prevFocus && typeof prevFocus.focus === 'function') {
           try { prevFocus.focus({ preventScroll: true }); } catch (_) {}
@@ -3340,9 +3368,20 @@
     }, { passive: true });
   }
 
+  // v0.8.4 [M4] — кешируем .cursor один раз. Раньше querySelector('.cursor')
+  // вызывался на каждый mousemove-кадр внутри fs-overlay (10–100/сек).
+  // Элемент создаётся в index.html статически, ниже DOMContentLoaded — лениво
+  // подтянем при первом обращении и закешируем.
+  var cachedCursorEl = null;
+  function getCursorEl() {
+    if (cachedCursorEl && cachedCursorEl.isConnected) return cachedCursorEl;
+    cachedCursorEl = document.querySelector('.cursor');
+    return cachedCursorEl;
+  }
+
   function trackFsCursorZones(e) {
     if (fsContext !== 'gallery') return;
-    var cursorEl = document.querySelector('.cursor');
+    var cursorEl = getCursorEl();
     if (!cursorEl) return;
     // Над кнопками data-cursor=link уже отрисовывает link-state — сбрасываем зону
     if (e.target.closest && e.target.closest('.media-fs__prev, .media-fs__next, .media-fs__close')) {
@@ -3359,7 +3398,7 @@
   }
 
   function clearFsCursorZones() {
-    var cursorEl = document.querySelector('.cursor');
+    var cursorEl = getCursorEl();
     if (cursorEl) cursorEl.classList.remove('is-fs-prev', 'is-fs-next');
   }
 
@@ -3519,8 +3558,9 @@
        отзывчивые по-прежнему, но мягче. */
   // v0.14.1 [3] — добавлен .top-pill--contact (кнопка Contact Telegram).
   // Free Assets pill — disabled, магнит ему не нужен.
+  // v0.8.2: .tag убран — класс мёртв с переезда на .tags-dropdown__* (v0.15.5).
   var MAGNETIC_SELECTOR =
-    '.tag, .cards-toggle, .theme-toggle, .case-back, .logo, .work-card, ' +
+    '.cards-toggle, .theme-toggle, .case-back, .logo, .work-card, ' +
     '.case-tab, .case-mobile-bar__logo, .top-pill--contact';
 
   // Селекторы с ослабленной силой магнита (-80% от стандартной).

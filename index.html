@@ -327,7 +327,8 @@
              1. Положи JPG/WEBP в ./assets/img/work/ с именем как в src= ниже.
                 Рекомендуемый размер: 800×600 (4:3), ≤200 KB.
              2. Готово. Если файл существует — он покажется. Если нет —
-                градиент + лейбл остаются как плейсхолдер (onerror убирает <img>).
+                градиент + лейбл остаются как плейсхолдер (делегированный
+                error-handler в main.js удаляет <img>, см. v0.8.8a).
 
              Рекомендуемые форматы:
              - .webp (лучшее сжатие)  → orbital-mk-ii.webp
@@ -339,8 +340,8 @@
 
         <!-- 1 -->
         <a class="work-card" data-id="orbital-mk-ii" data-category="hard-surface" href="#orbital-mk-ii">
-          <div class="work-card__thumb" data-label="Orbital Mk.II" style="background:linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%);">
-            <img src="./assets/cards/orbital-mk-ii.svg" alt="Orbital Mk.II — sci-fi hard surface prop" loading="eager" fetchpriority="high" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Orbital Mk.II">
+            <img src="./assets/cards/orbital-mk-ii.svg" alt="Orbital Mk.II — sci-fi hard surface prop" loading="eager" fetchpriority="high" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Hard Surface</span><span class="work-card__year">2025</span></div>
@@ -351,8 +352,8 @@
 
         <!-- 2 -->
         <a class="work-card" data-id="vega-shell" data-category="hard-surface" href="#vega-shell">
-          <div class="work-card__thumb" data-label="Vega Shell" style="background:linear-gradient(135deg,#1a2030 0%,#252e40 100%);">
-            <img src="./assets/cards/vega-shell.svg" alt="Vega Shell — modular exo-armor system" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Vega Shell">
+            <img src="./assets/cards/vega-shell.svg" alt="Vega Shell — modular exo-armor system" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Hard Surface</span><span class="work-card__year">2025</span></div>
@@ -363,8 +364,8 @@
 
         <!-- 3 -->
         <a class="work-card" data-id="ironclad-frame" data-category="hard-surface" href="#ironclad-frame">
-          <div class="work-card__thumb" data-label="Ironclad Frame" style="background:linear-gradient(135deg,#1c2428 0%,#28343a 100%);">
-            <img src="./assets/cards/ironclad-frame.svg" alt="Ironclad Frame — industrial chassis breakdown" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Ironclad Frame">
+            <img src="./assets/cards/ironclad-frame.svg" alt="Ironclad Frame — industrial chassis breakdown" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Hard Surface</span><span class="work-card__year">2024</span></div>
@@ -375,8 +376,8 @@
 
         <!-- 4 -->
         <a class="work-card" data-id="corten-series" data-category="product" href="#corten-series">
-          <div class="work-card__thumb" data-label="Corten Series" style="background:linear-gradient(135deg,#2a2018 0%,#3a2e22 100%);">
-            <img src="./assets/cards/corten-series.svg" alt="Corten Series — industrial furniture product viz" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Corten Series">
+            <img src="./assets/cards/corten-series.svg" alt="Corten Series — industrial furniture product viz" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Product</span><span class="work-card__year">2025</span></div>
@@ -387,8 +388,8 @@
 
         <!-- 5 -->
         <a class="work-card" data-id="lumen-one" data-category="product" href="#lumen-one">
-          <div class="work-card__thumb" data-label="Lumen One" style="background:linear-gradient(135deg,#1e2428 0%,#2c3640 100%);">
-            <img src="./assets/cards/lumen-one.svg" alt="Lumen One — architectural lighting unit" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Lumen One">
+            <img src="./assets/cards/lumen-one.svg" alt="Lumen One — architectural lighting unit" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Product</span><span class="work-card__year">2024</span></div>
@@ -399,8 +400,8 @@
 
         <!-- 6 -->
         <a class="work-card" data-id="flux-capsule" data-category="product" href="#flux-capsule">
-          <div class="work-card__thumb" data-label="Flux Capsule" style="background:linear-gradient(135deg,#1e2030 0%,#282a40 100%);">
-            <img src="./assets/cards/flux-capsule.svg" alt="Flux Capsule — consumer tech device" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Flux Capsule">
+            <img src="./assets/cards/flux-capsule.svg" alt="Flux Capsule — consumer tech device" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Product</span><span class="work-card__year">2024</span></div>
@@ -411,8 +412,8 @@
 
         <!-- 7 — Nightshard. Hard Surface + Game Asset badge -->
         <a class="work-card" data-id="nightshard" data-category="hard-surface" data-game-asset="true" href="#nightshard">
-          <div class="work-card__thumb" data-label="Nightshard" style="background:linear-gradient(135deg,#1a1a2a 0%,#252535 100%);">
-            <img src="./assets/cards/nightshard.svg" alt="Nightshard — hero weapon asset, game-ready" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Nightshard">
+            <img src="./assets/cards/nightshard.svg" alt="Nightshard — hero weapon asset, game-ready" loading="lazy" decoding="async" width="800" height="600">
             <span class="work-card__badge">Game</span>
           </div>
           <div class="work-card__info">
@@ -424,8 +425,8 @@
 
         <!-- 8 — Recon Drone. Hard Surface + Game Asset badge -->
         <a class="work-card" data-id="recon-drone" data-category="hard-surface" data-game-asset="true" href="#recon-drone">
-          <div class="work-card__thumb" data-label="Recon Drone" style="background:linear-gradient(135deg,#1c2030 0%,#28303e 100%);">
-            <img src="./assets/cards/recon-drone.svg" alt="Recon Drone — tactical UAV prop" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Recon Drone">
+            <img src="./assets/cards/recon-drone.svg" alt="Recon Drone — tactical UAV prop" loading="lazy" decoding="async" width="800" height="600">
             <span class="work-card__badge">Game</span>
           </div>
           <div class="work-card__info">
@@ -437,8 +438,8 @@
 
         <!-- 9 -->
         <a class="work-card" data-id="apex-frame" data-category="prototyping" href="#apex-frame">
-          <div class="work-card__thumb" data-label="Apex Frame" style="background:linear-gradient(135deg,#202428 0%,#2c3034 100%);">
-            <img src="./assets/cards/apex-frame.svg" alt="Apex Frame — mechanical component breakdown" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Apex Frame">
+            <img src="./assets/cards/apex-frame.svg" alt="Apex Frame — mechanical component breakdown" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Prototyping</span><span class="work-card__year">2024</span></div>
@@ -449,8 +450,8 @@
 
         <!-- 10 -->
         <a class="work-card" data-id="core-rig" data-category="prototyping" href="#core-rig">
-          <div class="work-card__thumb" data-label="Core Rig" style="background:linear-gradient(135deg,#1e2830 0%,#28363e 100%);">
-            <img src="./assets/cards/core-rig.svg" alt="Core Rig — structural assembly prototype" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Core Rig">
+            <img src="./assets/cards/core-rig.svg" alt="Core Rig — structural assembly prototype" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Prototyping</span><span class="work-card__year">2024</span></div>
@@ -461,8 +462,8 @@
 
         <!-- 11 -->
         <a class="work-card" data-id="helix-reveal" data-category="animations" href="#helix-reveal">
-          <div class="work-card__thumb" data-label="Helix Reveal" style="background:linear-gradient(135deg,#1a2233 0%,#26304a 100%);">
-            <img src="./assets/cards/helix-reveal.svg" alt="Helix Reveal — product reveal animation" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Helix Reveal">
+            <img src="./assets/cards/helix-reveal.svg" alt="Helix Reveal — product reveal animation" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Animations</span><span class="work-card__year">2025</span></div>
@@ -473,8 +474,8 @@
 
         <!-- 12 -->
         <a class="work-card" data-id="arc-motion" data-category="animations" href="#arc-motion">
-          <div class="work-card__thumb" data-label="Arc Motion" style="background:linear-gradient(135deg,#1f1a2a 0%,#2a2438 100%);">
-            <img src="./assets/cards/arc-motion.svg" alt="Arc Motion — turntable sequence for industrial product" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Arc Motion">
+            <img src="./assets/cards/arc-motion.svg" alt="Arc Motion — turntable sequence for industrial product" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Animations</span><span class="work-card__year">2024</span></div>
@@ -485,8 +486,8 @@
 
         <!-- 13 — Organic -->
         <a class="work-card" data-id="nyx-panther" data-category="organic" href="#nyx-panther">
-          <div class="work-card__thumb" data-label="Nyx Panther" style="background:linear-gradient(135deg,#1a1816 0%,#2a2520 100%);">
-            <img src="./assets/cards/nyx-panther.svg" alt="Nyx Panther — stylized feline creature" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Nyx Panther">
+            <img src="./assets/cards/nyx-panther.svg" alt="Nyx Panther — stylized feline creature" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Organic</span><span class="work-card__year">2025</span></div>
@@ -497,8 +498,8 @@
 
         <!-- 14 — Organic -->
         <a class="work-card" data-id="drift-koi" data-category="organic" href="#drift-koi">
-          <div class="work-card__thumb" data-label="Drift Koi" style="background:linear-gradient(135deg,#161e24 0%,#1f2a34 100%);">
-            <img src="./assets/cards/drift-koi.svg" alt="Drift Koi — ornamental fish study" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Drift Koi">
+            <img src="./assets/cards/drift-koi.svg" alt="Drift Koi — ornamental fish study" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Organic</span><span class="work-card__year">2024</span></div>
@@ -509,8 +510,8 @@
 
         <!-- 15 — Organic -->
         <a class="work-card" data-id="glint-owl" data-category="organic" href="#glint-owl">
-          <div class="work-card__thumb" data-label="Glint Owl" style="background:linear-gradient(135deg,#1a1a22 0%,#262632 100%);">
-            <img src="./assets/cards/glint-owl.svg" alt="Glint Owl — stylized bird character" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Glint Owl">
+            <img src="./assets/cards/glint-owl.svg" alt="Glint Owl — stylized bird character" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">Organic</span><span class="work-card__year">2025</span></div>
@@ -521,8 +522,8 @@
 
         <!-- 16 — CAD placeholder (v0.14.0 [15a]) — data-cad-placeholder="true" для будущей замены -->
         <a class="work-card" data-id="mech-link" data-category="cad" data-cad-placeholder="true" href="#mech-link">
-          <div class="work-card__thumb" data-label="Mech Link" style="background:linear-gradient(135deg,#1d232a 0%,#2a3138 100%);">
-            <img src="./assets/cards/mech-link.svg" alt="Mech Link — CAD assembly placeholder" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Mech Link">
+            <img src="./assets/cards/mech-link.svg" alt="Mech Link — CAD assembly placeholder" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">CAD</span><span class="work-card__year">2025</span></div>
@@ -533,8 +534,8 @@
 
         <!-- 17 — CAD placeholder -->
         <a class="work-card" data-id="flex-spine" data-category="cad" data-cad-placeholder="true" href="#flex-spine">
-          <div class="work-card__thumb" data-label="Flex Spine" style="background:linear-gradient(135deg,#21272d 0%,#2e353c 100%);">
-            <img src="./assets/cards/flex-spine.svg" alt="Flex Spine — CAD kinematic placeholder" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="Flex Spine">
+            <img src="./assets/cards/flex-spine.svg" alt="Flex Spine — CAD kinematic placeholder" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">CAD</span><span class="work-card__year">2025</span></div>
@@ -545,8 +546,8 @@
 
         <!-- 18 — CAD placeholder -->
         <a class="work-card" data-id="cad-strut" data-category="cad" data-cad-placeholder="true" href="#cad-strut">
-          <div class="work-card__thumb" data-label="CAD Strut" style="background:linear-gradient(135deg,#1f2429 0%,#2b3138 100%);">
-            <img src="./assets/cards/cad-strut.svg" alt="CAD Strut — structural node placeholder" loading="lazy" decoding="async" width="800" height="600" onerror="this.remove();">
+          <div class="work-card__thumb" data-label="CAD Strut">
+            <img src="./assets/cards/cad-strut.svg" alt="CAD Strut — structural node placeholder" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">CAD</span><span class="work-card__year">2025</span></div>

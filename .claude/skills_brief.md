@@ -131,4 +131,4 @@ Skill может содержать правило, которое проект 
 
 ---
 
-*Версия: 2.3 · Май 2026 · Codex Studio v0.7.10 · 10 Skills · verify-frozen.js as source of truth*
+*Версия: 2.3 · Май 2026 · Codex Studio v0.8 GOLDEN · 10 Skills · verify-frozen.js as source of truth*

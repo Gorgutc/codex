@@ -34,6 +34,9 @@
   gap: var(--space-4);
   box-sizing: border-box;
   overflow: hidden;
+  /* v0.8.5: position:relative смержен из дубль-объявления (бывший L373)
+     для абсолютного позиционирования .case-scroll-hint ниже. */
+  position: relative;
 }
 
 @media (max-width: 1100px) {
@@ -228,7 +231,10 @@
     border-color 160ms var(--ease-out),
     background 160ms var(--ease-out);
 }
-.case-tab:hover:not(.case-tab--soon) {
+/* v0.8.5: .case-tab--soon, .case-tab__badge удалены — классы не
+   присутствуют в DOM (3 таба 2D/3D/Blueprints всегда активны).
+   :not(.case-tab--soon) из :hover тоже убран. */
+.case-tab:hover {
   color: var(--color-text);
   border-color: var(--color-text-muted);
 }
@@ -240,20 +246,6 @@
   color: var(--color-text);
   border-color: var(--color-primary);
   background: var(--color-primary-highlight);
-}
-.case-tab--soon {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.case-tab__badge {
-  font-size: 0.55rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  color: var(--color-text-faint);
-  border: 1px solid var(--color-divider);
-  border-radius: 2px;
-  padding: 2px 4px;
-  line-height: 1;
 }
 
 /* ═══════════════════════════════════
@@ -380,8 +372,9 @@
    ВАЖНО: translateY указан ДО rotate в transform — иначе стрелка дрожит
    по диагонали (translateY после rotate работает в локальной системе координат).
 ═══════════════════════════════════════════════════════════════════════ */
-/* .case-view получает relative для абсолютного позиционирования стрелки */
-.case-view { position: relative; }
+/* v0.8.5: дубль `.case-view { position: relative }` смержен в основной
+   блок на L27. position:relative нужен для абсолютного позиционирования
+   .case-scroll-hint ниже. */
 .case-scroll-hint {
   position: absolute;
   bottom: var(--space-4);
@@ -396,8 +389,9 @@
   z-index: 5;
   animation: case-scroll-hint 1.6s ease-in-out 1.2s 3 forwards;
 }
-.case-scroll.has-scrolled ~ .case-scroll-hint,
-.case-scroll-hint.is-hidden {
+/* v0.8.5: .case-scroll-hint.is-hidden удалён — класс нигде не toggle'ится
+   в JS. Скрытие происходит через .case-scroll.has-scrolled (~). */
+.case-scroll.has-scrolled ~ .case-scroll-hint {
   display: none;
 }
 @keyframes case-scroll-hint {
@@ -2050,3 +2044,29 @@
   .case-3d__expo-input::-webkit-slider-thumb { transition: none !important; }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v0.8.8a — per-card thumb backgrounds (18 work-cards on index.html).
+   Раньше каждая карточка имела inline style="background:linear-gradient(...)".
+   Нарушало build-rule B2 (no inline styles). Переведено на атрибут-селектор
+   по существующему data-id. Default fallback — .work-card__thumb { background: 
+   var(--color-work-card-bg-hover) } в shared.css L929.
+═══════════════════════════════════════════════════════════════════════ */
+.work-card[data-id="orbital-mk-ii"] .work-card__thumb { background: linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%); }
+.work-card[data-id="vega-shell"] .work-card__thumb { background: linear-gradient(135deg,#1a2030 0%,#252e40 100%); }
+.work-card[data-id="ironclad-frame"] .work-card__thumb { background: linear-gradient(135deg,#1c2428 0%,#28343a 100%); }
+.work-card[data-id="corten-series"] .work-card__thumb { background: linear-gradient(135deg,#2a2018 0%,#3a2e22 100%); }
+.work-card[data-id="lumen-one"] .work-card__thumb { background: linear-gradient(135deg,#1e2428 0%,#2c3640 100%); }
+.work-card[data-id="flux-capsule"] .work-card__thumb { background: linear-gradient(135deg,#1e2030 0%,#282a40 100%); }
+.work-card[data-id="nightshard"] .work-card__thumb { background: linear-gradient(135deg,#1a1a2a 0%,#252535 100%); }
+.work-card[data-id="recon-drone"] .work-card__thumb { background: linear-gradient(135deg,#1c2030 0%,#28303e 100%); }
+.work-card[data-id="apex-frame"] .work-card__thumb { background: linear-gradient(135deg,#202428 0%,#2c3034 100%); }
+.work-card[data-id="core-rig"] .work-card__thumb { background: linear-gradient(135deg,#1e2830 0%,#28363e 100%); }
+.work-card[data-id="helix-reveal"] .work-card__thumb { background: linear-gradient(135deg,#1a2233 0%,#26304a 100%); }
+.work-card[data-id="arc-motion"] .work-card__thumb { background: linear-gradient(135deg,#1f1a2a 0%,#2a2438 100%); }
+.work-card[data-id="nyx-panther"] .work-card__thumb { background: linear-gradient(135deg,#1a1816 0%,#2a2520 100%); }
+.work-card[data-id="drift-koi"] .work-card__thumb { background: linear-gradient(135deg,#161e24 0%,#1f2a34 100%); }
+.work-card[data-id="glint-owl"] .work-card__thumb { background: linear-gradient(135deg,#1a1a22 0%,#262632 100%); }
+.work-card[data-id="mech-link"] .work-card__thumb { background: linear-gradient(135deg,#1d232a 0%,#2a3138 100%); }
+.work-card[data-id="flex-spine"] .work-card__thumb { background: linear-gradient(135deg,#21272d 0%,#2e353c 100%); }
+.work-card[data-id="cad-strut"] .work-card__thumb { background: linear-gradient(135deg,#1f2429 0%,#2b3138 100%); }

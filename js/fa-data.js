@@ -1,6 +1,17 @@
 /* ═══════════════════════════════════════════════════════════════════════
    FA_DATA — каталог free-assets для js/free-assets.js
    v0.7.11 [P2 #26]: вынесено из inline <script> в free-assets.html.
+
+   v0.8.9 L4 — known data-gap (известный недостаток данных, не код-баг):
+   thumbnail-path конструируется как './assets/cards/' + id + '.svg'.
+   Реально в assets/cards/ лежит 18 SVG (по EXPECTED_IDS для index.html).
+   8 FA-id не имеют thumb: bolt-cluster, terra-base, shard-cannon,
+   wraith-blade, echo-shell, prism-lab, wraith-blade-g, shard-cannon-g.
+   Эти карточки корректно показывают только bg-gradient — img удаляется
+   делегированным error-handler'ом на #fa-grid (free-assets.js v0.8.8b).
+   Когда подъедут реальные thumb'ы — просто положить файлы в assets/cards/
+   с именем, совпадающим с id (для `-g` вариантов либо отдельный файл,
+   либо переиспользование thumb с корневого id через поле `thumb`).
 ═══════════════════════════════════════════════════════════════════════ */
 var FA_DATA = {
   'hard-surface': [

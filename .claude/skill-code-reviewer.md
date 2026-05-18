@@ -176,4 +176,4 @@ Before suggesting any change in `<head>`, DOM IDs, theme-color, scripts, or work
 
 ---
 
-*Version: 2.0 · May 2026 · Codex Studio v0.7.10*
+*Version: 2.0 · May 2026 · Codex Studio v0.8 GOLDEN*

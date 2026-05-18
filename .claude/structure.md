@@ -5,7 +5,7 @@
 
 ---
 
-## 📁 Файловая структура (v0.7.10)
+## 📁 Файловая структура (v0.8 GOLDEN)
 
 ```
 codex/
@@ -15,7 +15,8 @@ codex/
 ├── verify-frozen.js            ← Playwright-регрешен (56 тестов, source of truth)
 ├── README.md
 ├── CHANGELOG.md
-├── 08–15_*.md                  ← handoff-документы по итерациям (v0.4 → v0.7.10)
+├── 08_ITERATION_HISTORY.md     ← историческая хроника фаз
+├── 16_HANDOFF_v0_8.md          ← актуальный handoff (заменил 09–15_HANDOFF_v0_7_*)
 ├── llms.txt
 ├── robots.txt
 ├── sitemap.xml
@@ -30,6 +31,8 @@ codex/
 ├── js/
 │   ├── main.js                 ← CARDS_DATA + sidebar UI + case-view + 3D-вьювер + theme + filters (eager)
 │   ├── animations.js           ← все GSAP-анимации (eager, после main.js)
+│   ├── free-assets.js          ← логика страницы free-assets.html (только на FA)
+│   ├── fa-data.js              ← каталог FA (вынесен из inline в free-assets.html)
 │   └── model-data.js           ← inline GLB data 1.1 MB — LAZY-LOADED по первому клику на 3D-tab
 │
 ├── assets/
@@ -255,4 +258,4 @@ codex/
 
 ---
 
-*Версия: 2.0 · Май 2026 · Codex Studio v0.7.10*
+*Версия: 2.0 · Май 2026 · Codex Studio v0.8 GOLDEN*
