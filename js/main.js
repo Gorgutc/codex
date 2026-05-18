@@ -1518,8 +1518,16 @@
      с per-page тулбаром (Export + Fullscreen).
   ══════════════════════════════════ */
   var BLUEPRINT_META = {
-    'orbital-mk-ii':  { pages: [{ view: 'Front view',    no: 'CS-001', unit: 'mm', overall: [1820, 1240], parts: ['Chassis', 'Thruster', 'Panel A', 'Panel B', 'Vent'] }] },
-    'vega-shell':     { pages: [{ view: 'Exploded view', no: 'CS-002', unit: 'mm', overall: [1640, 1100], parts: ['Shoulder', 'Chest', 'Forearm', 'Greave'] }] },
+    'orbital-mk-ii':  { pages: [
+      { view: 'Front view',  no: 'CS-001-A', unit: 'mm', overall: [1820, 1240], parts: ['Chassis', 'Thruster', 'Panel A', 'Panel B', 'Vent'] },
+      { view: 'Top view',    no: 'CS-001-B', unit: 'mm', overall: [1820, 1640], parts: ['Hub', 'Forward bay', 'Aft bay', 'Stabilizer L', 'Stabilizer R'] },
+      { view: 'Section A-A', no: 'CS-001-C', unit: 'mm', overall: [1240, 920],  parts: ['Coolant duct', 'Reactor core', 'Plenum'] }
+    ] },
+    'vega-shell':     { pages: [
+      { view: 'Exploded view', no: 'CS-002-A', unit: 'mm', overall: [1640, 1100], parts: ['Shoulder', 'Chest', 'Forearm', 'Greave'] },
+      { view: 'Front view',    no: 'CS-002-B', unit: 'mm', overall: [820, 1320],  parts: ['Pauldron', 'Cuirass', 'Vambrace'] },
+      { view: 'Side view',     no: 'CS-002-C', unit: 'mm', overall: [640, 1320],  parts: ['Spaulder', 'Backplate', 'Tasset'] }
+    ] },
     'ironclad-frame': { pages: [{ view: 'Top view',      no: 'CS-003', unit: 'mm', overall: [2400, 1200], parts: ['Frame', 'Bracket', 'Flange', 'Bolt row'] }] },
     'corten-series':  { pages: [{ view: 'Front view',    no: 'CS-004', unit: 'cm', overall: [85, 110],    parts: ['Seat', 'Back', 'Leg L', 'Leg R'] }] },
     'lumen-one':      { pages: [{ view: 'Section A-A',   no: 'CS-005', unit: 'mm', overall: [320, 420],   parts: ['Shade', 'Stem', 'Base', 'Socket'] }] },
