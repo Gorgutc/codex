@@ -140,37 +140,32 @@ if (typeof SplitText !== 'undefined') {
 
   if (fineHover) {
     var MAX_TILT       = 6;
-    var MAX_TRANSLATE  = 4;
-    var LIFT_Y         = -4;
     var DURATION       = 0.45;
     var RESET_DURATION = 0.6;
 
+    // v0.8.1 [H2] — tilt отвечает только за rotationX/Y. translate (x/y)
+    // принадлежит magnetic-cursor в main.js (MAGNETIC_SELECTOR/PULL_SOFT).
+    // Раньше оба блока писали x/y через gsap.to(... overwrite:'auto'):
+    // последний tween перетирал предыдущий → визуально один из эффектов
+    // частично гасил другой. Теперь чистое разделение ответственностей.
     cards.forEach(function (card) {
-      var qx  = gsap.quickTo(card, 'rotationY', { duration: DURATION, ease: EASE });
-      var qy  = gsap.quickTo(card, 'rotationX', { duration: DURATION, ease: EASE });
-      var qtx = gsap.quickTo(card, 'x',         { duration: DURATION, ease: EASE });
-      var qty = gsap.quickTo(card, 'y',         { duration: DURATION, ease: EASE });
+      var qx = gsap.quickTo(card, 'rotationY', { duration: DURATION, ease: EASE });
+      var qy = gsap.quickTo(card, 'rotationX', { duration: DURATION, ease: EASE });
 
-      function onEnter() {
-        gsap.to(card, { y: LIFT_Y, duration: 0.35, ease: EASE, overwrite: 'auto' });
-      }
       function onMove(e) {
         var rect = card.getBoundingClientRect();
         var nx = (e.clientX - rect.left) / rect.width  * 2 - 1;
         var ny = (e.clientY - rect.top)  / rect.height * 2 - 1;
         qx( nx * MAX_TILT);
         qy(-ny * MAX_TILT);
-        qtx(nx * MAX_TRANSLATE);
-        qty(LIFT_Y + ny * MAX_TRANSLATE * 0.5);
       }
       function onLeave() {
         gsap.to(card, {
-          rotationX: 0, rotationY: 0, x: 0, y: 0,
+          rotationX: 0, rotationY: 0,
           duration: RESET_DURATION, ease: 'power3.out', overwrite: 'auto'
         });
       }
 
-      card.addEventListener('pointerenter', onEnter);
       card.addEventListener('pointermove',  onMove);
       card.addEventListener('pointerleave', onLeave);
       // focusout (бабблит) вместо blur — устойчиво к появлению фокусируемых детей в .work-card

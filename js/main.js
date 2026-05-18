@@ -1465,6 +1465,9 @@
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     var t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    // v0.8.1 [H1] — при открытом fs-overlay стрелки управляют только галереей
+    // (см. navGallery handler ниже). Иначе кейс листался под фуллскрином.
+    if (fsOverlay && fsOverlay.classList.contains('is-open')) return;
     // На мобильном стрелки работают только когда case-view виден (sidebar свернут)
     var isMobile = window.matchMedia('(max-width: 767px)').matches;
     if (isMobile && !document.body.classList.contains('cards-collapsed')) return;
