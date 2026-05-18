@@ -1299,14 +1299,16 @@
   /* ══════════════════════════════════
      openCase(id) — главная точка входа
   ══════════════════════════════════ */
-  // v0.9.5 — lazy-load portfolio-case.css при первом openCase. portfolio.css
-  // разрезан: core (work-card backgrounds, blocking в <head>) + case (case-view,
-  // 3D, gallery, blueprints — 269 правил, 16 KiB). Раньше всё грузилось
-  // eager → 17 KiB unused CSS на initial paint. Теперь грузится один раз
-  // когда пользователь действительно открыл кейс. Идемпотентно через
-  // querySelector — повторный openCase не дублирует <link>.
+  // v0.9.5 + v0.9.6 — portfolio-case.css. На обычном пути preload+onload
+  // в index.html <head> уже инжектит этот файл параллельно с критическими
+  // ресурсами. ensureCaseStylesheet остаётся как safety-net на случай если:
+  //   а) <noscript>-фоллбек не сработал (preload вообще не поддерживается)
+  //   б) Какая-то модификация HTML удалила preload-link
+  // Идемпотентно через querySelector — повторные openCase не дублируют <link>.
   function ensureCaseStylesheet() {
-    if (document.querySelector('link[data-case-css]')) return;
+    // preload <link> ставит rel='preload', после onload меняет на 'stylesheet'.
+    // Любой из них считается "уже инициирован".
+    if (document.querySelector('link[href$="portfolio-case.css"]')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = './css/portfolio-case.css';
