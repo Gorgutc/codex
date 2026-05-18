@@ -151,6 +151,17 @@
        PageSpeed: portfolio.css имел 17.2 KiB unused на initial paint —
        case-view изначально hidden, его стили не нужны до клика по карте. -->
   <link rel="stylesheet" href="./css/portfolio-core.css">
+  <!-- v0.9.6 — preload portfolio-case.css. На desktop openCase() вызывается
+       в init (sidebar visible), DOM case-view рендерится сразу. Без preload
+       JS-инжект ensureCaseStylesheet даёт async load → стили применяются
+       с задержкой → massive relayout (Style & Layout 1875ms на desktop).
+       Preload+onload запускает параллельный fetch без блокировки render;
+       к моменту первого openCase файл cached/applied. На mobile (где
+       openCase отложен) поведение не ухудшается — preload крутится в фоне. -->
+  <link rel="preload" as="style"
+        href="./css/portfolio-case.css"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="./css/portfolio-case.css"></noscript>
 </head>
 <body data-theme="dark">
 
