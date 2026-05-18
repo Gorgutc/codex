@@ -240,6 +240,7 @@
       { type: 'image', format: 'tall', src: './assets/cases/' + cfg.id + '/05.svg' }
     ];
     for (var i = 0; i < 5; i++) {
+      if (cfg.srcs && cfg.srcs[i]) media[i].src = cfg.srcs[i];
       media[i].bg      = cfg.palette[i];
       media[i].label   = cfg.captions[i].label;
       media[i].desc    = cfg.captions[i].desc;
@@ -265,9 +266,10 @@
         'linear-gradient(135deg,#112030 0%,#1a2c3c 100%)',
         'linear-gradient(135deg,#0e1a28 0%,#182636 100%)'
       ],
+      srcs: [null, './assets/cases/orbital-mk-ii/02.png', null, null, null],
       captions: [
         { label: 'Hero render',         desc: 'Sci-fi prop engineered for AAA pipeline. Full PBR, clean manifold topology.' },
-        { label: 'Material breakdown',  desc: 'Substance layer stack — roughness variation separates wear zones from clean panels.' },
+        { label: 'Testing hamster',     desc: 'Проверка загрузки иллюстрации' },
         { label: 'Topology pass',       desc: '18 k clean quads. Subdivision-ready and LOD0-certified for real-time integration.' },
         { label: 'Detail close-up',     desc: 'Panel seam macro. Bevel widths tuned for 2 m viewing distance at 4 K resolution.' },
         { label: 'Final composite',     desc: 'Lit with 3-point studio HDRI. Denoised in OptiX, tonemapped ACES.' }
