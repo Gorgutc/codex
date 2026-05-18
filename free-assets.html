@@ -82,13 +82,22 @@
   <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
   <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap">
+  <!-- v0.9.4 — Fontshare CSS через preload+onload (display=swap → нет FOUT).
+       Снимает ≈780ms render-blocking. -->
+  <link rel="preload" as="style" crossorigin
+        href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" crossorigin
+        href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap"></noscript>
 
   <link rel="stylesheet" href="./css/tokens.css">
   <link rel="stylesheet" href="./css/reset.css">
   <!-- v0.5 [#3]: main.css разделён на shared.css + portfolio.css. FA грузит только shared. -->
   <link rel="stylesheet" href="./css/shared.css">
 
+  <!-- v0.9.4 — free-assets.css ОСТАВЛЕН blocking: содержит .fa-grid /
+       .fa-card layout, без них основной контент FA выглядит плохо.
+       Trade-off: 620ms render-blocking < FOUC на 8 cards. -->
   <link rel="stylesheet" href="./css/free-assets.css">
 </head>
 
