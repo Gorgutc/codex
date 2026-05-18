@@ -819,17 +819,89 @@
     var(--color-bg);
   overflow: hidden;
 }
-.case-blueprints__canvas svg {
+
+/* v0.22 — Multi-page Blueprints
+   ─────────────────────────────────────────────────────────────────
+   На desktop одна .case-blueprints__page активна (is-current) и
+   занимает всю canvas. На mobile все страницы выводятся колонкой
+   (см. media max-width:767 ниже). Per-page тулбар скрыт на desktop. */
+.case-blueprints__page {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.case-blueprints__page.is-current { display: flex; }
+.case-blueprints__page-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.case-blueprints__page-canvas svg {
   display: block;
   width: 100%;
   height: 100%;
 }
+.case-blueprints__page-toolbar {
+  display: none;       /* desktop: per-page тулбар скрыт, используется верхний */
+}
 
-/* Блок каркаса */
-.blueprint__frame {
-  fill: none;
-  stroke: var(--color-border);
-  stroke-width: 1;
+/* Pager overlay — стрелки + counter поверх canvas (desktop, при N>1). */
+.case-blueprints__pager[hidden] { display: none; }
+.case-blueprints__pager-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: var(--color-fs-close-bg);
+  border: 1px solid var(--color-fs-close-border);
+  border-radius: 3px;
+  color: var(--color-fs-close-text);
+  cursor: pointer;
+  z-index: 4;
+  transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out), opacity 200ms var(--ease-out);
+}
+.case-blueprints__pager-btn--prev { left: 16px; }
+.case-blueprints__pager-btn--next { right: 16px; }
+.case-blueprints__pager-btn[disabled] { opacity: 0.35; cursor: default; pointer-events: none; }
+@media (hover: hover) and (pointer: fine) {
+  .case-blueprints__pager-btn:not([disabled]):hover {
+    color: var(--color-fs-close-text-hover);
+    border-color: var(--color-fs-close-border-hover);
+  }
+}
+.case-blueprints__pager-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.case-blueprints__pager-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.case-blueprints__pager-counter {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--color-text);
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  z-index: 3;
 }
 
 /* Сетка */
@@ -1622,14 +1694,56 @@
   }
   .case-view__title { font-size: var(--text-xl); }
 
-  /* Mobile (v0.10): Blueprints canvas — aspect вместо flex:1, чтобы не было пустоты сверху/снизу */
+  /* Mobile (v0.22): Blueprints — вертикальная лента SVG (все страницы кейса
+     друг под другом). Верхний тулбар скрыт (Export/FS живут per-page внизу
+     каждого SVG). Pager-overlay тоже скрыт — листание = native scroll. */
   .case-blueprints { padding: 8px 0 16px; }
+  .case-blueprints__toolbar { display: none; }
   .case-blueprints__canvas {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;
+    border: none;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .case-blueprints__page {
+    display: flex;          /* все страницы видны на mobile */
+    flex: 0 0 auto;
+    height: auto;
+    gap: 8px;
+  }
+  .case-blueprints__page.is-current { display: flex; }
+  .case-blueprints__page-canvas {
     flex: 0 0 auto;
     width: 100%;
     aspect-ratio: 3 / 2;
     min-height: 240px;
+    border: 1px solid var(--color-divider);
+    border-radius: 4px;
+    background:
+      radial-gradient(ellipse at top, var(--color-3d-canvas-glow) 0%, transparent 70%),
+      var(--color-bg);
+    overflow: hidden;
   }
+  .case-blueprints__page-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .case-blueprints__page-toolbar .case-blueprints__fs-btn {
+    position: static;
+    right: auto;
+    bottom: auto;
+  }
+  /* Pager-overlay на mobile не нужен — заменяет native scroll */
+  .case-blueprints__pager { display: none; }
 
   /* Mobile (v0.11): 3D canvas — зеркальная логика с Blueprints */
   .case-3d { padding: 8px 0 16px; }

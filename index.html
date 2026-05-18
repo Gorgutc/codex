@@ -804,7 +804,10 @@
           </button>
         </div>
         <div class="case-blueprints__canvas" id="case-blueprints-canvas">
-          <!-- SVG генерируется в main.js (buildBlueprint) из CARDS_DATA.blueprint -->
+          <!-- v0.22: рендерер renderBlueprints() в main.js собирает все страницы
+               BLUEPRINT_META[id].pages внутри этого контейнера. На desktop видна
+               только .case-blueprints__page.is-current + pager-overlay (prev/next/counter).
+               На mobile все страницы выводятся колонкой с per-page Export/FS тулбаром. -->
         </div>
       </div>
 

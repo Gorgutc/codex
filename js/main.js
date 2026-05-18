@@ -1357,7 +1357,7 @@
         var isCollapsed = document.body.classList.contains('cards-collapsed');
         if (!isCollapsed) {
           // v0.2.3 [П1] DESKTOP: smooth scrollIntoView, вызванный сразу,
-          //   прерывается синхронным reflow из buildItems()/buildBlueprint()
+          //   прерывается синхронным reflow из buildItems()/renderBlueprints()
           //   ниже в openCase() — scroll animation сбрасывается к 0 и
           //   активная карточка остаётся вне видимой зоны sidebar.
           //   Фикс: откладываем вызов на 2× rAF — к этому моменту
@@ -1422,7 +1422,7 @@
     // v0.10 — обновляем счётчик + перерисовываем blueprint если активна
     updateNavCounter();
     if (currentViz === 'blueprints') {
-      buildBlueprint(id);
+      renderBlueprints(id);
     } else if (currentViz === '3d') {
       build3D(id);                                  // v0.11 — перестраиваем 3D под новый кейс
     }
@@ -1510,30 +1510,37 @@
   });
 
   /* ══════════════════════════════════
-     v0.10 — BLUEPRINT RENDERER
-     Генеративный: из hash(id) строим детерминированный чертёж,
-     оформление берём из BLUEPRINT_META.
+     v0.22 — BLUEPRINT RENDERER (multi-page)
+     Каждый кейс хранит pages[] — массив страниц чертежа. Сейчас у всех
+     1 страница, но buildBlueprintSVG(id, pageIdx) и renderBlueprints
+     поддерживают 1..N. На desktop активна одна .case-blueprints__page,
+     листание — pager-overlay. На mobile все страницы выводятся колонкой
+     с per-page тулбаром (Export + Fullscreen).
   ══════════════════════════════════ */
   var BLUEPRINT_META = {
-    'orbital-mk-ii':  { view: 'Front view',    no: 'CS-001', unit: 'mm', overall: [1820, 1240], parts: ['Chassis', 'Thruster', 'Panel A', 'Panel B', 'Vent'] },
-    'vega-shell':     { view: 'Exploded view', no: 'CS-002', unit: 'mm', overall: [1640, 1100], parts: ['Shoulder', 'Chest', 'Forearm', 'Greave'] },
-    'ironclad-frame': { view: 'Top view',      no: 'CS-003', unit: 'mm', overall: [2400, 1200], parts: ['Frame', 'Bracket', 'Flange', 'Bolt row'] },
-    'corten-series':  { view: 'Front view',    no: 'CS-004', unit: 'cm', overall: [85, 110],    parts: ['Seat', 'Back', 'Leg L', 'Leg R'] },
-    'lumen-one':      { view: 'Section A-A',   no: 'CS-005', unit: 'mm', overall: [320, 420],   parts: ['Shade', 'Stem', 'Base', 'Socket'] },
-    'flux-capsule':   { view: 'Front view',    no: 'CS-006', unit: 'mm', overall: [900, 1400],  parts: ['Capsule', 'Coil', 'Core', 'Port'] },
-    'nightshard':     { view: 'Front view',    no: 'CS-007', unit: 'mm', overall: [640, 1820],  parts: ['Blade', 'Guard', 'Grip', 'Pommel'] },
-    'recon-drone':    { view: 'Top view',      no: 'CS-008', unit: 'mm', overall: [1280, 1280], parts: ['Hub', 'Rotor NE', 'Rotor SE', 'Rotor SW', 'Rotor NW'] },
-    'apex-frame':     { view: 'Side view',     no: 'CS-009', unit: 'mm', overall: [1700, 900],  parts: ['Top rail', 'Bottom rail', 'Strut L', 'Strut R'] },
-    'core-rig':       { view: 'Front view',    no: 'CS-010', unit: 'mm', overall: [1200, 1600], parts: ['Mount', 'Arm', 'Yoke', 'Clamp'] },
-    'helix-reveal':   { view: 'Exploded view', no: 'CS-011', unit: 'mm', overall: [1440, 1440], parts: ['Ring A', 'Ring B', 'Spine', 'Cap'] },
-    'arc-motion':     { view: 'Side view',     no: 'CS-012', unit: 'mm', overall: [2000, 800],  parts: ['Arc', 'Pivot', 'Counterweight'] },
-    'nyx-panther':    { view: 'Side view',     no: 'CS-013', unit: 'cm', overall: [180, 80],    parts: ['Head', 'Torso', 'Foreleg', 'Hindleg', 'Tail'] },
-    'drift-koi':      { view: 'Top view',      no: 'CS-014', unit: 'cm', overall: [90, 40],     parts: ['Head', 'Body', 'Fin', 'Tail'] },
-    'glint-owl':      { view: 'Front view',    no: 'CS-015', unit: 'cm', overall: [55, 70],     parts: ['Head', 'Body', 'Wing L', 'Wing R'] },
-    'mech-link':      { view: 'Assembly view', no: 'CS-016', unit: 'mm', overall: [1200, 800],   parts: ['Link A', 'Link B', 'Pin', 'Bracket'] },
-    'flex-spine':     { view: 'Side view',     no: 'CS-017', unit: 'mm', overall: [1800, 600],   parts: ['Rib x8', 'Driver', 'Joint A', 'Joint B'] },
-    'cad-strut':      { view: 'Section A-A',   no: 'CS-018', unit: 'mm', overall: [600, 600],    parts: ['Hub', 'Strut N', 'Strut E', 'Mount'] }
+    'orbital-mk-ii':  { pages: [{ view: 'Front view',    no: 'CS-001', unit: 'mm', overall: [1820, 1240], parts: ['Chassis', 'Thruster', 'Panel A', 'Panel B', 'Vent'] }] },
+    'vega-shell':     { pages: [{ view: 'Exploded view', no: 'CS-002', unit: 'mm', overall: [1640, 1100], parts: ['Shoulder', 'Chest', 'Forearm', 'Greave'] }] },
+    'ironclad-frame': { pages: [{ view: 'Top view',      no: 'CS-003', unit: 'mm', overall: [2400, 1200], parts: ['Frame', 'Bracket', 'Flange', 'Bolt row'] }] },
+    'corten-series':  { pages: [{ view: 'Front view',    no: 'CS-004', unit: 'cm', overall: [85, 110],    parts: ['Seat', 'Back', 'Leg L', 'Leg R'] }] },
+    'lumen-one':      { pages: [{ view: 'Section A-A',   no: 'CS-005', unit: 'mm', overall: [320, 420],   parts: ['Shade', 'Stem', 'Base', 'Socket'] }] },
+    'flux-capsule':   { pages: [{ view: 'Front view',    no: 'CS-006', unit: 'mm', overall: [900, 1400],  parts: ['Capsule', 'Coil', 'Core', 'Port'] }] },
+    'nightshard':     { pages: [{ view: 'Front view',    no: 'CS-007', unit: 'mm', overall: [640, 1820],  parts: ['Blade', 'Guard', 'Grip', 'Pommel'] }] },
+    'recon-drone':    { pages: [{ view: 'Top view',      no: 'CS-008', unit: 'mm', overall: [1280, 1280], parts: ['Hub', 'Rotor NE', 'Rotor SE', 'Rotor SW', 'Rotor NW'] }] },
+    'apex-frame':     { pages: [{ view: 'Side view',     no: 'CS-009', unit: 'mm', overall: [1700, 900],  parts: ['Top rail', 'Bottom rail', 'Strut L', 'Strut R'] }] },
+    'core-rig':       { pages: [{ view: 'Front view',    no: 'CS-010', unit: 'mm', overall: [1200, 1600], parts: ['Mount', 'Arm', 'Yoke', 'Clamp'] }] },
+    'helix-reveal':   { pages: [{ view: 'Exploded view', no: 'CS-011', unit: 'mm', overall: [1440, 1440], parts: ['Ring A', 'Ring B', 'Spine', 'Cap'] }] },
+    'arc-motion':     { pages: [{ view: 'Side view',     no: 'CS-012', unit: 'mm', overall: [2000, 800],  parts: ['Arc', 'Pivot', 'Counterweight'] }] },
+    'nyx-panther':    { pages: [{ view: 'Side view',     no: 'CS-013', unit: 'cm', overall: [180, 80],    parts: ['Head', 'Torso', 'Foreleg', 'Hindleg', 'Tail'] }] },
+    'drift-koi':      { pages: [{ view: 'Top view',      no: 'CS-014', unit: 'cm', overall: [90, 40],     parts: ['Head', 'Body', 'Fin', 'Tail'] }] },
+    'glint-owl':      { pages: [{ view: 'Front view',    no: 'CS-015', unit: 'cm', overall: [55, 70],     parts: ['Head', 'Body', 'Wing L', 'Wing R'] }] },
+    'mech-link':      { pages: [{ view: 'Assembly view', no: 'CS-016', unit: 'mm', overall: [1200, 800],   parts: ['Link A', 'Link B', 'Pin', 'Bracket'] }] },
+    'flex-spine':     { pages: [{ view: 'Side view',     no: 'CS-017', unit: 'mm', overall: [1800, 600],   parts: ['Rib x8', 'Driver', 'Joint A', 'Joint B'] }] },
+    'cad-strut':      { pages: [{ view: 'Section A-A',   no: 'CS-018', unit: 'mm', overall: [600, 600],    parts: ['Hub', 'Strut N', 'Strut E', 'Mount'] }] }
   };
+  function getBpPages(id) {
+    var m = BLUEPRINT_META[id];
+    return (m && m.pages) ? m.pages : [];
+  }
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
   function svgEl(tag, attrs, text) {
@@ -1543,40 +1550,46 @@
     return el;
   }
 
-  /* Параметры canvas — SVG в координатах чертежного поля */
+  /* Параметры canvas — SVG в координатах чертежного поля.
+     v0.22: grid тянется от края до края viewBox (xMidYMid meet),
+     отдельный inner frame убран. Пады описывают только область
+     самой схемы (drawing area) внутри grid. */
   var BP_VIEW_W = 1200;
   var BP_VIEW_H = 800;
-  var BP_INSET  = 48;                  // полями внутри frame
   var BP_GRID_MINOR = 20;
   var BP_GRID_MAJOR = 100;
+  // Зоны вокруг drawing area — для view-tag, dim-линий, callouts и title-block.
+  var BP_PAD_LEFT   = 80;
+  var BP_PAD_TOP    = 40;
+  var BP_PAD_RIGHT  = 280;
+  var BP_PAD_BOTTOM = 140;
 
-  function buildBlueprint(id) {
-    if (!caseBlueprintsCanvas) return;
-    var meta = BLUEPRINT_META[id];
-    var data = CARDS_DATA[id];
-    if (!meta || !data) {
-      caseBlueprintsCanvas.innerHTML = '';
-      return;
-    }
+  function buildBlueprintSVG(id, pageIdx) {
+    var pages = getBpPages(id);
+    var meta  = pages[pageIdx || 0];
+    var data  = CARDS_DATA[id];
+    if (!meta || !data) return null;
     var card = document.querySelector('.work-card[data-id="' + id + '"]');
     var year = card ? (card.querySelector('.work-card__year') || {}).textContent || '' : '';
     var title = card ? (card.querySelector('.work-card__title') || {}).textContent || id : id;
 
-    var rng = mulberry32(hashStr(id + '-bp'));
+    var rng = mulberry32(hashStr(id + '-bp-' + (pageIdx || 0)));
     function rand(min, max) { return min + rng() * (max - min); }
-    // v0.8.2: randInt удалён — нигде не вызывался.
+    // unique suffix для defs id (несколько SVG на странице — нельзя коллидить)
+    var uid = id + '-' + (pageIdx || 0);
 
     /* — SVG корень — */
     var svg = svgEl('svg', {
       viewBox: '0 0 ' + BP_VIEW_W + ' ' + BP_VIEW_H,
       preserveAspectRatio: 'xMidYMid meet',
-      'aria-label': 'Technical blueprint of ' + title
+      'aria-label': 'Technical blueprint of ' + title +
+        (pages.length > 1 ? ' (page ' + ((pageIdx || 0) + 1) + ' of ' + pages.length + ')' : '')
     });
 
-    /* — defs: grid pattern — */
+    /* — defs: grid pattern + размерные стрелки — */
     var defs = svgEl('defs');
     var patMinor = svgEl('pattern', {
-      id: 'bp-grid-minor-' + id,
+      id: 'bp-grid-minor-' + uid,
       width: BP_GRID_MINOR, height: BP_GRID_MINOR,
       patternUnits: 'userSpaceOnUse'
     });
@@ -1585,7 +1598,7 @@
       d: 'M ' + BP_GRID_MINOR + ' 0 L 0 0 0 ' + BP_GRID_MINOR
     }));
     var patMajor = svgEl('pattern', {
-      id: 'bp-grid-major-' + id,
+      id: 'bp-grid-major-' + uid,
       width: BP_GRID_MAJOR, height: BP_GRID_MAJOR,
       patternUnits: 'userSpaceOnUse'
     });
@@ -1593,15 +1606,14 @@
       class: 'blueprint__grid-major',
       d: 'M ' + BP_GRID_MAJOR + ' 0 L 0 0 0 ' + BP_GRID_MAJOR
     }));
-    // Стрелка для размерных линий
     var markerStart = svgEl('marker', {
-      id: 'bp-arrow-start-' + id, viewBox: '0 0 10 10',
+      id: 'bp-arrow-start-' + uid, viewBox: '0 0 10 10',
       refX: '2', refY: '5', markerWidth: '8', markerHeight: '8',
       orient: 'auto-start-reverse'
     });
     markerStart.appendChild(svgEl('path', { class: 'blueprint__dim-arrow', d: 'M 0 5 L 10 0 L 8 5 L 10 10 Z' }));
     var markerEnd = svgEl('marker', {
-      id: 'bp-arrow-end-' + id, viewBox: '0 0 10 10',
+      id: 'bp-arrow-end-' + uid, viewBox: '0 0 10 10',
       refX: '8', refY: '5', markerWidth: '8', markerHeight: '8',
       orient: 'auto'
     });
@@ -1612,25 +1624,15 @@
     defs.appendChild(markerEnd);
     svg.appendChild(defs);
 
-    /* — frame + сетка — */
+    /* — Сетка от края до края viewBox (без inner frame). — */
     var gGrid = svgEl('g', { class: 'blueprint__grid' });
     gGrid.appendChild(svgEl('rect', {
-      x: BP_INSET, y: BP_INSET,
-      width:  BP_VIEW_W - BP_INSET * 2,
-      height: BP_VIEW_H - BP_INSET * 2,
-      fill: 'url(#bp-grid-minor-' + id + ')'
+      x: 0, y: 0, width: BP_VIEW_W, height: BP_VIEW_H,
+      fill: 'url(#bp-grid-minor-' + uid + ')'
     }));
     gGrid.appendChild(svgEl('rect', {
-      x: BP_INSET, y: BP_INSET,
-      width:  BP_VIEW_W - BP_INSET * 2,
-      height: BP_VIEW_H - BP_INSET * 2,
-      fill: 'url(#bp-grid-major-' + id + ')'
-    }));
-    gGrid.appendChild(svgEl('rect', {
-      class: 'blueprint__frame',
-      x: BP_INSET, y: BP_INSET,
-      width:  BP_VIEW_W - BP_INSET * 2,
-      height: BP_VIEW_H - BP_INSET * 2
+      x: 0, y: 0, width: BP_VIEW_W, height: BP_VIEW_H,
+      fill: 'url(#bp-grid-major-' + uid + ')'
     }));
     svg.appendChild(gGrid);
 
@@ -1638,15 +1640,14 @@
     var vg = svgEl('g');
     vg.appendChild(svgEl('text', {
       class: 'blueprint__view-tag',
-      x: BP_INSET + 8, y: BP_INSET + 20
+      x: 16, y: 28
     }, meta.view.toUpperCase()));
     svg.appendChild(vg);
 
-    /* — Части: выбираем силуэт (square / tall / wide) из soft ratio overall — */
+    /* — Drawing area (схема заполняет всё свободное пространство) — */
     var ratio = meta.overall[0] / meta.overall[1];
-    // силуэт bounding box в svg единицах: оставляем 260px справа для callouts
-    var frameW = BP_VIEW_W - BP_INSET * 2 - 320;
-    var frameH = BP_VIEW_H - BP_INSET * 2 - 200;
+    var frameW = BP_VIEW_W - BP_PAD_LEFT - BP_PAD_RIGHT;
+    var frameH = BP_VIEW_H - BP_PAD_TOP  - BP_PAD_BOTTOM;
     var drawW, drawH;
     if (ratio >= 1) {
       drawW = Math.min(frameW, frameH * ratio);
@@ -1655,8 +1656,9 @@
       drawH = Math.min(frameH, frameW / ratio);
       drawW = drawH * ratio;
     }
-    var drawX = BP_INSET + 80;
-    var drawY = BP_INSET + 60;
+    // Центрируем в пределах рабочей зоны
+    var drawX = BP_PAD_LEFT + (frameW - drawW) / 2;
+    var drawY = BP_PAD_TOP  + (frameH - drawH) / 2;
 
     /* — main outline + internal parts (grid-split) — */
     var partsG = svgEl('g', { class: 'blueprint__parts' });
@@ -1737,8 +1739,8 @@
     dimsG.appendChild(svgEl('line', {
       class: 'blueprint__dim-line',
       x1: drawX, y1: yDim, x2: drawX + drawW, y2: yDim,
-      'marker-start': 'url(#bp-arrow-start-' + id + ')',
-      'marker-end':   'url(#bp-arrow-end-'   + id + ')'
+      'marker-start': 'url(#bp-arrow-start-' + uid + ')',
+      'marker-end':   'url(#bp-arrow-end-'   + uid + ')'
     }));
     // лейбл с фоновой плашкой
     var lblW = meta.overall[0] + ' ' + meta.unit;
@@ -1765,8 +1767,8 @@
     dimsG.appendChild(svgEl('line', {
       class: 'blueprint__dim-line',
       x1: xDim, y1: drawY, x2: xDim, y2: drawY + drawH,
-      'marker-start': 'url(#bp-arrow-start-' + id + ')',
-      'marker-end':   'url(#bp-arrow-end-'   + id + ')'
+      'marker-start': 'url(#bp-arrow-start-' + uid + ')',
+      'marker-end':   'url(#bp-arrow-end-'   + uid + ')'
     }));
     var lblH = meta.overall[1] + ' ' + meta.unit;
     dimsG.appendChild(svgEl('rect', {
@@ -1815,10 +1817,10 @@
     });
     svg.appendChild(calloutsG);
 
-    /* — Title block: правый нижний — */
+    /* — Title block: правый нижний (16px от края viewBox) — */
     var tbW = 320, tbH = 96;
-    var tbX = BP_VIEW_W - BP_INSET - tbW;
-    var tbY = BP_VIEW_H - BP_INSET - tbH;
+    var tbX = BP_VIEW_W - 16 - tbW;
+    var tbY = BP_VIEW_H - 16 - tbH;
     var tbG = svgEl('g', { class: 'blueprint__title-block' });
     tbG.appendChild(svgEl('rect', {
       class: 'blueprint__title-block-frame',
@@ -1864,30 +1866,164 @@
       }
     });
     svg.appendChild(tbG);
+    return svg;
+  }
 
-    /* — сажаем в DOM — */
+  function animateBlueprintReveal(svg) {
+    if (!svg || !window.gsap) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    gsap.from(svg.querySelectorAll('.blueprint__grid > *'), {
+      opacity: 0, duration: 0.4, ease: 'power1.out', stagger: 0.04
+    });
+    gsap.from(svg.querySelectorAll('.blueprint__parts > *'), {
+      opacity: 0, y: 6, duration: 0.35, ease: 'power2.out',
+      stagger: 0.04, delay: 0.15
+    });
+    gsap.from(svg.querySelectorAll('.blueprint__dimensions > *, .blueprint__callouts > *'), {
+      opacity: 0, duration: 0.3, ease: 'power1.out',
+      stagger: 0.03, delay: 0.35
+    });
+    gsap.from(svg.querySelectorAll('.blueprint__title-block > *'), {
+      opacity: 0, duration: 0.35, ease: 'power1.out', delay: 0.45
+    });
+  }
+
+  /* ──────────────────────────────────────────────────────────────────
+     renderBlueprints(id) — собирает все страницы в .case-blueprints__canvas.
+     На desktop CSS показывает только .case-blueprints__page.is-current,
+     на mobile — все страницы колонкой. Pager (prev/next/counter) виден
+     только на desktop при pages.length > 1. На mobile per-page тулбар
+     даёт Export/FS для каждого SVG.
+  ─────────────────────────────────────────────────────────────────── */
+  var currentBpPage = 0;
+  function fsIconSVG(kind) {
+    if (kind === 'export') {
+      return '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+        '<path d="M8 2v8m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="M3 12v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    // 'fs'
+    return '<svg viewBox="0 0 18 18" aria-hidden="true" focusable="false">' +
+      '<path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
+  }
+  function makePageExportBtn(pageIdx) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bp-export-btn case-blueprints__page-export';
+    b.setAttribute('data-bp-page', pageIdx);
+    b.setAttribute('aria-label', 'Export blueprint page ' + (pageIdx + 1) + ' as SVG');
+    b.innerHTML = fsIconSVG('export') + '<span class="bp-export-btn__label">Export SVG</span>';
+    b.querySelector('svg').setAttribute('class', 'bp-export-btn__icon');
+    return b;
+  }
+  function makePageFsBtn(pageIdx) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'case-blueprints__fs-btn case-blueprints__page-fs';
+    b.setAttribute('data-bp-page', pageIdx);
+    b.setAttribute('aria-label', 'Open blueprint page ' + (pageIdx + 1) + ' fullscreen');
+    b.setAttribute('title', 'Fullscreen');
+    b.innerHTML = fsIconSVG('fs');
+    b.querySelector('svg').setAttribute('class', 'case-blueprints__fs-btn__icon');
+    return b;
+  }
+  function makePager(total) {
+    var wrap = document.createElement('div');
+    wrap.className = 'case-blueprints__pager';
+    if (total <= 1) wrap.hidden = true;
+
+    var prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'case-blueprints__pager-btn case-blueprints__pager-btn--prev';
+    prev.setAttribute('aria-label', 'Previous blueprint');
+    prev.setAttribute('data-cursor', 'link');
+    prev.innerHTML = '<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M11 4L5 9l6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    prev.addEventListener('click', function () { setCurrentBpPage(currentBpPage - 1); });
+
+    var next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'case-blueprints__pager-btn case-blueprints__pager-btn--next';
+    next.setAttribute('aria-label', 'Next blueprint');
+    next.setAttribute('data-cursor', 'link');
+    next.innerHTML = '<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4l6 5-6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    next.addEventListener('click', function () { setCurrentBpPage(currentBpPage + 1); });
+
+    var counter = document.createElement('span');
+    counter.className = 'case-blueprints__pager-counter';
+    counter.setAttribute('aria-live', 'polite');
+
+    wrap.appendChild(prev);
+    wrap.appendChild(next);
+    wrap.appendChild(counter);
+    return wrap;
+  }
+  function renderBlueprints(id) {
+    if (!caseBlueprintsCanvas) return;
+    var pages = getBpPages(id);
+    if (!pages.length) {
+      caseBlueprintsCanvas.innerHTML = '';
+      blueprintBuiltFor = null;
+      return;
+    }
     caseBlueprintsCanvas.innerHTML = '';
-    caseBlueprintsCanvas.appendChild(svg);
+    currentBpPage = 0;
+
+    pages.forEach(function (_, idx) {
+      var pageEl = document.createElement('div');
+      pageEl.className = 'case-blueprints__page' + (idx === 0 ? ' is-current' : '');
+      pageEl.setAttribute('data-bp-page', idx);
+
+      var canvas = document.createElement('div');
+      canvas.className = 'case-blueprints__page-canvas';
+      var svg = buildBlueprintSVG(id, idx);
+      if (svg) canvas.appendChild(svg);
+      pageEl.appendChild(canvas);
+
+      var bar = document.createElement('div');
+      bar.className = 'case-blueprints__page-toolbar';
+      bar.appendChild(makePageExportBtn(idx));
+      bar.appendChild(makePageFsBtn(idx));
+      pageEl.appendChild(bar);
+
+      caseBlueprintsCanvas.appendChild(pageEl);
+    });
+
+    var pager = makePager(pages.length);
+    caseBlueprintsCanvas.appendChild(pager);
+    updateBpPagerUI();
+
     blueprintBuiltFor = id;
 
-    // Анимация reveal (если доступна GSAP и не reduced-motion)
-    var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (window.gsap && !prefersReduced) {
-      gsap.from(svg.querySelectorAll('.blueprint__grid > *'), {
-        opacity: 0, duration: 0.4, ease: 'power1.out', stagger: 0.04
-      });
-      gsap.from(svg.querySelectorAll('.blueprint__parts > *'), {
-        opacity: 0, y: 6, duration: 0.35, ease: 'power2.out',
-        stagger: 0.04, delay: 0.15
-      });
-      gsap.from(svg.querySelectorAll('.blueprint__dimensions > *, .blueprint__callouts > *'), {
-        opacity: 0, duration: 0.3, ease: 'power1.out',
-        stagger: 0.03, delay: 0.35
-      });
-      gsap.from(svg.querySelectorAll('.blueprint__title-block > *'), {
-        opacity: 0, duration: 0.35, ease: 'power1.out', delay: 0.45
-      });
-    }
+    // Reveal: только активная страница (одна на desktop; на mobile та же,
+    // остальные подтянутся бесшумно — экономия GSAP-тиков на длинных списках).
+    var firstSvg = caseBlueprintsCanvas.querySelector('.case-blueprints__page.is-current svg');
+    animateBlueprintReveal(firstSvg);
+  }
+  function updateBpPagerUI() {
+    if (!caseBlueprintsCanvas) return;
+    var total = getBpPages(currentCaseId).length;
+    var counter = caseBlueprintsCanvas.querySelector('.case-blueprints__pager-counter');
+    var prev = caseBlueprintsCanvas.querySelector('.case-blueprints__pager-btn--prev');
+    var next = caseBlueprintsCanvas.querySelector('.case-blueprints__pager-btn--next');
+    if (counter) counter.textContent = (currentBpPage + 1) + ' / ' + total;
+    var atStart = currentBpPage <= 0;
+    var atEnd   = currentBpPage >= total - 1;
+    if (prev) prev.disabled = atStart;
+    if (next) next.disabled = atEnd;
+  }
+  function setCurrentBpPage(idx) {
+    var total = getBpPages(currentCaseId).length;
+    if (total < 2) return;
+    idx = Math.max(0, Math.min(total - 1, idx));
+    if (idx === currentBpPage) return;
+    var prevEl = caseBlueprintsCanvas.querySelector('.case-blueprints__page.is-current');
+    var nextEl = caseBlueprintsCanvas.querySelector('.case-blueprints__page[data-bp-page="' + idx + '"]');
+    if (!nextEl) return;
+    if (prevEl) prevEl.classList.remove('is-current');
+    nextEl.classList.add('is-current');
+    currentBpPage = idx;
+    updateBpPagerUI();
+    animateBlueprintReveal(nextEl.querySelector('svg'));
   }
 
   /* ══════════════════════════════════
@@ -2525,7 +2661,7 @@
       if (case3d)         case3d.hidden         = true;
       if (caseBlueprints) caseBlueprints.hidden = false;
       if (currentCaseId && blueprintBuiltFor !== currentCaseId) {
-        buildBlueprint(currentCaseId);
+        renderBlueprints(currentCaseId);
       }
     } else { // '3d'
       if (caseScroll)     caseScroll.hidden     = true;
@@ -2580,21 +2716,16 @@
     var n = Math.min(srcChildren.length, cloneChildren.length);
     for (var j = 0; j < n; j++) inlineComputedStyles(srcChildren[j], cloneChildren[j]);
   }
-  var bpExportBtn = document.getElementById('blueprint-export-svg');
-  function exportBlueprintSVG() {
-    if (!caseBlueprintsCanvas) return;
-    var svg = caseBlueprintsCanvas.querySelector('svg');
-    if (!svg || !currentCaseId) return;
+  /* exportSvgElement — клонирует переданный <svg>, инлайнит стили, добавляет
+     фоновый rect, сохраняет как .svg через Blob+download. Используется
+     top-toolbar и per-page Export кнопками. */
+  function exportSvgElement(svg, filenameSuffix) {
+    if (!svg) return;
     var clone = svg.cloneNode(true);
     if (!clone.getAttribute('xmlns'))       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     if (!clone.getAttribute('xmlns:xlink')) clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
-    // Инлайним computed-стили, чтобы не зависеть от CSS-переменных документа
     inlineComputedStyles(svg, clone);
 
-    // Фоновая подложка — тема живёт на <body data-theme="...">, значит --color-bg
-    // нужно резолвить именно у body, а не у documentElement. Fallback —
-    // :root, затем жёсткий dark-цвет.
     var bodyStyles = window.getComputedStyle(document.body);
     var bgVar = bodyStyles.getPropertyValue('--color-bg').trim() ||
                 window.getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim();
@@ -2620,13 +2751,39 @@
     var url  = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'codex-blueprint-' + String(currentCaseId).replace(/[^a-z0-9\-]+/gi, '-').toLowerCase() + '.svg';
+    a.download = 'codex-blueprint-' + filenameSuffix + '.svg';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 0);
   }
-  if (bpExportBtn) bpExportBtn.addEventListener('click', exportBlueprintSVG);
+  function bpFileSuffix(id, pageIdx, total) {
+    var safe = String(id).replace(/[^a-z0-9\-]+/gi, '-').toLowerCase();
+    return total > 1 ? (safe + '-p' + (pageIdx + 1)) : safe;
+  }
+  function exportBpPage(pageIdx) {
+    if (!currentCaseId) return;
+    var pages = getBpPages(currentCaseId);
+    if (!pages.length) return;
+    pageIdx = Math.max(0, Math.min(pages.length - 1, pageIdx || 0));
+    var pageEl = caseBlueprintsCanvas.querySelector('.case-blueprints__page[data-bp-page="' + pageIdx + '"]');
+    var svg = pageEl ? pageEl.querySelector('svg') : null;
+    if (!svg) return;
+    exportSvgElement(svg, bpFileSuffix(currentCaseId, pageIdx, pages.length));
+  }
+  var bpExportBtn = document.getElementById('blueprint-export-svg');
+  if (bpExportBtn) bpExportBtn.addEventListener('click', function () { exportBpPage(currentBpPage); });
+
+  // Per-page Export (mobile mini-toolbar) — делегированный
+  if (caseBlueprintsCanvas) {
+    caseBlueprintsCanvas.addEventListener('click', function (e) {
+      var exportBtn = e.target.closest && e.target.closest('.case-blueprints__page-export');
+      if (exportBtn) {
+        e.preventDefault();
+        exportBpPage(parseInt(exportBtn.getAttribute('data-bp-page'), 10) || 0);
+      }
+    });
+  }
 
   // Экспорт для animations.js
   window.CodexCase = { openCase: openCase };
@@ -2958,8 +3115,9 @@
   // v0.8.2: fsOriginalEl удалён — задумывался для video time-sync, но
   // video в fs-overlay не реализовано; переменная только писалась, никем
   // не читалась.
-  var fsContext = null;             // 'gallery' | null — режим overlay
+  var fsContext = null;             // 'gallery' | 'blueprint' | null — режим overlay
   var gallery = { list: [], index: 0, triggerEl: null };
+  var blueprintFs = { id: null, total: 0, index: 0, triggerEl: null };
   var fsCurrentEl = null;           // v0.20.2 — текущая видимая картинка в stage
   var focusTrapHandler = null;
   var fsPreviousFocus = null;       // элемент для возврата фокуса при close
@@ -2994,7 +3152,7 @@
     fsPrev.setAttribute('data-cursor', 'link');
     fsPrev.hidden = true;
     fsPrev.innerHTML = '<svg class="media-fs__nav-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 4L5 9l6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    fsPrev.addEventListener('click', function () { navGallery(-1); });
+    fsPrev.addEventListener('click', function () { navFs(-1); });
 
     fsNext = document.createElement('button');
     fsNext.type = 'button';
@@ -3003,7 +3161,7 @@
     fsNext.setAttribute('data-cursor', 'link');
     fsNext.hidden = true;
     fsNext.innerHTML = '<svg class="media-fs__nav-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4l6 5-6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    fsNext.addEventListener('click', function () { navGallery(+1); });
+    fsNext.addEventListener('click', function () { navFs(+1); });
 
     fsCounter = document.createElement('div');
     fsCounter.className = 'media-fs__counter';
@@ -3022,11 +3180,11 @@
     fsOverlay.appendChild(fsStage);
     document.body.appendChild(fsOverlay);
 
-    // Backdrop click: в gallery — навигация по половинам, иначе — close.
+    // Backdrop click: в gallery/blueprint — навигация по половинам, иначе — close.
     fsOverlay.addEventListener('click', function (e) {
       if (e.target !== fsOverlay && e.target !== fsStage) return;
-      if (fsContext === 'gallery') {
-        navGallery(e.clientX < window.innerWidth / 2 ? -1 : +1);
+      if (fsContext === 'gallery' || fsContext === 'blueprint') {
+        navFs(e.clientX < window.innerWidth / 2 ? -1 : +1);
       } else {
         closeFs();
       }
@@ -3256,6 +3414,12 @@
     });
   }
 
+  /* Унифицированный диспетчер навигации для fs-overlay: gallery / blueprint. */
+  function navFs(direction) {
+    if (fsContext === 'gallery') navGallery(direction);
+    else if (fsContext === 'blueprint') navBlueprint(direction);
+  }
+
   function navGallery(direction) {
     if (fsContext !== 'gallery' || gallery.list.length < 2) return;
     var prev = gallery.index;
@@ -3265,6 +3429,91 @@
       (direction === +1 && prev === n - 1) ||
       (direction === -1 && prev === 0);
     swapGalleryImage(gallery.list[gallery.index], wrapped);
+  }
+
+  /* ─── Blueprint fullscreen — переиспользует media-fs prev/next/counter ──── */
+  function openFsBlueprint(id, pageIdx, triggerEl) {
+    if (!id) return;
+    var pages = getBpPages(id);
+    if (!pages.length) return;
+    ensureFsOverlay();
+    blueprintFs.id = id;
+    blueprintFs.total = pages.length;
+    blueprintFs.index = Math.max(0, Math.min(pages.length - 1, pageIdx || 0));
+    blueprintFs.triggerEl = triggerEl || null;
+    fsContext = 'blueprint';
+    fsPreviousFocus = triggerEl || null;
+
+    fsOverlay.setAttribute('aria-label', 'Blueprint viewer');
+    var hasNav = pages.length > 1;
+    fsPrev.hidden    = !hasNav;
+    fsNext.hidden    = !hasNav;
+    fsCounter.hidden = !hasNav;
+
+    while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+    var svg = buildBlueprintSVG(id, blueprintFs.index);
+    if (svg) {
+      svg.removeAttribute('style');
+      fsStage.appendChild(svg);
+      fsCurrentEl = svg;
+    }
+
+    fsOverlay.hidden = false;
+    void fsOverlay.offsetWidth;
+    fsOverlay.classList.add('is-open');
+    document.documentElement.style.overflow = 'hidden';
+    updateLenisState();
+    updateBlueprintFsUI(false);
+    setupFocusTrap();
+  }
+  function navBlueprint(direction) {
+    if (fsContext !== 'blueprint' || blueprintFs.total < 2) return;
+    var prev = blueprintFs.index;
+    var n = blueprintFs.total;
+    blueprintFs.index = ((blueprintFs.index + direction) % n + n) % n;
+    var wrapped =
+      (direction === +1 && prev === n - 1) ||
+      (direction === -1 && prev === 0);
+    swapBlueprintSvg(wrapped);
+  }
+  function swapBlueprintSvg(wrapped) {
+    if (typeof gsap !== 'undefined') gsap.killTweensOf(fsStage.children);
+    Array.prototype.slice.call(fsStage.children).forEach(function (c) {
+      if (c !== fsCurrentEl && c.parentNode) c.parentNode.removeChild(c);
+    });
+    var oldEl = fsCurrentEl;
+    var newEl = buildBlueprintSVG(blueprintFs.id, blueprintFs.index);
+    if (!newEl) return;
+    fsStage.appendChild(newEl);
+    fsCurrentEl = newEl;
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || document.hidden || typeof gsap === 'undefined') {
+      if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
+      updateBlueprintFsUI(wrapped);
+      return;
+    }
+    gsap.set(newEl, { opacity: 0 });
+    gsap.to(newEl, { opacity: 1, duration: 0.35, ease: 'power2.out' });
+    if (oldEl) {
+      gsap.to(oldEl, {
+        opacity: 0, duration: 0.35, ease: 'power2.out',
+        onComplete: function () { if (oldEl.parentNode) oldEl.parentNode.removeChild(oldEl); }
+      });
+    }
+    updateBlueprintFsUI(wrapped);
+  }
+  function updateBlueprintFsUI(wrapped) {
+    var i = blueprintFs.index, n = blueprintFs.total;
+    if (fsCounter) fsCounter.textContent = (i + 1) + ' / ' + n;
+    if (fsAnnouncer) fsAnnouncer.textContent = 'Blueprint ' + (i + 1) + ' of ' + n;
+    if (wrapped && fsCounter && typeof gsap !== 'undefined' &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.fromTo(fsCounter,
+        { scale: 1 },
+        { scale: 1.15, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' }
+      );
+    }
   }
 
   function swapGalleryImage(nextImg, wrapped) {
@@ -3333,6 +3582,10 @@
     gallery.list = [];
     gallery.index = 0;
     gallery.triggerEl = null;
+    blueprintFs.id = null;
+    blueprintFs.total = 0;
+    blueprintFs.index = 0;
+    blueprintFs.triggerEl = null;
     fsCurrentEl = null;
     fsPreviousFocus = null;
     if (fsPrev)    fsPrev.hidden = true;
@@ -3378,14 +3631,16 @@
       y0 = e.touches[0].clientY;
     }, { passive: true });
     target.addEventListener('touchend', function (e) {
-      if (x0 == null || fsContext !== 'gallery') { x0 = y0 = null; return; }
+      if (x0 == null || (fsContext !== 'gallery' && fsContext !== 'blueprint')) {
+        x0 = y0 = null; return;
+      }
       var t = e.changedTouches[0] || {};
       var dx = (t.clientX || 0) - x0;
       var dy = (t.clientY || 0) - y0;
       x0 = y0 = null;
       // Horizontal-dominant + threshold 60px
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
-      navGallery(dx < 0 ? +1 : -1);
+      navFs(dx < 0 ? +1 : -1);
     }, { passive: true });
   }
 
@@ -3442,12 +3697,13 @@
       if (mv) openFs(mv, 'model-viewer');
       return;
     }
-    // Blueprints
+    // Blueprints — top-toolbar (открывает текущую страницу) или per-page mini-toolbar.
     var btnBp = e.target.closest('.case-blueprints__fs-btn');
     if (btnBp) {
       e.preventDefault();
-      var svg = document.querySelector('#case-blueprints-canvas svg');
-      if (svg) openFs(svg, 'svg');
+      var pageAttr = btnBp.getAttribute('data-bp-page');
+      var pageIdx = pageAttr != null ? (parseInt(pageAttr, 10) || 0) : currentBpPage;
+      openFsBlueprint(currentCaseId, pageIdx, btnBp);
       return;
     }
   });
@@ -3465,12 +3721,12 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       closeFs();
-    } else if (fsContext === 'gallery' && e.key === 'ArrowLeft') {
+    } else if ((fsContext === 'gallery' || fsContext === 'blueprint') && e.key === 'ArrowLeft') {
       e.preventDefault();
-      navGallery(-1);
-    } else if (fsContext === 'gallery' && e.key === 'ArrowRight') {
+      navFs(-1);
+    } else if ((fsContext === 'gallery' || fsContext === 'blueprint') && e.key === 'ArrowRight') {
       e.preventDefault();
-      navGallery(+1);
+      navFs(+1);
     }
   });
 
