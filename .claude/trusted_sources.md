@@ -111,4 +111,4 @@ https://jakearchibald.github.io/svgomg/
 
 ---
 
-*Версия: 2.0 · Май 2026 · Codex Studio v0.7.10 → v0.8 (in progress)*
+*Версия: 2.0 · Май 2026 · Codex Studio v0.8 GOLDEN*

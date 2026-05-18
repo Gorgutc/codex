@@ -169,4 +169,4 @@ BEM-style descriptive (`.case-view__title`, `.work-card__thumb`). No global util
 
 ---
 
-*Version: 2.0 · May 2026 · Codex Studio v0.7.10 → v0.8 (in progress)*
+*Version: 2.0 · May 2026 · Codex Studio v0.8 GOLDEN*

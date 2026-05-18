@@ -1846,3 +1846,17 @@ html.is-loading body > .cursor {
 @media (prefers-reduced-motion: reduce) {
   .preloader__dots span { animation: none; opacity: 1; }
 }
+
+/* v0.8.9 L5 — screen-reader-only utility (standard a11y pattern).
+   Используется для hint'ов через aria-describedby. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

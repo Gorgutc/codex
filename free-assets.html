@@ -240,11 +240,17 @@
       <!-- GAME SWITCH ROW + COUNT — идентично index.html -->
       <div class="tags-divider" aria-hidden="true"></div>
       <div class="sidebar__row">
-        <label class="game-switch" id="game-switch-label">
+        <label class="game-switch" id="game-switch-label"
+               title="Filter the current category to game-ready assets only (does not switch category)">
           <input type="checkbox" id="game-switch" class="game-switch__input"
-                 role="switch" aria-checked="false">
+                 role="switch" aria-checked="false"
+                 aria-describedby="game-switch-hint">
           <span class="game-switch__track" aria-hidden="true"><span class="game-switch__thumb"></span></span>
           <span class="game-switch__label">Game assets only</span>
+          <!-- v0.8.9 L5: на FA семантика свитча отличается от index — фильтрует
+               grid внутри выбранной категории, не сами категории. Уточняем через
+               title (tooltip) + aria-describedby для screen-reader. -->
+          <span id="game-switch-hint" class="sr-only">Filters the current category to game-ready assets only</span>
         </label>
         <div class="cards-count" id="cards-count" aria-live="polite">6 categories</div>
       </div>
