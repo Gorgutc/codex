@@ -1019,7 +1019,15 @@
   // Инициализация: selectedFilters=[] → все кейсы. Синхронизируем UI.
   updateFilterState();
 
-  if (gameSwitch) {
+  // v0.8.7 [M9] — FA-guard. На free-assets.html main.js загружается раньше
+  // free-assets.js, и без этого guard'а оба подписывались на game-switch:
+  // applyFilters в main.js ходит по cards (двойной класс .tag-card.work-card),
+  // ставит body.filter-game и hidden=true на tag-cards. Раньше free-assets.js
+  // снимал это через clone-replace (хрупкий race с порядком DOMContentLoaded).
+  // Теперь main.js сам пропускает game-switch на FA, опознавая страницу по
+  // существованию #fa-grid. Clone-replace в free-assets.js остаётся как
+  // belt + suspenders на случай будущих регрессий.
+  if (gameSwitch && !document.getElementById('fa-grid')) {
     gameSwitch.addEventListener('change', function () {
       gameOnly = gameSwitch.checked;
       gameSwitch.setAttribute('aria-checked', gameOnly ? 'true' : 'false');
@@ -2795,11 +2803,13 @@
   ══════════════════════════════════ */
   setTimeout(function () {
     var initialId = null;
+    var fromHash = false;
     var rawHash = (window.location.hash || '').replace(/^#/, '');
     if (rawHash) {
       var hashCard = document.querySelector('.work-card[data-id="' + rawHash.replace(/"/g, '') + '"]');
       if (hashCard && hashCard.dataset.id && !hashCard.hasAttribute('hidden')) {
         initialId = hashCard.dataset.id;
+        fromHash = true;
       }
     }
     if (!initialId) {
@@ -2808,8 +2818,13 @@
     }
     if (initialId) {
       openCase(initialId, { initial: true });
-      // v0.2.3 [П2]: deep-link на mobile — сразу показать case-view, а не sidebar.
-      if (rawHash && initialId !== (document.querySelector('.work-card[data-id]:not([hidden])') || {}).dataset?.id) {
+      // v0.8.7 [M3]: на mobile при любом валидном deep-link сразу
+      // показываем case-view вместо sidebar. Раньше сравнивалось с первой
+      // видимой картой через optional-chaining — пользователь приходил по
+      // #orbital-mk-ii (первый кейс) и оставался на cards-screen, тогда
+      // как по любой другой ссылке sidebar сворачивался. Теперь логика
+      // одна: hash валидно указал на видимую карту → mobile collapse.
+      if (fromHash) {
         var isMobileInit = window.matchMedia('(max-width: 767px)').matches;
         if (isMobileInit) setCollapsed(true);
       }

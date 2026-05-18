@@ -183,10 +183,14 @@ function bindTagCards() {
 
 /* ─── GAME SWITCH (FA refactor — v0.4 [N4]) ───────────────────────────────────
    На index.html main.js фильтрует .work-card[data-game-asset="true"]. На FA
-   tag-cards имеют двойной класс `.tag-card.work-card`, и main.js их прячет, что
-   ломает UX (после клика остаётся одна категория из 6). На FA семантика свитча
+   tag-cards имеют двойной класс `.tag-card.work-card`, и main.js их прятал, что
+   ломало UX (после клика оставалась одна категория из 6). На FA семантика свитча
    другая: «Game assets only» фильтрует grid каталога ассетов, не категории.
-   Решение: clone-replace удаляет привязки main.js, ставим свой handler.
+
+   v0.8.7 [M9]: main.js теперь сам пропускает game-switch при наличии #fa-grid
+   (см. main.js: gameSwitch && !document.getElementById('fa-grid')). Clone-replace
+   ниже остаётся как защита-страховка на случай будущих регрессий — снимает
+   любые legacy listeners, идемпотентен.
    ─────────────────────────────────────────────────────────────────────────── */
 function rebindGameSwitch() {
   var gs = document.getElementById('game-switch');
