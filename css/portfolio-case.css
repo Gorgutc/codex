@@ -953,9 +953,8 @@
 }
 .case-blueprints__pager-btn--prev { left: 16px; }
 .case-blueprints__pager-btn--next { right: 16px; }
-.case-blueprints__pager-btn[disabled] { opacity: 0.35; cursor: default; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
-  .case-blueprints__pager-btn:not([disabled]):hover {
+  .case-blueprints__pager-btn:hover {
     color: var(--color-fs-close-text-hover);
     border-color: var(--color-fs-close-border-hover);
   }
@@ -1832,6 +1831,30 @@
   }
   /* Pager-overlay на mobile не нужен — заменяет native scroll */
   .case-blueprints__pager { display: none; }
+
+  /* v0.22.4 — mobile: title-block ~2.5× меньше (плашка с инфо не должна
+     перекрывать половину канваса). Сохраняем визуальный язык, режем
+     шрифты/паддинги/ширину пропорционально. */
+  .case-blueprints__title-block {
+    right: 8px;
+    bottom: 8px;
+    width: 132px;
+  }
+  .case-blueprints__title-block-top   { padding: 4px 6px; }
+  .case-blueprints__title-block-cell  { padding: 3px 6px; }
+  .case-blueprints__title-block-key {
+    font-size: 6px;
+    letter-spacing: 0.1em;
+  }
+  .case-blueprints__title-block-project {
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+  .case-blueprints__title-block-val {
+    font-size: 7px;
+    margin-top: 2px;
+  }
 
   /* Mobile (v0.11): 3D canvas — зеркальная логика с Blueprints */
   .case-3d { padding: 8px 0 16px; }

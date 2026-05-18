@@ -2055,18 +2055,14 @@
     if (!caseBlueprintsCanvas) return;
     var total = getBpPages(currentCaseId).length;
     var counter = caseBlueprintsCanvas.querySelector('.case-blueprints__pager-counter');
-    var prev = caseBlueprintsCanvas.querySelector('.case-blueprints__pager-btn--prev');
-    var next = caseBlueprintsCanvas.querySelector('.case-blueprints__pager-btn--next');
     if (counter) counter.textContent = (currentBpPage + 1) + ' / ' + total;
-    var atStart = currentBpPage <= 0;
-    var atEnd   = currentBpPage >= total - 1;
-    if (prev) prev.disabled = atStart;
-    if (next) next.disabled = atEnd;
+    // v0.22.4: pager листает по кольцу — кнопки никогда не disable'ятся (как в media-fs gallery).
   }
   function setCurrentBpPage(idx) {
     var total = getBpPages(currentCaseId).length;
     if (total < 2) return;
-    idx = Math.max(0, Math.min(total - 1, idx));
+    // v0.22.4: wrap modulo вместо clamp — листание циклически как в media-fs gallery.
+    idx = ((idx % total) + total) % total;
     if (idx === currentBpPage) return;
     var prevEl = caseBlueprintsCanvas.querySelector('.case-blueprints__page.is-current');
     var nextEl = caseBlueprintsCanvas.querySelector('.case-blueprints__page[data-bp-page="' + idx + '"]');
