@@ -381,6 +381,10 @@ if (typeof SplitText !== 'undefined') {
     var scrollEl = document.getElementById('case-scroll');
     var trackEl  = document.getElementById('case-scroll-track');
 
+    // v0.8.4 [M2] — header может отсутствовать если case-view частично
+    // собран (race на rebuild). header.querySelector(...) на null крашился.
+    if (!header) return;
+
     // Сбрасываем прогресс
     var bar = document.getElementById('case-progress-bar');
     if (bar) bar.style.width = '0%';

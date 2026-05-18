@@ -1250,9 +1250,20 @@
     var pct = max > 0 ? (caseScroll.scrollTop / max) * 100 : 0;
     progressBar.style.width = pct.toFixed(2) + '%';
   }
+  // v0.8.4 [M4] — resize-handler читает scrollHeight/clientHeight (layout-thrash
+  // на каждый resize-tick). Throttle через rAF: один пересчёт за кадр.
+  var progressResizeQueued = false;
+  function updateProgressOnResize() {
+    if (progressResizeQueued) return;
+    progressResizeQueued = true;
+    requestAnimationFrame(function () {
+      progressResizeQueued = false;
+      updateProgress();
+    });
+  }
   if (caseScroll) {
     caseScroll.addEventListener('scroll', updateProgress, { passive: true });
-    window.addEventListener('resize', updateProgress);
+    window.addEventListener('resize', updateProgressOnResize);
     // v0.6 [Z7] — scroll-hint: помечаем caseScroll классом .has-scrolled при первом скролле,
     // чтобы CSS-стрелка пропала. once: true — listener auto-remove после первого срабатывания.
     // Класс persistent — после первого скролла стрелка не появляется на других кейсах.
@@ -3337,9 +3348,20 @@
     }, { passive: true });
   }
 
+  // v0.8.4 [M4] — кешируем .cursor один раз. Раньше querySelector('.cursor')
+  // вызывался на каждый mousemove-кадр внутри fs-overlay (10–100/сек).
+  // Элемент создаётся в index.html статически, ниже DOMContentLoaded — лениво
+  // подтянем при первом обращении и закешируем.
+  var cachedCursorEl = null;
+  function getCursorEl() {
+    if (cachedCursorEl && cachedCursorEl.isConnected) return cachedCursorEl;
+    cachedCursorEl = document.querySelector('.cursor');
+    return cachedCursorEl;
+  }
+
   function trackFsCursorZones(e) {
     if (fsContext !== 'gallery') return;
-    var cursorEl = document.querySelector('.cursor');
+    var cursorEl = getCursorEl();
     if (!cursorEl) return;
     // Над кнопками data-cursor=link уже отрисовывает link-state — сбрасываем зону
     if (e.target.closest && e.target.closest('.media-fs__prev, .media-fs__next, .media-fs__close')) {
@@ -3356,7 +3378,7 @@
   }
 
   function clearFsCursorZones() {
-    var cursorEl = document.querySelector('.cursor');
+    var cursorEl = getCursorEl();
     if (cursorEl) cursorEl.classList.remove('is-fs-prev', 'is-fs-next');
   }
 
