@@ -749,15 +749,8 @@
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
-  function shuffleSeeded(arr, seed) {
-    var a = arr.slice();
-    var rand = mulberry32(seed);
-    for (var i = a.length - 1; i > 0; i--) {
-      var j = Math.floor(rand() * (i + 1));
-      var t = a[i]; a[i] = a[j]; a[j] = t;
-    }
-    return a;
-  }
+  /* v0.8.2: shuffleSeeded удалён — buildItems использует локальную
+     shuffleInPlace (line 1179). */
 
   /* ══════════════════════════════════
      DOM refs
@@ -812,7 +805,9 @@
   var currentLightDdDocClick = null;       // v0.7.3 — global click listener для close-on-outside (cleanup в destroy3D)
   var currentLightDdDocKey   = null;       // v0.7.3 — global keydown listener для Escape (cleanup в destroy3D)
   var pendingScrollReset = false;          // v0.10.2 — отложенный сброс scrollTop на 0
-  var currentCategory = 'all';
+  // v0.8.2: currentCategory удалён — переменная только писалась внутри
+  // applyFilters и сразу же шла в evt.detail. Поле detail.category
+  // оставлено для обратной совместимости публичного API codex:filter.
   var gameOnly = false;
 
   // v0.15.5 [П2] — массив выбранных дисциплин (OR-логика). Пусто или ['all'] → все кейсы.
@@ -871,11 +866,10 @@
       }
     }
     updateNavCounter();
-    // v0.15.5 [П2] — currentCategory для совместимости: primary = первый фильтр или 'all'
-    currentCategory = allActive ? 'all' : selectedFilters[0];
     document.dispatchEvent(new CustomEvent('codex:filter', {
       detail: {
-        category: currentCategory,
+        // v0.15.5 [П2] — category: primary = первый фильтр или 'all' (legacy field).
+        category: allActive ? 'all' : selectedFilters[0],
         filters: allActive ? ['all'] : selectedFilters.slice(),
         gameOnly: gameOnly,
         visible: visible
@@ -1530,7 +1524,7 @@
 
     var rng = mulberry32(hashStr(id + '-bp'));
     function rand(min, max) { return min + rng() * (max - min); }
-    function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+    // v0.8.2: randInt удалён — нигде не вызывался.
 
     /* — SVG корень — */
     var svg = svgEl('svg', {
@@ -2909,7 +2903,9 @@
      ════════════════════════════════════════════ */
   var fsOverlay = null, fsStage = null, fsCloseBtn = null;
   var fsPrev = null, fsNext = null, fsCounter = null, fsAnnouncer = null;
-  var fsOriginalEl = null;          // для video: чтобы синхронизировать время.
+  // v0.8.2: fsOriginalEl удалён — задумывался для video time-sync, но
+  // video в fs-overlay не реализовано; переменная только писалась, никем
+  // не читалась.
   var fsContext = null;             // 'gallery' | null — режим overlay
   var gallery = { list: [], index: 0, triggerEl: null };
   var fsCurrentEl = null;           // v0.20.2 — текущая видимая картинка в stage
@@ -3033,7 +3029,6 @@
       fsStage.appendChild(clone);
     }
 
-    fsOriginalEl = sourceEl || null;
     fsOverlay.hidden = false;
     // force reflow для transition
     void fsOverlay.offsetWidth;
@@ -3065,7 +3060,6 @@
       if (fsOverlay && !fsOverlay.classList.contains('is-open')) {
         fsOverlay.hidden = true;
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
-        fsOriginalEl = null;
         restoreFsContext();
         if (prevFocus && typeof prevFocus.focus === 'function') {
           try { prevFocus.focus({ preventScroll: true }); } catch (_) {}
@@ -3522,8 +3516,9 @@
        отзывчивые по-прежнему, но мягче. */
   // v0.14.1 [3] — добавлен .top-pill--contact (кнопка Contact Telegram).
   // Free Assets pill — disabled, магнит ему не нужен.
+  // v0.8.2: .tag убран — класс мёртв с переезда на .tags-dropdown__* (v0.15.5).
   var MAGNETIC_SELECTOR =
-    '.tag, .cards-toggle, .theme-toggle, .case-back, .logo, .work-card, ' +
+    '.cards-toggle, .theme-toggle, .case-back, .logo, .work-card, ' +
     '.case-tab, .case-mobile-bar__logo, .top-pill--contact';
 
   // Селекторы с ослабленной силой магнита (-80% от стандартной).
