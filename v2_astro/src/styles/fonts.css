@@ -1,0 +1,67 @@
+/* ═══════════════════════════════════
+   FONTS — self-hosted woff2 (Stage 1)
+   Files live in public/fonts/ and are served from absolute /fonts/ URLs
+   so <link rel="preload"> in BaseLayout stays stable across deploys.
+
+   Family substitutions (Fontshare→OFL alts, Stage 1 decision):
+     Clash Display → Space Grotesk (SIL OFL, @fontsource/space-grotesk)
+     General Sans  → Inter          (SIL OFL, @fontsource/inter)
+     —             → JetBrains Mono (Apache 2.0, @fontsource/jetbrains-mono)
+
+   To restore the original Fontshare faces later, drop the woff2 files into
+   public/fonts/ and add @font-face blocks for 'Clash Display' / 'General Sans'
+   above the substitutes; the tokens.css font-family stacks already list them
+   as the second preference.
+═══════════════════════════════════ */
+
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('/fonts/space-grotesk-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('/fonts/space-grotesk-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}

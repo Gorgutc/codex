@@ -1,5 +1,6 @@
 ---
-// Placeholder root page so `astro build` succeeds during Stage 0 setup.
+import '~/styles/global.css';
+// Placeholder root page so `astro build` succeeds during early stages.
 // Replaced with the sidebar + case-view layout in Stage 4.
 ---
 
@@ -8,12 +9,29 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#212121" />
     <title>Codex Studio — v2 (Astro) scaffold</title>
+
+    <link
+      rel="preload"
+      href="/fonts/space-grotesk-500.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/inter-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
   </head>
-  <body>
-    <main>
+  <body data-theme="dark">
+    <main style="padding: var(--space-8); display: grid; gap: var(--space-4);">
       <h1>Codex v2 — Astro scaffold</h1>
-      <p>Stage 0 placeholder. See <code>v2_astro/README.md</code>.</p>
+      <p>Stage 1 placeholder. Tokens + reset + fonts wired.</p>
+      <p class="mono">FONT-MONO · JetBrains Mono · 0123456789 · ID-007</p>
     </main>
   </body>
 </html>
