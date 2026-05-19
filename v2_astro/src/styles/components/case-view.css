@@ -1,0 +1,442 @@
+/* ═══════════════════════════════════
+   CASE-VIEW (Stage 5a) — case-scroll + rows + items + text blocks.
+   Ported from codex/css/portfolio-case.css line 29-49 (container)
+   plus 331-741 (scroll + rows + items + text).
+   Tabs / nav / progress / share / 3D / blueprints land in Stage 5b+.
+═══════════════════════════════════ */
+
+/* ── Case-view container ─────────────────────────────────────────── */
+.case-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* v0.15.4 [П4] — desktop top 64→16 (− 48px). Горизонтальные 64px сохранены. */
+  padding: 16px 64px 0;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  overflow: hidden;
+  /* v0.8.5: position:relative смержен из дубль-объявления (бывший L373)
+     для абсолютного позиционирования .case-scroll-hint ниже. */
+  position: relative;
+}
+
+@media (max-width: 1100px) {
+  .case-view {
+    padding: var(--space-8) var(--space-8) 0;
+    gap: var(--space-3);
+  }
+}
+
+/* ── Scroll + rows + items + text ────────────────────────────────── */
+.case-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* scroll-behavior: smooth — snap убран в v0.8 */
+
+  /* Маска сверху — плавно растворяет содержимое, скроллящееся вверх */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 56px,
+    #000 100%);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 56px,
+    #000 100%);
+
+  /* Скроллбар — тонкий */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+.case-scroll::-webkit-scrollbar        { width: 4px; }
+.case-scroll::-webkit-scrollbar-track  { background: transparent; }
+.case-scroll::-webkit-scrollbar-thumb  {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+.case-scroll:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v0.6 [Z7] — Scroll hint chevron
+   ─────────────────────────────────────────────────────────
+   Тонкая стрелка вниз, абсолютно позиционирована к низу .case-view.
+   Появляется при первом открытии кейса (3 цикла мигания с задержкой 1.5s),
+   гасится через .has-scrolled класс на .case-scroll при первом scroll-action.
+   Использует реальный DOM-element (создаётся в main.js openCase) — pseudo-element
+   с position: sticky внутри overflow:auto + mask-image нестабильно в Chromium.
+   ВАЖНО: translateY указан ДО rotate в transform — иначе стрелка дрожит
+   по диагонали (translateY после rotate работает в локальной системе координат).
+═══════════════════════════════════════════════════════════════════════ */
+/* v0.8.5: дубль `.case-view { position: relative }` смержен в основной
+   блок на L27. position:relative нужен для абсолютного позиционирования
+   .case-scroll-hint ниже. */
+.case-scroll-hint {
+  position: absolute;
+  bottom: var(--space-4);
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  border-right: 2px solid var(--color-text);
+  border-bottom: 2px solid var(--color-text);
+  transform: translate(-50%, 0) rotate(45deg);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+  animation: case-scroll-hint 1.6s ease-in-out 1.2s 3 forwards;
+}
+/* v0.8.5: .case-scroll-hint.is-hidden удалён — класс нигде не toggle'ится
+   в JS. Скрытие происходит через .case-scroll.has-scrolled (~). */
+.case-scroll.has-scrolled ~ .case-scroll-hint {
+  display: none;
+}
+@keyframes case-scroll-hint {
+  0%, 100% {
+    opacity: 0;
+    transform: translate(-50%, -6px) rotate(45deg);
+  }
+  50% {
+    opacity: 0.85;
+    transform: translate(-50%, 6px) rotate(45deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .case-scroll-hint { display: none; }
+}
+
+.case-scroll__track {
+  display: flex;
+  flex-direction: column;
+  gap: 64px;
+  padding-top: 24px;
+  padding-bottom: 64px;
+}
+
+/* ═════════════════════════════════════
+   CASE ROW — контейнер для одного логического блока (row).
+   Варианты:
+   • --wide        — 1 horizontal media
+   • --tall-1      — 1 vertical media (слева)
+   • --tall-2      — 2 vertical media в ряд (50/50)
+   • --tall-text   — 1 vertical media + text (top-aligned)
+   • --text        — full-width text block
+═════════════════════════════════════ */
+.case-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 48px;
+  width: 100%;
+}
+.case-row--wide,
+.case-row--text { flex-direction: column; gap: 0; }
+.case-row--tall-1 { justify-content: flex-start; }
+.case-row > .case-item { width: 100%; }
+
+/* tall-2 — две вертикальные 50/50 */
+.case-row--tall-2 > .case-item--tall { flex: 1 1 0; min-width: 0; }
+
+/* tall-1 — одна вертикальная на всю ширину case-трека (v0.9: media внутри ограничен своим max-width 1022px) */
+.case-row--tall-1 > .case-item--tall { flex: 1 1 100%; }
+
+/* tall-text — вертикальная слева, текст справа выровнен по верху */
+.case-row--tall-text > .case-item--tall { flex: 0 1 calc(50% - 24px); }
+.case-row--tall-text > .case-item--text-inline {
+  flex: 1 1 calc(50% - 24px);
+  min-width: 0;
+  padding-top: var(--space-2);
+}
+.case-text--inline {
+  padding: 0;
+  border: 0;
+  max-width: 48ch;
+}
+.case-text--inline .case-text__title { font-size: var(--text-xl); }
+
+/* ═══════════════════════════════════
+   CASE ITEM — карточка иллюстрации / видео + подпись
+   Начальное состояние скрыто — GSAP делает lift-анимацию.
+═══════════════════════════════════ */
+.case-item {
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* MEDIA — контейнер для <img> / <video> / placeholder */
+.case-item__media {
+  width: 100%;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--color-surface);
+  position: relative;
+}
+/* Ограничиваем высоту медиа, чтобы caption всегда помещался в экране.
+   4K-экраны: без max-height wide-иллюстрации становятся слишком высокими
+   и caption уходит ниже viewport. */
+/* v0.6 [Z3] — Wide: aspect-ratio 16:9 + clamp на max-height.
+   Раньше: жёсткий height: 1040px → на 4K caption уезжал ниже viewport,
+   на 14"-15" ноутбуках 1040px было избыточно высоко.
+   Теперь: aspect-ratio держит форму, max-height ограничен 60vh с потолком 1040px.
+   Mobile override (@768px) использует aspect-ratio 16/9 — не пересекается. */
+.case-item--wide .case-item__media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  max-height: clamp(480px, 60vh, 1040px);
+}
+/* v0.6 [Z3] — Tall: aspect-ratio 4:5 + clamp на max-height.
+   Раньше: жёсткий height: 1100px → на 14"-15" ноутбуках занимал больше viewport.
+   Теперь: aspect-ratio 4:5 держит форму, max-height clamp 70vh потолок 1100px.
+   Mobile override (@768px) использует aspect-ratio 4/5 + max-height calc(100vh - 180px). */
+.case-item--tall .case-item__media {
+  width: 100%;
+  max-width: 1022px;
+  aspect-ratio: 4 / 5;
+  height: auto;
+  max-height: clamp(520px, 70vh, 1100px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.7.10 [tall-2-stretch] — переопределение для tall-2 media: убираем
+   max-width и max-height, чтобы media растягивалась до полной ширины item.
+   ──────────────────────────────────────────────────────────────────────────
+   Контекст: default `.case-item--tall .case-item__media max-width: 1022px`
+   нужен для tall-1 (одна media full-width track) и tall-text (50/50 split с
+   text). В этих row-типах media по дизайну ограничена 1022.
+
+   Но в tall-2 (две media side-by-side, flex 1 1 0) cap 1022 на media создаёт
+   проблему: на 2K+ COLLAPSED item шире 1022, media упирается в cap, справа
+   от media появляется void внутри item. Visual gap между media скачет:
+   - 2560 OPEN:      48px (item=media=1022, no void) ✓
+   - 2560 COLLAPSED: 190px (item=1164, media=1022, +142 void) ❌
+   - 4K COLLAPSED:   830px (item=1804, media=1022, +782 void) ❌
+
+   Решение: media растягивается на полную ширину item. Gap всегда 48,
+   right edge of right media = case-view padding 64.
+
+   max-height: none — без него aspect-ratio 4:5 ломалось бы на больших
+   item width (max-height clamp 1100 ограничивал бы высоту, image становился
+   pancake). Без cap на height, image держит 4:5 на любой ширине; чуть-чуть
+   overflow viewport на 4K COLLAPSED, но case-scroll скроллится.
+
+   Specificity: .case-row--tall-2 .case-item--tall .case-item__media = (0,3,0)
+   override default = (0,2,0).
+
+   Range: применяется глобально, но эффект виден только на ≥2K (на меньших
+   viewport item никогда не достигал 1022, cap не активен).
+   ══════════════════════════════════════════════════════════════════════════ */
+.case-row--tall-2 .case-item--tall .case-item__media {
+  max-width: none;
+  max-height: none;
+}
+
+/* TEXT BLOCK (full-width) — на всю ширину блока кейса, с border-top/bottom.
+   Идёт в начале каждого кейса — intro тон. */
+.case-item--text {
+  width: 100%;
+}
+.case-text {
+  /* v0.13.8 — full-width intro: контейнер на всю ширину case-трека,
+     читаемая ширина ограничена только у тела текста (.case-text__body). */
+  width: 100%;
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--color-divider);
+  border-bottom: 1px solid var(--color-divider);
+}
+.case-text__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+.case-text__header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+/* v0.13.8 — external link button (ArtStation / Behance) в правой части header.
+   v0.13.8.1 — отступ 64px от правого края case-трека (margin-right: 64px). */
+.case-text__external-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  margin-right: 64px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-tag);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: background 160ms var(--ease-out), border-color 160ms var(--ease-out), color 160ms var(--ease-out);
+}
+.case-text__external-btn:hover {
+  background: var(--color-surface-offset);
+  border-color: var(--color-accent-text);
+  color: var(--color-accent-text);
+}
+.case-text__external-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.case-text__external-btn-arrow {
+  font-size: 1.1em;
+  line-height: 1;
+  transition: transform 160ms var(--ease-out);
+}
+.case-text__external-btn:hover .case-text__external-btn-arrow {
+  transform: translateX(2px);
+}
+.case-text__eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin: 0;
+}
+.case-text__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.case-text__meta-item {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: 4px 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.case-text__meta-item--role {
+  color: var(--color-text);
+  /* v0.7.11 [P2 #13] — было #3f3f3f, заменено на ближайший токен --color-divider (#404040, Δ1).
+     Цель прежняя: role-чип совпадает по обводке с другими метками (дата/стэк). */
+  border-color: var(--color-divider);
+}
+.case-text__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--color-text);
+  margin-bottom: var(--space-4);
+}
+.case-text__body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  /* v0.13.8 — читаемая ширина сохранена только на самом тексте */
+  max-width: 72ch;
+}
+
+.case-item__img,
+.case-item__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+  display: block;
+  pointer-events: none;
+}
+.case-item__video { pointer-events: auto; }
+/* v0.20.1 — img снова кликабельна (gallery fullscreen trigger,
+   .closest('[data-gallery] img') в main.js delegated click handler
+   из коммита eebae22). Раньше pointer-events:none блокировал клики
+   на img, и FLIP-viewer не активировался. */
+.case-item__img { pointer-events: auto; }
+
+/* v0.13.6 — SplitText-маска для H1 кейса.
+   SplitText ставит каждый символ в inline-block-спанс .case-title__char
+   и каждое слово в .case-title__word. yPercent:100 из GSAP поднимает
+   char из-под нижней границы слова — нужен overflow:hidden на word.
+   Пробелы между словами SplitText сам оставляет. */
+.case-title__word {
+  display: inline-block;
+  overflow: hidden;
+  padding-bottom: 0.05em;  /* защита от обрезки хвостов g, y, p у Clash Display */
+}
+.case-title__char {
+  display: inline-block;
+  will-change: transform;  /* только на время анимации — GSAP снимает в onComplete */
+}
+/* Reduced-motion: отключаем маску чтобы IIFE-early-return не скрыл текст */
+@media (prefers-reduced-motion: reduce) {
+  .case-title__word { overflow: visible; }
+}
+
+/* v0.13.5 — clip-path reveal для медиа внутри case-item.
+   Закрытое состояние только при no-preference, reduced видит сразу. */
+@media (prefers-reduced-motion: no-preference) {
+  .case-item__media img.is-clip-reveal-case,
+  .case-item__media video.is-clip-reveal-case {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+.case-item__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* CAPTION — label + описание */
+.case-item__caption {
+  margin-top: var(--space-4);
+  padding-inline: var(--space-1);
+  max-width: 72ch;
+}
+.case-item__caption-label {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.3;
+  margin-bottom: var(--space-1);
+  letter-spacing: -0.005em;
+}
+.case-item__caption-desc {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}

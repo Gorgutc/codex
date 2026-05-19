@@ -1,10 +1,16 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Sidebar from '@components/layout/Sidebar.astro';
+import CaseScroll from '@components/work/CaseScroll.astro';
+import { getFeaturedWorks } from '@lib/works';
 
 const title = 'Codex — 3D Design Studio · Hard Surface & Product Visualization';
 const description =
   'Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.';
+
+// Stage 5a — render the first featured work as the default case. Hash-routing
+// + click-to-open + work-card--active sync land in Stage 5c.
+const [defaultWork] = await getFeaturedWorks(1);
 ---
 
 <BaseLayout title={title} description={description}>
@@ -12,34 +18,16 @@ const description =
     <Sidebar />
 
     <main class="main-area" id="main">
-      {/* Stage 5 lands the full case-view here (header + tabs + scroll + 3D + blueprints).
-          For now the right column stays empty on desktop and hides entirely on mobile
-          (matches legacy behaviour pre-collapse). */}
-      <section class="main-area__placeholder mono" aria-hidden="true">
-        <span>STAGE 4 · SIDEBAR READY</span>
-        <span>case-view → Stage 5</span>
+      <section
+        class="case-view"
+        id="case-view"
+        aria-label="Project case study"
+      >
+        {defaultWork && <CaseScroll work={defaultWork} />}
       </section>
     </main>
   </div>
 </BaseLayout>
-
-<style is:global>
-  .main-area__placeholder {
-    flex: 1;
-    display: grid;
-    place-content: center;
-    gap: var(--space-2);
-    text-align: center;
-    font-size: var(--text-xs);
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--color-text-faint);
-  }
-  .main-area__placeholder span:first-child {
-    color: var(--color-accent-text);
-    letter-spacing: 0.22em;
-  }
-</style>
 
 <script>
   import '~/scripts/sidebar';

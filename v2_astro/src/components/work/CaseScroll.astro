@@ -1,0 +1,258 @@
+---
+/**
+ * CaseScroll — 2D gallery for a single work. Mirrors the legacy
+ * #case-scroll → #case-scroll-track → case-row → case-item tree from
+ * codex/index.html + the row plan baked by buildItems() in main.js.
+ *
+ * Row composition runs at build time via buildCaseRows() so the output is
+ * fully static HTML — no client-side mutation, View-Transition-safe.
+ * Tabs / case-nav / progress bar / share / 3D / blueprints land in the
+ * next sub-stages.
+ */
+import type { WorkEntry } from '@lib/works';
+import { buildCaseRows, type GalleryItem } from '@lib/case-rows';
+
+export interface Props {
+  work: WorkEntry;
+}
+
+const { work } = Astro.props;
+const rows = buildCaseRows(work);
+
+const imgDims = (format: GalleryItem['format']) =>
+  format === 'wide' ? { w: 1600, h: 900 } : { w: 600, h: 800 };
+---
+
+<div
+  class="case-scroll"
+  id="case-scroll"
+  role="region"
+  aria-label="Case study scroll"
+  tabindex="0"
+>
+  <div class="case-scroll__track" id="case-scroll-track">
+    {rows.map((row) => {
+      // ── text-full intro ────────────────────────────────────────────────
+      if (row.kind === 'text-full') {
+        const m = row.meta;
+        return (
+          <div class="case-row case-row--text">
+            <article class="case-item case-item--text">
+              <div class="case-text">
+                <div class="case-text__header">
+                  <div class="case-text__header-left">
+                    <p class="case-text__eyebrow">Overview</p>
+                    {(m.role || m.year || (m.tools && m.tools.length)) && (
+                      <div class="case-text__meta">
+                        {m.role && (
+                          <span class="case-text__meta-item case-text__meta-item--role">
+                            {m.role}
+                          </span>
+                        )}
+                        {m.year && <span class="case-text__meta-item">{m.year}</span>}
+                        {m.tools && m.tools.length > 0 && (
+                          <span class="case-text__meta-item">{m.tools.join(' · ')}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <h2 class="case-text__title">{row.text.title}</h2>
+                <p class="case-text__body">{row.text.body}</p>
+              </div>
+            </article>
+          </div>
+        );
+      }
+
+      // ── wide row ──────────────────────────────────────────────────────
+      if (row.kind === 'wide') {
+        const a = row.a;
+        const { w, h } = imgDims(a.format);
+        return (
+          <div class="case-row case-row--wide">
+            <article class="case-item case-item--wide">
+              <div
+                class="case-item__media"
+                style={`background: ${a.bg ?? 'var(--color-surface)'};`}
+              >
+                <img
+                  class="case-item__img"
+                  src={a.src}
+                  alt={a.alt}
+                  width={w}
+                  height={h}
+                  loading="lazy"
+                  decoding="async"
+                  draggable="false"
+                  tabindex="0"
+                  role="button"
+                  aria-haspopup="dialog"
+                  aria-label={`Open fullscreen view of ${a.label ?? a.alt}`}
+                  onerror="this.remove();"
+                />
+                <span class="case-item__placeholder" aria-hidden="true">
+                  {a.label ?? ''}
+                </span>
+              </div>
+              <div class="case-item__caption">
+                <p class="case-item__caption-label">{a.label ?? ''}</p>
+                {a.description && <p class="case-item__caption-desc">{a.description}</p>}
+              </div>
+            </article>
+          </div>
+        );
+      }
+
+      // ── tall-1 row ────────────────────────────────────────────────────
+      if (row.kind === 'tall-1') {
+        const a = row.a;
+        const { w, h } = imgDims(a.format);
+        return (
+          <div class="case-row case-row--tall-1">
+            <article class="case-item case-item--tall">
+              <div
+                class="case-item__media"
+                style={`background: ${a.bg ?? 'var(--color-surface)'};`}
+              >
+                <img
+                  class="case-item__img"
+                  src={a.src}
+                  alt={a.alt}
+                  width={w}
+                  height={h}
+                  loading="lazy"
+                  decoding="async"
+                  draggable="false"
+                  tabindex="0"
+                  role="button"
+                  aria-haspopup="dialog"
+                  aria-label={`Open fullscreen view of ${a.label ?? a.alt}`}
+                  onerror="this.remove();"
+                />
+                <span class="case-item__placeholder" aria-hidden="true">
+                  {a.label ?? ''}
+                </span>
+              </div>
+              <div class="case-item__caption">
+                <p class="case-item__caption-label">{a.label ?? ''}</p>
+                {a.description && <p class="case-item__caption-desc">{a.description}</p>}
+              </div>
+            </article>
+          </div>
+        );
+      }
+
+      // ── tall-2 row (two side-by-side tall items) ──────────────────────
+      if (row.kind === 'tall-2') {
+        const items = [row.a, row.b];
+        return (
+          <div class="case-row case-row--tall-2">
+            {items.map((it) => {
+              const { w, h } = imgDims(it.format);
+              return (
+                <article class="case-item case-item--tall">
+                  <div
+                    class="case-item__media"
+                    style={`background: ${it.bg ?? 'var(--color-surface)'};`}
+                  >
+                    <img
+                      class="case-item__img"
+                      src={it.src}
+                      alt={it.alt}
+                      width={w}
+                      height={h}
+                      loading="lazy"
+                      decoding="async"
+                      draggable="false"
+                      tabindex="0"
+                      role="button"
+                      aria-haspopup="dialog"
+                      aria-label={`Open fullscreen view of ${it.label ?? it.alt}`}
+                      onerror="this.remove();"
+                    />
+                    <span class="case-item__placeholder" aria-hidden="true">
+                      {it.label ?? ''}
+                    </span>
+                  </div>
+                  <div class="case-item__caption">
+                    <p class="case-item__caption-label">{it.label ?? ''}</p>
+                    {it.description && (
+                      <p class="case-item__caption-desc">{it.description}</p>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        );
+      }
+
+      // ── tall-text row (tall item + inline text block) ─────────────────
+      if (row.kind === 'tall-text') {
+        const a = row.a;
+        const { w, h } = imgDims(a.format);
+        return (
+          <div class="case-row case-row--tall-text">
+            <article class="case-item case-item--tall">
+              <div
+                class="case-item__media"
+                style={`background: ${a.bg ?? 'var(--color-surface)'};`}
+              >
+                <img
+                  class="case-item__img"
+                  src={a.src}
+                  alt={a.alt}
+                  width={w}
+                  height={h}
+                  loading="lazy"
+                  decoding="async"
+                  draggable="false"
+                  tabindex="0"
+                  role="button"
+                  aria-haspopup="dialog"
+                  aria-label={`Open fullscreen view of ${a.label ?? a.alt}`}
+                  onerror="this.remove();"
+                />
+                <span class="case-item__placeholder" aria-hidden="true">
+                  {a.label ?? ''}
+                </span>
+              </div>
+              <div class="case-item__caption">
+                <p class="case-item__caption-label">{a.label ?? ''}</p>
+                {a.description && <p class="case-item__caption-desc">{a.description}</p>}
+              </div>
+            </article>
+            <article class="case-item case-item--text-inline">
+              <div class="case-text case-text--inline">
+                <p class="case-text__eyebrow">Notes</p>
+                <h3 class="case-text__title">{row.text.title}</h3>
+                <p class="case-text__body">{row.text.body}</p>
+              </div>
+            </article>
+          </div>
+        );
+      }
+
+      return null;
+    })}
+  </div>
+</div>
+
+<script>
+  // Stage 5a — only the .has-scrolled hint hook is wired here so the
+  // legacy scroll-hint animation doesn't fire forever. Tabs / nav /
+  // progress wiring lives in src/scripts/case-view.ts in Stage 5c.
+  function bindCaseScroll() {
+    const el = document.getElementById('case-scroll');
+    if (!el || el.dataset.bound === '1') return;
+    el.dataset.bound = '1';
+    el.addEventListener(
+      'scroll',
+      () => el.classList.add('has-scrolled'),
+      { once: true, passive: true },
+    );
+  }
+  bindCaseScroll();
+  document.addEventListener('astro:page-load', bindCaseScroll);
+</script>
