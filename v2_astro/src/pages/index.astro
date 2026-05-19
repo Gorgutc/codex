@@ -1,37 +1,29 @@
 ---
-import '~/styles/global.css';
-// Placeholder root page so `astro build` succeeds during early stages.
-// Replaced with the sidebar + case-view layout in Stage 4.
+import BaseLayout from '@layouts/BaseLayout.astro';
+import ThemeToggle from '@components/ui/ThemeToggle.astro';
+
+// Stage 2 placeholder — sidebar/case-view ports in Stage 4.
+const title = 'Codex — 3D Design Studio · Hard Surface & Product Visualization';
+const description =
+  'Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.';
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#212121" />
-    <title>Codex Studio — v2 (Astro) scaffold</title>
+<BaseLayout title={title} description={description}>
+  <main id="main" class="main-area" style="padding: var(--space-12) var(--space-8); display: grid; gap: var(--space-6); max-width: var(--content-text);">
+    <header style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);">
+      <h1 style="font-size: var(--text-2xl); margin: 0;">Codex v2 — Astro scaffold</h1>
+      <ThemeToggle />
+    </header>
 
-    <link
-      rel="preload"
-      href="/fonts/space-grotesk-500.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      href="/fonts/inter-400.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-  </head>
-  <body data-theme="dark">
-    <main style="padding: var(--space-8); display: grid; gap: var(--space-4);">
-      <h1>Codex v2 — Astro scaffold</h1>
-      <p>Stage 1 placeholder. Tokens + reset + fonts wired.</p>
-      <p class="mono">FONT-MONO · JetBrains Mono · 0123456789 · ID-007</p>
-    </main>
-  </body>
-</html>
+    <p>Stage 2 placeholder. BaseLayout, GrainOverlay, Cursor, Preloader, ThemeToggle wired.</p>
+    <p class="mono" style="color: var(--color-text-muted);">
+      FONT-MONO · JetBrains Mono · 0123456789 · ID-007
+    </p>
+
+    <section style="display: grid; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--color-divider); border-radius: var(--radius-sm); background: var(--color-surface);">
+      <span class="mono" style="color: var(--color-text-faint); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.12em;">readout</span>
+      <strong style="font-family: var(--font-display); font-weight: 500;">Theme persists in `codex-theme` cookie.</strong>
+      <span style="color: var(--color-text-muted); font-size: var(--text-sm);">Reload, navigate, toggle — single &lt;meta theme-color&gt; updates in place.</span>
+    </section>
+  </main>
+</BaseLayout>

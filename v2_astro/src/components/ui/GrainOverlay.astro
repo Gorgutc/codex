@@ -1,0 +1,78 @@
+---
+/**
+ * GrainOverlay — film grain (body::before) + vignette (body::after).
+ *
+ * Pure-CSS. No markup; the component exists so BaseLayout can include it
+ * once and concentrate the global side-effect in a named file.
+ *
+ * Ported 1:1 from codex/css/shared.css (v0.8 GOLDEN). The 11-phase keyframe
+ * is Valentin-Bossens-style, softened ~20% vs reference (±7rem / 1.2s / 0.13a).
+ * Reduced-motion fully halts the animation — no last-frame freeze.
+ */
+---
+
+<style is:global>
+  body::before {
+    content: '';
+    position: fixed;
+    top: -7rem;
+    left: -7rem;
+    width: calc(100% + 14rem);
+    height: calc(100% + 14rem);
+    z-index: -2;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch' seed='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 320px 320px;
+    opacity: 0.13;
+    animation: grain-flicker 1.2s steps(2) infinite;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse at center,
+      transparent 40%,
+      rgba(0, 0, 0, 0.32) 90%,
+      rgba(0, 0, 0, 0.55) 100%
+    );
+  }
+
+  [data-theme='light'] body::before { opacity: 0.08; }
+  [data-theme='light'] body::after {
+    background: radial-gradient(
+      ellipse at center,
+      transparent 55%,
+      rgba(0, 0, 0, 0.06) 90%,
+      rgba(0, 0, 0, 0.11) 100%
+    );
+  }
+
+  @media (max-width: 767px) {
+    body::before { opacity: 0.1; }
+  }
+
+  @keyframes grain-flicker {
+    0%   { transform: translate3d(0,         7rem,   0); }
+    10%  { transform: translate3d(-0.8rem, -3.1rem,  0); }
+    20%  { transform: translate3d(-6.2rem,  1.6rem,  0); }
+    30%  { transform: translate3d( 7rem,   -7rem,    0); }
+    40%  { transform: translate3d(-1.6rem,  5.5rem,  0); }
+    50%  { transform: translate3d(-7rem,  -3.1rem,   0); }
+    60%  { transform: translate3d( 1.6rem,  4.7rem,  0); }
+    70%  { transform: translate3d( 5.5rem, -6.2rem,  0); }
+    80%  { transform: translate3d(-7rem,    0.8rem,  0); }
+    90%  { transform: translate3d( 4.7rem, -3.9rem,  0); }
+    100% { transform: translate3d(-5.5rem,  0,       0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body::before {
+      animation: none;
+      transform: none;
+    }
+  }
+</style>

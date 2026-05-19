@@ -1,0 +1,97 @@
+---
+/**
+ * Preloader — anti-flicker overlay (Stage 2 minimal).
+ *
+ * The full counter / bar / readout / skip-button mechanic from the legacy
+ * site lands in Stage 8 alongside GSAP. For Stage 2 we keep just enough
+ * to honour the `html.is-loading` invariant from BaseLayout:
+ *   1. Cover the page until window.load.
+ *   2. Fade out via clip-path.
+ *   3. Remove the overlay node and the html.is-loading class so .layout
+ *      and .cursor become visible.
+ *
+ * No GSAP dependency — CSS transition is enough for a simple sweep.
+ */
+---
+
+<div class="preloader" id="preloader" data-stage="2-minimal">
+  <span class="preloader__label mono" aria-hidden="true">LOADING</span>
+</div>
+
+<style is:global>
+  /* Anti-flicker: hides interactive layout until preloader exits. */
+  html.is-loading body > .layout,
+  html.is-loading body > .main-area,
+  html.is-loading body > .cursor {
+    visibility: hidden;
+  }
+
+  .preloader {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--color-bg);
+    color: var(--color-text);
+    display: grid;
+    place-items: center;
+    clip-path: inset(0 0 0% 0);
+    transition: clip-path 0.6s var(--ease-inout), opacity 0.3s var(--ease-out) 0.5s;
+    will-change: clip-path, opacity;
+  }
+  .preloader.is-exiting {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+
+  .preloader__label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .preloader { transition: none; }
+  }
+</style>
+
+<script>
+  function hidePreloader() {
+    const html = document.documentElement;
+    const overlay = document.getElementById('preloader');
+    if (!overlay) {
+      html.classList.remove('is-loading');
+      return;
+    }
+    overlay.classList.add('is-exiting');
+
+    const done = () => {
+      overlay.removeEventListener('transitionend', done);
+      html.classList.remove('is-loading');
+      overlay.remove();
+    };
+    // Fallback in case the transition is suppressed (reduced-motion or
+    // detached during navigation).
+    const fallback = window.setTimeout(done, 1200);
+    overlay.addEventListener('transitionend', () => {
+      window.clearTimeout(fallback);
+      done();
+    });
+  }
+
+  function schedule() {
+    if (document.readyState === 'complete') {
+      // Defer a frame so the first paint with .is-loading is committed
+      // before we start the exit transition.
+      requestAnimationFrame(hidePreloader);
+    } else {
+      window.addEventListener('load', () => requestAnimationFrame(hidePreloader), { once: true });
+    }
+  }
+
+  schedule();
+  // View Transitions: the preloader node is recreated by the new page;
+  // re-run the schedule so the class is cleared after the swap as well.
+  document.addEventListener('astro:page-load', schedule);
+</script>

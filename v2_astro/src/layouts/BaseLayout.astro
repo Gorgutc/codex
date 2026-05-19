@@ -1,0 +1,192 @@
+---
+/**
+ * BaseLayout — root <html> shell used by every page in v2.
+ *
+ * Responsibilities:
+ *   • Hardcode <body data-theme="dark"> + emit exactly one
+ *     <meta name="theme-color" content="#212121"> (frozen invariant
+ *     META-theme-color-single from verify-frozen.js v0.8).
+ *   • Top-of-body inline script reads the `codex-theme` cookie and
+ *     synchronously flips data-theme + meta content BEFORE first paint
+ *     (cookie-read here, not in frontmatter — pages are statically
+ *     prerendered so Astro.cookies is unavailable at build).
+ *   • Set html.is-loading early in the parse so .layout and .cursor stay
+ *     hidden until the preloader finishes (anti-flicker pattern).
+ *   • Preload self-hosted display + body woff2.
+ *   • Mount global overlays (Grain, Cursor, Preloader) + ClientRouter.
+ *   • Render flexible head extras via <slot name="head" />.
+ */
+import { ClientRouter } from 'astro:transitions';
+import '~/styles/global.css';
+import GrainOverlay from '@components/ui/GrainOverlay.astro';
+import Cursor from '@components/ui/Cursor.astro';
+import Preloader from '@components/ui/Preloader.astro';
+
+export interface JsonLd {
+  '@context': string;
+  '@type': string;
+  [key: string]: unknown;
+}
+
+export interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  ogType?: 'website' | 'article' | 'profile';
+  ogImage?: string;
+  ogImageAlt?: string;
+  ogLocale?: string;
+  siteName?: string;
+  twitterCard?: 'summary' | 'summary_large_image';
+  schemas?: JsonLd[];
+  bodyClass?: string;
+}
+
+const {
+  title,
+  description,
+  canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://preview.codex.promo/').toString(),
+  ogType = 'website',
+  ogImage = '/img/og-image.jpg',
+  ogImageAlt = 'Codex Studio — 3D design portfolio',
+  ogLocale = 'en_US',
+  siteName = 'Codex Studio',
+  twitterCard = 'summary_large_image',
+  schemas = [],
+  bodyClass,
+} = Astro.props;
+
+// Absolute URL helper for OG (crawlers require absolute paths).
+const absUrl = (path: string) => {
+  if (/^https?:\/\//.test(path)) return path;
+  return new URL(path, Astro.site ?? 'https://preview.codex.promo/').toString();
+};
+const ogImageAbs = absUrl(ogImage);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+
+    {/* Anti-flicker: set html.is-loading BEFORE any stylesheet binds layout
+        so the preloader covers the first paint. Removed by Preloader.astro. */}
+    <script is:inline>
+      document.documentElement.classList.add('is-loading');
+    </script>
+
+    {/* OpenGraph */}
+    <meta property="og:url" content={canonical} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImageAbs} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogImageAlt} />
+    <meta property="og:locale" content={ogLocale} />
+
+    {/* Twitter */}
+    <meta name="twitter:card" content={twitterCard} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageAbs} />
+
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+
+    {/* Frozen invariant META-theme-color-single — exactly one tag, no media="".
+        Default = dark hardcode; the cookie-init script below body opens flips
+        content to '#f5f5f5' synchronously when codex-theme=light. */}
+    <meta name="theme-color" content="#212121" />
+
+    {/* Favicon set (files land in public/favicon/ during Stage 10). */}
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
+    {/* Self-hosted font preloads — display + body only. JetBrains Mono is
+        small and lazy-painted in technical readouts, no preload needed. */}
+    <link
+      rel="preload"
+      href="/fonts/space-grotesk-500.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/inter-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    {schemas.map((schema) => (
+      <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
+    ))}
+
+    <ClientRouter />
+
+    <slot name="head" />
+  </head>
+
+  <body data-theme="dark" class={bodyClass}>
+    {/* Anti-FOUC: read theme cookie BEFORE first paint, sync data-theme +
+        theme-color meta. Pages are statically prerendered so the cookie
+        cannot be resolved at build time — must happen client-side, and
+        before the toggle button's own script binds. */}
+    <script is:inline>
+      (function () {
+        var m = document.cookie.match(/(?:^|; )codex-theme=([^;]+)/);
+        if (m && m[1] === 'light') {
+          document.body.setAttribute('data-theme', 'light');
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', '#f5f5f5');
+        }
+      })();
+    </script>
+
+    <a class="skip-to-content" href="#main">Skip to content</a>
+
+    <Preloader />
+    <GrainOverlay />
+
+    <slot />
+
+    <Cursor />
+
+    <slot name="end-of-body" />
+  </body>
+</html>
+
+<style is:global>
+  /* Skip-to-content — visually hidden until focus; sits above preloader/cursor. */
+  .skip-to-content {
+    position: fixed;
+    top: 0;
+    left: var(--space-2);
+    z-index: 10002;
+    padding: var(--space-2) var(--space-4);
+    transform: translateY(-150%);
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    transition: transform 0.2s var(--ease-out);
+  }
+  .skip-to-content:focus,
+  .skip-to-content:focus-visible {
+    transform: translateY(var(--space-2));
+    outline: none;
+  }
+</style>

@@ -1,0 +1,147 @@
+---
+/**
+ * Cursor — custom ring + dot, pointer:fine only.
+ *
+ * Guards (all must pass before activation):
+ *   • matchMedia('(pointer: fine)').matches
+ *   • matchMedia('(hover: hover)').matches  — coarse hover hybrids opt out
+ *   • !matchMedia('(prefers-reduced-motion: reduce)').matches
+ *
+ * When active, the script adds `html.cursor-fine` which the global CSS
+ * uses to hide native cursors (specificity 0,1,1 beats per-class rules
+ * without !important). Ported from codex/css/shared.css + js/main.js,
+ * trimmed to the base ring/dot for Stage 2; extended link/work/drag
+ * states ship with their consumers in Stages 4–6.
+ *
+ * Stage 2 uses vanilla RAF for movement; Stage 8 may swap to
+ * gsap.quickSetter for sub-pixel smoothness once GSAP is loaded.
+ */
+---
+
+<div class="cursor" aria-hidden="true">
+  <div class="cursor-dot"></div>
+</div>
+
+<style is:global>
+  .cursor {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 40px;
+    height: 40px;
+    margin: -20px 0 0 -20px;
+    border: 1px solid var(--color-primary);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10001;
+    transform: translate3d(-100px, -100px, 0);
+    opacity: 0;
+    transition: opacity 180ms var(--ease-out);
+    will-change: transform;
+  }
+  .cursor.is-active { opacity: 1; }
+  .cursor.is-hover { border-color: var(--color-text); }
+
+  .cursor-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    background: var(--color-text);
+    border-radius: 50%;
+    transition: transform 200ms var(--ease-out);
+  }
+  .cursor.is-hover .cursor-dot { transform: scale(1.6); }
+
+  /* No precise pointer → keep native cursors, hide custom. */
+  @media (hover: none), (any-pointer: coarse) {
+    .cursor,
+    .cursor-dot { display: none; }
+  }
+
+  /* Hide native cursor only after JS-side guards pass. */
+  html.cursor-fine,
+  html.cursor-fine * { cursor: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cursor,
+    .cursor-dot { display: none; }
+  }
+</style>
+
+<script>
+  type CursorState = {
+    el: HTMLElement;
+    rafId: number | null;
+    tx: number;
+    ty: number;
+    cx: number;
+    cy: number;
+  };
+
+  let state: CursorState | null = null;
+
+  function init() {
+    const cursorEl = document.querySelector<HTMLElement>('.cursor');
+    if (!cursorEl) return;
+
+    const fine = window.matchMedia('(pointer: fine)').matches;
+    const hover = window.matchMedia('(hover: hover)').matches;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!fine || !hover || reduced) return;
+
+    document.documentElement.classList.add('cursor-fine');
+
+    state = {
+      el: cursorEl,
+      rafId: null,
+      tx: -100,
+      ty: -100,
+      cx: -100,
+      cy: -100,
+    };
+
+    const onMove = (e: MouseEvent) => {
+      if (!state) return;
+      state.tx = e.clientX;
+      state.ty = e.clientY;
+      if (!cursorEl.classList.contains('is-active')) cursorEl.classList.add('is-active');
+      if (state.rafId == null) state.rafId = requestAnimationFrame(tick);
+    };
+
+    const onLeave = () => cursorEl.classList.remove('is-active');
+
+    function tick() {
+      if (!state) return;
+      // Light smoothing — close enough to GSAP quickTo at 60fps without the
+      // dependency in Stage 2.
+      state.cx += (state.tx - state.cx) * 0.35;
+      state.cy += (state.ty - state.cy) * 0.35;
+      state.el.style.transform = `translate3d(${state.cx}px, ${state.cy}px, 0)`;
+
+      const dx = state.tx - state.cx;
+      const dy = state.ty - state.cy;
+      if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
+        state.rafId = null;
+        return;
+      }
+      state.rafId = requestAnimationFrame(tick);
+    }
+
+    window.addEventListener('mousemove', onMove, { passive: true });
+    window.addEventListener('mouseleave', onLeave);
+  }
+
+  function destroy() {
+    if (state?.rafId != null) cancelAnimationFrame(state.rafId);
+    state = null;
+  }
+
+  init();
+  // View Transitions re-init: DOM nodes survive but listeners do, so a
+  // full destroy/init keeps things idempotent across swaps.
+  document.addEventListener('astro:before-swap', destroy);
+  document.addEventListener('astro:page-load', init);
+</script>
