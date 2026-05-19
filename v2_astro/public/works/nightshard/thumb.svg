@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a1a2a"/>
+<stop offset="1" stop-color="#252535"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="800" height="600" fill="url(#bg)"/>
+<rect width="800" height="600" fill="url(#glow)"/>
+<polygon points="214.6,250.0 390.3,108.2 579.4,231.5 520.6,449.4 295.1,460.8" fill="none" stroke="#9a7ac9" stroke-width="1.4" opacity="0.85"/>
+<line x1="400.0" y1="300.0" x2="214.6" y2="250.0" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="400.0" y1="300.0" x2="390.3" y2="108.2" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="400.0" y1="300.0" x2="579.4" y2="231.5" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="400.0" y1="300.0" x2="520.6" y2="449.4" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="400.0" y1="300.0" x2="295.1" y2="460.8" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<circle cx="257.2" cy="123.0" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="532.5" cy="96.7" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="639.0" cy="364.5" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="410.7" cy="512.2" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="184.0" cy="382.4" r="3" fill="#9a7ac9" opacity="0.8"/><text x="400" y="572" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">NIGHTSHARD</text>
+</svg>

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a2233"/>
+<stop offset="1" stop-color="#26304a"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<line x1="450.0" y1="660.0" x2="720.0" y2="661.9" stroke="#88a5d8" stroke-width="1.4" opacity="0.25"/>
+<circle cx="720.0" cy="661.9" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="684.5" y2="793.8" stroke="#88a5d8" stroke-width="1.4" opacity="0.40"/>
+<circle cx="684.5" cy="793.8" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="609.0" y2="878.3" stroke="#88a5d8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="609.0" cy="878.3" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="471.3" y2="929.2" stroke="#88a5d8" stroke-width="1.4" opacity="0.25"/>
+<circle cx="471.3" cy="929.2" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="345.4" y2="908.9" stroke="#88a5d8" stroke-width="1.4" opacity="0.40"/>
+<circle cx="345.4" cy="908.9" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="243.5" y2="833.9" stroke="#88a5d8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="243.5" cy="833.9" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="191.3" y2="737.2" stroke="#88a5d8" stroke-width="1.4" opacity="0.25"/>
+<circle cx="191.3" cy="737.2" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="190.0" y2="587.1" stroke="#88a5d8" stroke-width="1.4" opacity="0.40"/>
+<circle cx="190.0" cy="587.1" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="243.2" y2="486.4" stroke="#88a5d8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="243.2" cy="486.4" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="358.5" y2="406.0" stroke="#88a5d8" stroke-width="1.4" opacity="0.25"/>
+<circle cx="358.5" cy="406.0" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="490.3" y2="393.0" stroke="#88a5d8" stroke-width="1.4" opacity="0.40"/>
+<circle cx="490.3" cy="393.0" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="596.9" y2="433.4" stroke="#88a5d8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="596.9" cy="433.4" r="4" fill="#88a5d8" opacity="0.8"/>
+<line x1="450.0" y1="660.0" x2="683.1" y2="523.7" stroke="#88a5d8" stroke-width="1.4" opacity="0.25"/>
+<circle cx="683.1" cy="523.7" r="4" fill="#88a5d8" opacity="0.8"/>
+<circle cx="450.0" cy="660.0" r="45.0" fill="#88a5d8" opacity="0.95"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">HELIX REVEAL</text>
+</svg>

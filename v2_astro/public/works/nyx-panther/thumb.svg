@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a1816"/>
+<stop offset="1" stop-color="#2a2520"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="800" height="600" fill="url(#bg)"/>
+<rect width="800" height="600" fill="url(#glow)"/>
+<line x1="400.0" y1="330.0" x2="580.0" y2="327.7" stroke="#d4a574" stroke-width="1.4" opacity="0.25"/>
+<circle cx="580.0" cy="327.7" r="4" fill="#d4a574" opacity="0.8"/>
+<line x1="400.0" y1="330.0" x2="532.6" y2="451.7" stroke="#d4a574" stroke-width="1.4" opacity="0.40"/>
+<circle cx="532.6" cy="451.7" r="4" fill="#d4a574" opacity="0.8"/>
+<line x1="400.0" y1="330.0" x2="398.9" y2="510.0" stroke="#d4a574" stroke-width="1.4" opacity="0.55"/>
+<circle cx="398.9" cy="510.0" r="4" fill="#d4a574" opacity="0.8"/>
+<line x1="400.0" y1="330.0" x2="272.8" y2="457.4" stroke="#d4a574" stroke-width="1.4" opacity="0.25"/>
+<circle cx="272.8" cy="457.4" r="4" fill="#d4a574" opacity="0.8"/>
+<line x1="400.0" y1="330.0" x2="220.0" y2="330.2" stroke="#d4a574" stroke-width="1.4" opacity="0.40"/>
+<circle cx="220.0" cy="330.2" r="4" fill="#d4a574" opacity="0.8"/>
+<line x1="400.0" y1="330.0" x2="278.2" y2="197.5" stroke="#d4a574" stroke-width="1.4" opacity="0.55"/>
+<circle cx="278.2" cy="197.5" r="4" fill="#d4a574" opacity="0.8"/>
+<line x1="400.0" y1="330.0" x2="396.2" y2="150.0" stroke="#d4a574" stroke-width="1.4" opacity="0.25"/>
+<circle cx="396.2" cy="150.0" r="4" fill="#d4a574" opacity="0.8"/>
+<line x1="400.0" y1="330.0" x2="530.6" y2="206.1" stroke="#d4a574" stroke-width="1.4" opacity="0.40"/>
+<circle cx="530.6" cy="206.1" r="4" fill="#d4a574" opacity="0.8"/>
+<circle cx="400.0" cy="330.0" r="30.0" fill="#d4a574" opacity="0.95"/><text x="400" y="572" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">NYX PANTHER</text>
+</svg>

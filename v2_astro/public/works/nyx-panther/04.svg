@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a1816"/>
+<stop offset="1" stop-color="#2a2520"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<rect width="1600" height="900" fill="url(#glow)"/>
+<polygon points="84.3,326.6 402.1,352.5 -146.2,366.3" fill="#d4a574" opacity="0.07"/>
+<polygon points="1059.9,678.8 899.2,857.2 1194.9,685.0" fill="#d4a574" opacity="0.17"/>
+<polygon points="486.5,63.6 348.5,-5.9 394.3,-46.3" fill="#d4a574" opacity="0.07"/>
+<polygon points="144.3,226.9 260.9,137.7 124.3,129.3" fill="#d4a574" opacity="0.16"/>
+<polygon points="370.5,626.9 208.9,693.4 284.5,803.2" fill="#d4a574" opacity="0.08"/>
+<polygon points="864.0,587.3 669.2,702.2 811.7,502.0" fill="#d4a574" opacity="0.14"/>
+<polygon points="822.9,383.6 683.9,530.3 805.8,546.7" fill="#d4a574" opacity="0.12"/>
+<polygon points="191.2,68.3 59.8,104.3 -17.9,181.8" fill="#d4a574" opacity="0.14"/>
+<polygon points="446.1,679.6 298.0,742.0 215.1,607.2" fill="#d4a574" opacity="0.16"/>
+<polygon points="41.4,722.9 183.7,606.8 197.3,893.3" fill="#d4a574" opacity="0.18"/>
+<polygon points="1076.3,541.8 1360.8,472.9 759.0,637.3" fill="#d4a574" opacity="0.19"/>
+<polygon points="489.4,545.9 429.2,707.0 737.7,419.1" fill="#d4a574" opacity="0.13"/>
+<polygon points="346.1,584.7 617.5,421.6 158.0,657.3" fill="#d4a574" opacity="0.14"/>
+<polygon points="800.0,270.0 955.9,360.0 955.9,540.0 800.0,630.0 644.1,540.0 644.1,360.0" fill="none" stroke="#d4a574" stroke-width="1.6" opacity="0.85"/><text x="800" y="872" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">NYX PANTHER</text>
+</svg>

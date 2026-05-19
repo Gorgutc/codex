@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1e2030"/>
+<stop offset="1" stop-color="#282a40"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="800" height="600" fill="url(#bg)"/>
+<rect width="800" height="600" fill="url(#glow)"/>
+<path d="M 420.6 381.4 A 84.0 84.0 0 1 1 468.6 251.5" fill="none" stroke="#8fa6d1" stroke-width="1.4" opacity="0.25"/>
+<path d="M 287.5 318.4 A 114.0 114.0 0 0 1 430.3 190.1" fill="none" stroke="#8fa6d1" stroke-width="1.4" opacity="0.40"/>
+<path d="M 267.3 355.9 A 144.0 144.0 0 0 1 362.6 160.9" fill="none" stroke="#8fa6d1" stroke-width="1.4" opacity="0.55"/>
+<path d="M 525.0 179.0 A 174.0 174.0 0 0 1 519.3 426.7" fill="none" stroke="#8fa6d1" stroke-width="1.4" opacity="0.25"/>
+<path d="M 551.6 163.5 A 204.0 204.0 0 1 1 216.8 210.2" fill="none" stroke="#8fa6d1" stroke-width="1.4" opacity="0.40"/>
+<path d="M 226.3 143.2 A 234.0 234.0 0 0 1 630.8 261.4" fill="none" stroke="#8fa6d1" stroke-width="1.4" opacity="0.55"/>
+<circle cx="400.0" cy="300.0" r="36.0" fill="#8fa6d1" opacity="0.9"/><text x="400" y="572" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">FLUX CAPSULE</text>
+</svg>

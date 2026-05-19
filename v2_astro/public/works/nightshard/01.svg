@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1a1a2a"/>
+<stop offset="1" stop-color="#252535"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<rect width="1600" height="900" fill="url(#glow)"/>
+<polygon points="554.9,601.3 519.7,383.7 648.7,204.9 866.3,169.7 1045.1,298.7 1080.3,516.3 951.3,695.1 733.7,730.3" fill="none" stroke="#9a7ac9" stroke-width="1.4" opacity="0.85"/>
+<line x1="800.0" y1="450.0" x2="554.9" y2="601.3" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="800.0" y1="450.0" x2="519.7" y2="383.7" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="800.0" y1="450.0" x2="648.7" y2="204.9" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="800.0" y1="450.0" x2="866.3" y2="169.7" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="800.0" y1="450.0" x2="1045.1" y2="298.7" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="800.0" y1="450.0" x2="1080.3" y2="516.3" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="800.0" y1="450.0" x2="951.3" y2="695.1" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<line x1="800.0" y1="450.0" x2="733.7" y2="730.3" stroke="#9a7ac9" stroke-width="0.8" opacity="0.35"/>
+<circle cx="465.4" cy="504.1" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="523.7" cy="250.6" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="744.6" cy="107.7" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="1018.5" cy="147.1" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="1164.1" cy="391.1" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="1090.4" cy="659.6" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="857.5" cy="805.5" r="3" fill="#9a7ac9" opacity="0.8"/>
+<circle cx="600.5" cy="726.4" r="3" fill="#9a7ac9" opacity="0.8"/><text x="800" y="872" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">NIGHTSHARD</text>
+</svg>

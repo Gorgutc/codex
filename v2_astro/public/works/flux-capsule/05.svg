@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1e2030"/>
+<stop offset="1" stop-color="#282a40"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<line x1="450.0" y1="120.0" x2="450.0" y2="1080.0" stroke="#8fa6d1" stroke-width="1.6" opacity="0.65"/>
+<line x1="307.3319751364767" y1="180.0" x2="592.6680248635233" y2="180.0" stroke="#8fa6d1" stroke-width="1" opacity="0.30"/>
+<circle cx="450.0" cy="180.0" r="3" fill="#8fa6d1" opacity="0.85"/>
+<line x1="227.19908221682581" y1="285.0" x2="672.8009177831742" y2="285.0" stroke="#8fa6d1" stroke-width="1" opacity="0.42"/>
+<circle cx="450.0" cy="285.0" r="3" fill="#8fa6d1" opacity="0.85"/>
+<line x1="201.37909104682322" y1="390.0" x2="698.6209089531768" y2="390.0" stroke="#8fa6d1" stroke-width="1" opacity="0.54"/>
+<circle cx="450.0" cy="390.0" r="3" fill="#8fa6d1" opacity="0.85"/>
+<line x1="175.12590828053283" y1="495.0" x2="724.8740917194672" y2="495.0" stroke="#8fa6d1" stroke-width="1" opacity="0.30"/>
+<circle cx="450.0" cy="495.0" r="3" fill="#8fa6d1" opacity="0.85"/>
+<line x1="302.4208727614314" y1="600.0" x2="597.5791272385686" y2="600.0" stroke="#8fa6d1" stroke-width="1" opacity="0.42"/>
+<circle cx="450.0" cy="600.0" r="3" fill="#8fa6d1" opacity="0.85"/>
+<line x1="269.92592964456577" y1="705.0" x2="630.0740703554343" y2="705.0" stroke="#8fa6d1" stroke-width="1" opacity="0.54"/>
+<circle cx="450.0" cy="705.0" r="3" fill="#8fa6d1" opacity="0.85"/>
+<line x1="276.34397092102756" y1="810.0" x2="623.6560290789724" y2="810.0" stroke="#8fa6d1" stroke-width="1" opacity="0.30"/>
+<circle cx="450.0" cy="810.0" r="3" fill="#8fa6d1" opacity="0.85"/>
+<line x1="205.41288240500452" y1="915.0" x2="694.5871175949954" y2="915.0" stroke="#8fa6d1" stroke-width="1" opacity="0.42"/>
+<circle cx="450.0" cy="915.0" r="3" fill="#8fa6d1" opacity="0.85"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">FLUX CAPSULE</text>
+</svg>

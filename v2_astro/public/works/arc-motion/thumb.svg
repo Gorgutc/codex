@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1f1a2a"/>
+<stop offset="1" stop-color="#2a2438"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="800" height="600" fill="url(#bg)"/>
+<rect width="800" height="600" fill="url(#glow)"/>
+<ellipse cx="400.0" cy="300.0" rx="90.0" ry="54.6" fill="none" stroke="#b08fd0" stroke-width="1.1" opacity="0.25" transform="rotate(-21.6 400.0 300.0)"/>
+<ellipse cx="400.0" cy="300.0" rx="144.0" ry="74.2" fill="none" stroke="#b08fd0" stroke-width="1.1" opacity="0.35" transform="rotate(-23.6 400.0 300.0)"/>
+<ellipse cx="400.0" cy="300.0" rx="198.0" ry="131.3" fill="none" stroke="#b08fd0" stroke-width="1.1" opacity="0.45" transform="rotate(-9.7 400.0 300.0)"/>
+<circle cx="400.0" cy="300.0" r="24.0" fill="#b08fd0" opacity="0.9"/>
+<circle cx="400.0" cy="300.0" r="48.0" fill="none" stroke="#b08fd0" stroke-width="1.4" opacity="0.7"/>
+<circle cx="531.3" cy="177.4" r="5.9" fill="#b08fd0" opacity="0.85"/>
+<circle cx="267.9" cy="221.9" r="6.2" fill="#b08fd0" opacity="0.85"/>
+<circle cx="368.1" cy="209.0" r="3.2" fill="#b08fd0" opacity="0.85"/>
+<circle cx="521.7" cy="220.6" r="6.7" fill="#b08fd0" opacity="0.85"/><text x="400" y="572" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">ARC MOTION</text>
+</svg>

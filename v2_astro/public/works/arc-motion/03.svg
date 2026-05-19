@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1f1a2a"/>
+<stop offset="1" stop-color="#2a2438"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<path d="M 527.2 699.5 A 126.0 126.0 0 1 1 466.2 475.0" fill="none" stroke="#b08fd0" stroke-width="1.4" opacity="0.25"/>
+<path d="M 280.5 577.1 A 171.0 171.0 0 0 1 581.7 490.9" fill="none" stroke="#b08fd0" stroke-width="1.4" opacity="0.40"/>
+<path d="M 654.6 669.2 A 216.0 216.0 0 1 1 370.2 399.3" fill="none" stroke="#b08fd0" stroke-width="1.4" opacity="0.55"/>
+<path d="M 517.8 348.0 A 261.0 261.0 0 1 1 357.2 843.9" fill="none" stroke="#b08fd0" stroke-width="1.4" opacity="0.25"/>
+<path d="M 507.6 900.5 A 306.0 306.0 0 0 1 254.9 364.2" fill="none" stroke="#b08fd0" stroke-width="1.4" opacity="0.40"/>
+<path d="M 737.7 801.0 A 351.0 351.0 0 1 1 537.8 260.2" fill="none" stroke="#b08fd0" stroke-width="1.4" opacity="0.55"/>
+<circle cx="450.0" cy="600.0" r="54.0" fill="#b08fd0" opacity="0.9"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">ARC MOTION</text>
+</svg>

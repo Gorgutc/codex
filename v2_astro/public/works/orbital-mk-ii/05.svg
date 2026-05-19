@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1e2d3d"/>
+<stop offset="1" stop-color="#2a3a4a"/>
+</linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+</linearGradient>
+</defs>
+<rect width="900" height="1200" fill="url(#bg)"/>
+<rect width="900" height="1200" fill="url(#glow)"/>
+<polygon points="737.1,577.1 560.5,866.0 231.2,787.2 204.3,449.7 517.0,319.9" fill="none" stroke="#6fa8d4" stroke-width="1.4" opacity="0.85"/>
+<line x1="450.0" y1="600.0" x2="737.1" y2="577.1" stroke="#6fa8d4" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="560.5" y2="866.0" stroke="#6fa8d4" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="231.2" y2="787.2" stroke="#6fa8d4" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="204.3" y2="449.7" stroke="#6fa8d4" stroke-width="0.8" opacity="0.35"/>
+<line x1="450.0" y1="600.0" x2="517.0" y2="319.9" stroke="#6fa8d4" stroke-width="0.8" opacity="0.35"/>
+<circle cx="746.2" cy="781.1" r="3" fill="#6fa8d4" opacity="0.8"/>
+<circle cx="368.0" cy="942.7" r="3" fill="#6fa8d4" opacity="0.8"/>
+<circle cx="105.9" cy="627.4" r="3" fill="#6fa8d4" opacity="0.8"/>
+<circle cx="312.6" cy="269.1" r="3" fill="#6fa8d4" opacity="0.8"/>
+<circle cx="730.1" cy="360.3" r="3" fill="#6fa8d4" opacity="0.8"/><text x="450" y="1172" fill="#6a6866" font-family="sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" opacity="0.6">ORBITAL MK.II</text>
+</svg>

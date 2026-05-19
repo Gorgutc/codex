@@ -1,29 +1,60 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
 import ThemeToggle from '@components/ui/ThemeToggle.astro';
+import { getAllWorks, getFeaturedWorks, getCategoriesInUse } from '@lib/works';
 
-// Stage 2 placeholder — sidebar/case-view ports in Stage 4.
+// Stage 3 placeholder — renders the migrated collection as a sanity readout.
+// Full sidebar + case-view ports in Stage 4.
 const title = 'Codex — 3D Design Studio · Hard Surface & Product Visualization';
 const description =
   'Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.';
+
+const works = await getAllWorks();
+const featured = await getFeaturedWorks();
+const categories = await getCategoriesInUse();
 ---
 
 <BaseLayout title={title} description={description}>
-  <main id="main" class="main-area" style="padding: var(--space-12) var(--space-8); display: grid; gap: var(--space-6); max-width: var(--content-text);">
+  <main
+    id="main"
+    class="main-area"
+    style="padding: var(--space-12) var(--space-8); display: grid; gap: var(--space-8); max-width: 960px;"
+  >
     <header style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);">
       <h1 style="font-size: var(--text-2xl); margin: 0;">Codex v2 — Astro scaffold</h1>
       <ThemeToggle />
     </header>
 
-    <p>Stage 2 placeholder. BaseLayout, GrainOverlay, Cursor, Preloader, ThemeToggle wired.</p>
     <p class="mono" style="color: var(--color-text-muted);">
-      FONT-MONO · JetBrains Mono · 0123456789 · ID-007
+      STAGE 3 · CONTENT COLLECTION · {works.length} works · {categories.length} categories
     </p>
 
-    <section style="display: grid; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--color-divider); border-radius: var(--radius-sm); background: var(--color-surface);">
-      <span class="mono" style="color: var(--color-text-faint); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.12em;">readout</span>
-      <strong style="font-family: var(--font-display); font-weight: 500;">Theme persists in `codex-theme` cookie.</strong>
-      <span style="color: var(--color-text-muted); font-size: var(--text-sm);">Reload, navigate, toggle — single &lt;meta theme-color&gt; updates in place.</span>
+    <section style="display: grid; gap: var(--space-2);">
+      <h2 style="font-size: var(--text-lg); margin: 0;">Featured</h2>
+      <ul style="display: grid; gap: var(--space-2); list-style: none; padding: 0;">
+        {featured.map((w) => (
+          <li class="mono" style="color: var(--color-text-muted); font-size: var(--text-sm);">
+            <span style="color: var(--color-accent-text);">{String(w.data.order ?? '?').padStart(2, '0')}</span>
+            {' · '}
+            <strong style="font-family: var(--font-display); font-weight: 500; color: var(--color-text);">{w.data.title}</strong>
+            {' · '}{w.data.year}{' · '}{w.data.category.join(' / ')}
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section style="display: grid; gap: var(--space-2);">
+      <h2 style="font-size: var(--text-lg); margin: 0;">All works (sidebar order)</h2>
+      <ul style="display: grid; gap: var(--space-1); list-style: none; padding: 0;">
+        {works.map((w) => (
+          <li class="mono" style="color: var(--color-text-muted); font-size: var(--text-sm);">
+            <span style="color: var(--color-accent-text);">{String(w.data.order ?? '?').padStart(2, '0')}</span>
+            {' · '}{w.data.title}{' · '}{w.data.gallery.length}{' slides'}
+            {w.data.gameAsset && <span style="color: var(--color-primary);"> · game</span>}
+            {w.data.cadPlaceholder && <span style="color: var(--color-text-faint);"> · cad-placeholder</span>}
+          </li>
+        ))}
+      </ul>
     </section>
   </main>
 </BaseLayout>
