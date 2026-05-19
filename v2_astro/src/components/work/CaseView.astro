@@ -1,0 +1,175 @@
+---
+/**
+ * CaseView — shell around CaseScroll. Holds the case-view__header
+ * (title + meta + tabs + nav + COPY LINK), the case-progress strip,
+ * and inert placeholders for the 3D / Blueprints panels (Stage 6 / 7).
+ *
+ * Stage 5b markup parity with codex/index.html lines 682-826 — tab
+ * switching, nav arrows, COPY LINK click handling, progress bar and
+ * hash routing all live in src/scripts/case-view.ts in Stage 5c.
+ * Counter renders "1 / N" statically; live navigation comes next.
+ */
+import type { WorkEntry } from '@lib/works';
+import CaseScroll from './CaseScroll.astro';
+
+export interface Props {
+  work: WorkEntry;
+  /** 1-based position in the (filtered) sidebar list. Pre-rendered for SSR;
+   *  Stage 5c sidebar.ts will keep it in sync as filters change. */
+  index: number;
+  /** Total number of cards in the sidebar (filtered or full). */
+  total: number;
+}
+
+const { work, index, total } = Astro.props;
+const d = work.data;
+// Primary category for the eyebrow — same Game-Asset-aware pick as WorkCard.
+const primaryCat = d.category.filter((c) => c !== 'Game Asset')[0] ?? d.category[0]!;
+---
+
+<section class="case-view" id="case-view" aria-label="Project case study">
+  <div class="case-view__header">
+    <div class="case-view__left">
+      <div class="case-view__meta">
+        <span class="case-view__cat" id="case-cat">{primaryCat}</span>
+        <span class="case-view__sep" aria-hidden="true">·</span>
+        <span class="case-view__year" id="case-year">{d.year}</span>
+      </div>
+      <h1 class="case-view__title" id="case-title">{d.title}</h1>
+    </div>
+
+    <div class="case-view__actions">
+      <div class="case-view__tabs" role="tablist" aria-label="Visualization mode">
+        <button
+          type="button"
+          class="case-tab case-tab--active"
+          id="case-tab-2d"
+          data-viz="2d"
+          role="tab"
+          aria-selected="true"
+          aria-controls="case-scroll"
+          data-cursor="link"
+        >2D</button>
+        <button
+          type="button"
+          class="case-tab"
+          id="case-tab-3d"
+          data-viz="3d"
+          role="tab"
+          aria-selected="false"
+          aria-controls="case-3d"
+          title="Interactive 3D viewer"
+          data-cursor="link"
+        >3D</button>
+        <button
+          type="button"
+          class="case-tab"
+          id="case-tab-bp"
+          data-viz="blueprints"
+          role="tab"
+          aria-selected="false"
+          aria-controls="case-blueprints"
+          title="Technical blueprint view"
+          data-cursor="link"
+        >Blueprints</button>
+
+        <div class="case-nav" role="group" aria-label="Project navigation">
+          <button
+            type="button"
+            class="case-nav__btn"
+            id="case-prev"
+            aria-label="Previous project"
+            title="Previous project (←)"
+            data-cursor="link"
+          >
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path d="M12.5 4L7 10l5.5 6" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+          <span class="case-nav__counter" id="case-counter" aria-live="polite">
+            {index} / {total}
+          </span>
+          <button
+            type="button"
+            class="case-nav__btn"
+            id="case-next"
+            aria-label="Next project"
+            title="Next project (→)"
+            data-cursor="link"
+          >
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path d="M7.5 4L13 10l-5.5 6" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="case-share case-share--desktop"
+          id="case-share-desktop"
+          aria-label="Copy link to this project"
+          title="Copy link to this project"
+          data-cursor="link"
+        >
+          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <path d="M8 11.5a3 3 0 0 0 4.24 0l2.76-2.76a3 3 0 0 0-4.24-4.24L9.5 5.76" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M12 8.5a3 3 0 0 0-4.24 0L5 11.26a3 3 0 0 0 4.24 4.24l1.26-1.26" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+          <span class="case-share__label">COPY LINK</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="case-progress" aria-hidden="true" id="case-progress">
+    <div class="case-progress__bar" id="case-progress-bar"></div>
+  </div>
+
+  <CaseScroll work={work} />
+
+  {/* Stage 6 fills these panels — for now they exist hidden so the tab buttons
+      can switch [hidden]/[aria-selected] without missing target nodes. */}
+  <div class="case-3d" id="case-3d" hidden aria-hidden="true">
+    <div class="case-3d__canvas" id="case-3d-canvas">
+      <div class="case-3d__placeholder mono" aria-hidden="true">
+        <span>3D viewer · Stage 6</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="case-blueprints" id="case-blueprints" hidden aria-hidden="true">
+    <div class="case-blueprints__canvas" id="case-blueprints-canvas">
+      <div class="case-blueprints__placeholder mono" aria-hidden="true">
+        <span>Blueprints · Stage 7</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  /* Minimal placeholder styling for the inert 3D / Blueprints panels so the
+     tab switch in Stage 5c has something readable behind it. */
+  .case-3d__placeholder,
+  .case-blueprints__placeholder {
+    flex: 1;
+    display: grid;
+    place-content: center;
+    gap: var(--space-2);
+    text-align: center;
+    font-size: var(--text-xs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+  }
+  .case-3d,
+  .case-blueprints {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .case-3d[hidden],
+  .case-blueprints[hidden] {
+    display: none;
+  }
+</style>

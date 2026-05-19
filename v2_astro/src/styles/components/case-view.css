@@ -1,8 +1,10 @@
 /* ═══════════════════════════════════
-   CASE-VIEW (Stage 5a) — case-scroll + rows + items + text blocks.
-   Ported from codex/css/portfolio-case.css line 29-49 (container)
-   plus 331-741 (scroll + rows + items + text).
-   Tabs / nav / progress / share / 3D / blueprints land in Stage 5b+.
+   CASE-VIEW (Stage 5a + 5b) — container, header, tabs, nav, share,
+   progress, scroll, rows, items, text blocks.
+   Ported from codex/css/portfolio-case.css lines 29-49 (container),
+   54-326 (header + tabs + nav + share + progress), 331-741 (scroll +
+   rows + items + text).
+   3D + blueprints panels land in Stage 6/7.
 ═══════════════════════════════════ */
 
 /* ── Case-view container ─────────────────────────────────────────── */
@@ -26,6 +28,284 @@
     padding: var(--space-8) var(--space-8) 0;
     gap: var(--space-3);
   }
+}
+
+/* ── Header + tabs + nav + share + progress ──────────────────────── */
+/* ─── HEADER ─── */
+/* v0.15.3 [П3] — desktop: align-items flex-start → flex-end.
+   actions (tabs + case-nav) прижимаются к нижнему краю title. */
+.case-view__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-shrink: 0;
+}
+.case-view__left { min-width: 0; }
+.case-view__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+}
+.case-view__cat {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent-text);
+}
+.case-view__sep {
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+.case-view__year {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  letter-spacing: 0.06em;
+}
+.case-view__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+/* v0.21.4 — Desktop ≥1024px: tightening case-view header.
+   Размещено ПОСЛЕ базового правила сверху, чтобы CSS cascade override
+   действительно сработал (предыдущие v0.21.2 / v0.21.3 были выше базы
+   в файле и проигрывали по source-order при равной специфичности).
+
+   .case-view__header уже align-items: flex-end — buttons row выровнен
+   по нижнему краю flex-контейнера. Только line-height: 1 (вместо 1.1)
+   убирает ~5px line-leading ниже descender'а h1. Этого достаточно:
+   buttons border-bottom попадает в район visual descender title,
+   gap до case-progress separator остаётся комфортным ~14-15px (через
+   case-view gap: var(--space-4)).
+
+   v0.21.5 — Откат margin-bottom: -0.45em (был слишком aggressive,
+   схлопывал header так что title визуально упирался в separator,
+   особенно на cold start без SplitText когда h1 element height равен
+   font-size без extra padding'а от .case-title__word). Tablet/mobile
+   блоки ниже не задеваем. */
+@media (min-width: 1024px) {
+  .case-view__title {
+    line-height: 1;
+  }
+}
+
+/* ─── CASE VIEW ACTIONS (v0.10, v0.15.2 [B2]) ───
+   v0.15.2 [B2]: Contact pill ушла в .site-footer, case-view__actions теперь
+   содержит только .case-view__tabs (внутри которого табы + case-nav).
+   Одиночный дочерний блок — flex-direction не критичен. */
+.case-view__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* ─── CASE NAV (v0.10, v0.14.0 [11]): стрелки prev/next + счётчик ───
+   v0.14.0 [11]: кнопки 28→36px, counter font-size: text-sm (был text-xs).
+   Сама оболочка .case-nav подросла с ~34→~44px (visual weight на линии с .case-tab 32px).
+   Свет-подсветка при hover уплотнена (bg=surface-offset вместо surface-2) для чёткого feedback. */
+/* v0.15.2 [B1]: case-nav перенесён в .case-view__tabs.
+   Высота 32px = .case-tab (было ~44px с паддингом). Кнопки 30×30 внутри (было 36×36). */
+.case-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-tag);
+  background: transparent;
+}
+.case-nav__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-tag) - 2px);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    color 160ms var(--ease-out),
+    background 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+/* v0.15.1 [1.3] — hover только для fine pointer (desktop мышь). На touch-устройствах
+   без этого ограничения после tap :hover «залипает» (#case-prev показывает bg,
+   а #case-next — нет). Итог: обе кнопки на mobile выглядят одинаково в default или tap. */
+@media (hover: hover) and (pointer: fine) {
+  .case-nav__btn:hover:not(:disabled) {
+    color: var(--color-text);
+    background: var(--color-surface-offset);
+  }
+}
+.case-nav__btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.case-nav__btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.case-nav__btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.case-nav__btn svg {
+  display: block;
+  /* v0.15.2 [B1] — svg шевроны 18→14px под новые 30×28 кнопки. */
+  width: 14px;
+  height: 14px;
+}
+.case-nav__counter {
+  font-family: var(--font-body);
+  /* v0.15.2 [B1] — text-sm→text-xs для паритета с лейблами .case-tab. */
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ─── 2D / 3D / BLUEPRINTS TABS + CASE NAV (v0.15.2 [B1]) ───
+   v0.15.2 [B1]: .case-nav перемещён внутрь .case-view__tabs, после Blueprints.
+   Desktop: выравнивание по правому краю (flex-end), case-nav 32px (= .case-tab).
+   Mobile: вся группа от края до края, gap 8px. См. @media max-width:767 ниже. */
+.case-view__tabs {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+.case-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-tag);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    background 160ms var(--ease-out);
+}
+/* v0.8.5: .case-tab--soon, .case-tab__badge удалены — классы не
+   присутствуют в DOM (3 таба 2D/3D/Blueprints всегда активны).
+   :not(.case-tab--soon) из :hover тоже убран. */
+.case-tab:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+.case-tab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.case-tab--active {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+  background: var(--color-primary-highlight);
+}
+
+/* ═══════════════════════════════════
+   v0.2.3 [П2] — CASE SHARE (Copy link to case)
+   Две кнопки: .case-share--desktop (в .case-view__tabs) и
+   .case-share--mobile (в .case-mobile-bar__row). Каждая видима
+   только на своём brekpoint. Паритет стиля с .case-tab.
+═══════════════════════════════════ */
+/* v0.7.12 [UX] — accent: border + icon = --color-primary; text = --color-text.
+   WCAG: text=color-text сохраняет ≥4.5:1 на обоих темах; border+icon в primary
+   проходят non-text AA (≥3:1). Hover усиливает primary до --color-primary-hover
+   и добавляет --color-primary-highlight tint. */
+.case-share {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-tag);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    background 160ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .case-share:hover {
+    color: var(--color-text);
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-highlight);
+  }
+}
+.case-share:active { transform: scale(0.97); }
+.case-share:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.case-share svg { flex-shrink: 0; }
+.case-share--copied {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-primary-highlight);
+}
+
+/* Desktop: показываем .case-share--desktop в ряду с табами;
+   mobile-версия скрыта в мобильном bar'е. */
+.case-share--mobile { display: none; }
+.case-share--desktop { display: inline-flex; }
+
+/* ═══════════════════════════════════
+   PROGRESS BAR — тонкая полоса НАД маской
+═══════════════════════════════════ */
+.case-progress {
+  flex-shrink: 0;
+  height: 2px;
+  background: var(--color-divider);
+  border-radius: 1px;
+  overflow: hidden;
+  position: relative;
+}
+.case-progress__bar {
+  height: 100%;
+  width: 0%;
+  background: var(--color-primary);
+  border-radius: 1px;
+  transition: width 120ms linear;
+  will-change: width;
 }
 
 /* ── Scroll + rows + items + text ────────────────────────────────── */
