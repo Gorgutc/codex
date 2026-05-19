@@ -262,3 +262,64 @@
 @media (prefers-reduced-motion: reduce) {
   .case-blueprints svg * { animation: none !important; }
 }
+
+/* ── Pager overlay (Stage 7b) ────────────────────────────────────── */
+/* Wrapper itself is layout-inert (display: contents): the inner buttons
+   + counter use position:absolute and naturally target the nearest
+   positioned ancestor — .case-blueprints__canvas (position: relative).
+   Mirrors the legacy DOM where the pager was a transparent group, not
+   a framed overlay. */
+.case-blueprints__pager {
+  display: contents;
+}
+.case-blueprints__pager[hidden] { display: none; }
+.case-blueprints__pager-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: var(--color-fs-close-bg);
+  border: 1px solid var(--color-fs-close-border);
+  border-radius: 3px;
+  color: var(--color-fs-close-text);
+  cursor: pointer;
+  z-index: 4;
+  transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out), opacity 200ms var(--ease-out);
+}
+.case-blueprints__pager-btn--prev { left: 16px; }
+.case-blueprints__pager-btn--next { right: 16px; }
+@media (hover: hover) and (pointer: fine) {
+  .case-blueprints__pager-btn:hover {
+    color: var(--color-fs-close-text-hover);
+    border-color: var(--color-fs-close-border-hover);
+  }
+}
+.case-blueprints__pager-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.case-blueprints__pager-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.case-blueprints__pager-counter {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--color-text);
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  z-index: 3;
+}

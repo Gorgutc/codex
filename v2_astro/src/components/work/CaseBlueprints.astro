@@ -1,14 +1,12 @@
 ---
 /**
- * CaseBlueprints (Stage 7a) — renders a single SVG page of the
- * technical drawing for the current work.  Multi-page navigation +
- * Export-SVG button + fullscreen land in Stages 7b/7c.
+ * CaseBlueprints (Stages 7a + 7b) — technical-drawing tab for the
+ * current work.  Renders every page from BLUEPRINT_META (1..N) inside
+ * the canvas; only the first carries `.is-current` on mount.  Stage 7b
+ * adds the pager overlay (prev/next + N/total counter) and the runtime
+ * wiring lives in src/scripts/case-blueprints.ts.
  *
- * The grid background lives on .case-blueprints__page-canvas via the
- * CSS tokens (--bp-grid-minor / --bp-grid-major), so the SVG itself
- * carries only the parts / dimensions / callouts / view-tag in the
- * runtime path.  Title block is an HTML overlay so it stays inside the
- * canvas bounds even on letterboxed widescreen displays.
+ * Export-SVG button + fullscreen view land in Stage 7c.
  */
 import type { WorkEntry } from '@lib/works';
 import { buildBlueprintSVG, getBlueprintPages } from '@lib/blueprint';
@@ -21,12 +19,8 @@ const { work } = Astro.props;
 const d = work.data;
 
 const pages = getBlueprintPages(d.slug);
-const meta = pages[0]; // Stage 7a — first page only.
 const pageCount = pages.length;
-const svg = meta
-  ? buildBlueprintSVG(d.slug, 0, { title: d.title, year: d.year })
-  : null;
-const scale = meta ? `1:${meta.unit === 'cm' ? '4' : '8'}` : '';
+const scaleFor = (unit: 'mm' | 'cm') => `1:${unit === 'cm' ? '4' : '8'}`;
 ---
 
 <div
@@ -36,35 +30,88 @@ const scale = meta ? `1:${meta.unit === 'cm' ? '4' : '8'}` : '';
   aria-label="Project blueprint"
   hidden
 >
-  <div class="case-blueprints__canvas" id="case-blueprints-canvas">
-    {meta && svg ? (
-      <div
-        class="case-blueprints__page is-current"
-        data-bp-page="0"
-        data-bp-pages={pageCount}
-      >
-        <div class="case-blueprints__page-canvas" set:html={svg} />
-        <div class="case-blueprints__title-block" aria-hidden="true">
-          <div class="case-blueprints__title-block-top">
-            <span class="case-blueprints__title-block-key">Project</span>
-            <span class="case-blueprints__title-block-project">{d.title}</span>
-          </div>
-          <div class="case-blueprints__title-block-bottom">
-            <div class="case-blueprints__title-block-cell">
-              <span class="case-blueprints__title-block-key">Drawing No</span>
-              <span class="case-blueprints__title-block-val">{meta.no}</span>
+  <div
+    class="case-blueprints__canvas"
+    id="case-blueprints-canvas"
+    data-bp-total={pageCount}
+  >
+    {pageCount > 0 ? (
+      <Fragment>
+        {pages.map((meta, idx) => {
+          const svg = buildBlueprintSVG(d.slug, idx, {
+            title: d.title,
+            year: d.year,
+          });
+          return (
+            <div
+              class={`case-blueprints__page${idx === 0 ? ' is-current' : ''}`}
+              data-bp-page={idx}
+              data-bp-pages={pageCount}
+              aria-hidden={idx === 0 ? 'false' : 'true'}
+            >
+              <div class="case-blueprints__page-canvas" set:html={svg ?? ''} />
+              <div class="case-blueprints__title-block" aria-hidden="true">
+                <div class="case-blueprints__title-block-top">
+                  <span class="case-blueprints__title-block-key">Project</span>
+                  <span class="case-blueprints__title-block-project">{d.title}</span>
+                </div>
+                <div class="case-blueprints__title-block-bottom">
+                  <div class="case-blueprints__title-block-cell">
+                    <span class="case-blueprints__title-block-key">Drawing No</span>
+                    <span class="case-blueprints__title-block-val">{meta.no}</span>
+                  </div>
+                  <div class="case-blueprints__title-block-cell">
+                    <span class="case-blueprints__title-block-key">Scale</span>
+                    <span class="case-blueprints__title-block-val">{scaleFor(meta.unit)}</span>
+                  </div>
+                  <div class="case-blueprints__title-block-cell">
+                    <span class="case-blueprints__title-block-key">Date</span>
+                    <span class="case-blueprints__title-block-val">{d.year ?? '—'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="case-blueprints__title-block-cell">
-              <span class="case-blueprints__title-block-key">Scale</span>
-              <span class="case-blueprints__title-block-val">{scale}</span>
-            </div>
-            <div class="case-blueprints__title-block-cell">
-              <span class="case-blueprints__title-block-key">Date</span>
-              <span class="case-blueprints__title-block-val">{d.year ?? '—'}</span>
-            </div>
-          </div>
+          );
+        })}
+
+        <div
+          class="case-blueprints__pager"
+          id="case-blueprints-pager"
+          hidden={pageCount <= 1}
+          role="group"
+          aria-label="Blueprint pages"
+        >
+          <button
+            type="button"
+            class="case-blueprints__pager-btn case-blueprints__pager-btn--prev"
+            id="case-blueprints-pager-prev"
+            aria-label="Previous blueprint"
+            aria-controls="case-blueprints-canvas"
+            data-cursor="link"
+          >
+            <svg viewBox="0 0 18 18" aria-hidden="true">
+              <path d="M11 4L5 9l6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="case-blueprints__pager-btn case-blueprints__pager-btn--next"
+            id="case-blueprints-pager-next"
+            aria-label="Next blueprint"
+            aria-controls="case-blueprints-canvas"
+            data-cursor="link"
+          >
+            <svg viewBox="0 0 18 18" aria-hidden="true">
+              <path d="M7 4l6 5-6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <span
+            class="case-blueprints__pager-counter"
+            id="case-blueprints-pager-counter"
+            aria-live="polite"
+          >1 / {pageCount}</span>
         </div>
-      </div>
+      </Fragment>
     ) : (
       <div class="case-blueprints__placeholder mono" aria-hidden="true">
         <span>Blueprint data pending</span>
@@ -74,7 +121,6 @@ const scale = meta ? `1:${meta.unit === 'cm' ? '4' : '8'}` : '';
 </div>
 
 <style is:global>
-  /* Inline fallback for the rare slug with no blueprint metadata. */
   .case-blueprints__placeholder {
     flex: 1;
     display: grid;

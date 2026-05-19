@@ -303,3 +303,6 @@ document.addEventListener('astro:page-load', () => {
   init();
   syncActiveCard();
 });
+
+// Force ES-module semantics so top-level declarations stay file-scoped.
+export {};
