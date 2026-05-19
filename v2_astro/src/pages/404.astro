@@ -1,0 +1,160 @@
+---
+/**
+ * /404.astro — industrial blueprint look matching the brand.  Astro 5
+ * uses this file as the catch-all for any URL the static build didn't
+ * generate. Netlify also serves dist/404.html for unmatched routes via
+ * its default static-host behaviour.
+ *
+ * Layout:
+ *   • Big "404" set in JetBrains Mono on top of a subtle blueprint
+ *     grid (re-uses --bp-grid-* tokens from tokens.css)
+ *   • Technical readout: requested URL (filled in client-side from
+ *     window.location.pathname) + ISO timestamp
+ *   • Back-to-portfolio CTA matches the legacy .top-pill--free style
+ *
+ * No JSON-LD here — 404 is intentionally noindex via robots meta.
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="404 — Codex Studio"
+  description="The page you requested could not be found."
+>
+  <main class="not-found" id="main">
+    <div class="not-found__grid" aria-hidden="true"></div>
+
+    <section class="not-found__panel">
+      <p class="not-found__eyebrow mono">SYSTEM · TRACE</p>
+      <h1 class="not-found__code mono">ERROR 404</h1>
+      <p class="not-found__lead">No drawing found at the requested coordinates.</p>
+
+      <dl class="not-found__readout mono">
+        <div class="not-found__readout-row">
+          <dt>URL</dt>
+          <dd id="nf-url">—</dd>
+        </div>
+        <div class="not-found__readout-row">
+          <dt>Status</dt>
+          <dd>404 · Not Found</dd>
+        </div>
+        <div class="not-found__readout-row">
+          <dt>Timestamp</dt>
+          <dd id="nf-ts">—</dd>
+        </div>
+      </dl>
+
+      <div class="not-found__actions">
+        <a class="top-pill top-pill--free" href="/" data-cursor="link">
+          <span class="top-pill__label">Back to portfolio</span>
+        </a>
+        <a class="top-pill top-pill--contact" href="/free-assets/" data-cursor="link">
+          <span class="top-pill__label">Free Assets</span>
+        </a>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style is:global>
+  .not-found {
+    position: relative;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: var(--space-12) var(--space-6);
+    overflow: hidden;
+  }
+  .not-found__grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, var(--bp-grid-minor) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--bp-grid-minor) 1px, transparent 1px),
+      linear-gradient(to right, var(--bp-grid-major) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--bp-grid-major) 1px, transparent 1px);
+    background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+    background-position: 0 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .not-found__panel {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: var(--space-6);
+    max-width: 560px;
+    width: 100%;
+    text-align: center;
+  }
+  .not-found__eyebrow {
+    margin: 0;
+    font-size: var(--text-xs);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+  }
+  .not-found__code {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: clamp(3rem, 12vw, 7rem);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--color-text);
+    line-height: 1;
+  }
+  .not-found__lead {
+    margin: 0;
+    font-size: var(--text-lg);
+    color: var(--color-text-muted);
+  }
+  .not-found__readout {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-6);
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    text-align: left;
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+  }
+  .not-found__readout-row {
+    display: grid;
+    grid-template-columns: minmax(96px, 0.4fr) 1fr;
+    gap: var(--space-3);
+    align-items: baseline;
+  }
+  .not-found__readout dt {
+    color: var(--color-text-faint);
+    text-transform: uppercase;
+  }
+  .not-found__readout dd {
+    margin: 0;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+  }
+  .not-found__actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>
+
+<script>
+  // Fill in the requested URL + timestamp on mount. Both are user-side
+  // values; server-rendered HTML carries em-dashes as placeholders so
+  // the page reads correctly even with JS disabled.
+  function fillReadout() {
+    const url = document.getElementById('nf-url');
+    const ts = document.getElementById('nf-ts');
+    if (url) url.textContent = window.location.pathname + window.location.search;
+    if (ts) {
+      const now = new Date();
+      ts.textContent = now.toISOString().replace('T', ' ').replace('Z', ' UTC');
+    }
+  }
+  fillReadout();
+  document.addEventListener('astro:page-load', fillReadout);
+</script>

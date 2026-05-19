@@ -14,7 +14,13 @@ import type { GetStaticPaths } from 'astro';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Sidebar from '@components/layout/Sidebar.astro';
 import CaseView from '@components/work/CaseView.astro';
-import { getAllWorks } from '@lib/works';
+import { getAllWorks, getFeaturedWorks } from '@lib/works';
+import type { JsonLd } from '@layouts/BaseLayout.astro';
+import {
+  getOrganizationSchema,
+  getWebSiteSchema,
+  getFeaturedItemListSchema,
+} from '@lib/schemas';
 
 export const getStaticPaths = (async () => {
   const works = await getAllWorks();
@@ -36,7 +42,7 @@ const description = d.description;
 const ogImage = '/img/og-image.jpg';
 
 // CreativeWork JSON-LD for the case page.
-const schema = {
+const creativeWork: JsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CreativeWork',
   name: d.title,
@@ -47,6 +53,27 @@ const schema = {
   dateCreated: String(d.year),
   ...(d.specs?.tools && { producer: d.specs.tools.join(' / ') }),
 };
+
+// Sitewide schemas + featured ItemList on the redirect target (the work
+// that `/` redirects to is the canonical home for crawler indexing).
+const schemas: JsonLd[] = [
+  getOrganizationSchema(),
+  getWebSiteSchema(),
+  creativeWork,
+];
+const isRedirectTarget = d.slug === 'orbital-mk-ii';
+if (isRedirectTarget) {
+  const featured = await getFeaturedWorks(4);
+  schemas.push(
+    getFeaturedItemListSchema(
+      featured.map((w) => ({
+        slug: w.data.slug,
+        title: w.data.title,
+        about: w.data.category.filter((c) => c !== 'Game Asset').join(' · '),
+      })),
+    ),
+  );
+}
 ---
 
 <BaseLayout
@@ -55,7 +82,7 @@ const schema = {
   ogImage={ogImage}
   ogImageAlt={`${d.title} — Codex Studio case study`}
   ogType="article"
-  schemas={[schema]}
+  schemas={schemas}
 >
   <div class="layout">
     <Sidebar />

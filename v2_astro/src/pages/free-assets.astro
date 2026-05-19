@@ -17,6 +17,11 @@ import {
   FA_DATA,
   FA_CATEGORY_LABELS,
 } from '@data/free-assets';
+import type { JsonLd } from '@layouts/BaseLayout.astro';
+import {
+  getOrganizationSchema,
+  getWebSiteSchema,
+} from '@lib/schemas';
 
 const activeTag = 'hard-surface' as const;
 const initialLabel = FA_CATEGORY_LABELS[activeTag];
@@ -32,7 +37,7 @@ const description =
   'Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0 / CC-BY.';
 
 const ogImage = '/img/og-free-assets.jpg';
-const schema = {
+const webPage: JsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebPage',
   name: 'Free 3D Assets — Codex Studio',
@@ -41,6 +46,7 @@ const schema = {
   primaryImageOfPage: ogImage,
   publisher: { '@type': 'Organization', name: 'Codex Studio' },
 };
+const schemas: JsonLd[] = [getOrganizationSchema(), getWebSiteSchema(), webPage];
 ---
 
 <BaseLayout
@@ -49,7 +55,7 @@ const schema = {
   ogImage={ogImage}
   ogImageAlt="Codex Studio — Free 3D Assets"
   ogType="website"
-  schemas={[schema]}
+  schemas={schemas}
 >
   <div class="layout">
     <FreeAssetsSidebar activeTag={activeTag} />

@@ -1,0 +1,62 @@
+# Codex Studio
+
+> Remote 3D design studio focused on hard surface modeling, product
+> visualization, and game-ready assets. Built natively in Blender.
+> Available for clients worldwide.
+
+## About
+
+Codex is a small, detail-driven 3D studio. The work spans two
+pillars: **product / industrial visualization** for clients, and
+**hard-surface assets** for games and personal R&D.
+
+- Disciplines: hard surface 3D, product viz, game-ready assets,
+  look-dev, lighting, shading.
+- Toolchain: Blender (primary), Substance, DaVinci.
+- Output formats: rendered stills, orthographic blueprints,
+  interactive 3D (GLTF), short motion shots.
+- Engagement: remote, global, project-based.
+
+## Portfolio
+
+The homepage is a single-page portfolio. Each case ships three
+views:
+
+1. **2D** — final renders, process imagery, captions.
+2. **3D** — interactive GLTF viewer (orbit, zoom, presets).
+3. **Blueprint** — orthographic technical view, exportable as SVG.
+
+### Featured works
+
+- **Orbital Mk.II** — hard surface, game-ready. Personal.
+- **Corten Series** — product visualization, industrial design. Client.
+- **Apex Frame** — hard surface, frame system. Personal.
+- **Nightshard** — hard surface, game asset. Personal.
+
+Full list: see the sidebar on https://codex.promo/
+
+## Technical
+
+- Hand-written HTML + CSS + vanilla JavaScript. No framework.
+- Typography: Clash Display + General Sans (Fontshare).
+- Animation: GSAP 3 (ScrollTrigger, SplitText) via CDN.
+- Accessibility: WCAG 2.1 AA, axe-core clean, `prefers-reduced-motion`
+  honored, 44px touch targets.
+- Sitemap: https://codex.promo/sitemap.xml
+- Robots: https://codex.promo/robots.txt
+
+## Contact
+
+- Telegram: https://t.me/WhiteCatWeb
+- ArtStation: https://www.artstation.com/REPLACE_WITH_REAL
+- Behance: https://www.behance.net/REPLACE_WITH_REAL
+
+## Usage permissions
+
+Crawling and indexing is allowed for public search engines and
+AI systems (see robots.txt). Attribution requested when quoting
+case texts or reusing imagery.
+
+## Last updated
+
+2026-04-19
