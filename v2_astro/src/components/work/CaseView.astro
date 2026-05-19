@@ -12,6 +12,7 @@
 import type { WorkEntry } from '@lib/works';
 import CaseScroll from './CaseScroll.astro';
 import CaseMobileBar from './CaseMobileBar.astro';
+import Case3D from './Case3D.astro';
 
 export interface Props {
   work: WorkEntry;
@@ -130,16 +131,9 @@ const primaryCat = d.category.filter((c) => c !== 'Game Asset')[0] ?? d.category
 
   <CaseScroll work={work} />
 
-  {/* Stage 6 fills these panels — for now they exist hidden so the tab buttons
-      can switch [hidden]/[aria-selected] without missing target nodes. */}
-  <div class="case-3d" id="case-3d" hidden aria-hidden="true">
-    <div class="case-3d__canvas" id="case-3d-canvas">
-      <div class="case-3d__placeholder mono" aria-hidden="true">
-        <span>3D viewer · Stage 6</span>
-      </div>
-    </div>
-  </div>
+  <Case3D work={work} />
 
+  {/* Stage 7 will replace this placeholder with the SVG blueprint canvas. */}
   <div class="case-blueprints" id="case-blueprints" hidden aria-hidden="true">
     <div class="case-blueprints__canvas" id="case-blueprints-canvas">
       <div class="case-blueprints__placeholder mono" aria-hidden="true">
@@ -150,9 +144,6 @@ const primaryCat = d.category.filter((c) => c !== 'Game Asset')[0] ?? d.category
 </section>
 
 <style is:global>
-  /* Minimal placeholder styling for the inert 3D / Blueprints panels so the
-     tab switch in Stage 5c has something readable behind it. */
-  .case-3d__placeholder,
   .case-blueprints__placeholder {
     flex: 1;
     display: grid;
@@ -164,14 +155,12 @@ const primaryCat = d.category.filter((c) => c !== 'Game Asset')[0] ?? d.category
     text-transform: uppercase;
     color: var(--color-text-faint);
   }
-  .case-3d,
   .case-blueprints {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
   }
-  .case-3d[hidden],
   .case-blueprints[hidden] {
     display: none;
   }

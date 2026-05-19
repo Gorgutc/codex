@@ -1,0 +1,492 @@
+/* ═══════════════════════════════════
+   CASE-3D (Stage 6) — <model-viewer> container, controls, info-panel.
+   Ported from codex/css/portfolio-case.css lines 1109-1530 +
+   1695-1755.  Fullscreen + light-dropdown collapse for tablet/mobile
+   land alongside Stage 8 polish.  See Stage 7 for blueprint CSS.
+═══════════════════════════════════ */
+
+.case-3d {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  padding: 12px 0 24px;
+}
+.case-3d[hidden] { display: none; }
+
+.case-3d__canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  background:
+    radial-gradient(ellipse at top, var(--color-3d-canvas-glow) 0%, transparent 70%),
+    var(--color-3d-canvas-bg);
+  overflow: hidden;
+}
+
+/* <model-viewer> заполняет контейнер */
+.case-3d__canvas model-viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  /* На мобильных — разрешаем вертикальную прокрутку, 3D крутим по X */
+  touch-action: pan-y;
+  --poster-color: transparent;
+  --progress-bar-color: var(--color-primary);
+  --progress-bar-height: 2px;
+}
+
+/* Плейсхолдер до загрузки <model-viewer>-скрипта или когда у кейса нет модели */
+.case-3d__fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: var(--space-5);
+  text-align: center;
+}
+.case-3d__fallback-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--color-text-faint);
+  opacity: 0.4;
+}
+.case-3d__fallback-title {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.case-3d__fallback-hint {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  max-width: 320px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Hint-плашка в углу с подсказкой по управлению */
+.case-3d__hint {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 3px;
+  background: var(--color-ctrl-bg);  /* v0.13.8.1 — токен, инверсируется light/dark */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+.case-3d__canvas.is-ready .case-3d__hint { opacity: 1; }
+
+/* v0.15.1 [1.5] — desktop видит RIGHT MOUSE · ROTATE, mobile — DRAG · ZOOM */
+.case-3d__hint--mobile { display: none; }
+
+/* v0.11.4 — на узких экранах контролы занимают весь bottom-row, hint переезжает наверх */
+@media (max-width: 640px) {
+  .case-3d__hint {
+    bottom: auto;
+    top: 12px;
+    left: 12px;
+  }
+  /* v0.15.1 [1.5] — инверсия видимости для mobile */
+  .case-3d__hint--desktop { display: none; }
+  .case-3d__hint--mobile { display: block; }
+}
+
+/* v0.11.1 — панель тогглов AUTO / INFO (правый нижний угол) */
+.case-3d__controls {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 240ms ease;
+  z-index: 2;
+}
+.case-3d__canvas.is-ready .case-3d__controls { opacity: 1; }
+
+.case-3d__ctrl {
+  /* v0.13.8.1 — фон из токена --color-ctrl-bg (инверсируется light/dark) */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--color-divider);
+  border-radius: 3px;
+  background: var(--color-ctrl-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.case-3d__ctrl::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.case-3d__ctrl:hover { color: var(--color-text); border-color: var(--color-text-muted); }
+.case-3d__ctrl:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.case-3d__ctrl.is-on { color: var(--color-primary); border-color: var(--color-primary); }
+.case-3d__ctrl.is-on::before {
+  background: var(--color-primary);
+  box-shadow: 0 0 6px var(--color-primary);
+}
+
+/* v0.11.2 — icon-only reset-кнопка: квадрат, без LED-точки, с pulse при клике
+   v0.15.2 [B5] — размер приведён к .case-3d__fs-btn: 32×32, svg 16×16.
+   v0.15.4 [П1] — desktop размер 32→36, эталон .case-3d__fs-btn. Mobile остаётся 36×36. */
+.case-3d__ctrl--icon {
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+}
+.case-3d__ctrl--icon::before { display: none; }
+.case-3d__ctrl-icon { width: 16px; height: 16px; display: block; }
+
+/* v0.7.7 [planshet-fix]: dual-text для AUTO/INFO кнопок.
+   .full виден на mobile (≤767) и desktop (≥1024) по дефолту.
+   .short ('AUTO' / 'INFO') показывается только на planshet — см.
+   @media (min-width: 768px) and (max-width: 1023px) ниже. */
+.case-3d__ctrl__txt-short { display: none; }
+
+.case-3d__ctrl--icon.is-pulse {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  animation: case-3d-pulse 520ms var(--ease-out, ease-out);
+}
+@keyframes case-3d-pulse {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+
+/* ══════════════════════════════════
+   v0.7.0 — Environment switcher (Studio / Outdoor / Dark) + Exposure slider.
+   Кнопки соединены в segmented control. Слайдер — в стиле существующих ctrl-кнопок.
+   Все цвета через токены (--color-divider, --color-primary, --color-ctrl-bg).
+   ══════════════════════════════════ */
+
+/* Группа Studio/Outdoor/Dark — соединены без gap, как segmented control */
+.case-3d__env-group {
+  display: inline-flex;
+  border: 1px solid var(--color-divider);
+  border-radius: 3px;
+  background: var(--color-ctrl-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+/* Внутри группы — снимаем индивидуальные рамки и LED-точки */
+.case-3d__ctrl--env {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 5px 10px;
+}
+.case-3d__ctrl--env::before { display: none; }
+.case-3d__ctrl--env + .case-3d__ctrl--env {
+  border-left: 1px solid var(--color-divider);
+}
+.case-3d__ctrl--env.is-on {
+  background: var(--color-primary-highlight);
+  color: var(--color-primary);
+  border-color: transparent; /* перекрыто bg, отдельной рамки на active не нужно */
+}
+.case-3d__ctrl--env:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* Exposure slider — лейбл + range-input в обёртке */
+.case-3d__expo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 3px;
+  background: var(--color-ctrl-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.case-3d__expo-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+.case-3d__expo-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 4px;
+  background: var(--color-divider);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.case-3d__expo-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: grab;
+  border: none;
+  transition: transform 160ms ease;
+}
+.case-3d__expo-input::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+.case-3d__expo-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: grab;
+  border: none;
+}
+.case-3d__expo-input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ══════════════════════════════════
+   v0.7.3 — Mobile/tablet light-dropdown.
+   На ≤1023px envGroup + expoWrap скрываются, lightDd видим.
+   На ≥1024px (desktop) — обратная ситуация: lightDd скрыт, envGroup + expoWrap видны.
+   Pattern референс: tags-dropdown__trigger из shared.css.
+   ══════════════════════════════════ */
+.case-3d__light-dd {
+  position: relative;
+  display: none; /* По умолчанию скрыто (показывается только на ≤1023px через media query ниже) */
+}
+
+/* Trigger переиспользует .case-3d__ctrl + .case-3d__ctrl--icon — отдельных стилей не нужно */
+
+/* Active state — когда dropdown открыт */
+.case-3d__light-dd[data-open="true"] .case-3d__light-dd__trigger {
+  background: var(--color-primary-highlight);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Panel — выпадающая панель снизу-справа от trigger */
+.case-3d__light-dd__panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-ctrl-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-lg);
+  z-index: 10;
+  /* Защита от слишком широкой панели на маленьких экранах */
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+}
+.case-3d__light-dd__panel[hidden] {
+  display: none;
+}
+
+/* Section labels — Environment / Exposure */
+.case-3d__light-dd__section-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+/* Vertical list of env buttons */
+.case-3d__light-dd__env-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Каждая кнопка env в dropdown — занимает всю ширину панели */
+.case-3d__light-dd__env-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 160ms var(--ease-out, ease-out),
+              background 160ms var(--ease-out, ease-out),
+              border-color 160ms var(--ease-out, ease-out);
+}
+.case-3d__light-dd__env-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+.case-3d__light-dd__env-btn.is-on {
+  color: var(--color-primary);
+  background: var(--color-primary-highlight);
+  border-color: var(--color-primary);
+}
+.case-3d__light-dd__env-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Exposure slider в dropdown — те же стили что у desktop, но без обёртки .case-3d__expo */
+.case-3d__light-dd__expo-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--color-divider);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+.case-3d__light-dd__expo-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: grab;
+  border: none;
+  transition: transform 160ms ease;
+}
+.case-3d__light-dd__expo-input::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+.case-3d__light-dd__expo-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: grab;
+  border: none;
+}
+.case-3d__light-dd__expo-input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+
+/* ── Info panel (stats readout) ──────────────────────────────────── */
+.case-3d__info-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-width: 188px;
+  padding: 14px 16px 14px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 240ms ease, transform 240ms ease;
+  z-index: 2;
+}
+.case-3d__info-panel.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.case-3d__info-title {
+  margin: 0 0 10px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--color-divider);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+.case-3d__info-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.case-3d__info-table tr + tr td { padding-top: 7px; }
+.case-3d__info-label {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  text-align: left;
+  padding-right: 14px;
+  white-space: nowrap;
+}
+.case-3d__info-value {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--color-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════
+   MOBILE — case-view тоже вертикальный скролл, но tall → full width
+═══════════════════════════════════ */

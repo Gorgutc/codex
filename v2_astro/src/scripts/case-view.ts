@@ -57,6 +57,12 @@ function bindTabs(root: HTMLElement) {
       el.hidden = !isActive;
       el.setAttribute('aria-hidden', isActive ? 'false' : 'true');
     }
+    // Stage 6 — signal the lazy-loader to register <model-viewer> the first
+    // time the 3D tab is activated. case-3d.ts listens for this and runs
+    // ensureModelViewer() exactly once per session.
+    if (viz === '3d') {
+      document.dispatchEvent(new CustomEvent('codex:3d-open'));
+    }
   }
 
   for (const t of tabs) {

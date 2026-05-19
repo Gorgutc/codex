@@ -1,0 +1,165 @@
+---
+/**
+ * Case3D — interactive <model-viewer> panel for the current work.
+ *
+ * The custom element is rendered statically (Astro emits the <model-viewer>
+ * tag at build time). It behaves as an inert <HTMLElement> until the
+ * @google/model-viewer module registers the custom element via dynamic
+ * import on the first 3D-tab activation (src/scripts/case-3d.ts). This
+ * keeps the LCP cost off the 2D-default load.
+ *
+ * Markup mirrors the legacy case-3d panel from codex/index.html:816-823
+ * with the controls bar that main.js used to inject inline; in v2 we
+ * render the controls statically so they survive View Transitions and
+ * stay accessible without JS.
+ */
+import type { WorkEntry } from '@lib/works';
+
+export interface Props {
+  work: WorkEntry;
+}
+
+const { work } = Astro.props;
+const d = work.data;
+// Stage 3 migration drops external modelviewer.dev / Khronos placeholders;
+// for those works we fall back to the slug-keyed local GLB (every work has
+// /models/<slug>.glb shipped with Stage 6 asset copy).
+const modelSrc = d.modelSrc ?? `/models/${d.slug}.glb`;
+const hasModel = Boolean(modelSrc);
+---
+
+<div
+  class="case-3d"
+  id="case-3d"
+  role="region"
+  aria-label="Project 3D viewer"
+  hidden
+>
+  <div class="case-3d__canvas" id="case-3d-canvas" data-cursor="drag">
+    {hasModel ? (
+      <model-viewer
+        id="case-3d-mv"
+        src={modelSrc}
+        alt={`${d.title} — interactive 3D viewer`}
+        camera-controls
+        auto-rotate
+        rotation-per-second="20deg"
+        interaction-prompt="none"
+        environment-image="/hdr/studio.hdr"
+        skybox-image=""
+        exposure="1.0"
+        shadow-intensity="0.6"
+        shadow-softness="1.0"
+        tone-mapping="aces"
+        loading="lazy"
+        reveal="auto"
+      ></model-viewer>
+    ) : (
+      <div class="case-3d__fallback" aria-hidden="true">
+        <span class="case-3d__fallback-icon">3D</span>
+        <p class="case-3d__fallback-title">Model in production</p>
+        <p class="case-3d__fallback-hint">Final GLB drops alongside the case rebuild.</p>
+      </div>
+    )}
+
+    <div class="case-3d__hint" aria-hidden="true">
+      <span class="case-3d__hint--desktop">DRAG · ROTATE · WHEEL · ZOOM</span>
+      <span class="case-3d__hint--mobile">DRAG · PINCH · ZOOM</span>
+    </div>
+
+    <div class="case-3d__controls" role="group" aria-label="3D viewer controls">
+      <button
+        type="button"
+        class="case-3d__ctrl case-3d__ctrl--auto is-on"
+        data-3d-ctrl="auto-rotate"
+        aria-pressed="true"
+        data-cursor="link"
+      >
+        <span class="case-3d__ctrl__txt-full">Auto-rotate</span>
+        <span class="case-3d__ctrl__txt-short">Auto-R</span>
+      </button>
+
+      <div class="case-3d__env-group" role="group" aria-label="Environment">
+        <button
+          type="button"
+          class="case-3d__ctrl case-3d__ctrl--env is-on"
+          data-3d-env="studio"
+          aria-pressed="true"
+          data-cursor="link"
+        >Studio</button>
+        <button
+          type="button"
+          class="case-3d__ctrl case-3d__ctrl--env"
+          data-3d-env="outdoor"
+          aria-pressed="false"
+          data-cursor="link"
+        >Outdoor</button>
+        <button
+          type="button"
+          class="case-3d__ctrl case-3d__ctrl--env"
+          data-3d-env="dark"
+          aria-pressed="false"
+          data-cursor="link"
+        >Dark</button>
+      </div>
+
+      <button
+        type="button"
+        class="case-3d__ctrl case-3d__ctrl--info"
+        data-3d-ctrl="info"
+        aria-pressed="false"
+        aria-expanded="false"
+        aria-controls="case-3d-info"
+        data-cursor="link"
+      >
+        <span class="case-3d__ctrl__txt-full">Info</span>
+        <span class="case-3d__ctrl__txt-short">Info</span>
+      </button>
+    </div>
+
+    {d.specs && (
+      <aside
+        class="case-3d__info-panel"
+        id="case-3d-info"
+        aria-hidden="true"
+        role="complementary"
+      >
+        <h3 class="case-3d__info-title">{d.title} — model data</h3>
+        <table class="case-3d__info-table">
+          <tbody>
+            {d.specs.polycount && (
+              <tr>
+                <td class="case-3d__info-label">Triangles</td>
+                <td class="case-3d__info-value">{d.specs.polycount}</td>
+              </tr>
+            )}
+            {d.specs.vertices && (
+              <tr>
+                <td class="case-3d__info-label">Vertices</td>
+                <td class="case-3d__info-value">{d.specs.vertices}</td>
+              </tr>
+            )}
+            {d.specs.materials !== undefined && (
+              <tr>
+                <td class="case-3d__info-label">Materials</td>
+                <td class="case-3d__info-value">{d.specs.materials}</td>
+              </tr>
+            )}
+            {d.specs.textures && (
+              <tr>
+                <td class="case-3d__info-label">Textures</td>
+                <td class="case-3d__info-value">{d.specs.textures}</td>
+              </tr>
+            )}
+            {d.specs.software?.length && (
+              <tr>
+                <td class="case-3d__info-label">Software</td>
+                <td class="case-3d__info-value">{d.specs.software.join(' · ')}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </aside>
+    )}
+  </div>
+</div>
