@@ -30,6 +30,60 @@ const scaleFor = (unit: 'mm' | 'cm') => `1:${unit === 'cm' ? '4' : '8'}`;
   aria-label="Project blueprint"
   hidden
 >
+  {pageCount > 0 && (
+    <div class="case-blueprints__toolbar" role="group" aria-label="Blueprint actions">
+      <button
+        type="button"
+        class="bp-export-btn"
+        id="case-blueprints-export"
+        aria-label="Export current blueprint page as SVG"
+        title="Export current blueprint page as SVG"
+        data-cursor="link"
+      >
+        <svg
+          class="bp-export-btn__icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M10 3v10" />
+          <path d="M5.5 8.5L10 13l4.5-4.5" />
+          <path d="M4 16h12" />
+        </svg>
+        <span class="bp-export-btn__label">Export SVG</span>
+      </button>
+
+      <button
+        type="button"
+        class="case-blueprints__fs-btn"
+        id="case-blueprints-fs"
+        aria-label="Open current blueprint page fullscreen"
+        title="Fullscreen"
+        data-cursor="link"
+      >
+        <svg
+          class="case-blueprints__fs-btn__icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 7V3h4" />
+          <path d="M13 3h4v4" />
+          <path d="M17 13v4h-4" />
+          <path d="M7 17H3v-4" />
+        </svg>
+      </button>
+    </div>
+  )}
+
   <div
     class="case-blueprints__canvas"
     id="case-blueprints-canvas"
@@ -117,6 +171,33 @@ const scaleFor = (unit: 'mm' | 'cm') => `1:${unit === 'cm' ? '4' : '8'}`;
         <span>Blueprint data pending</span>
       </div>
     )}
+  </div>
+
+  {/* Fullscreen overlay — single hidden modal, populated on click via JS.
+      Sits inside .case-blueprints so it inherits the layout flex context;
+      shown by toggling the .is-fs-open class on this section. */}
+  <div
+    class="case-blueprints__fs-overlay"
+    id="case-blueprints-fs-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Blueprint fullscreen view"
+    hidden
+  >
+    <div class="case-blueprints__fs-backdrop" data-bp-fs-close aria-hidden="true"></div>
+    <button
+      type="button"
+      class="case-blueprints__fs-close"
+      id="case-blueprints-fs-close"
+      aria-label="Close fullscreen blueprint"
+      data-cursor="link"
+      data-bp-fs-close
+    >
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+        <path d="M5 5l10 10M15 5l-10 10" />
+      </svg>
+    </button>
+    <div class="case-blueprints__fs-canvas" id="case-blueprints-fs-canvas"></div>
   </div>
 </div>
 
