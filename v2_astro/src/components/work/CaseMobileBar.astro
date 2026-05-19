@@ -1,0 +1,51 @@
+---
+/**
+ * CaseMobileBar — sticky header shown only at <=767px, sits above
+ * the case-view content. Markup mirrors codex/index.html lines
+ * 653-678 (mini-logo + Back to projects + COPY LINK mobile).
+ *
+ * Visibility is driven entirely by media queries in case-view.css
+ * (the .case-mobile-bar selector is display:none on desktop).
+ * Interactive bindings (back, copy) live in src/scripts/case-view.ts.
+ */
+---
+
+<div class="case-mobile-bar" aria-hidden="false">
+  <div class="case-mobile-bar__row">
+    <a
+      href="/"
+      class="logo case-mobile-bar__logo"
+      aria-label="Codex — home"
+      data-cursor="link"
+    >
+      <span class="logo__text">CODEX</span>
+    </a>
+    <div class="case-mobile-bar__actions">
+      <button
+        type="button"
+        class="case-back"
+        id="case-back"
+        aria-label="Back to projects"
+        data-cursor="link"
+      >
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" width="16" height="16">
+          <path d="M12.5 4L7 10l5.5 6" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <span>Projects</span>
+      </button>
+      <button
+        type="button"
+        class="case-share case-share--mobile"
+        id="case-share-mobile"
+        aria-label="Copy link to this project"
+        data-cursor="link"
+      >
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" width="16" height="16">
+          <path d="M8 11.5a3 3 0 0 0 4.24 0l2.76-2.76a3 3 0 0 0-4.24-4.24L9.5 5.76" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M12 8.5a3 3 0 0 0-4.24 0L5 11.26a3 3 0 0 0 4.24 4.24l1.26-1.26" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <span class="case-share__label">COPY LINK</span>
+      </button>
+    </div>
+  </div>
+</div>

@@ -11,6 +11,7 @@
  */
 import type { WorkEntry } from '@lib/works';
 import CaseScroll from './CaseScroll.astro';
+import CaseMobileBar from './CaseMobileBar.astro';
 
 export interface Props {
   work: WorkEntry;
@@ -28,6 +29,8 @@ const primaryCat = d.category.filter((c) => c !== 'Game Asset')[0] ?? d.category
 ---
 
 <section class="case-view" id="case-view" aria-label="Project case study">
+  <CaseMobileBar />
+
   <div class="case-view__header">
     <div class="case-view__left">
       <div class="case-view__meta">

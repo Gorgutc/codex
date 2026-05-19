@@ -720,3 +720,400 @@
   color: var(--color-text-muted);
   line-height: 1.6;
 }
+
+/* ── Case-mobile-bar (sticky header at <=767px) ──────────────────── */
+/* ═══════════════════════════════════
+   MOBILE CASE BAR — лого + кнопка «назад»
+   Видно только на мобильном: <=767px.
+═══════════════════════════════════ */
+.case-mobile-bar { display: none; }
+
+@media (max-width: 767px) {
+  .case-mobile-bar {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--color-case-bar-bg);
+    /* v0.14.0 [9] — border убран: bar и body теперь в одном фоне, стыка нет. */
+    /* v0.14.0 [10] — вертикальный padding выровнен с десктопным site-header (var(--space-4)). */
+    padding: var(--space-4);
+    margin: 0 calc(var(--space-4) * -1) var(--space-2);
+  }
+  /* v0.15.1 [1.1] — в light фон прозрачный (#dedede00), нужен разделитель снизу.
+     В dark делитель не нужен: фон #212121 полностью сливается с body. */
+  :root[data-theme="light"] .case-mobile-bar,
+  body[data-theme="light"] .case-mobile-bar {
+    border-bottom: 1px solid var(--color-divider);
+  }
+  /* v0.15.1 [1.2] / v0.7.4 [P2] — на mobile .cards-toggle полностью скрыт: дублирует клик по карточке,
+     а в collapsed-стейте возврат к sidebar даёт .case-back в case-mobile-bar. Desktop не трогаем.
+     v0.7.4 [P2]: убран !important — он был избыточен. Каскад работает через source-order
+     (это правило идёт после .cards-toggle на 1114) + строка 1256 покрывает collapsed-кейс
+     через более высокую специфичность (body.cards-collapsed .cards-toggle, 0,2,1). */
+  .cards-toggle { display: none; }
+  .case-mobile-bar__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+  }
+  .case-mobile-bar__logo {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+  }
+  /* Лого в case-mobile-bar — совпадает с .logo__text в sidebar (text-xl, 0.14em) */
+  .case-mobile-bar__logo .logo__text {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--color-text);
+    line-height: 1;
+  }
+
+  /* В состоянии case-view (body.cards-collapsed на мобильном)
+     hamburger не нужен — его роль выполняет кнопка Back. */
+  body.cards-collapsed .cards-toggle { display: none; }
+  .case-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    /* v0.13.8.3 — offset (dark #3a3a3a / light #d4d4d4), чтобы кнопка была
+       видна на фоне case-mobile-bar (в light новый bar = #ebebeb). */
+    background: var(--color-surface-offset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-tag);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+  }
+  .case-back:hover { color: var(--color-text); border-color: var(--color-text-muted); }
+  .case-back:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .case-back svg { flex-shrink: 0; }
+
+  /* v0.6 [Z8] — mobile: desktop-кнопка share в header скрыта,
+     mobile-кнопка в case-mobile-bar показана рядом с .case-back.
+     Стиль: height 44px для touch, паритет с .case-back.
+     ВАЖНО: double-class selector .case-share.case-share--{mobile,desktop} —
+     specificity 2 классов > portfolio.css `.case-share--{mobile,desktop}` (1 класс).
+     В v0.5 правила .case-share--desktop в portfolio.css (вне @media) побеждали mobile
+     overrides здесь по cascade order → на mobile была видна desktop-кнопка. */
+  .case-share.case-share--desktop { display: none; }
+  .case-share.case-share--mobile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    height: auto;
+    min-height: 44px;
+    min-width: 44px;
+    /* v0.3 [П1] — icon-only по умолчанию: симметричный padding var(--space-2)
+       даёт квадратную touch-target ~44×44px, label визуально скрыт.
+       При .case-share--copied label включается на 2 секунды для feedback,
+       в этот момент padding расширяется до var(--space-3). */
+    padding: 0 var(--space-2);
+    background: var(--color-surface-offset);
+    /* v0.7.13 [UX] — accent border --color-primary паритет с .case-share base / desktop. */
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-tag);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out), padding 160ms var(--ease-out);
+  }
+  .case-share.case-share--mobile:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .case-share.case-share--mobile svg { flex-shrink: 0; }
+  /* v0.3 [П1] — mobile: текст label визуально скрыт,
+     остаётся в DOM для aria и JS-swap на COPIED ✓. */
+  .case-share--mobile .case-share__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  /* v0.3 [П1] — feedback-состояние: показываем COPIED ✓ на 2 секунды. */
+  .case-share--mobile.case-share--copied {
+    padding: 0 var(--space-3);
+  }
+  .case-share--mobile.case-share--copied .case-share__label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
+  /* v0.3 [П1] — единый блок действий (back + share) справа в mobile-bar.
+     gap=space-2 — паритет с .case-view__tabs. */
+  .case-mobile-bar__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+  }
+}
+
+/* ── Mobile case-view layout (<=767px) ──────────────────────────── */
+@media (max-width: 767px) {
+  .case-view {
+    padding: 0 var(--space-4) 0;  /* top отступ даёт sticky .case-mobile-bar */
+    gap: var(--space-3);
+  }
+  /* v0.15.5 [П1] — mobile: header в column. Title/meta (слева) в первой строке,
+     tabs + case-nav под заголовком во всю ширину. */
+  .case-view__header {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    flex-wrap: nowrap;
+  }
+  .case-view__left {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+  }
+  .case-view__title { font-size: var(--text-xl); }
+
+  /* Mobile (v0.22): Blueprints — вертикальная лента SVG (все страницы кейса
+     друг под другом). Верхний тулбар скрыт (Export/FS живут per-page внизу
+     каждого SVG). Pager-overlay тоже скрыт — листание = native scroll. */
+  .case-blueprints { padding: 8px 0 16px; }
+  .case-blueprints__toolbar { display: none; }
+  .case-blueprints__canvas {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    /* v0.22.2 — explicit overflow-y:auto + overscroll-behavior, чтобы touch-
+       scroll работал стабильно на iOS Safari и не передавался Lenis-у
+       (контейнер также помечен data-lenis-prevent в index.html). */
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .case-blueprints__page {
+    display: flex;          /* все страницы видны на mobile */
+    flex: 0 0 auto;
+    height: auto;
+    gap: 8px;
+  }
+  .case-blueprints__page.is-current { display: flex; }
+  .case-blueprints__page-canvas {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    min-height: 240px;
+    /* border + bg-grid наследуются из base .case-blueprints__page-canvas (v0.22.2). */
+  }
+  .case-blueprints__page-toolbar {
+    display: flex;
+    align-items: stretch;        /* v0.22.2 — равная высота Export и FS */
+    gap: 10px;
+  }
+  /* v0.22.2 — Export заполняет ширину от левого края до FS-кнопки, обе одной высоты (36px). */
+  .case-blueprints__page-export {
+    flex: 1 1 auto;
+    min-height: 36px;
+    padding: 8px 14px;
+    justify-content: center;
+  }
+  .case-blueprints__page-toolbar .case-blueprints__fs-btn {
+    position: static;
+    right: auto;
+    bottom: auto;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+  }
+  /* Pager-overlay на mobile не нужен — заменяет native scroll */
+  .case-blueprints__pager { display: none; }
+
+  /* v0.22.4 — mobile: title-block ~2.5× меньше (плашка с инфо не должна
+     перекрывать половину канваса). Сохраняем визуальный язык, режем
+     шрифты/паддинги/ширину пропорционально. */
+  .case-blueprints__title-block {
+    right: 8px;
+    bottom: 8px;
+    width: 132px;
+  }
+  .case-blueprints__title-block-top   { padding: 4px 6px; }
+  .case-blueprints__title-block-cell  { padding: 3px 6px; }
+  .case-blueprints__title-block-key {
+    font-size: 6px;
+    letter-spacing: 0.1em;
+  }
+  .case-blueprints__title-block-project {
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+  .case-blueprints__title-block-val {
+    font-size: 7px;
+    margin-top: 2px;
+  }
+
+  /* Mobile (v0.11): 3D canvas — зеркальная логика с Blueprints */
+  .case-3d { padding: 8px 0 16px; }
+  .case-3d__canvas {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    min-height: 280px;
+  }
+
+  /* v0.21.1 — Pills text swap для mobile: full "AUTO ROTATION"/"MODEL INFO"
+     переносятся по space на 2 строки и ломают layout. Используем short
+     варианты "Auto-R" / "Info" (CSS text-transform: uppercase делает их
+     "AUTO-R" / "INFO" визуально). Раньше swap применялся только к tablet
+     range (768-1023px) — теперь и mobile тоже. */
+  .case-3d__ctrl__txt-full  { display: none; }
+  .case-3d__ctrl__txt-short { display: inline; }
+
+  /* v0.11.1 mobile — тогглы крупнее для touch + компактная info-панель */
+  .case-3d__ctrl {
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 9px;
+  }
+  .case-3d__ctrl--icon {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+  }
+  .case-3d__ctrl-icon { width: 16px; height: 16px; }
+  .case-3d__info-panel {
+    min-width: 164px;
+    padding: 12px 14px;
+  }
+
+  /* v0.7.3 — env-группа и expo на mobile скрыты (см. @media max-width:1023px выше),
+     контент перенесён в .case-3d__light-dd. Controls в одну линию: AUTO, INFO, RESET, FS, ⚙ light-dd. */
+  .case-3d__controls {
+    gap: 6px;
+    max-width: calc(100% - 24px);
+    /* nowrap: всё помещается в одну линию благодаря замене 2 элементов на 1 trigger */
+    flex-wrap: nowrap;
+  }
+
+  /* Mobile v0.15.5 [П1]: вся группа tabs + case-nav под заголовком во всю ширину.
+     Порядок: [2D 36×36] [3D 36×36] [BP ~108×36] [case-nav растянут до правого края].
+     2D/3D — fix 36×36, Blueprints — fix height 36 + padding 0 16 (ширина по контенту). */
+  .case-view__actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: none;
+    gap: var(--space-2);
+    flex-wrap: nowrap;
+    flex: 0 0 auto;
+  }
+  .case-view__tabs {
+    width: 100%;
+    gap: 8px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: center;
+  }
+  .case-view__tabs > .case-tab {
+    flex: 0 0 auto;
+    min-width: 0;
+    justify-content: center;
+  }
+  /* v0.15.3 [П2] — 2D / 3D: fix 36×36 квадрат. Override .case-tab min-height:44px. */
+  .case-view__tabs > #case-tab-2d,
+  .case-view__tabs > #case-tab-3d {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
+  /* v0.15.3 [П2] — Blueprints: height 36, padding 16/16, width by content. */
+  .case-view__tabs > #case-tab-bp {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 16px;
+  }
+  /* v0.15.5 [П1] — case-nav: растянут на оставшееся место до правого края.
+     justify-content: space-between — prev к левому краю блока, next к правому, counter по центру. */
+  .case-view__tabs > .case-nav {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: space-between;
+    height: 36px;
+    min-height: 36px;
+    flex-basis: auto;
+    margin-left: 0;
+  }
+  /* v0.15.3 [П2] — case-nav__btn на mobile: в компактном 36-px наве, кнопки без увеличения.
+     (в секции mobile выше глобально min-width/min-height:44px для .case-nav__btn). */
+  .case-view__tabs > .case-nav > .case-nav__btn {
+    min-width: 30px;
+    min-height: 30px;
+    width: 30px;
+    height: 30px;
+  }
+  .case-nav__counter {
+    min-width: 40px;
+    font-size: 10px;
+  }
+
+  .case-scroll__track {
+    gap: var(--space-8);
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-6);
+  }
+
+  /* На мобильном все rows — вертикальные столбцы, каждый item full-width */
+  .case-row { flex-direction: column; gap: var(--space-6); }
+  .case-row > .case-item,
+  .case-row--tall-1 > .case-item--tall,
+  .case-row--tall-2 > .case-item--tall,
+  .case-row--tall-text > .case-item--tall,
+  .case-row--tall-text > .case-item--text-inline { flex: 1 1 100%; width: 100%; }
+
+  /* Mobile — возвращаем aspect-ratio для tall и отменяем жёсткую высоту 1100px (слишком высоко для 375×812). */
+  .case-item--tall .case-item__media {
+    aspect-ratio: 4 / 5;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: calc(100vh - 180px);
+  }
+  .case-item--wide .case-item__media {
+    aspect-ratio: 16 / 9;
+    height: auto;
+    max-height: none;
+  }
+  /* Текст-блок на мобильном — компактнее */
+  .case-text { padding: var(--space-4) 0; }
+  .case-text__title { font-size: var(--text-xl); }
+  .case-text__body  { font-size: var(--text-sm); }
+}
+/* ── End mobile @media block ─────────────────────────────────────── */

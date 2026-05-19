@@ -12,6 +12,11 @@
 import { navigate } from 'astro:transitions/client';
 
 function init() {
+  // Auto-collapse the sidebar on mobile whenever we're on /work/<slug>/ —
+  // mirrors the legacy setCollapsed(true) call inside openCase() so the
+  // case-view comes up over a tucked-away sidebar. Desktop is unaffected.
+  applyMobileCollapse();
+
   const root = document.getElementById('case-view');
   if (!root || root.dataset.bound === '1') return;
   root.dataset.bound = '1';
@@ -20,6 +25,15 @@ function init() {
   bindCopyLink();
   bindProgress();
   bindNav();
+  bindBack();
+}
+
+function applyMobileCollapse() {
+  const onWork = /^\/work\/[^/]+\/?$/.test(location.pathname);
+  const isMobile = window.matchMedia('(max-width: 767px)').matches;
+  if (onWork && isMobile) {
+    document.body.classList.add('cards-collapsed');
+  }
 }
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
@@ -53,41 +67,54 @@ function bindTabs(root: HTMLElement) {
   }
 }
 
-// ── COPY LINK ───────────────────────────────────────────────────────────────
+// ── COPY LINK (desktop + mobile share buttons) ──────────────────────────────
 function bindCopyLink() {
-  const btn = document.getElementById('case-share-desktop');
-  if (!btn) return;
-  const label = btn.querySelector<HTMLElement>('.case-share__label');
-  const originalLabel = label?.textContent ?? 'COPY LINK';
+  // Wire both share buttons through the same handler. Mobile uses an
+  // icon-only layout where the COPY LINK label is visually-hidden until
+  // .case-share--copied flips it to "COPIED ✓" — handled via CSS.
+  for (const id of ['case-share-desktop', 'case-share-mobile']) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    const label = btn.querySelector<HTMLElement>('.case-share__label');
+    const originalLabel = label?.textContent ?? 'COPY LINK';
 
-  btn.addEventListener('click', async () => {
-    const url = window.location.href;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-      } else {
-        // Fallback: hidden input + execCommand for older browsers / non-https
-        const tmp = document.createElement('input');
-        tmp.value = url;
-        tmp.setAttribute('readonly', '');
-        tmp.style.position = 'fixed';
-        tmp.style.opacity = '0';
-        document.body.appendChild(tmp);
-        tmp.select();
-        document.execCommand('copy');
-        document.body.removeChild(tmp);
+    btn.addEventListener('click', async () => {
+      const url = window.location.href;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          // Fallback for non-https / older browsers.
+          const tmp = document.createElement('input');
+          tmp.value = url;
+          tmp.setAttribute('readonly', '');
+          tmp.style.position = 'fixed';
+          tmp.style.opacity = '0';
+          document.body.appendChild(tmp);
+          tmp.select();
+          document.execCommand('copy');
+          document.body.removeChild(tmp);
+        }
+        btn.classList.add('case-share--copied');
+        if (label) label.textContent = 'COPIED ✓';
+        window.setTimeout(() => {
+          btn.classList.remove('case-share--copied');
+          if (label) label.textContent = originalLabel;
+        }, 1500);
+      } catch (err) {
+        // Quiet failure — typically clipboard permission denied.
+        console.warn('[case-view] copy failed', err);
       }
-      btn.classList.add('case-share--copied');
-      if (label) label.textContent = 'COPIED ✓';
-      window.setTimeout(() => {
-        btn.classList.remove('case-share--copied');
-        if (label) label.textContent = originalLabel;
-      }, 1500);
-    } catch (err) {
-      // Surface the failure quietly — most users will retry, and the
-      // failure typically means clipboard permission denied.
-      console.warn('[case-view] copy failed', err);
-    }
+    });
+  }
+}
+
+// ── Mobile "Back to projects" — drop cards-collapsed so the sidebar slides in
+function bindBack() {
+  const btn = document.getElementById('case-back');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    document.body.classList.remove('cards-collapsed');
   });
 }
 
