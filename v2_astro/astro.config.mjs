@@ -18,6 +18,11 @@ export default defineConfig({
   image: {
     service: { entrypoint: 'astro/assets/services/sharp' },
   },
+  // Static redirect so the home URL lands on the first sidebar work.
+  // Astro emits a meta-refresh + http-equiv redirect at dist/index.html.
+  redirects: {
+    '/': '/work/orbital-mk-ii/',
+  },
   integrations: [
     sitemap({
       filter: (page) => !page.includes('/404'),

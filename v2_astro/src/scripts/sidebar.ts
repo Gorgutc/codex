@@ -34,6 +34,33 @@ interface SidebarState {
   collapsed: boolean;
 }
 
+/**
+ * Highlight the work-card whose slug matches the current pathname
+ * (/work/<slug>/). Re-runs after each View Transition swap because the
+ * sidebar persists but the URL changes.
+ */
+function syncActiveCard() {
+  const match = location.pathname.match(/^\/work\/([^/]+)\/?$/);
+  const slug = match ? match[1] : null;
+  const cards = document.querySelectorAll<HTMLElement>('.work-card[data-id]');
+  for (const c of cards) {
+    if (slug && c.dataset.id === slug) c.classList.add('work-card--active');
+    else c.classList.remove('work-card--active');
+  }
+  // Scroll the active card into view inside the persistent cards-scroll —
+  // helpful when a deep link or kbd nav moves to an off-screen item.
+  if (!slug) return;
+  const active = document.querySelector<HTMLElement>(`.work-card[data-id="${slug}"]`);
+  const scroller = document.getElementById('cards-scroll');
+  if (active && scroller) {
+    const r = active.getBoundingClientRect();
+    const s = scroller.getBoundingClientRect();
+    if (r.top < s.top || r.bottom > s.bottom) {
+      active.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    }
+  }
+}
+
 function init() {
   const dropdown = document.getElementById('tags-dropdown');
   const trigger = document.getElementById('tags-dropdown-trigger');
@@ -271,4 +298,8 @@ function init() {
 }
 
 init();
-document.addEventListener('astro:page-load', init);
+syncActiveCard();
+document.addEventListener('astro:page-load', () => {
+  init();
+  syncActiveCard();
+});

@@ -18,7 +18,7 @@ import { getAllWorks } from '@lib/works';
 const works = await getAllWorks();
 ---
 
-<aside class="sidebar" aria-label="Projects navigator">
+<aside class="sidebar" aria-label="Projects navigator" transition:persist="sidebar">
   <Header worksCount={works.length} />
   <WorkGrid />
   <footer class="site-footer" role="contentinfo" aria-label="Sidebar footer">
