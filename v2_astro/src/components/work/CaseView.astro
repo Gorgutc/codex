@@ -13,6 +13,7 @@ import type { WorkEntry } from '@lib/works';
 import CaseScroll from './CaseScroll.astro';
 import CaseMobileBar from './CaseMobileBar.astro';
 import Case3D from './Case3D.astro';
+import CaseBlueprints from './CaseBlueprints.astro';
 
 export interface Props {
   work: WorkEntry;
@@ -132,36 +133,5 @@ const primaryCat = d.category.filter((c) => c !== 'Game Asset')[0] ?? d.category
   <CaseScroll work={work} />
 
   <Case3D work={work} />
-
-  {/* Stage 7 will replace this placeholder with the SVG blueprint canvas. */}
-  <div class="case-blueprints" id="case-blueprints" hidden aria-hidden="true">
-    <div class="case-blueprints__canvas" id="case-blueprints-canvas">
-      <div class="case-blueprints__placeholder mono" aria-hidden="true">
-        <span>Blueprints · Stage 7</span>
-      </div>
-    </div>
-  </div>
+  <CaseBlueprints work={work} />
 </section>
-
-<style is:global>
-  .case-blueprints__placeholder {
-    flex: 1;
-    display: grid;
-    place-content: center;
-    gap: var(--space-2);
-    text-align: center;
-    font-size: var(--text-xs);
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--color-text-faint);
-  }
-  .case-blueprints {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .case-blueprints[hidden] {
-    display: none;
-  }
-</style>

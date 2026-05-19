@@ -9,6 +9,7 @@
 @import './components/sidebar.css';
 @import './components/case-view.css';
 @import './components/case-3d.css';
+@import './components/case-blueprints.css';
 
 /* ── Base type scale ──────────────────────────────────────────────────────── */
 body {
