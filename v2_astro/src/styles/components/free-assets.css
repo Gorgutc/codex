@@ -1,0 +1,311 @@
+/* ═══════════════════════════════════
+   FREE-ASSETS (Stage 9a) — fa-view container, fa-grid, fa-card.
+   Ported from codex/css/free-assets.css lines 18-322.
+   Tag-card sidebar styles come in Stage 9b (323-end).
+═══════════════════════════════════ */
+
+.fa-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 64px 0;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Header — mirrors .case-view__header */
+.fa-view__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-shrink: 0;
+}
+.fa-view__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+}
+.fa-view__cat {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent-text);
+}
+.fa-view__sep { color: var(--color-text-faint); font-size: var(--text-xs); }
+.fa-view__count {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  letter-spacing: 0.06em;
+}
+.fa-view__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+/* ── SCROLLABLE GRID ── */
+.fa-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 48px, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 48px, #000 100%);
+}
+.fa-scroll::-webkit-scrollbar { width: 4px; }
+.fa-scroll::-webkit-scrollbar-track { background: transparent; }
+.fa-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+
+.fa-grid {
+  display: grid;
+  /* v0.7.6 [tablet-fix]: mobile-first 1 column. Tablet/desktop поведение — в media-блоках ниже. */
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding: 24px 0 64px;
+  list-style: none;
+}
+
+/* v0.7.6 [tablet-fix]: tablet + intermediate desktop — auto-fit minmax 320px.
+   Реагирует на ширину контейнера .main-area, поэтому грид автоматически
+   перестраивается при toggle sidebar (без JS-зависимости от cards-collapsed).
+   Минимум 320 даёт читаемую карточку: thumb 4:3 → 240px высоты, body content
+   с правильной типографической иерархией.
+   Транзиции: <664px main → 1 col / 664-1007 → 2 cols / 1008+ → 3 cols. */
+@media (min-width: 768px) {
+  .fa-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}
+
+/* v0.7.6 [tablet-fix]: на широких экранах (laptop 1440+, мониторы 2K/4K) —
+   стабильно 3 колонки. Без cap auto-fit на 4K дал бы 4+ колонок, что ломает
+   композицию (screenshot 3 показывает 3 cols как канонический layout). */
+@media (min-width: 1440px) {
+  .fa-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ── ASSET CARD ── */
+.fa-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-work-card-bg);
+  border: 1px solid var(--color-work-card-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  transition:
+    border-color 200ms var(--ease-out),
+    background 200ms var(--ease-out),
+    box-shadow 240ms var(--ease-out);
+}
+.fa-card:hover {
+  border-color: var(--color-work-card-border-hov);
+  background: var(--color-work-card-bg-hover);
+  box-shadow: var(--shadow-md);
+}
+/* Thumb */
+.fa-card__thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--color-work-card-bg-hover);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.fa-card__thumb::after {
+  content: attr(data-label);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1; pointer-events: none;
+}
+.fa-card__thumb img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; z-index: 2;
+  transition: transform 400ms var(--ease-out);
+}
+.fa-card:hover .fa-card__thumb img { transform: scale(1.04); }
+
+/* ═══ 3D PREVIEW (v0.7.5 [model-viewer]) ═══════════════════════════════════
+   <model-viewer> перекрывает SVG-fallback (img) когда модель загружена.
+   Если .glb fails (404 / CORS / malformed) — error-handler в free-assets.html
+   добавляет .fa-card__thumb-mv--failed → display:none → SVG остаётся видим.
+   model-viewer 4.0.0 САМ респектит prefers-reduced-motion (auto-rotate
+   отключается без дополнительной CSS-страховки).
+   ─────────────────────────────────────────────────────────────────────── */
+.fa-card__thumb-mv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Custom element default — inline. Делаем block для геометрии. */
+  display: block;
+  background: transparent;
+  /* Тот же z-index что у img (z:2) — ниже badge (z:3). model-viewer идёт
+     ПОСЛЕ img в DOM-порядке, поэтому при равном z перекрывает его. */
+  z-index: 2;
+  /* Без camera-controls курсор должен оставаться default (не grab из shadow DOM). */
+  cursor: default;
+  /* Скрываем встроенный progress-bar — для маленькой карточки 240×180 он избыточен. */
+  --progress-bar-color: transparent;
+  --progress-bar-height: 0;
+  --progress-mask: transparent;
+}
+
+.fa-card__thumb-mv--failed {
+  /* .glb 404 / CORS / malformed — скрываем model-viewer, фолбэк на SVG. */
+  display: none;
+}
+
+/* Badge */
+.fa-card__badge {
+  position: absolute;
+  top: var(--space-2); left: var(--space-2);
+  z-index: 3;
+  display: inline-flex; align-items: center;
+  height: 18px; padding: 0 6px;
+  /* v0.4 [AX1]: --color-ctrl-bg → --color-surface-2, color --color-primary → --color-accent-text.
+     Solid фон + текстовый accent даёт WCAG AA 4.78:1 (#4a94cf на #313131).
+     Если визуал не понравится — откат: background var(--color-ctrl-bg) + backdrop-filter blur(4px) + color var(--color-primary). */
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-primary);
+  border-radius: 2px;
+  color: var(--color-accent-text);
+  font-family: var(--font-body);
+  font-size: 0.6rem; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; line-height: 1;
+  pointer-events: none;
+}
+/* Body */
+.fa-card__body {
+  padding: var(--space-3);
+  display: flex; flex-direction: column; flex: 1;
+}
+.fa-card__meta {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-1); gap: var(--space-2);
+}
+.fa-card__cat {
+  font-size: var(--text-xs); font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-accent-text);
+}
+.fa-card__license {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint); letter-spacing: 0.04em;
+}
+.fa-card__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base); font-weight: 600;
+  color: var(--color-text); line-height: 1.25;
+  margin-bottom: var(--space-1);
+}
+.fa-card__desc {
+  font-size: var(--text-xs); color: var(--color-text-muted);
+  line-height: 1.55; flex: 1; margin-bottom: var(--space-3);
+}
+/* Contents */
+.fa-card__contents {
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-2); margin-bottom: var(--space-3);
+}
+.fa-card__contents-label {
+  font-size: 0.6rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-text-faint); margin-bottom: var(--space-1);
+}
+.fa-card__contents-list {
+  display: flex; flex-wrap: wrap; gap: 4px; list-style: none;
+}
+.fa-card__contents-item {
+  display: inline-flex; align-items: center;
+  height: 20px; padding: 0 7px;
+  font-size: 0.6rem; font-weight: 500;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-tag);
+  white-space: nowrap; line-height: 1;
+}
+/* Download button */
+.fa-card__download {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--space-2); width: 100%; height: 36px; padding: 0 var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-xs); font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-text); background: var(--color-surface-2);
+  border: 1px solid var(--color-border); border-radius: var(--radius-tag);
+  cursor: pointer; text-decoration: none;
+  transition:
+    color 160ms var(--ease-out),
+    background 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+.fa-card__download:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  /* v0.4 [B4 + AX1]: white-on-primary — это ЕДИНСТВЕННЫЙ цвет, проходящий WCAG AA на #327AAE
+     (4.64:1). --color-text-inverse тут не годится: на dark это #212121 = 3.47:1 (fail).
+     Хардкод #fff сохранён намеренно — то же решение применено в .tag-card--active бейджах.
+     При смене --color-primary на менее насыщенный — пересчитать контраст. */
+  color: #fff;
+}
+.fa-card__download:active { transform: scale(0.98); }
+.fa-card__download:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.fa-card__dl-icon {
+  width: 13px; height: 13px; flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: color 160ms var(--ease-out);
+}
+.fa-card__download:hover .fa-card__dl-icon { color: #fff; }
+.fa-card__download:disabled {
+  opacity: 0.5; pointer-events: none; cursor: not-allowed;
+}
+/* v0.4 [B3]: убран !important — повышаем специфичность через .fa-card__download.fa-card__download--state.
+   Селектор покрывает default + :hover (с :hover тоже двойной класс — специфичность одинакова, но в CSS
+   позже определённое правило побеждает при равной специфичности, поэтому --error/--done должны быть ПОСЛЕ :hover). */
+.fa-card__download.fa-card__download--error,
+.fa-card__download.fa-card__download--error:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+  background: transparent;
+}
+.fa-card__download.fa-card__download--error:hover .fa-card__dl-icon {
+  color: var(--color-error);
+}
+.fa-card__download.fa-card__download--done,
+.fa-card__download.fa-card__download--done:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-highlight);
+}
+.fa-card__download.fa-card__download--done:hover .fa-card__dl-icon {
+  color: var(--color-primary);
+}
+

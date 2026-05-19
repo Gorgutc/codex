@@ -1,0 +1,78 @@
+---
+/**
+ * /free-assets/ — flat catalogue page (Stage 9a).
+ *
+ * Renders every FA_DATA asset in a single fa-grid; the tag-card
+ * sidebar that filters by category lands in Stage 9b alongside the
+ * runtime selection logic.  For now the sidebar slot mirrors the
+ * portfolio sidebar so the layout still works inside the .layout
+ * grid (header chrome + footer carry the navigation back to /).
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Sidebar from '@components/layout/Sidebar.astro';
+import AssetCard from '@components/work/AssetCard.astro';
+import { getAllAssets, getTotalAssetCount } from '@data/free-assets';
+
+const assets = getAllAssets();
+const total = getTotalAssetCount();
+
+const title = 'Free 3D Assets — Codex Studio · Hard Surface, Game-Ready, CC0';
+const description =
+  'Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0 / CC-BY.';
+
+// Per-page OG image lands in Stage 10. Reuse the studio default until then.
+const ogImage = '/img/og-free-assets.jpg';
+
+// JSON-LD: WebPage per project_brief.md Free-Assets canonical schema list.
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Free 3D Assets — Codex Studio',
+  description,
+  url: new URL('/free-assets/', Astro.site ?? 'https://preview.codex.promo/').toString(),
+  primaryImageOfPage: ogImage,
+  publisher: { '@type': 'Organization', name: 'Codex Studio' },
+};
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  ogImage={ogImage}
+  ogImageAlt="Codex Studio — Free 3D Assets"
+  ogType="website"
+  schemas={[schema]}
+>
+  <div class="layout">
+    <Sidebar />
+
+    <main class="main-area" id="main">
+      <section class="fa-view" id="fa-view" aria-label="Free assets">
+        <div class="fa-view__header">
+          <div>
+            <div class="fa-view__meta">
+              <span class="fa-view__cat" id="fa-view-cat">All assets</span>
+              <span class="fa-view__sep" aria-hidden="true">·</span>
+              <span class="fa-view__count" id="fa-view-count">
+                {total} asset{total === 1 ? '' : 's'}
+              </span>
+            </div>
+            <h1 class="fa-view__title" id="fa-view-title">Free 3D Assets</h1>
+          </div>
+        </div>
+
+        <div class="fa-scroll" id="fa-scroll">
+          <ul class="fa-grid" id="fa-grid">
+            {assets.map((asset, i) => (
+              <AssetCard asset={asset} eager={i === 0} />
+            ))}
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+</BaseLayout>
+
+<script>
+  import '~/scripts/sidebar';
+</script>

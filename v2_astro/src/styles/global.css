@@ -10,6 +10,7 @@
 @import './components/case-view.css';
 @import './components/case-3d.css';
 @import './components/case-blueprints.css';
+@import './components/free-assets.css';
 
 /* ── Base type scale ──────────────────────────────────────────────────────── */
 body {

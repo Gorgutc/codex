@@ -1,0 +1,85 @@
+---
+/**
+ * AssetCard — single .fa-card in the free-assets grid.  Markup mirrors
+ * the legacy renderGrid() output (free-assets.js:53-100) with the
+ * runtime-side differences:
+ *   • Thumb <img> falls back to the bg gradient via the data-label
+ *     pseudo overlay when the file is missing (8 of the 26 assets have
+ *     no thumb yet — the legacy delegated error-handler removes the
+ *     <img>; we mirror that with `onerror="this.remove()"`).
+ *   • <model-viewer> preview is intentionally NOT rendered here; it's
+ *     bundled lazily for /work/<slug>/ via Stage 6 and adding it to
+ *     every fa-card would re-fetch GLB previews per item.  Stage 9b
+ *     may revisit.
+ *   • Download button is a plain <a download> — JS-free file delivery;
+ *     the legacy fetch+blob "Downloading…" state belongs to Stage 9b.
+ */
+import type { FaAsset } from '@data/free-assets';
+
+export interface Props {
+  asset: FaAsset;
+  /** First card in the grid loads eager + fetchpriority for LCP. */
+  eager?: boolean;
+}
+
+const { asset: a, eager = false } = Astro.props;
+---
+
+<li class="fa-card" data-asset-id={a.id} data-asset-cat={a.cat.toLowerCase().replace(/\s+/g, '-')}>
+  <div class="fa-card__thumb" data-label={a.title} style={`background: ${a.bg};`}>
+    <img
+      src={`/works/${a.id}/thumb.svg`}
+      alt=""
+      aria-hidden="true"
+      width="800"
+      height="600"
+      loading={eager ? 'eager' : 'lazy'}
+      fetchpriority={eager ? 'high' : undefined}
+      decoding="async"
+      onerror="this.remove();"
+    />
+    <span class="fa-card__badge">{a.badge}</span>
+  </div>
+
+  <div class="fa-card__body">
+    <div class="fa-card__meta">
+      <span class="fa-card__cat">{a.cat}</span>
+      <span class="fa-card__license">CC0 — Free</span>
+    </div>
+    <h2 class="fa-card__title">{a.title}</h2>
+    <p class="fa-card__desc">{a.desc}</p>
+
+    <div class="fa-card__contents">
+      <p class="fa-card__contents-label">Archive includes</p>
+      <ul class="fa-card__contents-list">
+        {a.contents.map((c) => (
+          <li class="fa-card__contents-item">{c}</li>
+        ))}
+      </ul>
+    </div>
+
+    <a
+      class="fa-card__download"
+      href={`/downloads/${a.file}`}
+      download={a.file}
+      data-cursor="link"
+      aria-label={`Download ${a.title}`}
+    >
+      <svg
+        class="fa-card__dl-icon"
+        viewBox="0 0 14 14"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M7 1v8M4 6l3 3 3-3M2 11h10"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      Download — {a.size}
+    </a>
+  </div>
+</li>
