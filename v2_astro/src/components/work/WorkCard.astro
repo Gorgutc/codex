@@ -1,0 +1,85 @@
+---
+/**
+ * WorkCard — single sidebar entry. Markup mirrors codex/index.html line 375-384
+ * exactly so the global .work-card / __thumb / __info / __meta / __cat /
+ * __year / __title / __desc rules in components/sidebar.css apply.
+ *
+ * data-id (slug), data-category (legacy kebab map for filter parity), and
+ * data-game-asset are FROZEN — sidebar.ts and the verify-v2 suite (Stage 11)
+ * both rely on them.
+ *
+ * v2 maps the new canonical Title Case categories back to the legacy kebab
+ * slugs the filter UI ships with. Multi-category works pick their PRIMARY
+ * category (first entry) for data-category; the full set lives in
+ * data-categories for future range-filters.
+ */
+import type { WorkEntry } from '@lib/works';
+
+export interface Props {
+  work: WorkEntry;
+  /** First card is loaded eager + fetchpriority=high for LCP. */
+  eager?: boolean;
+}
+
+const { work, eager = false } = Astro.props;
+const d = work.data;
+
+/**
+ * Title Case → legacy kebab-case bridge. Keeps data-category compatible
+ * with the existing filter dropdown values. Multi-category cards collapse
+ * to their primary (first) entry; the others are still queryable via the
+ * data-categories list attribute.
+ */
+const CATEGORY_TO_KEBAB: Record<string, string> = {
+  'Hard Surface': 'hard-surface',
+  'Product Viz': 'product',
+  'Game Asset': 'game',
+  'Organic': 'organic',
+  'Animation': 'animations',
+  'CAD': 'cad',
+  'Mechanical': 'prototyping',
+};
+
+// 'Game Asset' is a dimension surfaced by the game-switch toggle, not a
+// discipline in the filter dropdown. Pick the first non-Game-Asset entry
+// for data-category so the legacy kebab filter keeps working; if the only
+// category IS 'Game Asset', fall back to it (no current works hit this).
+const filterCategories = d.category.filter((c) => c !== 'Game Asset');
+const primary = filterCategories[0] ?? d.category[0]!;
+const primaryKebab = CATEGORY_TO_KEBAB[primary] ?? primary.toLowerCase();
+const allKebab = filterCategories
+  .map((c) => CATEGORY_TO_KEBAB[c] ?? c.toLowerCase())
+  .join(' ');
+---
+
+<a
+  class="work-card"
+  data-id={d.slug}
+  data-category={primaryKebab}
+  data-categories={allKebab}
+  data-game-asset={d.gameAsset ? 'true' : undefined}
+  data-cad-placeholder={d.cadPlaceholder ? 'true' : undefined}
+  href={`#${d.slug}`}
+>
+  <div class="work-card__thumb" data-label={d.title}>
+    <img
+      src={d.thumb.src}
+      alt={d.thumb.alt}
+      width="800"
+      height="600"
+      loading={eager ? 'eager' : 'lazy'}
+      fetchpriority={eager ? 'high' : undefined}
+      decoding="async"
+      onerror="this.remove();"
+    />
+    {d.gameAsset && <span class="work-card__badge" aria-hidden="true">Game</span>}
+  </div>
+  <div class="work-card__info">
+    <div class="work-card__meta">
+      <span class="work-card__cat">{primary}</span>
+      <span class="work-card__year">{d.year}</span>
+    </div>
+    <h2 class="work-card__title">{d.title}</h2>
+    <p class="work-card__desc">{d.description}</p>
+  </div>
+</a>

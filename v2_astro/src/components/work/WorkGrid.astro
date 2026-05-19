@@ -1,0 +1,24 @@
+---
+/**
+ * WorkGrid — scrollable list of 18 work-cards inside the sidebar.
+ * Replicates the legacy <div class="cards-scroll"><div class="cards-list">…</div></div>
+ * structure. `data-lenis-prevent` keeps Lenis from hijacking the inner
+ * overflow once smooth-scroll lands in Stage 8.
+ */
+import WorkCard from './WorkCard.astro';
+import { getAllWorks } from '@lib/works';
+
+const works = await getAllWorks();
+---
+
+<div
+  class="cards-scroll"
+  id="cards-scroll"
+  data-lenis-prevent
+  role="region"
+  aria-label="Project list"
+>
+  <div class="cards-list" id="cards-list">
+    {works.map((work, i) => <WorkCard work={work} eager={i === 0} />)}
+  </div>
+</div>

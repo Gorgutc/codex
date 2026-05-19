@@ -1,60 +1,46 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
-import ThemeToggle from '@components/ui/ThemeToggle.astro';
-import { getAllWorks, getFeaturedWorks, getCategoriesInUse } from '@lib/works';
+import Sidebar from '@components/layout/Sidebar.astro';
 
-// Stage 3 placeholder — renders the migrated collection as a sanity readout.
-// Full sidebar + case-view ports in Stage 4.
 const title = 'Codex — 3D Design Studio · Hard Surface & Product Visualization';
 const description =
   'Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.';
-
-const works = await getAllWorks();
-const featured = await getFeaturedWorks();
-const categories = await getCategoriesInUse();
 ---
 
 <BaseLayout title={title} description={description}>
-  <main
-    id="main"
-    class="main-area"
-    style="padding: var(--space-12) var(--space-8); display: grid; gap: var(--space-8); max-width: 960px;"
-  >
-    <header style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);">
-      <h1 style="font-size: var(--text-2xl); margin: 0;">Codex v2 — Astro scaffold</h1>
-      <ThemeToggle />
-    </header>
+  <div class="layout">
+    <Sidebar />
 
-    <p class="mono" style="color: var(--color-text-muted);">
-      STAGE 3 · CONTENT COLLECTION · {works.length} works · {categories.length} categories
-    </p>
-
-    <section style="display: grid; gap: var(--space-2);">
-      <h2 style="font-size: var(--text-lg); margin: 0;">Featured</h2>
-      <ul style="display: grid; gap: var(--space-2); list-style: none; padding: 0;">
-        {featured.map((w) => (
-          <li class="mono" style="color: var(--color-text-muted); font-size: var(--text-sm);">
-            <span style="color: var(--color-accent-text);">{String(w.data.order ?? '?').padStart(2, '0')}</span>
-            {' · '}
-            <strong style="font-family: var(--font-display); font-weight: 500; color: var(--color-text);">{w.data.title}</strong>
-            {' · '}{w.data.year}{' · '}{w.data.category.join(' / ')}
-          </li>
-        ))}
-      </ul>
-    </section>
-
-    <section style="display: grid; gap: var(--space-2);">
-      <h2 style="font-size: var(--text-lg); margin: 0;">All works (sidebar order)</h2>
-      <ul style="display: grid; gap: var(--space-1); list-style: none; padding: 0;">
-        {works.map((w) => (
-          <li class="mono" style="color: var(--color-text-muted); font-size: var(--text-sm);">
-            <span style="color: var(--color-accent-text);">{String(w.data.order ?? '?').padStart(2, '0')}</span>
-            {' · '}{w.data.title}{' · '}{w.data.gallery.length}{' slides'}
-            {w.data.gameAsset && <span style="color: var(--color-primary);"> · game</span>}
-            {w.data.cadPlaceholder && <span style="color: var(--color-text-faint);"> · cad-placeholder</span>}
-          </li>
-        ))}
-      </ul>
-    </section>
-  </main>
+    <main class="main-area" id="main">
+      {/* Stage 5 lands the full case-view here (header + tabs + scroll + 3D + blueprints).
+          For now the right column stays empty on desktop and hides entirely on mobile
+          (matches legacy behaviour pre-collapse). */}
+      <section class="main-area__placeholder mono" aria-hidden="true">
+        <span>STAGE 4 · SIDEBAR READY</span>
+        <span>case-view → Stage 5</span>
+      </section>
+    </main>
+  </div>
 </BaseLayout>
+
+<style is:global>
+  .main-area__placeholder {
+    flex: 1;
+    display: grid;
+    place-content: center;
+    gap: var(--space-2);
+    text-align: center;
+    font-size: var(--text-xs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+  }
+  .main-area__placeholder span:first-child {
+    color: var(--color-accent-text);
+    letter-spacing: 0.22em;
+  }
+</style>
+
+<script>
+  import '~/scripts/sidebar';
+</script>

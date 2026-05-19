@@ -1,0 +1,152 @@
+---
+/**
+ * Sidebar Header — logo, contact-btn, theme-toggle, cards-toggle,
+ * tags-dropdown (OR-filter, 7 disciplines), tags-divider, game-switch,
+ * cards-count. Markup mirrors codex/index.html line 206-348 1:1 so the
+ * legacy global CSS in components/sidebar.css applies unchanged.
+ *
+ * Filter labels still ship in legacy kebab-case (data-filter values) for
+ * compatibility with sidebar.ts. The user-visible label is the Title
+ * Case canonical text from Stage 3.
+ */
+import ThemeToggle from '@components/ui/ThemeToggle.astro';
+
+export interface Props {
+  /** Initial counter label. Updated at runtime by sidebar.ts. */
+  worksCount: number;
+}
+
+const { worksCount } = Astro.props;
+
+const filterOptions = [
+  { value: 'all', label: 'All' },
+  { value: 'hard-surface', label: 'Hard Surface' },
+  { value: 'product', label: 'Product Viz' },
+  { value: 'organic', label: 'Organic' },
+  { value: 'prototyping', label: 'Mechanical' },
+  { value: 'animations', label: 'Animation' },
+  { value: 'cad', label: 'CAD' },
+];
+---
+
+<header class="site-header" role="banner">
+  <div class="header-top">
+    <a href="#" class="logo" id="logo-home" aria-label="Codex — back to first project" data-cursor="link">
+      <span class="logo__text">CODEX</span>
+    </a>
+
+    <div class="header-top__controls">
+      <a
+        href="https://t.me/WhiteCatWeb"
+        class="contact-btn"
+        id="contact-btn"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Contact via Telegram"
+        title="Contact · Telegram"
+        data-cursor="link"
+      >
+        <svg
+          class="contact-btn__icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"></path>
+        </svg>
+        <span class="contact-btn__label">Contact</span>
+      </a>
+
+      <ThemeToggle />
+
+      <button
+        type="button"
+        class="cards-toggle"
+        id="cards-toggle"
+        aria-expanded="true"
+        aria-controls="cards-scroll"
+        aria-label="Hide projects panel"
+        data-cursor="link"
+      >
+        <span class="cards-toggle__icon cards-toggle__icon--open" aria-hidden="true">‹‹</span>
+        <span class="cards-toggle__icon cards-toggle__icon--closed" aria-hidden="true">››</span>
+        <span class="cards-toggle__label">Hide projects</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="tags-dropdown" id="tags-dropdown" data-open="false">
+    <button
+      type="button"
+      class="tags-dropdown__trigger"
+      id="tags-dropdown-trigger"
+      aria-haspopup="listbox"
+      aria-expanded="false"
+      aria-controls="tags-dropdown-panel"
+      aria-label="Filter by discipline"
+      data-cursor="link"
+    >
+      <span class="tags-dropdown__chips" id="tags-dropdown-chips" aria-hidden="true"></span>
+      <span class="tags-dropdown__placeholder" id="tags-dropdown-placeholder">Filter by discipline</span>
+      <svg
+        class="tags-dropdown__chevron"
+        viewBox="0 0 16 16"
+        width="14"
+        height="14"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          d="M3 6 L8 11 L13 6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"></path>
+      </svg>
+    </button>
+    <div class="tags-dropdown__overlay" id="tags-dropdown-overlay" aria-hidden="true"></div>
+    <div
+      class="tags-dropdown__panel"
+      id="tags-dropdown-panel"
+      role="listbox"
+      aria-multiselectable="true"
+      aria-label="Disciplines"
+      hidden
+    >
+      {filterOptions.map(({ value, label }) => (
+        <label class="tags-dropdown__option" role="option">
+          <input
+            type="checkbox"
+            class="tags-dropdown__checkbox"
+            data-filter={value}
+            aria-label={label}
+          />
+          <span class="tags-dropdown__label">{label}</span>
+        </label>
+      ))}
+    </div>
+  </div>
+
+  <div class="tags-divider" aria-hidden="true"></div>
+  <div class="sidebar__row">
+    <label class="game-switch" data-cursor="link">
+      <input
+        type="checkbox"
+        id="game-switch"
+        class="game-switch__input"
+        role="switch"
+        aria-checked="false"
+      />
+      <span class="game-switch__track" aria-hidden="true"><span class="game-switch__thumb"></span></span>
+      <span class="game-switch__label">Game assets only</span>
+    </label>
+    <div class="cards-count" id="cards-count" aria-live="polite">
+      {worksCount} {worksCount === 1 ? 'project' : 'projects'}
+    </div>
+  </div>
+</header>

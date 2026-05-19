@@ -1,0 +1,65 @@
+---
+/**
+ * Sidebar — left rail container. Hosts the header (Header.astro), the
+ * scrollable cards list (WorkGrid.astro), and the site-footer pills.
+ *
+ * Markup mirrors codex/index.html line 204-637 1:1. Mobile becomes a
+ * full-screen overlay (320ms translateX); desktop is the canonical
+ * 340px column controlled by --sidebar-w (JS may override to 56px when
+ * body.cards-collapsed).
+ *
+ * The actual filter / dropdown / collapse logic lives in
+ * src/scripts/sidebar.ts; this component only ships the markup.
+ */
+import Header from './Header.astro';
+import WorkGrid from '@components/work/WorkGrid.astro';
+import { getAllWorks } from '@lib/works';
+
+const works = await getAllWorks();
+---
+
+<aside class="sidebar" aria-label="Projects navigator">
+  <Header worksCount={works.length} />
+  <WorkGrid />
+  <footer class="site-footer" role="contentinfo" aria-label="Sidebar footer">
+    <div class="site-footer__row site-footer__row--actions">
+      <p class="site-footer__stats">DELETED 422 CUBES • CREATED 120 WORKS</p>
+    </div>
+    <div class="site-footer__divider" aria-hidden="true"></div>
+    <div class="site-footer__row site-footer__row--pill">
+      <a
+        href="https://t.me/WhiteCatWeb"
+        class="top-pill top-pill--contact site-footer__contact"
+        id="contact-pill"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Contact via Telegram"
+        title="Contact · Telegram"
+        data-cursor="link"
+      >
+        <svg
+          class="top-pill__icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"></path>
+        </svg>
+        <span class="top-pill__label">Contact</span>
+      </a>
+      <a
+        href="/free-assets"
+        class="top-pill top-pill--free site-footer__free"
+        id="free-assets-footer"
+        title="Free Assets"
+        data-cursor="link"
+      >
+        <span class="top-pill__label">Free Assets</span>
+      </a>
+    </div>
+  </footer>
+</aside>

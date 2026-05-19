@@ -6,6 +6,7 @@
 @import './tokens.css';
 @import './reset.css';
 @import './fonts.css';
+@import './components/sidebar.css';
 
 /* ── Base type scale ──────────────────────────────────────────────────────── */
 body {
