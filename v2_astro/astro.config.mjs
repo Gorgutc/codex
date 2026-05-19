@@ -1,0 +1,31 @@
+// @ts-check
+import { defineConfig } from 'astro/config';
+import sitemap from '@astrojs/sitemap';
+
+// https://astro.build/config
+export default defineConfig({
+  site: 'https://preview.codex.promo',
+  output: 'static',
+  trailingSlash: 'ignore',
+  build: {
+    format: 'directory',
+    assets: '_assets',
+  },
+  prefetch: {
+    prefetchAll: true,
+    defaultStrategy: 'viewport',
+  },
+  image: {
+    service: { entrypoint: 'astro/assets/services/sharp' },
+  },
+  integrations: [
+    sitemap({
+      filter: (page) => !page.includes('/404'),
+    }),
+  ],
+  vite: {
+    css: {
+      devSourcemap: true,
+    },
+  },
+});

@@ -1,1 +1,7 @@
 node_modules/
+
+# v2_astro build artefacts
+v2_astro/dist/
+v2_astro/.astro/
+v2_astro/.netlify/
+v2_astro/node_modules/

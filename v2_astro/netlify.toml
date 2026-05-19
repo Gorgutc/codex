@@ -1,0 +1,51 @@
+# Netlify config for v2_astro (Astro 5 static build).
+# Deployed as a SEPARATE Netlify site from the vanilla codex.promo root.
+# Set Netlify > Site settings > Build & deploy > Base directory = "v2_astro".
+
+[build]
+  base    = "v2_astro"
+  command = "npm run build"
+  publish = "v2_astro/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# ── Cache strategy ────────────────────────────────────────────────────────────
+# Astro emits hashed asset filenames under /_assets/, so we can long-cache them.
+# HTML is short-cache + revalidate so deploys are visible immediately.
+
+[[headers]]
+  for = "/_assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# ── Security headers ──────────────────────────────────────────────────────────
+# CSP is intentionally permissive in Phase 2 (still need jsdelivr for model-viewer
+# and Polyhaven HDR). Tightened in Stage 10/11 once final CDN list is known.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options          = "SAMEORIGIN"
+    X-Content-Type-Options   = "nosniff"
+    Referrer-Policy          = "strict-origin-when-cross-origin"
+    Permissions-Policy       = "camera=(), microphone=(), geolocation=()"
+    X-DNS-Prefetch-Control   = "on"
+
+# Pretty URLs: keep /work/<slug>/ working without trailing-slash redirect loops.
+[build.processing]
+  skip_processing = false
+
+[build.processing.html]
+  pretty_urls = true
