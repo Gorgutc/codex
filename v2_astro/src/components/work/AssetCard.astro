@@ -1,31 +1,40 @@
 ---
 /**
  * AssetCard — single .fa-card in the free-assets grid.  Markup mirrors
- * the legacy renderGrid() output (free-assets.js:53-100) with the
- * runtime-side differences:
+ * the legacy renderGrid() output (free-assets.js:53-100):
  *   • Thumb <img> falls back to the bg gradient via the data-label
- *     pseudo overlay when the file is missing (8 of the 26 assets have
- *     no thumb yet — the legacy delegated error-handler removes the
- *     <img>; we mirror that with `onerror="this.remove()"`).
- *   • <model-viewer> preview is intentionally NOT rendered here; it's
- *     bundled lazily for /work/<slug>/ via Stage 6 and adding it to
- *     every fa-card would re-fetch GLB previews per item.  Stage 9b
- *     may revisit.
- *   • Download button is a plain <a download> — JS-free file delivery;
- *     the legacy fetch+blob "Downloading…" state belongs to Stage 9b.
+ *     pseudo overlay when the file is missing; we mirror the legacy
+ *     delegated error-handler with `onerror="this.remove()"`.
+ *   • <model-viewer> preview is intentionally NOT rendered here; the
+ *     bundle cost per fa-card would dominate the page weight. Stage
+ *     9c may revisit with lazy-on-hover.
+ *   • Download button is a plain <a download> — JS-free file delivery.
+ *
+ * data-asset-tag carries the canonical category key (matches the
+ * sidebar TagCard's data-tag) so src/scripts/free-assets.ts can filter
+ * cards with a single attribute lookup.
  */
-import type { FaAsset } from '@data/free-assets';
+import type { FaAsset, FaCategoryKey } from '@data/free-assets';
 
 export interface Props {
   asset: FaAsset;
-  /** First card in the grid loads eager + fetchpriority for LCP. */
+  /** Canonical category key the asset belongs to. */
+  tag: FaCategoryKey;
+  /** First visible card gets eager + fetchpriority for LCP. */
   eager?: boolean;
+  /** SSR-pre-hidden flag — emitted as the [hidden] attribute. */
+  hidden?: boolean;
 }
 
-const { asset: a, eager = false } = Astro.props;
+const { asset: a, tag, eager = false, hidden = false } = Astro.props;
 ---
 
-<li class="fa-card" data-asset-id={a.id} data-asset-cat={a.cat.toLowerCase().replace(/\s+/g, '-')}>
+<li
+  class="fa-card"
+  data-asset-id={a.id}
+  data-asset-tag={tag}
+  hidden={hidden}
+>
   <div class="fa-card__thumb" data-label={a.title} style={`background: ${a.bg};`}>
     <img
       src={`/works/${a.id}/thumb.svg`}

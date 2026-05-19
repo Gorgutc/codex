@@ -309,3 +309,175 @@
   color: var(--color-primary);
 }
 
+
+/* ── Stage 9b: tag-card sidebar entries ─────────────────────────────────
+   Ported from codex/css/free-assets.css lines 323-489. Carries the FROZEN
+   double class .tag-card.work-card so the legacy work-card hover/active
+   styles still apply, with tag-card-specific overrides on top. */
+/* ── SIDEBAR TAG CARDS — identical visual to .work-card ── */
+.tag-card {
+  background: var(--color-work-card-bg);
+  border: 1px solid var(--color-work-card-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color 200ms var(--ease-out),
+    background 200ms var(--ease-out),
+    box-shadow 240ms var(--ease-out);
+}
+.tag-card:hover {
+  border-color: var(--color-work-card-border-hov);
+  background: var(--color-work-card-bg-hover);
+  box-shadow: var(--shadow-md);
+}
+.tag-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.tag-card--active {
+  border-color: var(--color-primary);
+  background: var(--color-work-card-bg-hover);
+  box-shadow: 0 0 0 1px var(--color-primary) inset, var(--shadow-sm);
+}
+.tag-card--active .tag-card__cat { color: var(--color-text); }
+/* v0.4 [AX1]: на --color-primary (#327AAE) WCAG AA даёт только #fff (4.64:1) или #000 (4.53:1).
+   --color-text (#f0eeeb) даёт 4.00:1 (fail). Используем #fff напрямую.
+   Альтернатива через токены: на dark и light темах --color-text-on-primary = #fff (можно ввести новый токен в tokens.css при следующей итерации).
+   Если визуал не понравится — откат: color: var(--color-bg). */
+.tag-card--active .work-card__badge,
+.tag-card--active .tag-card__count-badge { background: var(--color-primary); color: #fff; }
+/* Thumb */
+.tag-card__thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--color-work-card-bg-hover);
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.tag-card__thumb::after {
+  content: attr(data-label);
+  font-family: var(--font-display);
+  font-size: var(--text-xs); font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-text-faint);
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1; pointer-events: none;
+}
+.tag-card__thumb img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; z-index: 2;
+  transition: transform 400ms var(--ease-out);
+}
+.tag-card:hover .tag-card__thumb img { transform: scale(1.04); }
+/* Count badge — mirrors .work-card__badge */
+.tag-card__count-badge {
+  position: absolute;
+  top: var(--space-2); right: var(--space-2);
+  z-index: 3;
+  display: inline-flex; align-items: center;
+  height: 18px; padding: 0 6px;
+  /* v0.4 [AX1]: --color-ctrl-bg (rgba 22/22/22/0.82) → --color-surface-2 (solid #313131).
+     Полупрозрачный фон поверх linear-gradient thumbnail давал контраст ~3.4:1 (WCAG fail).
+     Solid surface-2 + --color-text-muted даёт 5.27:1 → WCAG AA ✓.
+     Внимание: визуал бейджа теперь без backdrop-blur (solid). Если понадобится откат —
+     вернуть var(--color-ctrl-bg) и backdrop-filter: blur(4px). */
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 0.6rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; line-height: 1;
+  transition: background 160ms var(--ease-out), color 160ms var(--ease-out),
+              border-color 160ms var(--ease-out);
+}
+/* Info */
+.tag-card__info { padding: var(--space-3); }
+.tag-card__meta {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-1);
+}
+.tag-card__cat {
+  font-size: var(--text-xs); font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-accent-text);
+}
+.tag-card__format {
+  /* v0.4 [AX1]: --color-text-faint (#8a8884 = 3.67:1) → --color-text-muted (#a8a6a2 = 5.27:1).
+     Это переопределяет inherit от .work-card__year (заморожен в shared.css). WCAG AA ✓.
+     Если визуал не понравится — вернуть --color-text-faint в этом селекторе. */
+  font-size: var(--text-xs); color: var(--color-text-muted); letter-spacing: 0.06em;
+}
+.tag-card__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base); font-weight: 600;
+  color: var(--color-text); line-height: 1.25; margin-bottom: var(--space-1);
+}
+.tag-card__desc {
+  font-size: var(--text-xs); color: var(--color-text-muted); line-height: 1.55;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1100px) and (min-width: 768px) {
+  .fa-view { padding: var(--space-4) var(--space-8) 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fa-card, .fa-card__thumb img, .fa-card__download,
+  .tag-card, .tag-card__thumb img { transition: none !important; transform: none !important; }
+}
+
+/* ── Mobile: show fa-view when sidebar is collapsed ── */
+@media (max-width: 767px) {
+  /* Default: show sidebar (layout), hide main-area (asset view) */
+  .main-area { display: none; }
+
+  /* When collapsed: main-area is vertical column — bar on top, fa-view fills rest */
+  body.cards-collapsed .main-area {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* case-mobile-bar: shrink to its natural height, never grow.
+     Reset the negative margin from shared.css (that bar was designed for a
+     padded parent container — main-area here has none, so -margin would
+     offset logo outside viewport). Padding: var(--space-4) stays from shared.css. */
+  .case-mobile-bar {
+    flex: 0 0 auto;
+    width: 100%;
+    margin-inline: 0;
+  }
+
+  /* fa-view: fills remaining space, scrolls internally */
+  body.cards-collapsed .fa-view {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  /* fa-view mobile layout */
+  .fa-view { padding: 0 var(--space-4) 0; gap: var(--space-3); }
+  .fa-view__title { font-size: var(--text-xl); }
+  /* Mobile: 1 column for readability on small screens */
+  .fa-grid { grid-template-columns: 1fr; gap: var(--space-4); }
+  .fa-scroll { -webkit-mask-image: none; mask-image: none; }
+  /* case-back visible on mobile when grid is shown */
+  body.cards-collapsed .case-back { display: inline-flex; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v0.8.8b — per-tag thumb backgrounds (6 tag-cards in sidebar).
+   Раньше каждая tag-card имела inline style="background:linear-gradient(...)".
+   Нарушало build-rule B2. Переведено на атрибут-селектор по data-tag.
+   Динамические fa-card в #fa-grid сохраняют style="background:" (data-driven
+   из fa-data.js — 22 категории, вне scope M10).
+═══════════════════════════════════════════════════════════════════════ */
+.tag-card[data-tag="hard-surface"] .tag-card__thumb { background: linear-gradient(135deg,#1e2d3d 0,#2a3a4a 100%); }
+.tag-card[data-tag="product"] .tag-card__thumb { background: linear-gradient(135deg,#2a2018 0,#3a2e22 100%); }
+.tag-card[data-tag="game"] .tag-card__thumb { background: linear-gradient(135deg,#1a1a2a 0,#252535 100%); }
+.tag-card[data-tag="organic"] .tag-card__thumb { background: linear-gradient(135deg,#1a1816 0,#2a2520 100%); }
+.tag-card[data-tag="animation"] .tag-card__thumb { background: linear-gradient(135deg,#1a2233 0,#26304a 100%); }
+.tag-card[data-tag="cad"] .tag-card__thumb { background: linear-gradient(135deg,#1d232a 0,#2a3138 100%); }

@@ -1,0 +1,87 @@
+---
+/**
+ * TagCard — sidebar category entry on /free-assets/.  Carries the
+ * FROZEN double class `tag-card work-card` so the legacy CSS that
+ * targets either selector (work-card hover/active, tag-card overrides)
+ * keeps working.  data-tag drives the runtime filter in
+ * src/scripts/free-assets.ts.
+ *
+ * Markup mirrors codex/free-assets.html:276-291 (one card per
+ * category, count-badge for asset count, optional work-card__badge
+ * for the Game-Asset variant).
+ */
+import type { FaCategoryKey } from '@data/free-assets';
+
+export interface Props {
+  tag: FaCategoryKey;
+  title: string;
+  cat: string;
+  /** Format-list shown next to .work-card__year (e.g. ".blend .fbx"). */
+  format: string;
+  /** Short marketing description rendered as .work-card__desc. */
+  desc: string;
+  /** Slug of the representative work whose thumbnail we use. */
+  thumbId: string;
+  /** Inline label visible above the thumb until JS upgrades it. */
+  thumbLabel: string;
+  /** Asset count for the count-badge. */
+  count: number;
+  active?: boolean;
+  /** True for the Game Asset category — renders the extra Game pill. */
+  game?: boolean;
+  /** First card uses eager + fetchpriority for LCP. */
+  eager?: boolean;
+}
+
+const {
+  tag,
+  title,
+  cat,
+  format,
+  desc,
+  thumbId,
+  thumbLabel,
+  count,
+  active = false,
+  game = false,
+  eager = false,
+} = Astro.props;
+
+const cls = ['tag-card', active && 'tag-card--active', 'work-card']
+  .filter(Boolean)
+  .join(' ');
+---
+
+<a
+  class={cls}
+  id={`tag-${tag}`}
+  href={`#${tag}`}
+  data-tag={tag}
+  data-category={tag}
+  data-game-asset={game ? 'true' : 'false'}
+  aria-current={active ? 'page' : undefined}
+  data-cursor="link"
+>
+  <div class="tag-card__thumb work-card__thumb" data-label={thumbLabel}>
+    <img
+      src={`/works/${thumbId}/thumb.svg`}
+      alt={`${cat} preview`}
+      width="800"
+      height="600"
+      loading={eager ? 'eager' : 'lazy'}
+      fetchpriority={eager ? 'high' : undefined}
+      decoding="async"
+      onerror="this.remove();"
+    />
+    {game && <span class="work-card__badge" aria-hidden="true">Game</span>}
+    <span class="tag-card__count-badge">{count} asset{count === 1 ? '' : 's'}</span>
+  </div>
+  <div class="tag-card__info work-card__info">
+    <div class="tag-card__meta work-card__meta">
+      <span class="tag-card__cat work-card__cat">{cat}</span>
+      <span class="tag-card__format work-card__year">{format}</span>
+    </div>
+    <h2 class="tag-card__title work-card__title">{title}</h2>
+    <p class="tag-card__desc work-card__desc">{desc}</p>
+  </div>
+</a>

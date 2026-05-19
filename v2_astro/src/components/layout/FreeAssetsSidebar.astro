@@ -1,0 +1,185 @@
+---
+/**
+ * FreeAssetsSidebar — sidebar shipped on /free-assets/.  Reuses the
+ * same chrome (logo, contact, theme-toggle, cards-toggle, footer
+ * pills) as the portfolio Sidebar, but the scrollable middle section
+ * carries six <TagCard /> entries instead of WorkCards.
+ *
+ * Tags-dropdown and game-switch from the portfolio Header are
+ * intentionally omitted here: the tag-cards themselves are the
+ * category filter UI, and game-asset filtering inside the active
+ * category is a Stage 9c polish.
+ *
+ * `activeTag` is the SSR-pre-selected category — JS will rebind it
+ * from location.hash on mount via src/scripts/free-assets.ts.
+ */
+import ThemeToggle from '@components/ui/ThemeToggle.astro';
+import TagCard from '@components/work/TagCard.astro';
+import {
+  FA_CATEGORY_ORDER,
+  FA_DATA,
+  type FaCategoryKey,
+} from '@data/free-assets';
+
+export interface Props {
+  activeTag: FaCategoryKey;
+}
+
+const { activeTag } = Astro.props;
+
+// Visual + meta payload per tag-card. Order + labels + thumb-id
+// mirror codex/free-assets.html:276-385 (the legacy renderGrid
+// chose a representative thumbnail per category).
+const TAG_CARDS: Array<{
+  tag: FaCategoryKey;
+  title: string;
+  cat: string;
+  format: string;
+  desc: string;
+  thumbId: string;
+  thumbLabel: string;
+  game?: boolean;
+}> = [
+  { tag: 'hard-surface', title: 'Hard Surface',          cat: 'Hard Surface', format: '.blend .fbx',         desc: 'Props, weapons, armour. AAA-ready topology.',     thumbId: 'orbital-mk-ii', thumbLabel: 'Hard Surface' },
+  { tag: 'product',      title: 'Product Visualization', cat: 'Product Viz',  format: '.blend',              desc: 'Studio scenes, lighting rigs, camera setups.',    thumbId: 'corten-series', thumbLabel: 'Product Viz'  },
+  { tag: 'game',         title: 'Game-Ready',            cat: 'Game Assets',  format: '.fbx LOD 0–2',        desc: 'Optimised props with LODs and 4K PBR maps.',      thumbId: 'nightshard',    thumbLabel: 'Game Assets', game: true },
+  { tag: 'organic',      title: 'Organic',               cat: 'Organic',      format: '.blend rig',          desc: 'Sculpted creatures, fur grooms, rigs.',           thumbId: 'nyx-panther',   thumbLabel: 'Organic'      },
+  { tag: 'animation',    title: 'Animation',             cat: 'Animation',    format: '.blend .mp4',         desc: 'Turntables, reveal loops, camera paths.',         thumbId: 'helix-reveal',  thumbLabel: 'Animation'    },
+  { tag: 'cad',          title: 'CAD',                   cat: 'CAD',          format: '.blend .step .stl',   desc: 'Parametric assemblies, print-ready geometry.',    thumbId: 'mech-link',     thumbLabel: 'CAD'          },
+];
+
+const totalCategories = FA_CATEGORY_ORDER.length;
+---
+
+<aside class="sidebar" aria-label="Asset categories" transition:persist="sidebar">
+  <header class="site-header" role="banner">
+    <div class="header-top">
+      <a
+        href="/"
+        class="logo"
+        id="logo-back-portfolio"
+        aria-label="Codex — back to portfolio"
+        data-cursor="link"
+      >
+        <span class="logo__text">CODEX</span>
+      </a>
+
+      <div class="header-top__controls">
+        <a
+          href="https://t.me/WhiteCatWeb"
+          class="contact-btn"
+          id="contact-btn"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Contact via Telegram"
+          title="Contact · Telegram"
+          data-cursor="link"
+        >
+          <svg
+            class="contact-btn__icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3" />
+          </svg>
+          <span class="contact-btn__label">Contact</span>
+        </a>
+
+        <ThemeToggle />
+
+        <button
+          type="button"
+          class="cards-toggle"
+          id="cards-toggle"
+          aria-expanded="true"
+          aria-controls="cards-scroll"
+          aria-label="Hide categories panel"
+          data-cursor="link"
+        >
+          <span class="cards-toggle__icon cards-toggle__icon--open" aria-hidden="true">‹‹</span>
+          <span class="cards-toggle__icon cards-toggle__icon--closed" aria-hidden="true">››</span>
+          <span class="cards-toggle__label">Hide categories</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="tags-divider" aria-hidden="true"></div>
+    <div class="sidebar__row">
+      <span class="cards-count" id="cards-count" aria-live="polite">
+        {totalCategories} categories
+      </span>
+    </div>
+  </header>
+
+  <div
+    class="cards-scroll"
+    id="cards-scroll"
+    role="region"
+    aria-label="Asset category list"
+  >
+    <div class="cards-list" id="cards-list">
+      {TAG_CARDS.map((t, i) => (
+        <TagCard
+          tag={t.tag}
+          title={t.title}
+          cat={t.cat}
+          format={t.format}
+          desc={t.desc}
+          thumbId={t.thumbId}
+          thumbLabel={t.thumbLabel}
+          count={FA_DATA[t.tag].length}
+          game={t.game}
+          active={t.tag === activeTag}
+          eager={i === 0}
+        />
+      ))}
+    </div>
+  </div>
+
+  <footer class="site-footer" role="contentinfo" aria-label="Sidebar footer">
+    <div class="site-footer__row site-footer__row--actions">
+      <p class="site-footer__stats">FREE · 25 ASSETS · CC0</p>
+    </div>
+    <div class="site-footer__divider" aria-hidden="true"></div>
+    <div class="site-footer__row site-footer__row--pill">
+      <a
+        href="https://t.me/WhiteCatWeb"
+        class="top-pill top-pill--contact site-footer__contact"
+        id="contact-pill"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Contact via Telegram"
+        title="Contact · Telegram"
+        data-cursor="link"
+      >
+        <svg
+          class="top-pill__icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3" />
+        </svg>
+        <span class="top-pill__label">Contact</span>
+      </a>
+      <a
+        href="/"
+        class="top-pill top-pill--free site-footer__free"
+        id="portfolio-footer"
+        title="Back to portfolio"
+        data-cursor="link"
+      >
+        <span class="top-pill__label">Portfolio</span>
+      </a>
+    </div>
+  </footer>
+</aside>

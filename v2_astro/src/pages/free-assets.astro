@@ -1,29 +1,37 @@
 ---
 /**
- * /free-assets/ — flat catalogue page (Stage 9a).
+ * /free-assets/ — catalogue page (Stage 9a + 9b).
  *
- * Renders every FA_DATA asset in a single fa-grid; the tag-card
- * sidebar that filters by category lands in Stage 9b alongside the
- * runtime selection logic.  For now the sidebar slot mirrors the
- * portfolio sidebar so the layout still works inside the .layout
- * grid (header chrome + footer carry the navigation back to /).
+ * Renders every FA_DATA asset in a single fa-grid; the FreeAssetsSidebar
+ * to the left exposes six tag-cards (one per category).  src/scripts/
+ * free-assets.ts toggles `[hidden]` on the asset cards in response to
+ * tag-card clicks + location.hash changes — pre-rendered cards outside
+ * the initial category ship with `hidden` set so the first paint
+ * already matches activeTag without any client-side handshake.
  */
 import BaseLayout from '@layouts/BaseLayout.astro';
-import Sidebar from '@components/layout/Sidebar.astro';
+import FreeAssetsSidebar from '@components/layout/FreeAssetsSidebar.astro';
 import AssetCard from '@components/work/AssetCard.astro';
-import { getAllAssets, getTotalAssetCount } from '@data/free-assets';
+import {
+  FA_CATEGORY_ORDER,
+  FA_DATA,
+  FA_CATEGORY_LABELS,
+} from '@data/free-assets';
 
-const assets = getAllAssets();
-const total = getTotalAssetCount();
+const activeTag = 'hard-surface' as const;
+const initialLabel = FA_CATEGORY_LABELS[activeTag];
+
+// Flatten with category tag info — preserves order and category.
+const entries = FA_CATEGORY_ORDER.flatMap((tag) =>
+  FA_DATA[tag].map((asset) => ({ asset, tag })),
+);
+const initialVisible = entries.filter((e) => e.tag === activeTag);
 
 const title = 'Free 3D Assets — Codex Studio · Hard Surface, Game-Ready, CC0';
 const description =
   'Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0 / CC-BY.';
 
-// Per-page OG image lands in Stage 10. Reuse the studio default until then.
 const ogImage = '/img/og-free-assets.jpg';
-
-// JSON-LD: WebPage per project_brief.md Free-Assets canonical schema list.
 const schema = {
   '@context': 'https://schema.org',
   '@type': 'WebPage',
@@ -44,27 +52,32 @@ const schema = {
   schemas={[schema]}
 >
   <div class="layout">
-    <Sidebar />
+    <FreeAssetsSidebar activeTag={activeTag} />
 
     <main class="main-area" id="main">
       <section class="fa-view" id="fa-view" aria-label="Free assets">
         <div class="fa-view__header">
           <div>
             <div class="fa-view__meta">
-              <span class="fa-view__cat" id="fa-view-cat">All assets</span>
+              <span class="fa-view__cat" id="fa-view-cat">{initialLabel}</span>
               <span class="fa-view__sep" aria-hidden="true">·</span>
               <span class="fa-view__count" id="fa-view-count">
-                {total} asset{total === 1 ? '' : 's'}
+                {initialVisible.length} asset{initialVisible.length === 1 ? '' : 's'}
               </span>
             </div>
-            <h1 class="fa-view__title" id="fa-view-title">Free 3D Assets</h1>
+            <h1 class="fa-view__title" id="fa-view-title">{initialLabel}</h1>
           </div>
         </div>
 
         <div class="fa-scroll" id="fa-scroll">
           <ul class="fa-grid" id="fa-grid">
-            {assets.map((asset, i) => (
-              <AssetCard asset={asset} eager={i === 0} />
+            {entries.map(({ asset, tag }, i) => (
+              <AssetCard
+                asset={asset}
+                tag={tag}
+                hidden={tag !== activeTag}
+                eager={tag === activeTag && i < FA_DATA[activeTag].length && asset.id === FA_DATA[activeTag][0]?.id}
+              />
             ))}
           </ul>
         </div>
@@ -75,4 +88,5 @@ const schema = {
 
 <script>
   import '~/scripts/sidebar';
+  import '~/scripts/free-assets';
 </script>
