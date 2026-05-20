@@ -1169,3 +1169,109 @@ body.filter-game .work-card__badge {
 @media (min-width: 768px) {
   body.cards-collapsed .site-footer { display: none; }
 }
+
+/* ── Cursor extended states (Bug-fix Stage 11) ─────────────────────
+   Ported from codex/css/shared.css 1470-1570 (cursor states).  Base
+   ring+dot styles live in Cursor.astro's scoped block; these global
+   rules add link/work/drag variants driven by data-cursor delegation. */
+/* ═══════════════════════════════════════════════════════════════════════
+   CURSOR EXTENDED STATES (v0.19.0)
+   ─────────────────────────────────────────────────────────────────────
+   Базовый ring 40×40 + dot 6×6 (v0.13.0/v0.14.0) НЕ трогается. Новые
+   состояния добавляют child-overlay (.cursor__shell) и модифицируют
+   существующий .cursor-dot. Делегация — data-cursor="link|work|drag"
+   на интерактивных элементах, обрабатывается mouseover в main.js.
+═══════════════════════════════════════════════════════════════════════ */
+
+/* Shell — общий контейнер для расширенных состояний (work, drag) */
+.cursor__shell {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--cursor-shell-size, 56px);
+  height: var(--cursor-shell-size, 56px);
+  border: 1px solid var(--color-text);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out),
+    border-color 0.2s ease;
+  will-change: transform, opacity;
+}
+
+.cursor__shell-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  opacity: 0;
+  transition: opacity 0.2s var(--ease-out) 0.08s;
+  white-space: nowrap;
+}
+
+.cursor__crosshair {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.25s var(--ease-out);
+  pointer-events: none;
+}
+.cursor__crosshair i {
+  position: absolute;
+  background: var(--color-text);
+}
+.cursor__crosshair i:nth-child(1) { top: 0;    left: 50%; width: 1px; height: 6px; transform: translateX(-50%); }
+.cursor__crosshair i:nth-child(2) { bottom: 0; left: 50%; width: 1px; height: 6px; transform: translateX(-50%); }
+.cursor__crosshair i:nth-child(3) { left: 0;   top: 50%;  width: 6px; height: 1px; transform: translateY(-50%); }
+.cursor__crosshair i:nth-child(4) { right: 0;  top: 50%;  width: 6px; height: 1px; transform: translateY(-50%); }
+
+/* Smooth background transition on the dot — opt-in via new state classes */
+.cursor-dot {
+  transition: transform 200ms var(--ease-out), background-color 0.25s var(--ease-out), opacity 0.2s var(--ease-out);
+}
+
+/* LINK state — повторяем паттерн magnetic .is-hover: ring инвертируется
+   на --color-text (white в dark / dark в light, авто через токен), dot
+   scale 1.6. Раньше был border:transparent + translucent primary fill —
+   на reverse'ах (.case-nav__btn, .case-share, .case-3d__fs-btn) почти
+   не читался. Теперь link и magnetic-hover дают одинаковый visible visual. */
+.cursor.is-link {
+  border-color: var(--color-text);
+}
+.cursor.is-link .cursor-dot {
+  transform: scale(1.6);
+}
+
+/* WORK state — 64×64 shell with text label, base ring/dot hidden */
+.cursor.is-work {
+  border-color: transparent;
+}
+.cursor.is-work .cursor-dot { opacity: 0; }
+.cursor.is-work .cursor__shell {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.cursor.is-work .cursor__shell-label {
+  opacity: 1;
+}
+.cursor.is-work .cursor__shell-label::after { content: 'VIEW →'; }
+
+/* DRAG state — 32×32 borderless shell with crosshair ticks */
+.cursor.is-drag {
+  --cursor-shell-size: 32px;
+  border-color: transparent;
+}
+.cursor.is-drag .cursor-dot { opacity: 0; }
+.cursor.is-drag .cursor__shell {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  border-color: transparent;
+}

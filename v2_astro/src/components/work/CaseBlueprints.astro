@@ -88,6 +88,7 @@ const scaleFor = (unit: 'mm' | 'cm') => `1:${unit === 'cm' ? '4' : '8'}`;
     class="case-blueprints__canvas"
     id="case-blueprints-canvas"
     data-bp-total={pageCount}
+    data-lenis-prevent
   >
     {pageCount > 0 ? (
       <Fragment>

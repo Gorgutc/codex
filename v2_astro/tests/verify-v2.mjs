@@ -49,10 +49,6 @@ function load(path) {
   return new JSDOM(html).window.document;
 }
 
-function attrs($el, name) {
-  return $el?.getAttribute(name) ?? null;
-}
-
 // ── 1. Work pages (any sample is representative; orbital-mk-ii carries the
 //      richest schema set so the JSON-LD count + ItemList assertions check
 //      against it specifically).

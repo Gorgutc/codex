@@ -1,25 +1,33 @@
 ---
 /**
- * Cursor — custom ring + dot, pointer:fine only.
+ * Cursor — custom ring + dot + extended states (link / work / drag),
+ * pointer:fine only.
  *
  * Guards (all must pass before activation):
  *   • matchMedia('(pointer: fine)').matches
  *   • matchMedia('(hover: hover)').matches  — coarse hover hybrids opt out
  *   • !matchMedia('(prefers-reduced-motion: reduce)').matches
  *
- * When active, the script adds `html.cursor-fine` which the global CSS
- * uses to hide native cursors (specificity 0,1,1 beats per-class rules
- * without !important). Ported from codex/css/shared.css + js/main.js,
- * trimmed to the base ring/dot for Stage 2; extended link/work/drag
- * states ship with their consumers in Stages 4–6.
+ * State delegation (legacy main.js:3829-3892):
+ *   • data-cursor="link"  — buttons, anchors, navigation arrows
+ *   • data-cursor="work"  — work-card / fa-card hover (shows "VIEW →" label)
+ *   • data-cursor="drag"  — 3D canvas, image gallery (crosshair)
+ * mouseover bubbles → document listener reads closest('[data-cursor]')
+ * and toggles `.is-link` / `.is-work` / `.is-drag` on `.cursor`.
  *
- * Stage 2 uses vanilla RAF for movement; Stage 8 may swap to
- * gsap.quickSetter for sub-pixel smoothness once GSAP is loaded.
+ * Stage 2 ring + dot; extended states + delegation added during Stage 11
+ * bug-fix pass to bring the cursor back to legacy parity.
  */
 ---
 
 <div class="cursor" aria-hidden="true">
   <div class="cursor-dot"></div>
+  <div class="cursor__shell" aria-hidden="true">
+    <span class="cursor__shell-label"></span>
+    <span class="cursor__crosshair">
+      <i></i><i></i><i></i><i></i>
+    </span>
+  </div>
 </div>
 
 <style is:global>
@@ -82,6 +90,51 @@
   };
 
   let state: CursorState | null = null;
+  const STATE_CLASSES = ['is-link', 'is-work', 'is-drag'] as const;
+  let currentDataState: string | null = null;
+
+  // Static interactive elements that should trigger extended cursor states.
+  // Mirrors legacy markStatic() in main.js:3858-3869.
+  const LINK_SELECTOR =
+    '.contact-btn, #contact-pill, .case-share, .case-nav__btn, ' +
+    '.bp-export-btn, .case-blueprints__fs-btn, .case-blueprints__pager-btn, ' +
+    '.top-pill--free, .top-pill--contact, #free-assets-footer, ' +
+    '#case-back, #portfolio-footer, .case-3d__ctrl, .theme-toggle, ' +
+    '.cards-toggle, .tags-dropdown__trigger, .tag-card, .case-tab, ' +
+    '.fa-card__download, .game-switch, .logo, .case-mobile-bar__logo';
+
+  function markStatic() {
+    // Work-cards default to 'work' (VIEW → label on hover).
+    document.querySelectorAll<HTMLElement>('.work-card:not(.tag-card)').forEach((e) => {
+      if (!e.hasAttribute('data-cursor')) e.setAttribute('data-cursor', 'work');
+    });
+    document.querySelectorAll<HTMLElement>(LINK_SELECTOR).forEach((e) => {
+      if (!e.hasAttribute('data-cursor')) e.setAttribute('data-cursor', 'link');
+    });
+    // 3D canvas → drag state (rotate cursor hint).
+    document.querySelectorAll<HTMLElement>('#case-3d-canvas, .case-item__media').forEach((e) => {
+      if (!e.hasAttribute('data-cursor')) e.setAttribute('data-cursor', 'drag');
+    });
+  }
+
+  function applyCursorState(stateName: string | null) {
+    const cursorEl = document.querySelector<HTMLElement>('.cursor');
+    if (!cursorEl) return;
+    for (const c of STATE_CLASSES) cursorEl.classList.remove(c);
+    if (stateName === 'link' || stateName === 'work' || stateName === 'drag') {
+      cursorEl.classList.add(`is-${stateName}`);
+    }
+  }
+
+  function onMouseOver(e: MouseEvent) {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    const el = target.closest<HTMLElement>('[data-cursor]');
+    const next = el ? el.getAttribute('data-cursor') : null;
+    if (next === currentDataState) return;
+    currentDataState = next;
+    applyCursorState(next);
+  }
 
   function init() {
     const cursorEl = document.querySelector<HTMLElement>('.cursor');
@@ -115,8 +168,6 @@
 
     function tick() {
       if (!state) return;
-      // Light smoothing — close enough to GSAP quickTo at 60fps without the
-      // dependency in Stage 2.
       state.cx += (state.tx - state.cx) * 0.35;
       state.cy += (state.ty - state.cy) * 0.35;
       state.el.style.transform = `translate3d(${state.cx}px, ${state.cy}px, 0)`;
@@ -132,16 +183,20 @@
 
     window.addEventListener('mousemove', onMove, { passive: true });
     window.addEventListener('mouseleave', onLeave);
+
+    // Tag interactive elements + delegated state switch.
+    markStatic();
+    document.addEventListener('mouseover', onMouseOver);
   }
 
   function destroy() {
     if (state?.rafId != null) cancelAnimationFrame(state.rafId);
     state = null;
+    document.removeEventListener('mouseover', onMouseOver);
+    currentDataState = null;
   }
 
   init();
-  // View Transitions re-init: DOM nodes survive but listeners do, so a
-  // full destroy/init keeps things idempotent across swaps.
   document.addEventListener('astro:before-swap', destroy);
   document.addEventListener('astro:page-load', init);
 </script>

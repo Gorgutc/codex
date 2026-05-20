@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "Codex Studio v2 — Astro 5 migration of the vanilla portfolio at codex.promo. Sidebar + case-view architecture preserved 1:1.",
+  "description": "Codex Studio v2 — Astro 6 migration of the vanilla portfolio at codex.promo. Sidebar + case-view architecture preserved 1:1.",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
@@ -16,7 +16,7 @@
   "dependencies": {
     "@astrojs/sitemap": "^3.2.0",
     "@google/model-viewer": "^4.2.0",
-    "astro": "^5.0.0",
+    "astro": "^6.3.5",
     "gsap": "^3.13.0",
     "lenis": "^1.1.20"
   },
