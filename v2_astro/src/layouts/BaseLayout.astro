@@ -74,9 +74,25 @@ const ogImageAbs = absUrl(ogImage);
     <link rel="canonical" href={canonical} />
 
     {/* Anti-flicker: set html.is-loading BEFORE any stylesheet binds layout
-        so the preloader covers the first paint. Removed by Preloader.astro. */}
+        so the preloader covers the first paint. Removed by Preloader.astro.
+
+        Anim-pending: a separate flag for prefers-reduced-motion: no-preference
+        users so the CSS rule in components/sidebar.css can pre-hide un-revealed
+        work-cards until animations.ts (Stage 11c lazy-loaded GSAP) wires the
+        cascade reveal. Reduced-motion users never get the class; the
+        animations.ts init() also removes it on every page-load so a 4s safety
+        timeout below catches the case where the lazy chunk fails to land. */}
     <script is:inline>
       document.documentElement.classList.add('is-loading');
+      (function () {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        document.documentElement.classList.add('anim-pending');
+        // Safety net — if animations.ts fails to load (CDN block / network
+        // error), drop the gate after 4s so cards never stay invisible.
+        window.setTimeout(function () {
+          document.documentElement.classList.remove('anim-pending');
+        }, 4000);
+      })();
     </script>
 
     {/* OpenGraph */}

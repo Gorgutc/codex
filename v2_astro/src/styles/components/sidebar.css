@@ -1275,3 +1275,17 @@ body.filter-game .work-card__badge {
   transform: translate(-50%, -50%) scale(1);
   border-color: transparent;
 }
+
+/* ── Stage 11c: anim-pending gate ──────────────────────────────────────
+   Lazy-loaded GSAP / Lenis chunk hasn't streamed in yet. We pre-hide
+   un-revealed work-cards so they don't flash visible before the
+   ScrollTrigger.batch fires.  Reduced-motion users skip this entirely
+   (the inline script in BaseLayout never adds .anim-pending for them);
+   a 4s safety timeout in the same inline script drops the class as a
+   fallback if animations.ts fails to land. */
+@media (prefers-reduced-motion: no-preference) {
+  html.anim-pending .work-card:not(.tag-card):not([data-revealed]) {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
