@@ -45,6 +45,8 @@ interface ModelViewerEl extends HTMLElement {
   cameraOrbit?: string;
   cameraTarget?: string;
   fieldOfView?: number | string;
+  loaded?: boolean;
+  modelIsVisible?: boolean;
   getCameraOrbit?: () => { toString: () => string };
   getCameraTarget?: () => { toString: () => string };
   getFieldOfView?: () => number;
@@ -234,8 +236,31 @@ function init() {
   function onOpen() {
     if (!canvas) return;
     ensureModelViewer()
-      .then(() => canvas.classList.add('is-ready'))
-      .catch(() => {});
+      .then(() => {
+        if (!canvas) return;
+        canvas.classList.add('is-ready');
+        // When the <model-viewer> element was parsed before
+        // customElements.define() landed (our case — Astro renders the
+        // tag statically, ensureModelViewer() runs only after the user
+        // opens the 3D tab), the custom-element upgrade fires but some
+        // versions of model-viewer don't kick off the renderer until an
+        // attribute change. Nudge it by toggling src on the next frame
+        // so the GLB load actually starts.
+        if (!mv) return;
+        // Skip the nudge once the GLB has actually downloaded — toggling
+        // src on a loaded model would force an unnecessary reload.
+        if (mv.loaded) return;
+        const src = mv.getAttribute('src');
+        if (!src) return;
+        requestAnimationFrame(() => {
+          if (mv.loaded) return;
+          mv.removeAttribute('src');
+          requestAnimationFrame(() => mv.setAttribute('src', src));
+        });
+      })
+      .catch((err) => {
+        console.warn('[case-3d] model-viewer init failed', err);
+      });
   }
 
   if (!root.hidden) onOpen();

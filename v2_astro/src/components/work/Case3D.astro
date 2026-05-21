@@ -40,15 +40,16 @@ const hasModel = Boolean(modelSrc);
         src={modelSrc}
         alt={`${d.title} — interactive 3D viewer`}
         camera-controls
+        touch-action="none"
         auto-rotate
-        rotation-per-second="20deg"
+        auto-rotate-delay="4000"
+        rotation-per-second="15deg"
         interaction-prompt="none"
         environment-image="/hdr/studio.hdr"
-        skybox-image=""
-        exposure="1.0"
-        shadow-intensity="0.6"
-        shadow-softness="1.0"
-        tone-mapping="aces"
+        exposure="1"
+        shadow-intensity="0"
+        min-camera-orbit="auto auto 2%"
+        max-camera-orbit="auto auto 400%"
         interpolation-decay="200"
         loading="eager"
         reveal="auto"
