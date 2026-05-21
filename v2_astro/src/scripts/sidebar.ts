@@ -266,16 +266,28 @@ function init() {
   }
 
   // ── Cards-toggle (sidebar collapse) ───────────────────────────────────────
+  // Read the noun from the initial SSR label so the same handler reads
+  // "Hide projects" on /work/* and "Hide categories" on /free-assets/
+  // without per-page branching. The button always ships with "Hide …"
+  // in the open state (aria-expanded="true"), so the second token is
+  // the noun we want to keep.
+  const label = toggleBtn?.querySelector<HTMLElement>('.cards-toggle__label');
+  const initialLabel = label?.textContent?.trim() ?? 'Hide projects';
+  // Strict match — `Hide categories` / `Show projects`. If a future template
+  // drifts off the convention, fall back to `projects` rather than echoing
+  // the whole label string into the toggle text.
+  const labelMatch = initialLabel.match(/^(?:Hide|Show)\s+(.+)$/i);
+  const noun = labelMatch?.[1]?.trim() || 'projects';
+
   function setCollapsed(collapsed: boolean) {
     if (!toggleBtn) return;
     state.collapsed = collapsed;
     toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     toggleBtn.setAttribute(
       'aria-label',
-      collapsed ? 'Show projects panel' : 'Hide projects panel',
+      collapsed ? `Show ${noun} panel` : `Hide ${noun} panel`,
     );
-    const label = toggleBtn.querySelector<HTMLElement>('.cards-toggle__label');
-    if (label) label.textContent = collapsed ? 'Show projects' : 'Hide projects';
+    if (label) label.textContent = collapsed ? `Show ${noun}` : `Hide ${noun}`;
 
     document.body.classList.toggle('cards-collapsed', collapsed);
 
