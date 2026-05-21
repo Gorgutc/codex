@@ -40,13 +40,43 @@ const ENV_PRESETS: Record<EnvKey, string> = {
 let lightDdDocClick: ((e: MouseEvent) => void) | null = null;
 let lightDdDocKey: ((e: KeyboardEvent) => void) | null = null;
 
+interface ModelViewerEl extends HTMLElement {
+  exposure?: number;
+  cameraOrbit?: string;
+  cameraTarget?: string;
+  fieldOfView?: number | string;
+  getCameraOrbit?: () => { toString: () => string };
+  getCameraTarget?: () => { toString: () => string };
+  getFieldOfView?: () => number;
+  resetTurntableRotation?: () => void;
+}
+
 function init() {
   const root = document.getElementById('case-3d');
   if (!root || root.dataset.bound === '1') return;
   root.dataset.bound = '1';
 
-  const mv = root.querySelector<HTMLElement & { exposure?: number }>('#case-3d-mv');
+  const mv = root.querySelector<ModelViewerEl>('#case-3d-mv');
   const canvas = root.querySelector<HTMLElement>('#case-3d-canvas');
+
+  // Capture the initial camera pose on first load so RESET has a target
+  // to interpolate back to. model-viewer fires `load` once the GLB has
+  // been parsed and the camera is framed; before that the getters return
+  // pre-framing defaults that look wrong post-reset.
+  let initialOrbit: string | null = null;
+  let initialTarget: string | null = null;
+  let initialFov: string | null = null;
+  mv?.addEventListener('load', () => {
+    if (initialOrbit != null) return;
+    try {
+      initialOrbit = mv.getCameraOrbit?.().toString() ?? null;
+      initialTarget = mv.getCameraTarget?.().toString() ?? null;
+      const fov = mv.getFieldOfView?.();
+      initialFov = typeof fov === 'number' ? `${fov}deg` : null;
+    } catch {
+      /* getters not yet available — RESET will fall back to attr removal */
+    }
+  });
 
   // ── Auto-rotate toggle ─────────────────────────────────────────────────
   const autoBtn = root.querySelector<HTMLButtonElement>('[data-3d-ctrl="auto-rotate"]');
@@ -94,23 +124,28 @@ function init() {
     infoPanel.setAttribute('aria-hidden', next ? 'false' : 'true');
   });
 
-  // ── RESET — return camera to its initial orbit/target/zoom ────────────
-  // model-viewer remembers initial state via the camera-orbit / camera-target
-  // attributes if absent: removeAttribute resets to the parsed defaults.
-  // Combined with resetTurntableRotation() the pose snaps cleanly.
+  // ── RESET — smooth return to initial orbit/target/FOV ─────────────────
+  // Ports legacy main.js:2638-2657 (v0.14.0 [3]) — instead of
+  // jumpCameraToGoal (instant snap, the cause of the abrupt reset the
+  // user flagged), we clear the camera attributes and re-assign the
+  // captured initial values as PROPERTIES. model-viewer reads those as
+  // a new target pose and interpolates from the current camera state;
+  // interpolation-decay="200" on the element (Case3D.astro) tunes the
+  // ease-out so the trip lands in ~600-900ms, matching the legacy feel.
   const resetBtn = root.querySelector<HTMLButtonElement>('[data-3d-ctrl="reset"]');
   resetBtn?.addEventListener('click', () => {
     if (!mv) return;
-    type Resetable = HTMLElement & {
-      resetTurntableRotation?: () => void;
-      jumpCameraToGoal?: () => void;
-    };
-    const m = mv as Resetable;
-    mv.removeAttribute('camera-orbit');
-    mv.removeAttribute('camera-target');
-    mv.removeAttribute('field-of-view');
-    m.resetTurntableRotation?.();
-    m.jumpCameraToGoal?.();
+    try {
+      mv.removeAttribute('camera-orbit');
+      mv.removeAttribute('camera-target');
+      mv.removeAttribute('field-of-view');
+      if (initialOrbit) mv.cameraOrbit = initialOrbit;
+      if (initialTarget) mv.cameraTarget = initialTarget;
+      if (initialFov) mv.fieldOfView = initialFov;
+      mv.resetTurntableRotation?.();
+    } catch {
+      /* swallow — getters may not be ready on the very first frame */
+    }
     resetBtn.classList.add('is-pulse');
     window.setTimeout(() => resetBtn.classList.remove('is-pulse'), 520);
   });
