@@ -98,6 +98,7 @@ async function init() {
 
   initSidebarReveal(L);
   initMagneticTilt(L);
+  initMagneticPull(L);
   initCaseReveal(L);
 
   // Animations are wired — release the CSS pre-hide so any future
@@ -218,6 +219,97 @@ function initMagneticTilt(L: Libs) {
     card.addEventListener('pointerleave', onLeave);
     card.addEventListener('focusout', onLeave);
   }
+}
+
+// ╔═══════════════════════════════════════════════════════════════════════╗
+// ║ Magnetic pull (x/y translate)                                         ║
+// ╠═══════════════════════════════════════════════════════════════════════╣
+// ║ Ported from codex/js/main.js:3902-3990 (v0.8.1 [H2] decouple).        ║
+// ║ Tilt above owns rotationX/Y exclusively; this owns x/y exclusively.   ║
+// ║ Bind once per session via document-level delegation — `mouseover`     ║
+// ║ picks up the magnetic target, per-element `mousemove` drives the      ║
+// ║ pull, `mouseout` (when leaving the same element) snaps back to zero.  ║
+// ║ Work-cards get a softer 0.052 pull so the tilt doesn't fight the      ║
+// ║ translate; buttons/logo get the default 0.18.                         ║
+// ╚═══════════════════════════════════════════════════════════════════════╝
+const MAGNETIC_SELECTOR =
+  '.cards-toggle, .theme-toggle, .case-back, .logo, ' +
+  '.work-card:not(.tag-card), .case-tab, .case-mobile-bar__logo, .top-pill--contact';
+const SOFT_MAGNETIC_SELECTOR = '.work-card:not(.tag-card)';
+const PULL_DEFAULT = 0.18;
+const PULL_SOFT = 0.052;
+const MAGNETIC_DURATION = 0.3;
+const MAGNETIC_RESET_DURATION = 0.45;
+
+let magneticCurrentEl: HTMLElement | null = null;
+
+function initMagneticPull(L: Libs) {
+  if (document.documentElement.dataset.magneticPullBound === '1') return;
+  const fineHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (!fineHover) return;
+  document.documentElement.dataset.magneticPullBound = '1';
+
+  function pullFor(el: HTMLElement): number {
+    return el.matches(SOFT_MAGNETIC_SELECTOR) ? PULL_SOFT : PULL_DEFAULT;
+  }
+
+  function onMagneticMove(e: MouseEvent) {
+    const el = e.currentTarget as HTMLElement | null;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    const pull = pullFor(el);
+    L.gsap.to(el, {
+      x: dx * pull,
+      y: dy * pull,
+      duration: MAGNETIC_DURATION,
+      ease: 'power3.out',
+      overwrite: 'auto',
+    });
+  }
+
+  function leaveMagnetic() {
+    const el = magneticCurrentEl;
+    if (!el) return;
+    el.removeEventListener('mousemove', onMagneticMove);
+    L.gsap.to(el, {
+      x: 0,
+      y: 0,
+      duration: MAGNETIC_RESET_DURATION,
+      ease: 'power3.out',
+      overwrite: 'auto',
+    });
+    magneticCurrentEl = null;
+  }
+
+  function enterMagnetic(el: HTMLElement) {
+    if (magneticCurrentEl === el) return;
+    leaveMagnetic();
+    magneticCurrentEl = el;
+    el.addEventListener('mousemove', onMagneticMove);
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    const target = (e.target as Element | null)?.closest<HTMLElement>(
+      MAGNETIC_SELECTOR,
+    );
+    if (!target) return;
+    enterMagnetic(target);
+  });
+
+  // Snap back to zero when the pointer leaves the magnetic element. Guard
+  // against bubbling from inner children: only fire when relatedTarget is
+  // outside the current element.
+  document.addEventListener('mouseout', (e) => {
+    const el = magneticCurrentEl;
+    if (!el) return;
+    const related = e.relatedTarget as Node | null;
+    if (related && el.contains(related)) return;
+    leaveMagnetic();
+  });
 }
 
 // ╔═══════════════════════════════════════════════════════════════════════╗
