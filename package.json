@@ -1,0 +1,17 @@
+{
+  "name": "codex",
+  "version": "1.0.0",
+  "description": "Codex Studio — портфолио-сайт 3D-дизайн-студии. Vanilla HTML+CSS+JS, deploy на статический хост.",
+  "private": true,
+  "scripts": {
+    "verify": "node verify-frozen.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gorgutc/codex.git"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}
