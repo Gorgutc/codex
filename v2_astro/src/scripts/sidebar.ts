@@ -16,14 +16,29 @@
  * elements, so the simple .work-card queries here are safe.
  */
 
-type FilterKey = 'all' | 'hard-surface' | 'product' | 'organic' | 'prototyping' | 'animations' | 'cad';
+// Union covers both /work portfolio filters (animations plural, prototyping,
+// no game) and /free-assets filters (animation singular + game). The
+// per-page Header / FreeAssetsSidebar only ships the slice it needs; this
+// map is just the canonical lookup so chip labels stay correct on either.
+type FilterKey =
+  | 'all'
+  | 'hard-surface'
+  | 'product'
+  | 'game'
+  | 'organic'
+  | 'prototyping'
+  | 'animation'
+  | 'animations'
+  | 'cad';
 
 const FILTER_LABELS: Record<FilterKey, string> = {
   all: 'All',
   'hard-surface': 'Hard Surface',
   product: 'Product Viz',
+  game: 'Game Assets',
   organic: 'Organic',
   prototyping: 'Mechanical',
+  animation: 'Animation',
   animations: 'Animation',
   cad: 'CAD',
 };

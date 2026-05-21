@@ -67,7 +67,7 @@ const schemas: JsonLd[] = [getOrganizationSchema(), getWebSiteSchema(), webPage]
             <div class="fa-view__meta">
               <span class="fa-view__cat" id="fa-view-cat">{initialLabel}</span>
               <span class="fa-view__sep" aria-hidden="true">·</span>
-              <span class="fa-view__count" id="fa-view-count">
+              <span class="fa-view__count" id="fa-view-count" aria-live="polite">
                 {initialVisible.length} asset{initialVisible.length === 1 ? '' : 's'}
               </span>
             </div>

@@ -35,6 +35,7 @@ const { asset: a, tag, eager = false, hidden = false } = Astro.props;
   class="fa-card"
   data-asset-id={a.id}
   data-asset-tag={tag}
+  data-game-asset={a.badge === 'Game Asset' ? 'true' : 'false'}
   hidden={hidden}
 >
   <div class="fa-card__thumb" data-label={a.title} style={`background: ${a.bg};`}>

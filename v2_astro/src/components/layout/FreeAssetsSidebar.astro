@@ -2,13 +2,16 @@
 /**
  * FreeAssetsSidebar — sidebar shipped on /free-assets/.  Reuses the
  * same chrome (logo, contact, theme-toggle, cards-toggle, footer
- * pills) as the portfolio Sidebar, but the scrollable middle section
- * carries six <TagCard /> entries instead of WorkCards.
+ * pills) as the portfolio Sidebar.  Header carries the legacy filter
+ * stack from codex/free-assets.html:141-269:
  *
- * Tags-dropdown and game-switch from the portfolio Header are
- * intentionally omitted here: the tag-cards themselves are the
- * category filter UI, and game-asset filtering inside the active
- * category is a Stage 9c polish.
+ *   - tags-dropdown (OR-filter over the 6 FA categories — hides the
+ *     non-selected .tag-card entries in the cards list)
+ *   - tags-divider
+ *   - sidebar__row containing the game-switch (FA semantics: filters
+ *     fa-cards in the active category by `data-game-asset`, NOT the
+ *     categories themselves — v0.8.9 [L5]) and the cards-count
+ *     ("6 categories" → "8 assets" once a category is opened)
  *
  * `activeTag` is the SSR-pre-selected category — JS will rebind it
  * from location.hash on mount via src/scripts/free-assets.ts.
@@ -49,6 +52,17 @@ const TAG_CARDS: Array<{
 ];
 
 const totalCategories = FA_CATEGORY_ORDER.length;
+
+// Dropdown options — "All" toggle + 6 categories. Counts are derived
+// from FA_DATA so they stay in sync with the catalogue.
+const DROPDOWN_OPTIONS: Array<{ value: FaCategoryKey | 'all'; label: string; count: number }> = [
+  { value: 'all', label: 'All', count: totalCategories },
+  ...TAG_CARDS.map((t) => ({
+    value: t.tag,
+    label: t.title === 'Game-Ready' ? 'Game Assets' : t.cat,
+    count: FA_DATA[t.tag].length,
+  })),
+];
 ---
 
 <aside class="sidebar" aria-label="Asset categories" transition:persist="fa-sidebar">
@@ -108,9 +122,83 @@ const totalCategories = FA_CATEGORY_ORDER.length;
       </div>
     </div>
 
+    {/* TAGS DROPDOWN — filters which tag-cards stay visible in the list. */}
+    <div class="tags-dropdown" id="tags-dropdown" data-open="false">
+      <button
+        type="button"
+        class="tags-dropdown__trigger"
+        id="tags-dropdown-trigger"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        aria-controls="tags-dropdown-panel"
+        aria-label="Filter by category"
+        data-cursor="link"
+      >
+        <span class="tags-dropdown__chips" id="tags-dropdown-chips" aria-hidden="true"></span>
+        <span class="tags-dropdown__placeholder" id="tags-dropdown-placeholder">Filter by category</span>
+        <svg
+          class="tags-dropdown__chevron"
+          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M3 6 L8 11 L13 6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+      </button>
+      <div class="tags-dropdown__overlay" id="tags-dropdown-overlay" aria-hidden="true"></div>
+      <div
+        class="tags-dropdown__panel"
+        id="tags-dropdown-panel"
+        role="listbox"
+        aria-multiselectable="true"
+        aria-label="Categories"
+        hidden
+      >
+        {DROPDOWN_OPTIONS.map(({ value, label, count }) => (
+          <label class="tags-dropdown__option" role="option">
+            <input
+              type="checkbox"
+              class="tags-dropdown__checkbox"
+              data-filter={value}
+              aria-label={label}
+            />
+            <span class="tags-dropdown__label">{label}</span>
+            <span class="tags-dropdown__option-count">{count}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+
     <div class="tags-divider" aria-hidden="true"></div>
     <div class="sidebar__row">
-      <span class="cards-count" id="cards-count" aria-live="polite">
+      <label
+        class="game-switch"
+        id="game-switch-label"
+        title="Filter the current category to game-ready assets only (does not switch category)"
+        data-cursor="link"
+      >
+        <input
+          type="checkbox"
+          id="game-switch"
+          class="game-switch__input"
+          role="switch"
+          aria-checked="false"
+          aria-describedby="game-switch-hint"
+        />
+        <span class="game-switch__track" aria-hidden="true"><span class="game-switch__thumb"></span></span>
+        <span class="game-switch__label">Game assets only</span>
+        <span id="game-switch-hint" class="sr-only">Filters the current category to game-ready assets only</span>
+      </label>
+      <span class="cards-count" id="cards-count">
         {totalCategories} categories
       </span>
     </div>
