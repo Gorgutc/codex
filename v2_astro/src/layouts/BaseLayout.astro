@@ -83,8 +83,13 @@ const ogImageAbs = absUrl(ogImage);
         animations.ts init() also removes it on every page-load so a 4s safety
         timeout below catches the case where the lazy chunk fails to land. */}
     <script is:inline>
-      document.documentElement.classList.add('is-loading');
+      // Skip the loading gates once the preloader has finished its first
+      // pass and the user is doing same-bucket navigation. Cross-bucket
+      // swaps clear html.dataset.preloaderDone (Preloader.astro's
+      // astro:before-preparation listener), so the gate re-arms there.
       (function () {
+        if (document.documentElement.dataset.preloaderDone === '1') return;
+        document.documentElement.classList.add('is-loading');
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         document.documentElement.classList.add('anim-pending');
         // Safety net — if animations.ts fails to load (CDN block / network

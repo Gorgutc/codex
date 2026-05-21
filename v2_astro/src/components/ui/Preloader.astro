@@ -339,8 +339,11 @@
     }
 
     function startTracking() {
+      // Match legacy main.js:169 — only .work-card img. Tag-cards on FA
+      // carry the double class .tag-card.work-card, so the selector
+      // picks up 6 thumbnails on /free-assets/ (fast load), 18 on /work/.
       const imgs = Array.from(
-        document.querySelectorAll<HTMLImageElement>('.work-card img, .fa-card img'),
+        document.querySelectorAll<HTMLImageElement>('.work-card img'),
       ).slice(0, 12);
       const total = imgs.length;
 
@@ -381,6 +384,39 @@
     } else {
       startTracking();
     }
+  }
+
+  // ── Bucket detection ────────────────────────────────────────────────────
+  // The legacy /codex.promo/ behaviour shows the preloader on cold load and
+  // on every cross-page-type navigation (/work/* ↔ /free-assets/), but NOT
+  // on case-to-case sidebar clicks. We clear `data-preloader-done` whenever
+  // the navigation target lives in a different bucket; the new page's
+  // preloader runs full progress (work bucket — tracks .work-card / .fa-card
+  // imgs) or instant-exit (~200 ms when no trackable imgs exist).
+  type Bucket = 'work' | 'fa' | 'other';
+  function bucketOf(pathname: string): Bucket {
+    if (/^\/work(\/|$)/.test(pathname)) return 'work';
+    if (/^\/free-assets(\/|$)/.test(pathname)) return 'fa';
+    return 'other';
+  }
+
+  function onBeforePreparation(e: Event) {
+    const ev = e as Event & { to?: URL; from?: URL };
+    if (!ev.to) return;
+    const fromBucket = bucketOf(location.pathname);
+    const toBucket = bucketOf(ev.to.pathname);
+    if (fromBucket !== toBucket) {
+      // Cross-bucket: re-arm the preloader for the new page's first paint.
+      delete document.documentElement.dataset.preloaderDone;
+    }
+  }
+
+  // Bind document-level listener exactly once per session. Document
+  // survives View Transition swaps so there's no teardown needed — the
+  // dataset flag on html keeps re-binds idempotent across script re-runs.
+  if (!document.documentElement.dataset.preloaderBucketBound) {
+    document.documentElement.dataset.preloaderBucketBound = '1';
+    document.addEventListener('astro:before-preparation', onBeforePreparation);
   }
 
   run();
