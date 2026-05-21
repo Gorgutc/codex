@@ -44,17 +44,79 @@ function init() {
   // Hash routing — initial + on change.
   window.addEventListener('hashchange', refreshFromHash);
   refreshFromHash();
+
+  // Wire 3D thumbnail previews on the fa-cards. Mirrors the legacy
+  // v0.7.5 lazy-init: model-viewer module loads on the first card hitting
+  // the viewport, then customElements.define() upgrades every <model-viewer>
+  // in the grid; per-card loadfailure handlers flip --failed so the SVG
+  // poster stays visible if the GLB is missing / blocked.
+  setupFaModelViewers(grid);
+}
+
+let mvLoadingPromise: Promise<unknown> | null = null;
+function ensureModelViewer(): Promise<unknown> {
+  if (mvLoadingPromise) return mvLoadingPromise;
+  if (typeof customElements !== 'undefined' && customElements.get('model-viewer')) {
+    mvLoadingPromise = Promise.resolve();
+    return mvLoadingPromise;
+  }
+  mvLoadingPromise = import('@google/model-viewer').catch((err) => {
+    console.warn('[free-assets] model-viewer load failed', err);
+    mvLoadingPromise = null;
+    throw err;
+  });
+  return mvLoadingPromise;
+}
+
+function setupFaModelViewers(grid: HTMLElement) {
+  const mvs = Array.from(grid.querySelectorAll<HTMLElement>('.fa-card__thumb-mv'));
+  if (mvs.length === 0) return;
+
+  // Each MV reports its own loadfailure (404 / CORS / parse) — mark the
+  // card so CSS hides the MV layer and the SVG poster shows through.
+  for (const mv of mvs) {
+    mv.addEventListener('error', (e) => {
+      const evt = e as unknown as CustomEvent<{ type?: string }>;
+      if (evt.detail?.type === 'loadfailure') {
+        mv.classList.add('fa-card__thumb-mv--failed');
+      }
+    });
+  }
+
+  // Lazy-load the model-viewer module when the first card enters the
+  // viewport — keeps the cold-load 2D-only and matches the legacy
+  // js/free-assets.js:280 IntersectionObserver gate.
+  if (!('IntersectionObserver' in window)) {
+    ensureModelViewer();
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    observer.disconnect();
+    ensureModelViewer();
+  }, { rootMargin: '200px' });
+  for (const mv of mvs.slice(0, 4)) observer.observe(mv);
 }
 
 function onSidebarClick(e: MouseEvent) {
   const target = e.target as HTMLElement | null;
-  const card = target?.closest<HTMLElement>('.tag-card[data-tag]');
+  const card = target?.closest<HTMLAnchorElement>('a.tag-card[data-tag]');
   if (!card) return;
+  // Skip if the user explicitly wants a new tab / back-and-forward
+  // semantics — only intercept the plain click path.
+  if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
   const tag = card.dataset.tag;
   if (!isTag(tag)) return;
-  // Let the anchor's default `#tag` behaviour update location.hash;
-  // hashchange will fire, refreshFromHash will activate. No
-  // preventDefault — keeps back/forward and middle-click intact.
+  // ClientRouter / Lenis can swallow the native hash navigation in some
+  // edge cases (we observed it on /work -> /free-assets transitions
+  // during the May QA pass — clicking a tag-card no longer triggered
+  // hashchange). Take ownership of the navigation explicitly: prevent
+  // default, push the hash, and run activate() directly.
+  e.preventDefault();
+  if (location.hash !== `#${tag}`) {
+    history.pushState(history.state, '', `#${tag}`);
+  }
+  activate(tag);
 }
 
 function refreshFromHash() {

@@ -90,6 +90,8 @@ function bindTabs(root: HTMLElement): (viz: Viz) => void {
     writeTabToUrl(viz);
     if (viz === '3d') {
       document.dispatchEvent(new CustomEvent('codex:3d-open'));
+    } else if (viz === '2d') {
+      document.dispatchEvent(new CustomEvent('codex:2d-open'));
     }
   }
 

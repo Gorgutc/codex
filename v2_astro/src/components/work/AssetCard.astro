@@ -1,13 +1,15 @@
 ---
 /**
- * AssetCard — single .fa-card in the free-assets grid.  Markup mirrors
+ * AssetCard — single .fa-card in the free-assets grid. Markup mirrors
  * the legacy renderGrid() output (free-assets.js:53-100):
- *   • Thumb <img> falls back to the bg gradient via the data-label
- *     pseudo overlay when the file is missing; we mirror the legacy
- *     delegated error-handler with `onerror="this.remove()"`.
- *   • <model-viewer> preview is intentionally NOT rendered here; the
- *     bundle cost per fa-card would dominate the page weight. Stage
- *     9c may revisit with lazy-on-hover.
+ *   • SVG poster (<img>) acts as decorative fallback. data-label
+ *     pseudo overlay shows the bg gradient when the file is missing
+ *     (delegated error-handler with `onerror="this.remove()"`).
+ *   • <model-viewer> auto-rotate preview overlays the poster on top —
+ *     hidden until the customElement is registered by free-assets.ts'
+ *     ensureModelViewer() (lazy on first fa-card intersection so we
+ *     don't dominate the LCP budget). loadfailure adds
+ *     .fa-card__thumb-mv--failed → CSS hides the MV, SVG stays visible.
  *   • Download button is a plain <a download> — JS-free file delivery.
  *
  * data-asset-tag carries the canonical category key (matches the
@@ -47,6 +49,21 @@ const { asset: a, tag, eager = false, hidden = false } = Astro.props;
       decoding="async"
       onerror="this.remove();"
     />
+    <model-viewer
+      class="fa-card__thumb-mv"
+      src={`/models/free/${a.id}.glb`}
+      alt={`${a.title} — interactive 3D preview`}
+      auto-rotate
+      rotation-per-second="20deg"
+      interaction-prompt="none"
+      disable-zoom
+      disable-pan
+      shadow-intensity="0.4"
+      exposure="1.0"
+      tone-mapping="aces"
+      loading="lazy"
+      reveal="auto"
+    ></model-viewer>
     <span class="fa-card__badge">{a.badge}</span>
   </div>
 

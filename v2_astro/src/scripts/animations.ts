@@ -318,6 +318,20 @@ function setupLift(L: Libs, scrollEl: HTMLElement) {
   if (items.length === 0) return;
 
   killCaseItemTriggers(L);
+
+  // Don't gate case-items when the 2D panel isn't currently visible —
+  // a user landing on /work/X/?tab=3d has hidden=true on #case-scroll;
+  // ScrollTrigger can't compute positions inside a display:none
+  // ancestor, so the items would stay at opacity:0 forever. Skip the
+  // pre-hide; if/when the user switches to 2D, the codex:2d-open
+  // listener below re-runs setupLift against the now-visible panel
+  // and the items animate in normally.
+  const panelVisible = !scrollEl.hidden && scrollEl.offsetParent !== null;
+  if (!panelVisible) {
+    L.ScrollTrigger.refresh();
+    return;
+  }
+
   L.gsap.set(items, { opacity: 0, y: 44 });
 
   items.forEach((item, i) => {
@@ -425,6 +439,25 @@ if (!filterListenerBound) {
 if (!toggleListenerBound) {
   document.addEventListener('codex:toggle', onToggle);
   toggleListenerBound = true;
+}
+
+// 2D-tab activation — case-view.ts dispatches this whenever the user
+// switches from 3D/Blueprints back to 2D (or lands on 2D after a page
+// navigation that previously hid the case-scroll). Re-run setupLift
+// against the now-visible scroller so case-items can either play their
+// reveal animations or simply appear, depending on whether the panel
+// had previously been hidden.
+let tabOpenListenerBound = false;
+if (!tabOpenListenerBound) {
+  tabOpenListenerBound = true;
+  document.addEventListener('codex:2d-open', () => {
+    if (!libs) return;
+    const scrollEl = document.getElementById('case-scroll');
+    if (!scrollEl) return;
+    // Defer one frame so the [hidden] removal in case-view.activate
+    // has been committed and the panel actually has layout.
+    requestAnimationFrame(() => setupLift(libs!, scrollEl));
+  });
 }
 
 // ╔═══════════════════════════════════════════════════════════════════════╗

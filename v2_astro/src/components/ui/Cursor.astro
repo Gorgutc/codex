@@ -136,6 +136,29 @@
     applyCursorState(next);
   }
 
+  // Persist last-known mouse position across View Transitions. Scripts in
+  // <script> blocks re-execute on every page-load, so module-level state
+  // resets per navigation. Stash it on window so the next init() reads
+  // the live cursor position instead of resetting to off-screen (which
+  // produced the per-navigation snap from -100,-100 back to the pointer).
+  interface CursorPos { x: number; y: number; live: boolean; }
+  interface CursorWindow extends Window { __codexCursorPos?: CursorPos; }
+  const w = window as CursorWindow;
+  if (!w.__codexCursorPos) {
+    w.__codexCursorPos = { x: -100, y: -100, live: false };
+    window.addEventListener(
+      'mousemove',
+      (e: MouseEvent) => {
+        const pos = w.__codexCursorPos;
+        if (!pos) return;
+        pos.x = e.clientX;
+        pos.y = e.clientY;
+        pos.live = true;
+      },
+      { passive: true, capture: true },
+    );
+  }
+
   function init() {
     const cursorEl = document.querySelector<HTMLElement>('.cursor');
     if (!cursorEl) return;
@@ -147,14 +170,21 @@
 
     document.documentElement.classList.add('cursor-fine');
 
+    const pos = w.__codexCursorPos!;
     state = {
       el: cursorEl,
       rafId: null,
-      tx: -100,
-      ty: -100,
-      cx: -100,
-      cy: -100,
+      tx: pos.x,
+      ty: pos.y,
+      cx: pos.x,
+      cy: pos.y,
     };
+    // If we already saw a mousemove this session, restore the visible
+    // state immediately so the cursor doesn't fade in on every nav.
+    if (pos.live) {
+      cursorEl.classList.add('is-active');
+      cursorEl.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+    }
 
     const onMove = (e: MouseEvent) => {
       if (!state) return;

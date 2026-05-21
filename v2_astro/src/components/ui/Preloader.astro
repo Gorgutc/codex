@@ -64,6 +64,15 @@
     opacity: 0;
     transition: clip-path 0.9s var(--ease-inout), opacity 0.5s var(--ease-out) 0.2s;
   }
+  /* After the first run we stamp html[data-preloader-done="1"] so any
+     preloader DOM that Astro re-renders for subsequent View Transition
+     navigations stays display:none. Without this rule the recreated
+     overlay flashed on every case switch (run() removes it but only
+     after the script executes, which lags one frame behind the swap). */
+  html[data-preloader-done="1"] .preloader { display: none; }
+  html[data-preloader-done="1"] body > .layout,
+  html[data-preloader-done="1"] body > .main-area,
+  html[data-preloader-done="1"] body > .cursor { visibility: visible; }
 
   .preloader__readout {
     position: absolute;
