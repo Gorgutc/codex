@@ -8,24 +8,54 @@
  * bindings against the swapped main-area DOM.  The sidebar persists,
  * so its work-card list is the source of truth for prev/next order
  * (it already honours the active filters via sidebar.ts).
+ *
+ * Active tab persists across case switches via `?tab=` URL param —
+ * propagated to /work/* navigations via astro:before-preparation so
+ * clicking a sidebar card preserves whatever viz the user was viewing.
  */
 import { navigate } from 'astro:transitions/client';
 
+type Viz = '2d' | '3d' | 'blueprints';
+const VALID_TABS: readonly Viz[] = ['2d', '3d', 'blueprints'] as const;
+
+function isViz(s: string | null | undefined): s is Viz {
+  return !!s && (VALID_TABS as readonly string[]).includes(s);
+}
+
+function readTabFromUrl(): Viz {
+  const t = new URL(location.href).searchParams.get('tab');
+  return isViz(t) ? t : '2d';
+}
+
+function writeTabToUrl(viz: Viz) {
+  const url = new URL(location.href);
+  if (viz === '2d') url.searchParams.delete('tab');
+  else url.searchParams.set('tab', viz);
+  const next = url.pathname + (url.search || '') + url.hash;
+  history.replaceState(history.state, '', next);
+}
+
 function init() {
-  // Auto-collapse the sidebar on mobile whenever we're on /work/<slug>/ —
-  // mirrors the legacy setCollapsed(true) call inside openCase() so the
-  // case-view comes up over a tucked-away sidebar. Desktop is unaffected.
   applyMobileCollapse();
 
   const root = document.getElementById('case-view');
   if (!root || root.dataset.bound === '1') return;
   root.dataset.bound = '1';
 
-  bindTabs(root);
+  const activate = bindTabs(root);
   bindCopyLink();
   bindProgress();
   bindNav();
   bindBack();
+
+  // Restore the tab the user was on before navigating here. The page is
+  // statically rendered with 2D active, so this may flash 2D → 3D on a
+  // very slow first paint — masked by html.is-loading until preloader
+  // finishes (BaseLayout) and tucked behind a rAF below.
+  const desired = readTabFromUrl();
+  if (desired !== '2d') {
+    requestAnimationFrame(() => activate(desired));
+  }
 }
 
 function applyMobileCollapse() {
@@ -37,7 +67,7 @@ function applyMobileCollapse() {
 }
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
-function bindTabs(root: HTMLElement) {
+function bindTabs(root: HTMLElement): (viz: Viz) => void {
   const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.case-tab[data-viz]'));
   const panels = {
     '2d': document.getElementById('case-scroll'),
@@ -45,7 +75,7 @@ function bindTabs(root: HTMLElement) {
     blueprints: document.getElementById('case-blueprints'),
   } as const;
 
-  function activate(viz: '2d' | '3d' | 'blueprints') {
+  function activate(viz: Viz) {
     for (const t of tabs) {
       const isActive = t.dataset.viz === viz;
       t.classList.toggle('case-tab--active', isActive);
@@ -57,9 +87,7 @@ function bindTabs(root: HTMLElement) {
       el.hidden = !isActive;
       el.setAttribute('aria-hidden', isActive ? 'false' : 'true');
     }
-    // Stage 6 — signal the lazy-loader to register <model-viewer> the first
-    // time the 3D tab is activated. case-3d.ts listens for this and runs
-    // ensureModelViewer() exactly once per session.
+    writeTabToUrl(viz);
     if (viz === '3d') {
       document.dispatchEvent(new CustomEvent('codex:3d-open'));
     }
@@ -67,10 +95,12 @@ function bindTabs(root: HTMLElement) {
 
   for (const t of tabs) {
     t.addEventListener('click', () => {
-      const viz = t.dataset.viz as '2d' | '3d' | 'blueprints' | undefined;
+      const viz = t.dataset.viz as Viz | undefined;
       if (viz) activate(viz);
     });
   }
+
+  return activate;
 }
 
 // ── COPY LINK (desktop + mobile share buttons) ──────────────────────────────
@@ -204,4 +234,20 @@ document.addEventListener('astro:page-load', () => {
 // page-load init can attach a fresh one against the new case context.
 document.addEventListener('astro:before-swap', () => {
   document.removeEventListener('keydown', onKey);
+});
+
+// ── Propagate ?tab= across case-to-case navigations ────────────────────────
+// Sidebar work-card anchors render as plain /work/<slug>/ at build time.
+// When the user is on /work/A/?tab=3d and clicks /work/B/, the ClientRouter
+// would otherwise drop the query string. Intercept the navigation URL and
+// carry the current tab forward so the next page restores the same viz.
+document.addEventListener('astro:before-preparation', (e: Event) => {
+  const ev = e as Event & { to?: URL; from?: URL };
+  if (!ev.to) return;
+  if (!/^\/work\/[^/]+\/?$/.test(ev.to.pathname)) return;
+  if (ev.to.searchParams.has('tab')) return;
+  const currentTab = new URL(location.href).searchParams.get('tab');
+  if (currentTab && (VALID_TABS as readonly string[]).includes(currentTab) && currentTab !== '2d') {
+    ev.to.searchParams.set('tab', currentTab);
+  }
 });

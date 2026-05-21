@@ -75,7 +75,7 @@ const schemas: JsonLd[] = [getOrganizationSchema(), getWebSiteSchema(), webPage]
           </div>
         </div>
 
-        <div class="fa-scroll" id="fa-scroll">
+        <div class="fa-scroll" id="fa-scroll" data-lenis-prevent>
           <ul class="fa-grid" id="fa-grid">
             {entries.map(({ asset, tag }, i) => (
               <AssetCard

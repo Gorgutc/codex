@@ -488,5 +488,20 @@
 }
 
 /* ═══════════════════════════════════
+   v0.7.3 — Responsive switch: ≤1023px hides desktop env-group + expo and
+   reveals the light-dd dropdown. On ≥1024px desktop, the inverse — light-dd
+   stays display:none. Mirrors codex/css/portfolio-case.css lines 1390-1500.
+═══════════════════════════════════ */
+@media (max-width: 1023px) {
+  .case-3d__env-group,
+  .case-3d__expo {
+    display: none;
+  }
+  .case-3d__light-dd {
+    display: inline-flex;
+  }
+}
+
+/* ═══════════════════════════════════
    MOBILE — case-view тоже вертикальный скролл, но tall → full width
 ═══════════════════════════════════ */

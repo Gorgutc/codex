@@ -11,6 +11,7 @@
 @import './components/case-3d.css';
 @import './components/case-blueprints.css';
 @import './components/free-assets.css';
+@import './components/media-fs.css';
 
 /* ── Base type scale ──────────────────────────────────────────────────────── */
 body {

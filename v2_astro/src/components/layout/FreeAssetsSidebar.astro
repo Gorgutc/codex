@@ -51,7 +51,7 @@ const TAG_CARDS: Array<{
 const totalCategories = FA_CATEGORY_ORDER.length;
 ---
 
-<aside class="sidebar" aria-label="Asset categories" transition:persist="sidebar">
+<aside class="sidebar" aria-label="Asset categories" transition:persist="fa-sidebar">
   <header class="site-header" role="banner">
     <div class="header-top">
       <a
@@ -119,6 +119,7 @@ const totalCategories = FA_CATEGORY_ORDER.length;
   <div
     class="cards-scroll"
     id="cards-scroll"
+    data-lenis-prevent
     role="region"
     aria-label="Asset category list"
   >

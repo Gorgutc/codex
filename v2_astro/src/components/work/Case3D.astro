@@ -8,10 +8,11 @@
  * import on the first 3D-tab activation (src/scripts/case-3d.ts). This
  * keeps the LCP cost off the 2D-default load.
  *
- * Markup mirrors the legacy case-3d panel from codex/index.html:816-823
- * with the controls bar that main.js used to inject inline; in v2 we
- * render the controls statically so they survive View Transitions and
- * stay accessible without JS.
+ * Markup mirrors the legacy case-3d panel from codex/js/main.js:2185-2620
+ * (build3D). Desktop controls: AUTO ROTATION · MODEL INFO · RESET ↻ ·
+ * FULLSCREEN [ ] · STUDIO|OUTDOOR|DARK · EXPOSURE slider. Tablet/mobile
+ * (≤1023px) collapse env+exposure into a lightbulb dropdown so the bar
+ * stays single-row. All wired in src/scripts/case-3d.ts.
  */
 import type { WorkEntry } from '@lib/works';
 
@@ -21,9 +22,6 @@ export interface Props {
 
 const { work } = Astro.props;
 const d = work.data;
-// Stage 3 migration drops external modelviewer.dev / Khronos placeholders;
-// for those works we fall back to the slug-keyed local GLB (every work has
-// /models/<slug>.glb shipped with Stage 6 asset copy).
 const modelSrc = d.modelSrc ?? `/models/${d.slug}.glb`;
 const hasModel = Boolean(modelSrc);
 ---
@@ -63,8 +61,8 @@ const hasModel = Boolean(modelSrc);
     )}
 
     <div class="case-3d__hint" aria-hidden="true">
-      <span class="case-3d__hint--desktop">DRAG · ROTATE · WHEEL · ZOOM</span>
-      <span class="case-3d__hint--mobile">DRAG · PINCH · ZOOM</span>
+      <span class="case-3d__hint--desktop">RIGHT MOUSE · ROTATE</span>
+      <span class="case-3d__hint--mobile">DRAG · ZOOM</span>
     </div>
 
     <div class="case-3d__controls" role="group" aria-label="3D viewer controls">
@@ -75,33 +73,9 @@ const hasModel = Boolean(modelSrc);
         aria-pressed="true"
         data-cursor="link"
       >
-        <span class="case-3d__ctrl__txt-full">Auto-rotate</span>
+        <span class="case-3d__ctrl__txt-full">AUTO ROTATION</span>
         <span class="case-3d__ctrl__txt-short">Auto-R</span>
       </button>
-
-      <div class="case-3d__env-group" role="group" aria-label="Environment">
-        <button
-          type="button"
-          class="case-3d__ctrl case-3d__ctrl--env is-on"
-          data-3d-env="studio"
-          aria-pressed="true"
-          data-cursor="link"
-        >Studio</button>
-        <button
-          type="button"
-          class="case-3d__ctrl case-3d__ctrl--env"
-          data-3d-env="outdoor"
-          aria-pressed="false"
-          data-cursor="link"
-        >Outdoor</button>
-        <button
-          type="button"
-          class="case-3d__ctrl case-3d__ctrl--env"
-          data-3d-env="dark"
-          aria-pressed="false"
-          data-cursor="link"
-        >Dark</button>
-      </div>
 
       <button
         type="button"
@@ -112,9 +86,154 @@ const hasModel = Boolean(modelSrc);
         aria-controls="case-3d-info"
         data-cursor="link"
       >
-        <span class="case-3d__ctrl__txt-full">Info</span>
+        <span class="case-3d__ctrl__txt-full">MODEL INFO</span>
         <span class="case-3d__ctrl__txt-short">Info</span>
       </button>
+
+      <button
+        type="button"
+        class="case-3d__ctrl case-3d__ctrl--icon"
+        data-3d-ctrl="reset"
+        aria-label="Reset camera to initial position"
+        title="Reset camera"
+        data-cursor="link"
+      >
+        <svg
+          class="case-3d__ctrl-icon"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 8a5 5 0 1 0 1.46-3.54"></path>
+          <polyline points="3,3 3,6 6,6"></polyline>
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        class="case-3d__ctrl case-3d__ctrl--icon"
+        data-3d-ctrl="fullscreen"
+        aria-label="Open 3D fullscreen"
+        title="Fullscreen"
+        data-cursor="link"
+      >
+        <svg
+          class="case-3d__ctrl-icon"
+          viewBox="0 0 18 18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="square"
+          aria-hidden="true"
+        >
+          <path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5"></path>
+        </svg>
+      </button>
+
+      <div class="case-3d__env-group" role="group" aria-label="Environment preset">
+        <button
+          type="button"
+          class="case-3d__ctrl case-3d__ctrl--env is-on"
+          data-3d-env="studio"
+          aria-pressed="true"
+          data-cursor="link"
+        >STUDIO</button>
+        <button
+          type="button"
+          class="case-3d__ctrl case-3d__ctrl--env"
+          data-3d-env="outdoor"
+          aria-pressed="false"
+          data-cursor="link"
+        >OUTDOOR</button>
+        <button
+          type="button"
+          class="case-3d__ctrl case-3d__ctrl--env"
+          data-3d-env="dark"
+          aria-pressed="false"
+          data-cursor="link"
+        >DARK</button>
+      </div>
+
+      <label class="case-3d__expo" aria-label="Exposure">
+        <span class="case-3d__expo-label">EXPOSURE</span>
+        <input
+          type="range"
+          class="case-3d__expo-input"
+          data-3d-ctrl="exposure"
+          min="0.5"
+          max="2"
+          step="0.05"
+          value="1"
+          aria-label="Exposure level from 0.5 to 2.0"
+        />
+      </label>
+
+      <div class="case-3d__light-dd" data-open="false">
+        <button
+          type="button"
+          class="case-3d__ctrl case-3d__ctrl--icon case-3d__light-dd__trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          aria-label="Lighting settings"
+          data-cursor="link"
+        >
+          <svg
+            class="case-3d__ctrl-icon"
+            viewBox="0 0 20 20"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M10 2.5c-3 0-5 2.2-5 4.8 0 1.7.8 3.1 2 4v2h6v-2c1.2-.9 2-2.3 2-4 0-2.6-2-4.8-5-4.8z"></path>
+            <path d="M8 16h4M8.5 18h3"></path>
+          </svg>
+        </button>
+        <div class="case-3d__light-dd__panel" role="group" aria-label="Lighting presets and exposure" hidden>
+          <div class="case-3d__light-dd__section-label">ENVIRONMENT</div>
+          <div class="case-3d__light-dd__env-list" role="group" aria-label="Environment preset">
+            <button
+              type="button"
+              class="case-3d__light-dd__env-btn is-on"
+              data-3d-env="studio"
+              aria-pressed="true"
+            >STUDIO</button>
+            <button
+              type="button"
+              class="case-3d__light-dd__env-btn"
+              data-3d-env="outdoor"
+              aria-pressed="false"
+            >OUTDOOR</button>
+            <button
+              type="button"
+              class="case-3d__light-dd__env-btn"
+              data-3d-env="dark"
+              aria-pressed="false"
+            >DARK</button>
+          </div>
+          <label class="case-3d__light-dd__section-label" for="case-3d-expo-mobile">EXPOSURE</label>
+          <input
+            type="range"
+            id="case-3d-expo-mobile"
+            class="case-3d__light-dd__expo-input"
+            data-3d-ctrl="exposure-mobile"
+            min="0.5"
+            max="2"
+            step="0.05"
+            value="1"
+            aria-label="Exposure level from 0.5 to 2.0"
+          />
+        </div>
+      </div>
     </div>
 
     {d.specs && (
@@ -124,7 +243,7 @@ const hasModel = Boolean(modelSrc);
         aria-hidden="true"
         role="complementary"
       >
-        <h3 class="case-3d__info-title">{d.title} — model data</h3>
+        <h3 class="case-3d__info-title">MODEL INFO</h3>
         <table class="case-3d__info-table">
           <tbody>
             {d.specs.polycount && (

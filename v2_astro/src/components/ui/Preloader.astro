@@ -1,21 +1,40 @@
 ---
 /**
- * Preloader — anti-flicker overlay (Stage 2 minimal).
+ * Preloader — counter / bar / readout / skip overlay.
  *
- * The full counter / bar / readout / skip-button mechanic from the legacy
- * site lands in Stage 8 alongside GSAP. For Stage 2 we keep just enough
- * to honour the `html.is-loading` invariant from BaseLayout:
- *   1. Cover the page until window.load.
- *   2. Fade out via clip-path.
- *   3. Remove the overlay node and the html.is-loading class so .layout
- *      and .cursor become visible.
+ * Mirrors codex/index.html lines 180-200 + main.js:66-210 (initPreloader).
+ * Progress is driven by image.decode() on the first 12 work-card SVGs
+ * (or any <img> already present if there are fewer than 12). Counter
+ * tweens via a tiny rAF easing instead of GSAP — keeps the preloader
+ * dep-free so it can run on the very first paint before animations.ts
+ * has lazy-loaded its bundle.
  *
- * No GSAP dependency — CSS transition is enough for a simple sweep.
+ * Bug-1 from the May QA pass: View Transition page loads were
+ * re-mounting the preloader and replaying its clip-path exit, which
+ * read as a bottom-up shutter between cases. We now stamp
+ * `html[data-preloader-done="1"]` after the first run and short-circuit
+ * every subsequent astro:page-load to an instant remove.
  */
 ---
 
-<div class="preloader" id="preloader" data-stage="2-minimal">
-  <span class="preloader__label mono" aria-hidden="true">LOADING</span>
+<div class="preloader" id="preloader" role="status" aria-live="polite" aria-label="Loading" transition:persist="preloader">
+  <div class="preloader__readout" aria-hidden="true">
+    <span>CODEX_STUDIO</span>
+    <span class="preloader__readout-sep">/</span>
+    <span>LOADING_INDEX.HTML</span>
+    <span class="preloader__readout-sep">/</span>
+    <span class="preloader__readout-ts" id="preloader-ts">00:00:00</span>
+  </div>
+  <div class="preloader__center">
+    <div class="preloader__counter" id="preloader-counter" aria-hidden="true">00</div>
+    <div class="preloader__bar" aria-hidden="true">
+      <div class="preloader__bar-fill" id="preloader-bar-fill"></div>
+    </div>
+  </div>
+  <div class="preloader__label" aria-hidden="true">
+    INITIALIZING ASSETS<span class="preloader__dots"><span>.</span><span>.</span><span>.</span></span>
+  </div>
+  <button type="button" class="preloader__skip" id="preloader-skip" data-cursor="link" hidden>ENTER SITE</button>
 </div>
 
 <style is:global>
@@ -32,66 +51,334 @@
     z-index: 10000;
     background: var(--color-bg);
     color: var(--color-text);
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
     clip-path: inset(0 0 0% 0);
-    transition: clip-path 0.6s var(--ease-inout), opacity 0.3s var(--ease-out) 0.5s;
+    opacity: 1;
     will-change: clip-path, opacity;
   }
   .preloader.is-exiting {
     clip-path: inset(0 0 100% 0);
     opacity: 0;
+    transition: clip-path 0.9s var(--ease-inout), opacity 0.5s var(--ease-out) 0.2s;
+  }
+
+  .preloader__readout {
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+  .preloader__readout-sep {
+    color: var(--color-text-faint);
+    opacity: 0.6;
+  }
+
+  .preloader__center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-6);
+  }
+  .preloader__counter {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-hero);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+  }
+  .preloader__bar {
+    position: relative;
+    width: min(80vw, 480px);
+    height: 1px;
+    background: var(--color-divider);
+    overflow: hidden;
+  }
+  .preloader__bar-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    background: var(--color-primary);
   }
 
   .preloader__label {
+    position: absolute;
+    bottom: var(--space-12);
+    left: 50%;
+    transform: translateX(-50%);
     font-family: var(--font-mono);
     font-size: var(--text-xs);
-    letter-spacing: 0.18em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--color-text-faint);
+    white-space: nowrap;
+  }
+  .preloader__dots {
+    display: inline-block;
+    width: 1.4em;
+    text-align: left;
+    margin-left: 0.2em;
+  }
+  .preloader__dots span {
+    display: inline-block;
+    opacity: 0;
+    animation: preloader-dot 1.4s ease-in-out infinite;
+  }
+  .preloader__dots span:nth-child(2) { animation-delay: 0.2s; }
+  .preloader__dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes preloader-dot {
+    0%, 80%, 100% { opacity: 0; }
+    40%           { opacity: 1; }
   }
 
+  .preloader__skip {
+    position: absolute;
+    bottom: var(--space-24);
+    left: 50%;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: var(--space-2) var(--space-6);
+    cursor: pointer;
+    opacity: 0;
+    transform: translate(-50%, 8px);
+    transition:
+      opacity 0.3s var(--ease-out),
+      transform 0.3s var(--ease-out),
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .preloader__skip[hidden] { display: none; }
+  .preloader__skip.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  .preloader__skip:hover,
+  .preloader__skip:focus-visible {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    outline: none;
+  }
+
+  @media (max-width: 768px) {
+    .preloader__counter { font-size: var(--text-2xl); }
+    .preloader__bar    { width: min(70vw, 320px); }
+  }
+  @media (max-width: 375px) {
+    .preloader__readout { display: none; }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .preloader { transition: none; }
+    .preloader__dots span { animation: none; opacity: 1; }
+    .preloader.is-exiting { transition: none; }
   }
 </style>
 
 <script>
-  function hidePreloader() {
+  type CleanupFn = () => void;
+
+  function pad2(n: number): string {
+    return n < 10 ? '0' + n : String(n);
+  }
+  function nowTs(): string {
+    const d = new Date();
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+  }
+
+  function run(): void {
     const html = document.documentElement;
-    const overlay = document.getElementById('preloader');
-    if (!overlay) {
+    const overlayEl = document.getElementById('preloader');
+    if (!overlayEl) {
       html.classList.remove('is-loading');
       return;
     }
-    overlay.classList.add('is-exiting');
-
-    const done = () => {
-      overlay.removeEventListener('transitionend', done);
-      html.classList.remove('is-loading');
+    const overlay: HTMLElement = overlayEl;
+    // Subsequent View Transition page-loads: drop the preloader instantly
+    // — replaying the clip-path exit reads as a bottom-up shutter between
+    // cases. The legacy SPA never re-ran this animation post-boot.
+    if (html.dataset.preloaderDone === '1') {
       overlay.remove();
-    };
-    // Fallback in case the transition is suppressed (reduced-motion or
-    // detached during navigation).
-    const fallback = window.setTimeout(done, 1200);
-    overlay.addEventListener('transitionend', () => {
-      window.clearTimeout(fallback);
-      done();
-    });
-  }
+      html.classList.remove('is-loading');
+      return;
+    }
 
-  function schedule() {
-    if (document.readyState === 'complete') {
-      // Defer a frame so the first paint with .is-loading is committed
-      // before we start the exit transition.
-      requestAnimationFrame(hidePreloader);
+    const counterEl = overlay.querySelector<HTMLElement>('#preloader-counter');
+    const barFill = overlay.querySelector<HTMLElement>('#preloader-bar-fill');
+    const tsEl = overlay.querySelector<HTMLElement>('#preloader-ts');
+    const skipBtn = overlay.querySelector<HTMLButtonElement>('#preloader-skip');
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let progress = 0;
+    let lastShown = -1;
+    let exited = false;
+    let cleaned = false;
+    let rafId = 0;
+    const timers: number[] = [];
+    const cleanups: CleanupFn[] = [];
+
+    if (tsEl) {
+      tsEl.textContent = nowTs();
+      const tsInt = window.setInterval(() => {
+        tsEl.textContent = nowTs();
+      }, 1000);
+      cleanups.push(() => window.clearInterval(tsInt));
+    }
+
+    function render() {
+      const p = Math.max(0, Math.min(100, Math.round(progress)));
+      if (p === lastShown) return;
+      lastShown = p;
+      if (counterEl) counterEl.textContent = pad2(p);
+      if (barFill) barFill.style.width = p + '%';
+    }
+
+    // ~power2.out easing — same shape as the legacy GSAP tween (duration 0.4).
+    function easeOut(t: number): number {
+      return 1 - Math.pow(1 - t, 2);
+    }
+
+    function tweenTo(target: number, onDone?: () => void): void {
+      if (reduced) {
+        progress = target;
+        render();
+        onDone?.();
+        return;
+      }
+      const from = progress;
+      const delta = target - from;
+      const duration = 400;
+      const start = performance.now();
+      cancelAnimationFrame(rafId);
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        progress = from + delta * easeOut(t);
+        render();
+        if (t < 1) {
+          rafId = requestAnimationFrame(step);
+        } else {
+          progress = target;
+          render();
+          onDone?.();
+        }
+      };
+      rafId = requestAnimationFrame(step);
+    }
+
+    function cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      cancelAnimationFrame(rafId);
+      for (const t of timers) window.clearTimeout(t);
+      for (const fn of cleanups) fn();
+      overlay?.remove();
+      html.classList.remove('is-loading');
+      html.dataset.preloaderDone = '1';
+      document.dispatchEvent(new CustomEvent('codex:preloader-done'));
+    }
+
+    function exit() {
+      if (exited) return;
+      exited = true;
+      tweenTo(100, () => {
+        timers.push(window.setTimeout(() => {
+          if (reduced) { cleanup(); return; }
+          overlay.classList.add('is-exiting');
+          // The CSS transition runs the clip-path/opacity exit. Listen for
+          // its end + a fallback in case the engine drops it (background tab).
+          const onEnd = (e: TransitionEvent) => {
+            if (e.target !== overlay) return;
+            overlay.removeEventListener('transitionend', onEnd);
+            cleanup();
+          };
+          overlay.addEventListener('transitionend', onEnd);
+          timers.push(window.setTimeout(cleanup, 1400));
+        }, 200));
+      });
+    }
+
+    if (reduced) {
+      timers.push(window.setTimeout(exit, 50));
+      return;
+    }
+
+    function imgPromise(img: HTMLImageElement): Promise<void> {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      if (typeof img.decode === 'function') {
+        return img.decode().catch(() => undefined);
+      }
+      return new Promise<void>((res) => {
+        img.addEventListener('load', () => res(), { once: true });
+        img.addEventListener('error', () => res(), { once: true });
+      });
+    }
+
+    function startTracking() {
+      const imgs = Array.from(
+        document.querySelectorAll<HTMLImageElement>('.work-card img, .fa-card img'),
+      ).slice(0, 12);
+      const total = imgs.length;
+
+      if (total === 0) {
+        tweenTo(100, () => timers.push(window.setTimeout(exit, 200)));
+      } else {
+        let done = 0;
+        const promises = imgs.map((img) =>
+          imgPromise(img).then(() => {
+            done++;
+            tweenTo(Math.round((done / total) * 100));
+          }),
+        );
+        Promise.all(promises).then(() => {
+          if (!exited) timers.push(window.setTimeout(exit, 200));
+        });
+      }
+
+      // Soft timeout — force-finish if assets stall (slow network, CDN block).
+      timers.push(window.setTimeout(() => {
+        if (!exited) exit();
+      }, 2500));
+
+      // SKIP affordance at 4s — only if user is still here.
+      timers.push(window.setTimeout(() => {
+        if (!exited && skipBtn) {
+          skipBtn.hidden = false;
+          void skipBtn.offsetWidth; // reflow → transition triggers
+          skipBtn.classList.add('is-visible');
+        }
+      }, 4000));
+
+      skipBtn?.addEventListener('click', () => exit(), { once: true });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startTracking, { once: true });
     } else {
-      window.addEventListener('load', () => requestAnimationFrame(hidePreloader), { once: true });
+      startTracking();
     }
   }
 
-  schedule();
-  // View Transitions: the preloader node is recreated by the new page;
-  // re-run the schedule so the class is cleared after the swap as well.
-  document.addEventListener('astro:page-load', schedule);
+  run();
+  document.addEventListener('astro:page-load', () => {
+    // After the first navigation the preloader-done flag short-circuits
+    // run() to an instant hide. Wire it once per page-load — the listener
+    // bound on a previous module load might point at a removed DOM.
+    run();
+  });
 </script>

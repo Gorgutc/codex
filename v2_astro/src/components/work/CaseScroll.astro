@@ -31,7 +31,7 @@ const imgDims = (format: GalleryItem['format']) =>
   aria-label="Case study scroll"
   tabindex="0"
 >
-  <div class="case-scroll__track" id="case-scroll-track">
+  <div class="case-scroll__track" id="case-scroll-track" data-gallery>
     {rows.map((row) => {
       // ── text-full intro ────────────────────────────────────────────────
       if (row.kind === 'text-full') {
