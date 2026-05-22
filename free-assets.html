@@ -163,6 +163,16 @@
             <span class="contact-btn__label">Contact</span>
           </a>
 
+          <!-- LANG TOGGLE — RU ↔ EN (v0.8.x) идентично index.html -->
+          <button
+            type="button"
+            class="lang-toggle"
+            id="lang-toggle"
+            aria-label="Switch language to Russian"
+          >
+            <span class="lang-toggle__current">RU</span>
+          </button>
+
           <!-- THEME TOGGLE — идентично -->
           <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme" title="Toggle theme">
             <svg class="theme-toggle__icon theme-toggle__icon--sun"
@@ -479,6 +489,9 @@
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js"></script>
+<!-- v0.8.x — i18n: словари (data) + логика. ПЕРЕД main.js. -->
+<script src="./js/i18n-data.js"></script>
+<script src="./js/i18n.js"></script>
 <!-- JS: строго по порядку, без defer — идентично index.html -->
 <script src="./js/main.js"></script>
 <script src="./js/animations.js"></script>

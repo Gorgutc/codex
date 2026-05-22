@@ -238,6 +238,21 @@
             <span class="contact-btn__label">Contact</span>
           </a>
 
+          <!-- LANG TOGGLE — RU ↔ EN (v0.8.x)
+               Лейбл показывает язык, на который переключит клик.
+               EN активен → "RU"; RU активен → "EN".
+               Скрывается на mobile (≤767px) — функцию принимает #contact-btn
+               (см. Phase 5). Скрывается также в desktop collapsed-state
+               (правило body.cards-collapsed .lang-toggle в shared.css). -->
+          <button
+            type="button"
+            class="lang-toggle"
+            id="lang-toggle"
+            aria-label="Switch language to Russian"
+          >
+            <span class="lang-toggle__current">RU</span>
+          </button>
+
           <!-- THEME TOGGLE — light ↔ dark (v0.13.7) -->
           <button
             type="button"
@@ -845,6 +860,11 @@
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js"></script>
+<!-- v0.8.x — i18n: словари (data) + логика (init/applyLang/walker/URL proxy/geo).
+     Подключены ПЕРЕД main.js, потому что main.js может читать window.I18N
+     синхронно при инициализации. Без defer/async/type=module. -->
+<script src="./js/i18n-data.js"></script>
+<script src="./js/i18n.js"></script>
 <!-- v0.11.4 / v0.5 — model-data.js (1.1 MB inline GLB) теперь lazy-loaded.
      Загружается только при первом клике на 3D-вкладку (см. loadModelData() в main.js).
      Это снижает LCP с ~10s до ~2-3s — issue #1 Golden 0.5. -->

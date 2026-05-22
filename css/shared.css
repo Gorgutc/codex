@@ -263,6 +263,49 @@ body::after {
   .theme-toggle__icon { transition: opacity 0ms; transform: translate(-50%, -50%) scale(1) rotate(0deg) !important; }
 }
 
+/* ═══════════════════════════════════
+   LANG TOGGLE — RU ↔ EN (v0.8.x)
+   Геометрия идентична .theme-toggle. Содержимое — текстовый код языка
+   (показывает противоположный язык — то, на что переключит клик).
+═══════════════════════════════════ */
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-tag);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition:
+    color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    background 160ms var(--ease-out);
+}
+.lang-toggle:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+.lang-toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.lang-toggle__current {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lang-toggle { transition: none; }
+}
+
 /* ═════════════════════════════════════
    CONTACT BTN — Telegram CTA (v0.13.8)
    Является братом theme-toggle — в desktop collapsed фиксируется top-right.
@@ -1048,7 +1091,8 @@ body::after {
   body.cards-collapsed .tags-divider,
   body.cards-collapsed .sidebar__row,
   body.cards-collapsed .theme-toggle,
-  body.cards-collapsed .contact-btn { display: none; }
+  body.cards-collapsed .contact-btn,
+  body.cards-collapsed .lang-toggle { display: none; }
 
   body.cards-collapsed .cards-toggle {
     width: 32px;
@@ -1145,6 +1189,14 @@ body::after {
     color: var(--color-text);
   }
   .theme-toggle__icon { width: 18px; height: 18px; }
+
+  .lang-toggle {
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border-color: var(--color-border);
+    color: var(--color-text);
+  }
 
   .contact-btn {
     width: 44px;
