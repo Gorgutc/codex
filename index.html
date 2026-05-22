@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Codex — 3D Design Studio · Hard Surface &amp; Product Visualization</title>
+  <title data-i18n-meta="index.title">Codex — 3D Design Studio · Hard Surface &amp; Product Visualization</title>
 
-  <meta name="description" content="Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.">
+  <meta name="description" data-i18n-meta="index.description" content="Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.">
   <link rel="canonical" href="https://codex.promo/">
 
   <!-- OpenGraph (absolute URLs required by crawlers) -->
   <meta property="og:url"             content="https://codex.promo/">
   <meta property="og:type"            content="website">
-  <meta property="og:site_name"       content="Codex Studio">
-  <meta property="og:title"           content="Codex — 3D Design Studio">
-  <meta property="og:description"     content="Hard surface modeling, product viz, and 3D prototyping for global clients. Remote. Detail-driven. Blender-native.">
+  <meta property="og:site_name"       data-i18n-meta="index.ogSiteName" content="Codex Studio">
+  <meta property="og:title"           data-i18n-meta="index.ogTitle"   content="Codex — 3D Design Studio">
+  <meta property="og:description"     data-i18n-meta="index.ogDescription" content="Hard surface modeling, product viz, and 3D prototyping for global clients. Remote. Detail-driven. Blender-native.">
   <meta property="og:image"           content="https://codex.promo/assets/img/og-image.jpg">
   <meta property="og:image:width"     content="1200">
   <meta property="og:image:height"    content="630">
-  <meta property="og:image:alt"       content="Codex Studio — 3D design portfolio">
-  <meta property="og:locale"          content="en_US">
+  <meta property="og:image:alt"       data-i18n-meta="index.ogImageAlt" content="Codex Studio — 3D design portfolio">
+  <meta property="og:locale"          data-i18n-meta="index.ogLocale" content="en_US">
 
   <!-- Twitter Card -->
   <meta name="twitter:card"           content="summary_large_image">
-  <meta name="twitter:title"          content="Codex — 3D Design Studio">
-  <meta name="twitter:description"    content="Hard surface modeling, product viz, and 3D prototyping for global clients.">
+  <meta name="twitter:title"          data-i18n-meta="index.twitterTitle" content="Codex — 3D Design Studio">
+  <meta name="twitter:description"    data-i18n-meta="index.twitterDescription" content="Hard surface modeling, product viz, and 3D prototyping for global clients.">
   <meta name="twitter:image"          content="https://codex.promo/assets/img/og-image.jpg">
 
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
@@ -175,15 +175,15 @@
 
 <!-- v0.21.0 — Skip-to-content для a11y (Tab из address bar пропускает sidebar
      навигацию и фокусит main content). Visually hidden до :focus. -->
-<a class="skip-to-content" href="#main">Skip to content</a>
+<a class="skip-to-content" href="#main" data-i18n="skipToContent">Skip to content</a>
 
 <!-- v0.17.0 — PRELOADER. Real progress driven by top-12 work-card SVG decode().
      Removed from DOM after exit animation in js/main.js (initPreloader IIFE). -->
-<div class="preloader" id="preloader" role="status" aria-live="polite" aria-label="Loading">
+<div class="preloader" id="preloader" role="status" aria-live="polite" data-i18n-attr="aria-label:aria.preloaderLoading" aria-label="Loading">
   <div class="preloader__readout" aria-hidden="true">
-    <span>CODEX_STUDIO</span>
+    <span data-i18n="preloader.studio">CODEX_STUDIO</span>
     <span class="preloader__readout-sep">/</span>
-    <span>LOADING_INDEX.HTML</span>
+    <span data-i18n="preloader.loadingIndex">LOADING_INDEX.HTML</span>
     <span class="preloader__readout-sep">/</span>
     <span class="preloader__readout-ts" id="preloader-ts">00:00:00</span>
   </div>
@@ -194,14 +194,14 @@
     </div>
   </div>
   <div class="preloader__label" aria-hidden="true">
-    INITIALIZING ASSETS<span class="preloader__dots"><span>.</span><span>.</span><span>.</span></span>
+    <span data-i18n="preloader.initializing">INITIALIZING ASSETS</span><span class="preloader__dots"><span>.</span><span>.</span><span>.</span></span>
   </div>
-  <button type="button" class="preloader__skip" id="preloader-skip" data-cursor="link" hidden>ENTER SITE</button>
+  <button type="button" class="preloader__skip" id="preloader-skip" data-cursor="link" data-i18n="btn.enterSite" hidden>ENTER SITE</button>
 </div>
 
 <div class="layout">
 
-  <aside class="sidebar" aria-label="Projects navigator">
+  <aside class="sidebar" data-i18n-attr="aria-label:aria.projectsNavigator" aria-label="Projects navigator">
 
     <header class="site-header" role="banner">
 
@@ -216,7 +216,7 @@
              └─────────────────────────────────────────────┘ -->
         <!-- v0.14.0 [16] — клик по логотипу открывает первый кейс (аналогично initial load).
              href="#" + JS preventDefault, минует смену URL-хеша. -->
-        <a href="#" class="logo" id="logo-home" aria-label="Codex — back to first project">
+        <a href="#" class="logo" id="logo-home" data-i18n-attr="aria-label:aria.codexBackFirst" aria-label="Codex — back to first project">
           <span class="logo__text">CODEX</span>
           <!-- <svg class="logo__svg" viewBox="0 0 120 24" aria-hidden="true">…</svg> -->
         </a>
@@ -230,12 +230,13 @@
              id="contact-btn"
              target="_blank"
              rel="noopener noreferrer"
+             data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"
              aria-label="Contact via Telegram"
              title="Contact · Telegram">
             <svg class="contact-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>
             </svg>
-            <span class="contact-btn__label">Contact</span>
+            <span class="contact-btn__label" data-i18n="btn.contact">Contact</span>
           </a>
 
           <!-- LANG TOGGLE — RU ↔ EN (v0.8.x)
@@ -303,10 +304,11 @@
           aria-haspopup="listbox"
           aria-expanded="false"
           aria-controls="tags-dropdown-panel"
+          data-i18n-attr="aria-label:aria.filterByDiscipline"
           aria-label="Filter by discipline"
         >
           <span class="tags-dropdown__chips" id="tags-dropdown-chips" aria-hidden="true"></span>
-          <span class="tags-dropdown__placeholder" id="tags-dropdown-placeholder">Filter by discipline</span>
+          <span class="tags-dropdown__placeholder" id="tags-dropdown-placeholder" data-i18n="filter.placeholderDiscipline">Filter by discipline</span>
           <svg class="tags-dropdown__chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
             <path d="M3 6 L8 11 L13 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -314,34 +316,34 @@
         <!-- v0.2.1 [П1] — Mobile overlay: перехватывает клики/touch по всему экрану кроме dropdown.
              На desktop (≥768px) — display:none (не влияет). Активируется через [data-open="true"]. -->
         <div class="tags-dropdown__overlay" id="tags-dropdown-overlay" aria-hidden="true"></div>
-        <div class="tags-dropdown__panel" id="tags-dropdown-panel" role="listbox" aria-multiselectable="true" aria-label="Disciplines" hidden>
+        <div class="tags-dropdown__panel" id="tags-dropdown-panel" role="listbox" aria-multiselectable="true" data-i18n-attr="aria-label:aria.disciplines" aria-label="Disciplines" hidden>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="all" aria-label="All">
-            <span class="tags-dropdown__label">All</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="all" data-i18n-attr="aria-label:filter.all" aria-label="All">
+            <span class="tags-dropdown__label" data-i18n="filter.all">All</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="hard-surface" aria-label="Hard Surface">
-            <span class="tags-dropdown__label">Hard Surface</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="hard-surface" data-i18n-attr="aria-label:filter.hardSurface" aria-label="Hard Surface">
+            <span class="tags-dropdown__label" data-i18n="filter.hardSurface">Hard Surface</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="product" aria-label="Product">
-            <span class="tags-dropdown__label">Product</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="product" data-i18n-attr="aria-label:filter.product" aria-label="Product">
+            <span class="tags-dropdown__label" data-i18n="filter.product">Product</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="organic" aria-label="Organic">
-            <span class="tags-dropdown__label">Organic</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="organic" data-i18n-attr="aria-label:filter.organic" aria-label="Organic">
+            <span class="tags-dropdown__label" data-i18n="filter.organic">Organic</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="prototyping" aria-label="Prototyping">
-            <span class="tags-dropdown__label">Prototyping</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="prototyping" data-i18n-attr="aria-label:filter.prototyping" aria-label="Prototyping">
+            <span class="tags-dropdown__label" data-i18n="filter.prototyping">Prototyping</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="animations" aria-label="Animations">
-            <span class="tags-dropdown__label">Animations</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="animations" data-i18n-attr="aria-label:filter.animations" aria-label="Animations">
+            <span class="tags-dropdown__label" data-i18n="filter.animations">Animations</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="cad" aria-label="CAD">
-            <span class="tags-dropdown__label">CAD</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="cad" data-i18n-attr="aria-label:filter.cad" aria-label="CAD">
+            <span class="tags-dropdown__label" data-i18n="filter.cad">CAD</span>
           </label>
         </div>
       </div>
@@ -355,7 +357,7 @@
         <label class="game-switch">
           <input type="checkbox" id="game-switch" class="game-switch__input" role="switch" aria-checked="false">
           <span class="game-switch__track" aria-hidden="true"><span class="game-switch__thumb"></span></span>
-          <span class="game-switch__label">Game assets only</span>
+          <span class="game-switch__label" data-i18n="btn.gameAssetsOnly">Game assets only</span>
         </label>
         <div class="cards-count" id="cards-count" aria-live="polite">18 projects</div>
       </div>
@@ -363,7 +365,7 @@
     </header>
 
     <!-- CARDS SCROLL -->
-    <div class="cards-scroll" id="cards-scroll" data-lenis-prevent role="region" aria-label="Project list">
+    <div class="cards-scroll" id="cards-scroll" data-lenis-prevent role="region" data-i18n-attr="aria-label:aria.projectList" aria-label="Project list">
 
       <div class="cards-list" id="cards-list">
 
@@ -616,11 +618,11 @@
          После первого reveal класс .is-revealed остаётся (sessionStorage
          нельзя — держим в памяти JS, после полной перезагрузки сбрасывается).
     ══════════════════════════════════════════════════════════════════ -->
-    <footer class="site-footer" role="contentinfo" aria-label="Sidebar footer">
+    <footer class="site-footer" role="contentinfo" data-i18n-attr="aria-label:aria.sidebarFooter" aria-label="Sidebar footer">
       <!-- v0.15.2 [A2] — 3 placeholder-кнопки заменены на текстовую строку статистики.
            Выровнена по левому краю (там же где стояли кнопки). -->
       <div class="site-footer__row site-footer__row--actions">
-        <p class="site-footer__stats" data-typewriter>DELETED 422 CUBES • CREATED 120 WORKS</p>
+        <p class="site-footer__stats" data-typewriter data-i18n="footer.statsIndex">DELETED 422 CUBES • CREATED 120 WORKS</p>
       </div>
 
       <div class="site-footer__divider" aria-hidden="true"></div>
@@ -634,17 +636,18 @@
            id="contact-pill"
            target="_blank"
            rel="noopener noreferrer"
+           data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"
            aria-label="Contact via Telegram"
            title="Contact · Telegram">
           <svg class="top-pill__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>
           </svg>
-          <span class="top-pill__label">Contact</span>
+          <span class="top-pill__label" data-i18n="pill.contact">Contact</span>
         </a>
-        <a href="./free-assets.html" 
-            class="top-pill top-pill--free site-footer__free" 
-            id="free-assets-footer" title="Free Assets">
-          <span class="top-pill__label">Free Assets</span>
+        <a href="./free-assets.html"
+            class="top-pill top-pill--free site-footer__free"
+            id="free-assets-footer" data-i18n-attr="title:pill.freeAssets" title="Free Assets">
+          <span class="top-pill__label" data-i18n="pill.freeAssets">Free Assets</span>
         </a>
       </div>
     </footer>
@@ -661,33 +664,33 @@
          синхронно подставляется JS при клике по карточке.
          На первой загрузке — самый свежий кейс (1-й в списке).
     ═════════════════════════════════════════════════════════════════════ -->
-    <section class="case-view" id="case-view" aria-label="Project case study">
+    <section class="case-view" id="case-view" data-i18n-attr="aria-label:aria.projectCaseStudy" aria-label="Project case study">
 
       <!-- MOBILE HEADER — доступен только на mobile (<=767px).
            Содержит лого Codex (возврат на #), кнопку «назад» и облако тэгов. -->
       <div class="case-mobile-bar" aria-hidden="false">
         <div class="case-mobile-bar__row">
-          <a href="#" class="logo case-mobile-bar__logo" aria-label="Codex — home">
+          <a href="#" class="logo case-mobile-bar__logo" data-i18n-attr="aria-label:aria.codexHome" aria-label="Codex — home">
             <span class="logo__text">CODEX</span>
           </a>
           <!-- v0.3 [П1] — mobile: .case-back и .case-share--mobile объединены
                в единый блок с gap=space-2 (паритет с .case-view__tabs),
                выровненный по правому краю row'а (margin-left:auto). -->
           <div class="case-mobile-bar__actions">
-            <button type="button" class="case-back" id="case-back" aria-label="Back to projects">
+            <button type="button" class="case-back" id="case-back" data-i18n-attr="aria-label:aria.backToProjects" aria-label="Back to projects">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" width="16" height="16">
                 <path d="M12.5 4L7 10l5.5 6" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <span>Projects</span>
+              <span data-i18n="btn.backProjects">Projects</span>
             </button>
             <!-- v0.3 [П1] — mobile copy-link: icon-only (текст визуально скрыт,
                  остаётся в DOM для JS-swap COPIED ✓ + accessibility). -->
-            <button type="button" class="case-share case-share--mobile" id="case-share-mobile" aria-label="Copy link to this project">
+            <button type="button" class="case-share case-share--mobile" id="case-share-mobile" data-i18n-attr="aria-label:aria.copyLink" aria-label="Copy link to this project">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" width="16" height="16">
                 <path d="M8 11.5a3 3 0 0 0 4.24 0l2.76-2.76a3 3 0 0 0-4.24-4.24L9.5 5.76" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M12 8.5a3 3 0 0 0-4.24 0L5 11.26a3 3 0 0 0 4.24 4.24l1.26-1.26" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <span class="case-share__label">COPY LINK</span>
+              <span class="case-share__label" data-i18n="btn.copyLink">COPY LINK</span>
             </button>
           </div>
         </div>
@@ -713,14 +716,15 @@
                case-nav перемещён ПОСЛЕ Blueprints (была своя обёртка .case-nav).
                Desktop: вся группа по правому краю, case-nav высота 32px (как .case-tab).
                Mobile: вся группа от края до края, gap 8px между кнопками. -->
-          <div class="case-view__tabs" role="tablist" aria-label="Visualization mode">
+          <div class="case-view__tabs" role="tablist" data-i18n-attr="aria-label:aria.visualizationMode" aria-label="Visualization mode">
             <button type="button"
                     class="case-tab case-tab--active"
                     id="case-tab-2d"
                     data-viz="2d"
                     role="tab"
                     aria-selected="true"
-                    aria-controls="case-scroll">2D</button>
+                    aria-controls="case-scroll"
+                    data-i18n="tabs.twoD">2D</button>
             <button type="button"
                     class="case-tab"
                     id="case-tab-3d"
@@ -728,6 +732,8 @@
                     role="tab"
                     aria-selected="false"
                     aria-controls="case-3d"
+                    data-i18n="tabs.threeD"
+                    data-i18n-attr="title:title.interactive3d"
                     title="Interactive 3D viewer">3D</button>
             <button type="button"
                     class="case-tab"
@@ -736,14 +742,17 @@
                     role="tab"
                     aria-selected="false"
                     aria-controls="case-blueprints"
+                    data-i18n="tabs.blueprints"
+                    data-i18n-attr="title:title.technicalBlueprint"
                     title="Technical blueprint view">Blueprints</button>
 
             <!-- NAV: стрелки переключения кейсов + счётчик.
                  v0.15.2 [B1] — перенесён внутрь .case-view__tabs, после Blueprints. -->
-            <div class="case-nav" role="group" aria-label="Project navigation">
+            <div class="case-nav" role="group" data-i18n-attr="aria-label:aria.projectNavigation" aria-label="Project navigation">
               <button type="button"
                       class="case-nav__btn"
                       id="case-prev"
+                      data-i18n-attr="aria-label:aria.prevProject; title:title.prevProjectKey"
                       aria-label="Previous project"
                       title="Previous project (←)">
                 <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
@@ -754,6 +763,7 @@
               <button type="button"
                       class="case-nav__btn"
                       id="case-next"
+                      data-i18n-attr="aria-label:aria.nextProject; title:title.nextProjectKey"
                       aria-label="Next project"
                       title="Next project (→)">
                 <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
@@ -763,12 +773,12 @@
             </div>
             <!-- v0.2.3 [П2] — desktop copy-link кнопка после .case-nav. На mobile скрыта
                  через CSS, вместо неё в case-mobile-bar своё дублирующее id=case-share-mobile. -->
-            <button type="button" class="case-share case-share--desktop" id="case-share-desktop" aria-label="Copy link to this project" title="Copy link to this project">
+            <button type="button" class="case-share case-share--desktop" id="case-share-desktop" data-i18n-attr="aria-label:aria.copyLink; title:title.copyLink" aria-label="Copy link to this project" title="Copy link to this project">
               <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
                 <path d="M8 11.5a3 3 0 0 0 4.24 0l2.76-2.76a3 3 0 0 0-4.24-4.24L9.5 5.76" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M12 8.5a3 3 0 0 0-4.24 0L5 11.26a3 3 0 0 0 4.24 4.24l1.26-1.26" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <span class="case-share__label">COPY LINK</span>
+              <span class="case-share__label" data-i18n="btn.copyLink">COPY LINK</span>
             </button>
           </div>
         </div>
@@ -784,6 +794,7 @@
            id="case-scroll"
            data-lenis-prevent
            role="region"
+           data-i18n-attr="aria-label:aria.projectGallery"
            aria-label="Project gallery"
            tabindex="0">
         <div class="case-scroll__track" id="case-scroll-track" data-gallery="case">
@@ -796,6 +807,7 @@
       <div class="case-blueprints"
            id="case-blueprints"
            role="region"
+           data-i18n-attr="aria-label:aria.projectBlueprint"
            aria-label="Project blueprint"
            hidden>
         <!-- v0.13.8 — SVG export toolbar. Кнопка выдаёт .svg через Blob+download.
@@ -804,15 +816,17 @@
           <button type="button"
                   id="blueprint-export-svg"
                   class="bp-export-btn"
+                  data-i18n-attr="aria-label:aria.exportBlueprintSvg"
                   aria-label="Export blueprint as SVG">
             <svg class="bp-export-btn__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
               <path d="M8 2v8m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M3 12v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="bp-export-btn__label">Export SVG</span>
+            <span class="bp-export-btn__label" data-i18n="btn.exportSvg">Export SVG</span>
           </button>
           <button type="button"
                   class="case-blueprints__fs-btn"
+                  data-i18n-attr="aria-label:aria.openBlueprintFullscreen; title:title.fullscreen"
                   aria-label="Open blueprint fullscreen"
                   title="Fullscreen">
             <svg class="case-blueprints__fs-btn__icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>
@@ -831,6 +845,7 @@
       <div class="case-3d"
            id="case-3d"
            role="region"
+           data-i18n-attr="aria-label:aria.project3dViewer"
            aria-label="Project 3D viewer"
            hidden>
         <div class="case-3d__canvas" id="case-3d-canvas" data-cursor="drag">

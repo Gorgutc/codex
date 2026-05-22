@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Free 3D Assets — Codex Studio · Hard Surface, Game-Ready, CC0</title>
+  <title data-i18n-meta="fa.title">Free 3D Assets — Codex Studio · Hard Surface, Game-Ready, CC0</title>
 
-  <meta name="description" content="Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0 / CC-BY.">
+  <meta name="description" data-i18n-meta="fa.description" content="Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0 / CC-BY.">
   <link rel="canonical" href="https://codex.promo/free-assets.html">
 
   <!-- v0.4 [B5]: OpenGraph (absolute URLs required by crawlers) -->
   <meta property="og:url"             content="https://codex.promo/free-assets.html">
   <meta property="og:type"            content="website">
-  <meta property="og:site_name"       content="Codex Studio">
-  <meta property="og:title"           content="Free 3D Assets — Codex Studio">
-  <meta property="og:description"    content="Hard surface, game-ready, and product 3D assets. Free for personal and commercial use.">
+  <meta property="og:site_name"       data-i18n-meta="fa.ogSiteName" content="Codex Studio">
+  <meta property="og:title"           data-i18n-meta="fa.ogTitle"    content="Free 3D Assets — Codex Studio">
+  <meta property="og:description"    data-i18n-meta="fa.ogDescription" content="Hard surface, game-ready, and product 3D assets. Free for personal and commercial use.">
   <meta property="og:image"           content="https://codex.promo/assets/img/og-free-assets.jpg">
   <meta property="og:image:width"     content="1200">
   <meta property="og:image:height"    content="630">
-  <meta property="og:image:alt"       content="Codex Studio — Free 3D Assets">
-  <meta property="og:locale"          content="en_US">
+  <meta property="og:image:alt"       data-i18n-meta="fa.ogImageAlt" content="Codex Studio — Free 3D Assets">
+  <meta property="og:locale"          data-i18n-meta="fa.ogLocale" content="en_US">
 
   <!-- v0.4 [B5]: Twitter Card -->
   <meta name="twitter:card"           content="summary_large_image">
-  <meta name="twitter:title"          content="Free 3D Assets — Codex Studio">
-  <meta name="twitter:description"    content="Hard surface, game-ready, and product 3D assets. Free for personal and commercial use.">
+  <meta name="twitter:title"          data-i18n-meta="fa.twitterTitle" content="Free 3D Assets — Codex Studio">
+  <meta name="twitter:description"    data-i18n-meta="fa.twitterDescription" content="Hard surface, game-ready, and product 3D assets. Free for personal and commercial use.">
   <meta name="twitter:image"          content="https://codex.promo/assets/img/og-free-assets.jpg">
 
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
@@ -107,16 +107,16 @@
 <body data-theme="dark">
 
 <!-- v0.21.0 — Skip-to-content для a11y. -->
-<a class="skip-to-content" href="#main">Skip to content</a>
+<a class="skip-to-content" href="#main" data-i18n="skipToContent">Skip to content</a>
 
 <!-- v0.17.0 — PRELOADER (shared markup with index.html). Initializes via
      preloader IIFE in js/main.js. Without [data-gallery] / work-card images
      on FA, total === 0 → preloader exits in ~200ms hold (intended fast path). -->
-<div class="preloader" id="preloader" role="status" aria-live="polite" aria-label="Loading">
+<div class="preloader" id="preloader" role="status" aria-live="polite" data-i18n-attr="aria-label:aria.preloaderLoading" aria-label="Loading">
   <div class="preloader__readout" aria-hidden="true">
-    <span>CODEX_STUDIO</span>
+    <span data-i18n="preloader.studio">CODEX_STUDIO</span>
     <span class="preloader__readout-sep">/</span>
-    <span>LOADING_FREE_ASSETS.HTML</span>
+    <span data-i18n="preloader.loadingFa">LOADING_FREE_ASSETS.HTML</span>
     <span class="preloader__readout-sep">/</span>
     <span class="preloader__readout-ts" id="preloader-ts">00:00:00</span>
   </div>
@@ -127,9 +127,9 @@
     </div>
   </div>
   <div class="preloader__label" aria-hidden="true">
-    INITIALIZING ASSETS<span class="preloader__dots"><span>.</span><span>.</span><span>.</span></span>
+    <span data-i18n="preloader.initializing">INITIALIZING ASSETS</span><span class="preloader__dots"><span>.</span><span>.</span><span>.</span></span>
   </div>
-  <button type="button" class="preloader__skip" id="preloader-skip" data-cursor="link" hidden>ENTER SITE</button>
+  <button type="button" class="preloader__skip" id="preloader-skip" data-cursor="link" data-i18n="btn.enterSite" hidden>ENTER SITE</button>
 </div>
 
 <div class="layout">
@@ -137,7 +137,7 @@
   <!-- ═══════════════════════════════════════════
        SIDEBAR — ТОЧНАЯ КОПИЯ структуры index.html
        ═══════════════════════════════════════════ -->
-  <aside class="sidebar" aria-label="Free assets navigator">
+  <aside class="sidebar" data-i18n-attr="aria-label:aria.freeAssetsNavigator" aria-label="Free assets navigator">
     <header class="site-header" role="banner">
 
       <!-- ROW 1: LOGO + CONTROLS — идентично index.html -->
@@ -145,7 +145,7 @@
         <!-- LOGO — id="logo-back-portfolio" чтобы не конфликтовать с обработчиком в js/main.js,
              который ловит #logo-home и вызывает preventDefault() + openCase. На FA logo должен
              вести на index.html (нативная навигация по href). v0.4 fix B1. -->
-        <a href="./index.html" class="logo" id="logo-back-portfolio" aria-label="Codex — back to portfolio">
+        <a href="./index.html" class="logo" id="logo-back-portfolio" data-i18n-attr="aria-label:aria.codexBackPortfolio" aria-label="Codex — back to portfolio">
           <span class="logo__text">CODEX</span>
           <!-- svg class="logo__svg" viewBox="0 0 120 24" aria-hidden="true"></svg -->
         </a>
@@ -154,13 +154,14 @@
           <!-- CONTACT BUTTON — идентично -->
           <a href="https://t.me/WhiteCatWeb" class="contact-btn" id="contact-btn"
              target="_blank" rel="noopener noreferrer"
+             data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"
              aria-label="Contact via Telegram" title="Contact Telegram">
             <svg class="contact-btn__icon" viewBox="0 0 20 20" fill="none"
                  stroke="currentColor" stroke-width="1.6"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>
             </svg>
-            <span class="contact-btn__label">Contact</span>
+            <span class="contact-btn__label" data-i18n="btn.contact">Contact</span>
           </a>
 
           <!-- LANG TOGGLE — RU ↔ EN (v0.8.x) идентично index.html -->
@@ -207,9 +208,10 @@
         <button type="button" class="tags-dropdown__trigger" id="tags-dropdown-trigger"
                 aria-haspopup="listbox" aria-expanded="false"
                 aria-controls="tags-dropdown-panel"
+                data-i18n-attr="aria-label:aria.filterByCategory"
                 aria-label="Filter by category">
           <span class="tags-dropdown__chips" id="tags-dropdown-chips" aria-hidden="true"></span>
-          <span class="tags-dropdown__placeholder" id="tags-dropdown-placeholder">Filter by category</span>
+          <span class="tags-dropdown__placeholder" id="tags-dropdown-placeholder" data-i18n="filter.placeholderCategory">Filter by category</span>
           <svg class="tags-dropdown__chevron" viewBox="0 0 16 16" width="14" height="14"
                aria-hidden="true" focusable="false">
             <path d="M3 6 L8 11 L13 6" fill="none" stroke="currentColor"
@@ -220,40 +222,40 @@
         <div class="tags-dropdown__overlay" id="tags-dropdown-overlay" aria-hidden="true"></div>
         <!-- Panel -->
         <div class="tags-dropdown__panel" id="tags-dropdown-panel"
-             role="listbox" aria-multiselectable="true" aria-label="Categories" hidden>
+             role="listbox" aria-multiselectable="true" data-i18n-attr="aria-label:aria.categories" aria-label="Categories" hidden>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="all" aria-label="All">
-            <span class="tags-dropdown__label">All</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="all" data-i18n-attr="aria-label:filter.all" aria-label="All">
+            <span class="tags-dropdown__label" data-i18n="filter.all">All</span>
             <span class="tags-dropdown__option-count" id="opt-count-all">6</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="hard-surface" aria-label="Hard Surface">
-            <span class="tags-dropdown__label">Hard Surface</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="hard-surface" data-i18n-attr="aria-label:filter.hardSurface" aria-label="Hard Surface">
+            <span class="tags-dropdown__label" data-i18n="filter.hardSurface">Hard Surface</span>
             <span class="tags-dropdown__option-count" id="opt-count-hard-surface">8</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="product" aria-label="Product Viz">
-            <span class="tags-dropdown__label">Product Viz</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="product" data-i18n-attr="aria-label:filter.productViz" aria-label="Product Viz">
+            <span class="tags-dropdown__label" data-i18n="filter.productViz">Product Viz</span>
             <span class="tags-dropdown__option-count" id="opt-count-product">5</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="game" aria-label="Game Assets">
-            <span class="tags-dropdown__label">Game Assets</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="game" data-i18n-attr="aria-label:filter.gameAssets" aria-label="Game Assets">
+            <span class="tags-dropdown__label" data-i18n="filter.gameAssets">Game Assets</span>
             <span class="tags-dropdown__option-count" id="opt-count-game">4</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="organic" aria-label="Organic">
-            <span class="tags-dropdown__label">Organic</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="organic" data-i18n-attr="aria-label:filter.organic" aria-label="Organic">
+            <span class="tags-dropdown__label" data-i18n="filter.organic">Organic</span>
             <span class="tags-dropdown__option-count" id="opt-count-organic">3</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="animation" aria-label="Animation">
-            <span class="tags-dropdown__label">Animation</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="animation" data-i18n-attr="aria-label:filter.animation" aria-label="Animation">
+            <span class="tags-dropdown__label" data-i18n="filter.animation">Animation</span>
             <span class="tags-dropdown__option-count" id="opt-count-animation">2</span>
           </label>
           <label class="tags-dropdown__option" role="option">
-            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="cad" aria-label="CAD">
-            <span class="tags-dropdown__label">CAD</span>
+            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="cad" data-i18n-attr="aria-label:filter.cad" aria-label="CAD">
+            <span class="tags-dropdown__label" data-i18n="filter.cad">CAD</span>
             <span class="tags-dropdown__option-count" id="opt-count-cad">3</span>
           </label>
         </div>
@@ -263,40 +265,41 @@
       <div class="tags-divider" aria-hidden="true"></div>
       <div class="sidebar__row">
         <label class="game-switch" id="game-switch-label"
+               data-i18n-attr="title:title.gameSwitchTitle"
                title="Filter the current category to game-ready assets only (does not switch category)">
           <input type="checkbox" id="game-switch" class="game-switch__input"
                  role="switch" aria-checked="false"
                  aria-describedby="game-switch-hint">
           <span class="game-switch__track" aria-hidden="true"><span class="game-switch__thumb"></span></span>
-          <span class="game-switch__label">Game assets only</span>
+          <span class="game-switch__label" data-i18n="btn.gameAssetsOnly">Game assets only</span>
           <!-- v0.8.9 L5: на FA семантика свитча отличается от index — фильтрует
                grid внутри выбранной категории, не сами категории. Уточняем через
                title (tooltip) + aria-describedby для screen-reader. -->
-          <span id="game-switch-hint" class="sr-only">Filters the current category to game-ready assets only</span>
+          <span id="game-switch-hint" class="sr-only" data-i18n="btn.gameSwitchHint">Filters the current category to game-ready assets only</span>
         </label>
         <div class="cards-count" id="cards-count" aria-live="polite">6 categories</div>
       </div>
     </header>
 
     <!-- TAG CARDS LIST — same container as .cards-scroll -->
-    <div class="cards-scroll" id="cards-scroll" role="region" aria-label="Asset categories">
+    <div class="cards-scroll" id="cards-scroll" role="region" data-i18n-attr="aria-label:aria.assetCategories" aria-label="Asset categories">
       <div class="cards-list" id="cards-list">
 
         <!-- TAG CARD: Hard Surface -->
         <a class="tag-card tag-card--active work-card" id="tag-hard-surface" href="#hard-surface"
                  data-tag="hard-surface" data-category="hard-surface" data-game-asset="false">
           <div class="tag-card__thumb work-card__thumb" data-label="Hard Surface">
-            <img src="./assets/cards/orbital-mk-ii.svg" alt="Hard Surface assets preview"
+            <img src="./assets/cards/orbital-mk-ii.svg" data-i18n-attr="alt:faTag.hardSurface.alt" alt="Hard Surface assets preview"
                  loading="eager" fetchpriority="high" decoding="async" width="800" height="600">
-            <span class="tag-card__count-badge">8 assets</span>
+            <span class="tag-card__count-badge" data-i18n="faTag.hardSurface.count">8 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
             <div class="tag-card__meta work-card__meta">
-              <span class="tag-card__cat work-card__cat">Hard Surface</span>
-              <span class="tag-card__format work-card__year">.blend .fbx</span>
+              <span class="tag-card__cat work-card__cat" data-i18n="faTag.hardSurface.cat">Hard Surface</span>
+              <span class="tag-card__format work-card__year" data-i18n="faTag.hardSurface.format">.blend .fbx</span>
             </div>
-            <h2 class="tag-card__title work-card__title">Hard Surface</h2>
-            <p class="tag-card__desc work-card__desc">Props, weapons, armour. AAA-ready topology.</p>
+            <h2 class="tag-card__title work-card__title" data-i18n="faTag.hardSurface.title">Hard Surface</h2>
+            <p class="tag-card__desc work-card__desc" data-i18n="faTag.hardSurface.desc">Props, weapons, armour. AAA-ready topology.</p>
           </div>
         </a>
 
@@ -304,17 +307,17 @@
         <a class="tag-card work-card" id="tag-product" href="#product"
                  data-tag="product" data-category="product" data-game-asset="false">
           <div class="tag-card__thumb work-card__thumb" data-label="Product Viz">
-            <img src="./assets/cards/corten-series.svg" alt="Product Viz preview"
+            <img src="./assets/cards/corten-series.svg" data-i18n-attr="alt:faTag.product.alt" alt="Product Viz preview"
                  loading="lazy" decoding="async" width="800" height="600">
-            <span class="tag-card__count-badge">5 assets</span>
+            <span class="tag-card__count-badge" data-i18n="faTag.product.count">5 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
             <div class="tag-card__meta work-card__meta">
-              <span class="tag-card__cat work-card__cat">Product Viz</span>
-              <span class="tag-card__format work-card__year">.blend</span>
+              <span class="tag-card__cat work-card__cat" data-i18n="faTag.product.cat">Product Viz</span>
+              <span class="tag-card__format work-card__year" data-i18n="faTag.product.format">.blend</span>
             </div>
-            <h2 class="tag-card__title work-card__title">Product Visualization</h2>
-            <p class="tag-card__desc work-card__desc">Studio scenes, lighting rigs, camera setups.</p>
+            <h2 class="tag-card__title work-card__title" data-i18n="faTag.product.title">Product Visualization</h2>
+            <p class="tag-card__desc work-card__desc" data-i18n="faTag.product.desc">Studio scenes, lighting rigs, camera setups.</p>
           </div>
         </a>
 
@@ -322,21 +325,21 @@
         <a class="tag-card work-card" id="tag-game" href="#game"
                  data-tag="game" data-category="game" data-game-asset="true">
           <div class="tag-card__thumb work-card__thumb" data-label="Game Assets">
-            <img src="./assets/cards/nightshard.svg" alt="Game Assets preview"
+            <img src="./assets/cards/nightshard.svg" data-i18n-attr="alt:faTag.game.alt" alt="Game Assets preview"
                  loading="lazy" decoding="async" width="800" height="600">
             <!-- v0.4 [HV3]: убран aria-label на <span> — у span нет implicit role,
                  aria-label игнорируется. Текст "Game" уже семантически достаточен. -->
-            <span class="work-card__badge">Game</span>
+            <span class="work-card__badge" data-i18n="faTag.game.badge">Game</span>
             <!-- v0.4 [M2]: убран лишний inline style — CSS уже задаёт top/right по умолчанию -->
-            <span class="tag-card__count-badge">4 assets</span>
+            <span class="tag-card__count-badge" data-i18n="faTag.game.count">4 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
             <div class="tag-card__meta work-card__meta">
-              <span class="tag-card__cat work-card__cat">Game Assets</span>
-              <span class="tag-card__format work-card__year">.fbx LOD 0–2</span>
+              <span class="tag-card__cat work-card__cat" data-i18n="faTag.game.cat">Game Assets</span>
+              <span class="tag-card__format work-card__year" data-i18n="faTag.game.format">.fbx LOD 0–2</span>
             </div>
-            <h2 class="tag-card__title work-card__title">Game-Ready</h2>
-            <p class="tag-card__desc work-card__desc">Optimised props with LODs and 4K PBR maps.</p>
+            <h2 class="tag-card__title work-card__title" data-i18n="faTag.game.title">Game-Ready</h2>
+            <p class="tag-card__desc work-card__desc" data-i18n="faTag.game.desc">Optimised props with LODs and 4K PBR maps.</p>
           </div>
         </a>
 
@@ -344,17 +347,17 @@
         <a class="tag-card work-card" id="tag-organic" href="#organic"
                  data-tag="organic" data-category="organic" data-game-asset="false">
           <div class="tag-card__thumb work-card__thumb" data-label="Organic">
-            <img src="./assets/cards/nyx-panther.svg" alt="Organic preview"
+            <img src="./assets/cards/nyx-panther.svg" data-i18n-attr="alt:faTag.organic.alt" alt="Organic preview"
                  loading="lazy" decoding="async" width="800" height="600">
-            <span class="tag-card__count-badge">3 assets</span>
+            <span class="tag-card__count-badge" data-i18n="faTag.organic.count">3 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
             <div class="tag-card__meta work-card__meta">
-              <span class="tag-card__cat work-card__cat">Organic</span>
-              <span class="tag-card__format work-card__year">.blend rig</span>
+              <span class="tag-card__cat work-card__cat" data-i18n="faTag.organic.cat">Organic</span>
+              <span class="tag-card__format work-card__year" data-i18n="faTag.organic.format">.blend rig</span>
             </div>
-            <h2 class="tag-card__title work-card__title">Organic</h2>
-            <p class="tag-card__desc work-card__desc">Sculpted creatures, fur grooms, rigs.</p>
+            <h2 class="tag-card__title work-card__title" data-i18n="faTag.organic.title">Organic</h2>
+            <p class="tag-card__desc work-card__desc" data-i18n="faTag.organic.desc">Sculpted creatures, fur grooms, rigs.</p>
           </div>
         </a>
 
@@ -362,17 +365,17 @@
         <a class="tag-card work-card" id="tag-animation" href="#animation"
                  data-tag="animation" data-category="animation" data-game-asset="false">
           <div class="tag-card__thumb work-card__thumb" data-label="Animation">
-            <img src="./assets/cards/helix-reveal.svg" alt="Animation preview"
+            <img src="./assets/cards/helix-reveal.svg" data-i18n-attr="alt:faTag.animation.alt" alt="Animation preview"
                  loading="lazy" decoding="async" width="800" height="600">
-            <span class="tag-card__count-badge">2 assets</span>
+            <span class="tag-card__count-badge" data-i18n="faTag.animation.count">2 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
             <div class="tag-card__meta work-card__meta">
-              <span class="tag-card__cat work-card__cat">Animation</span>
-              <span class="tag-card__format work-card__year">.blend .mp4</span>
+              <span class="tag-card__cat work-card__cat" data-i18n="faTag.animation.cat">Animation</span>
+              <span class="tag-card__format work-card__year" data-i18n="faTag.animation.format">.blend .mp4</span>
             </div>
-            <h2 class="tag-card__title work-card__title">Animation</h2>
-            <p class="tag-card__desc work-card__desc">Turntables, reveal loops, camera paths.</p>
+            <h2 class="tag-card__title work-card__title" data-i18n="faTag.animation.title">Animation</h2>
+            <p class="tag-card__desc work-card__desc" data-i18n="faTag.animation.desc">Turntables, reveal loops, camera paths.</p>
           </div>
         </a>
 
@@ -380,17 +383,17 @@
         <a class="tag-card work-card" id="tag-cad" href="#cad"
                  data-tag="cad" data-category="cad" data-game-asset="false">
           <div class="tag-card__thumb work-card__thumb" data-label="CAD">
-            <img src="./assets/cards/mech-link.svg" alt="CAD preview"
+            <img src="./assets/cards/mech-link.svg" data-i18n-attr="alt:faTag.cad.alt" alt="CAD preview"
                  loading="lazy" decoding="async" width="800" height="600">
-            <span class="tag-card__count-badge">3 assets</span>
+            <span class="tag-card__count-badge" data-i18n="faTag.cad.count">3 assets</span>
           </div>
           <div class="tag-card__info work-card__info">
             <div class="tag-card__meta work-card__meta">
-              <span class="tag-card__cat work-card__cat">CAD</span>
-              <span class="tag-card__format work-card__year">.blend .step .stl</span>
+              <span class="tag-card__cat work-card__cat" data-i18n="faTag.cad.cat">CAD</span>
+              <span class="tag-card__format work-card__year" data-i18n="faTag.cad.format">.blend .step .stl</span>
             </div>
-            <h2 class="tag-card__title work-card__title">CAD</h2>
-            <p class="tag-card__desc work-card__desc">Parametric assemblies, print-ready geometry.</p>
+            <h2 class="tag-card__title work-card__title" data-i18n="faTag.cad.title">CAD</h2>
+            <p class="tag-card__desc work-card__desc" data-i18n="faTag.cad.desc">Parametric assemblies, print-ready geometry.</p>
           </div>
         </a>
 
@@ -398,11 +401,11 @@
     </div><!-- /cards-scroll -->
 
     <!-- FOOTER — идентично index.html -->
-    <footer class="site-footer" role="contentinfo" aria-label="Sidebar footer">
+    <footer class="site-footer" role="contentinfo" data-i18n-attr="aria-label:aria.sidebarFooter" aria-label="Sidebar footer">
       <div class="site-footer__row site-footer__row--actions">
         <!-- v0.4 [HV3]: убран aria-label с <p> — игнорируется screen reader.
              Текст содержимого уже самоописательный. -->
-        <p class="site-footer__stats">FREE &nbsp;·&nbsp; 25 ASSETS &nbsp;·&nbsp; CC0</p>
+        <p class="site-footer__stats" data-i18n="footer.statsFa">FREE &nbsp;·&nbsp; 25 ASSETS &nbsp;·&nbsp; CC0</p>
       </div>
       <div class="site-footer__divider" aria-hidden="true"></div>
       <div class="site-footer__row site-footer__row--pill">
@@ -410,23 +413,25 @@
         <a href="https://t.me/WhiteCatWeb"
            class="top-pill top-pill--contact site-footer__contact" id="contact-pill"
            target="_blank" rel="noopener noreferrer"
+           data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"
            aria-label="Contact via Telegram" title="Contact Telegram">
           <svg class="top-pill__icon" viewBox="0 0 20 20" fill="none"
                stroke="currentColor" stroke-width="1.6"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>
           </svg>
-          <span class="top-pill__label">Contact</span>
+          <span class="top-pill__label" data-i18n="pill.contact">Contact</span>
         </a>
         <!-- Portfolio pill — вместо Free Assets -->
         <a href="./index.html"
            class="top-pill top-pill--free site-footer__free" id="back-to-portfolio"
+           data-i18n-attr="aria-label:aria.backToPortfolio; title:title.backToPortfolio"
            aria-label="Back to Portfolio" title="Back to Portfolio">
           <svg class="top-pill__icon" viewBox="0 0 14 14" fill="none" aria-hidden="true">
             <path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.4"
                   stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span class="top-pill__label">Portfolio</span>
+          <span class="top-pill__label" data-i18n="pill.portfolio">Portfolio</span>
         </a>
       </div>
     </footer>
@@ -442,23 +447,23 @@
     <!-- Mobile bar (структура как в index.html) -->
     <div class="case-mobile-bar">
       <div class="case-mobile-bar__row">
-        <a href="./index.html" class="logo case-mobile-bar__logo" aria-label="Codex home">
+        <a href="./index.html" class="logo case-mobile-bar__logo" data-i18n-attr="aria-label:aria.codexHome" aria-label="Codex home">
           <span class="logo__text">CODEX</span>
         </a>
         <div class="case-mobile-bar__actions">
-          <button type="button" class="case-back" id="case-back" aria-label="Back to categories">
+          <button type="button" class="case-back" id="case-back" data-i18n-attr="aria-label:aria.backToCategories" aria-label="Back to categories">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
                  stroke-width="1.6" aria-hidden="true" width="16" height="16">
               <path d="M12.5 4L7 10l5.5 6" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span>Categories</span>
+            <span data-i18n="btn.backCategories">Categories</span>
           </button>
         </div>
       </div>
     </div>
 
     <!-- ASSET GRID VIEW -->
-    <section class="fa-view" id="fa-view" aria-label="Free assets">
+    <section class="fa-view" id="fa-view" data-i18n-attr="aria-label:aria.freeAssetsView" aria-label="Free assets">
       <div class="fa-view__header">
         <div>
           <div class="fa-view__meta">
