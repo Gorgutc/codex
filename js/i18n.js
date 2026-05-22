@@ -209,6 +209,83 @@
     if (contactLang) contactLang.textContent = opposite;
   }
 
+  // Phase 2b — overlay case-view content (CARDS_DATA в main.js) переводами
+  // из I18N_DATA.CASE_LOCALES.
+  //
+  // Структура CARDS_DATA[id].items (см. makeItems() в main.js):
+  //   {
+  //     media:  [{ label, desc, src, bg, format, ... } × 5],
+  //     text:   { title, body } | null,
+  //     inline: { title, body } | null
+  //   }
+  //
+  // На первом applyLang снимаем deep-snapshot baseline (исходный EN из
+  // main.js); при каждой смене языка восстанавливаем baseline и накладываем
+  // overlay для нового языка. JSON.parse(JSON.stringify(...)) рвёт shared
+  // refs внутри text/inline, поэтому мы безопасно мутируем эти объекты на
+  // каждом id отдельно.
+  let __cardsDataBaseline = null;
+  function overlayCases(lang) {
+    const data = window.I18N_DATA;
+    const cards = window.CARDS_DATA;
+    if (!data || !data.CASE_LOCALES || !cards) return;
+
+    if (!__cardsDataBaseline) {
+      try { __cardsDataBaseline = JSON.parse(JSON.stringify(cards)); }
+      catch (_) { return; }
+    }
+
+    // 1) Restore baseline (role + media[i].label/desc + text + inline).
+    Object.keys(cards).forEach(id => {
+      const card = cards[id];
+      const base = __cardsDataBaseline[id];
+      if (!card || !base) return;
+      card.role = base.role;
+      const it = card.items;
+      const bi = base.items;
+      if (!it || !bi) return;
+      if (Array.isArray(it.media) && Array.isArray(bi.media)) {
+        it.media.forEach((m, i) => {
+          const bm = bi.media[i];
+          if (!bm) return;
+          m.label = bm.label;
+          m.desc  = bm.desc;
+        });
+      }
+      if (it.text && bi.text)     { it.text.title   = bi.text.title;   it.text.body   = bi.text.body; }
+      if (it.inline && bi.inline) { it.inline.title = bi.inline.title; it.inline.body = bi.inline.body; }
+    });
+
+    // 2) Overlay для нового языка. Для DEFAULT_LANG шаг 1 уже дал EN — выходим.
+    if (lang === DEFAULT_LANG) return;
+    const dict = data.CASE_LOCALES[lang];
+    if (!dict) return;
+
+    Object.keys(cards).forEach(id => {
+      const card = cards[id];
+      const tr = dict[id];
+      if (!card || !tr) return;
+      if (typeof tr.role === 'string') card.role = tr.role;
+      const it = card.items;
+      if (!it) return;
+      if (Array.isArray(tr.captions) && Array.isArray(it.media)) {
+        tr.captions.forEach((cap, i) => {
+          if (!it.media[i] || !cap) return;
+          if (typeof cap.label === 'string') it.media[i].label = cap.label;
+          if (typeof cap.desc  === 'string') it.media[i].desc  = cap.desc;
+        });
+      }
+      if (tr.text && it.text) {
+        if (typeof tr.text.title === 'string') it.text.title = tr.text.title;
+        if (typeof tr.text.body  === 'string') it.text.body  = tr.text.body;
+      }
+      if (tr.inline && it.inline) {
+        if (typeof tr.inline.title === 'string') it.inline.title = tr.inline.title;
+        if (typeof tr.inline.body  === 'string') it.inline.body  = tr.inline.body;
+      }
+    });
+  }
+
   function applyLang(lang) {
     if (!isValidLang(lang)) lang = DEFAULT_LANG;
     const changed = lastAppliedLang !== lang;
@@ -218,6 +295,7 @@
     applyInnerHTML();
     applyAttrs();
     applyMetaAttrs();
+    overlayCases(lang);
     updateURL(lang);
     if (changed) propagateLangToLinks(lang);
     updateToggleLabels(lang);

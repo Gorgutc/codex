@@ -730,6 +730,11 @@
       }
     }) }
   };
+  // Phase 2b — expose CARDS_DATA на window так что i18n.js overlayCases()
+  // может мутировать поля при смене языка. Read-write reference: main.js
+  // и дальше использует local `CARDS_DATA` (тот же объект), i18n.js пишет
+  // через window.CARDS_DATA[id].* — обе ссылки указывают на одну структуру.
+  window.CARDS_DATA = CARDS_DATA;
 
   /* ══════════════════════════════════════════════════════════════════
      Seeded shuffle (Mulberry32) — детерминированный порядок на каждый кейс.
@@ -3099,6 +3104,17 @@
     var card = document.querySelector('.work-card[data-id="' + newHash.replace(/"/g, '') + '"]');
     if (card && !card.hasAttribute('hidden')) {
       openCase(newHash, { skipHashSync: true });
+    }
+  });
+
+  /* Phase 2b — re-render активного case-view при смене языка.
+     i18n.js overlayCases() уже замутировал window.CARDS_DATA под новый язык.
+     Если кейс открыт — openCase() с теми же id перестроит case-view из
+     обновлённой data. Передаём skipHashSync (URL уже актуален) и initial:true,
+     чтобы не было scrollIntoView и анимаций (visually instantaneous swap). */
+  window.addEventListener('i18n:changed', function () {
+    if (currentCaseId && typeof openCase === 'function') {
+      openCase(currentCaseId, { skipHashSync: true, initial: true });
     }
   });
 
