@@ -25,7 +25,8 @@ codex/
 │   ├── tokens.css              ← дизайн-токены (цвета/шрифты/отступы) — единственное место
 │   ├── reset.css               ← Andy-Bell-style modern reset
 │   ├── shared.css              ← общие стили (sidebar, header, footer, theme, work-card база, cursor, grain)
-│   ├── portfolio.css           ← только index: case-view, case-3d, case-blueprints, fullscreen, work-card--active
+│   ├── portfolio-core.css      ← только index, initial paint: work-card thumb backgrounds (~1.5 KB, 18 правил)
+│   ├── portfolio-case.css      ← только index, lazy/preload: case-view, case-3d, fullscreen, work-card--active (~16 KB, 269 правил)
 │   └── free-assets.css         ← только FA: fa-grid, fa-card, tag-cards грид
 │
 ├── js/
@@ -74,7 +75,7 @@ codex/
   <!-- favicon-комплект + manifest -->
   <!-- JSON-LD: Organization + WebSite + ItemList -->
   <!-- preconnect (api.fontshare.com, cdn.jsdelivr.net) + Fontshare CSS -->
-  <!-- CSS: tokens → reset → shared → portfolio -->
+  <!-- CSS: tokens → reset → shared → portfolio-core (+ preload portfolio-case) -->
 </head>
 <body data-theme="dark">
 
@@ -168,7 +169,7 @@ codex/
 - `tags-dropdown` использует `EXPECTED_FA_TAGS` (`hard-surface / product / game / organic / animation / cad`) с `tags-dropdown__option-count` рядом с каждым лейблом
 - В sidebar — `tag-cards` (специальные карточки-категории), фильтрующие FA-grid в `<main>`
 - `<main>` содержит `fa-grid` с `fa-card` (real download cards)
-- Подключается `./css/free-assets.css` вместо `./css/portfolio.css`
+- Подключается `./css/free-assets.css` вместо `./css/portfolio-core.css` + `./css/portfolio-case.css` (FA не использует portfolio-сплит)
 
 `tag-card` имеет ОБА класса `tag-card work-card` (двойной класс — поэтому в `animations.js` обязателен фильтр `:not(.tag-card)` на всех селекторах `.work-card`).
 
@@ -176,7 +177,7 @@ codex/
 
 ## 🔗 CDN — строгий порядок (см. `prompt_instructions.md`)
 
-В `<head>` — preconnect → Fontshare → tokens → reset → shared → (portfolio | free-assets).
+В `<head>` — preconnect → Fontshare → tokens → reset → shared → (portfolio-core + preload portfolio-case на index | free-assets на FA).
 
 Перед `</body>` — gsap → ScrollTrigger → SplitText → main.js → animations.js. Все БЕЗ `defer` и `type="module"`.
 
