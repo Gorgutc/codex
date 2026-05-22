@@ -178,6 +178,30 @@
       ofWord: 'of',
     },
 
+    // Phase 4b — blueprint per-page aria + nav buttons. Используется
+    // I18N.tFmt('aria.bp.exportPage', { n: pageIdx+1 }) etc.
+    bp: {
+      exportPage: 'Export blueprint page {n} as SVG',
+      fullscreenPage: 'Open blueprint page {n} fullscreen',
+      previous: 'Previous blueprint',
+      next: 'Next blueprint',
+    },
+
+    // Phase 4b — 3D viewer dynamic strings.
+    viz: {
+      hintDesktop: 'RIGHT MOUSE · ROTATE',
+      hintMobile: 'DRAG · ZOOM',
+      resetCamera: 'Reset camera to initial position',
+      openFullscreen3d: 'Open 3D fullscreen',
+      envPreset: 'Environment preset',
+      exposure: 'Exposure',
+      exposureLabel: 'EXPOSURE',
+      exposureRange: 'Exposure level from 0.5 to 2.0',
+      lightingSettings: 'Lighting settings',
+      lightingPanel: 'Lighting presets and exposure',
+      environmentLabel: 'ENVIRONMENT',
+    },
+
     faTag: {
       hardSurface: {
         title: 'Hard Surface',
@@ -290,6 +314,27 @@
   UI_STRINGS.ru.btn = Object.assign({}, UI_STRINGS.ru.btn, {
     copyLink: 'СКОПИРОВАТЬ',
   });
+
+  // Phase 4b — blueprint per-page + 3D viewer RU.
+  UI_STRINGS.ru.bp = {
+    exportPage: 'Экспорт чертежа {n} в SVG',
+    fullscreenPage: 'Открыть чертёж {n} на полный экран',
+    previous: 'Предыдущий чертёж',
+    next: 'Следующий чертёж',
+  };
+  UI_STRINGS.ru.viz = {
+    hintDesktop: 'ПКМ · ВРАЩАТЬ',
+    hintMobile: 'СВАЙП · ЗУМ',
+    resetCamera: 'Сбросить камеру в начальное положение',
+    openFullscreen3d: 'Открыть 3D на полный экран',
+    envPreset: 'Окружение',
+    exposure: 'Экспозиция',
+    exposureLabel: 'ЭКСПОЗИЦИЯ',
+    exposureRange: 'Уровень экспозиции от 0.5 до 2.0',
+    lightingSettings: 'Настройки освещения',
+    lightingPanel: 'Пресеты освещения и экспозиция',
+    environmentLabel: 'ОКРУЖЕНИЕ',
+  };
 
   // ── META_STRINGS ───────────────────────────────────────────────────────────
   // Per-page (index / fa). Ключи: title, description, ogTitle, ogDescription,
