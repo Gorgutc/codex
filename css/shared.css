@@ -435,28 +435,6 @@ body::after {
 }
 .top-pill--contact { color: var(--color-text); }
 
-/* Phase 5 — mobile-only language switch pill. На desktop скрыт; на ≤767px
-   показывается (см. media-query в конце файла), в то же время .lang-toggle
-   в sidebar header скрывается. На FA-странице участвует в том же row
-   между Contact pill и Portfolio pill. */
-.top-pill--lang {
-  display: none;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  cursor: pointer;
-  flex: 0 0 auto;
-  min-width: 56px;
-  padding: var(--space-3) var(--space-4);
-  font-family: var(--font-body);
-  font-weight: 500;
-}
-.top-pill--lang:hover { border-color: var(--color-text); }
-.top-pill--lang:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
 /* ─── LOGO ─── */
 .logo {
   display: inline-flex;
@@ -1212,28 +1190,28 @@ body::after {
   }
   .theme-toggle__icon { width: 18px; height: 18px; }
 
-  /* Phase 5 — на mobile sidebar header слишком тесно (logo + contact + theme
-     + cards). lang-toggle уходит в footer pill (см. .top-pill--lang ниже). */
-  .lang-toggle { display: none; }
-  /* Footer-pill version becomes visible on mobile. */
-  .top-pill--lang {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .contact-btn {
+  /* Phase 5 — на mobile занимает место бывшего contact-icon в шапке.
+     Контактная функция остаётся доступной через #contact-pill в footer
+     (там она была и раньше), а в плотном header sidebar — только
+     язык / тема / cards-toggle. */
+  .lang-toggle {
     width: 44px;
     height: 44px;
-    min-height: 44px;
-    padding: 0;
-    justify-content: center;
     background: transparent;
     border-color: var(--color-border);
     color: var(--color-text);
   }
-  .contact-btn__icon { width: 18px; height: 18px; flex-basis: 18px; }
-  .contact-btn__label { display: none; }  /* на мобильном только иконка, кнопка квадратная */
+  /* Phase 5 — #contact-btn (icon-square в .header-top__controls) скрыт на
+     mobile. Раньше тут была 44×44 икона рядом с lang/theme/cards, но header
+     стал тесным; Contact-CTA остаётся доступным через #contact-pill в footer.
+     Старые размер-правила сохранены как inline-комментарий для истории. */
+  .contact-btn { display: none; }
+  /* legacy (kept commented for context):
+       .contact-btn { width:44px; height:44px; min-height:44px; padding:0;
+         justify-content:center; background:transparent;
+         border-color:var(--color-border); color:var(--color-text); }
+       .contact-btn__icon { width:18px; height:18px; flex-basis:18px; }
+       .contact-btn__label { display:none; } */
 
   /* v0.8.2: .tag правило удалено (класс мёртв с v0.15.5). */
   .case-tab {

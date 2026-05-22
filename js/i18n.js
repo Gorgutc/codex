@@ -204,22 +204,13 @@
       ? 'Switch language to English'
       : 'Switch language to Russian';
 
-    // Desktop sidebar toggle (id=lang-toggle).
+    // Same #lang-toggle на desktop и на mobile (CSS меняет только размер /
+    // padding; DOM-элемент один).
     const btn = document.getElementById('lang-toggle');
     if (btn) {
       const span = btn.querySelector('.lang-toggle__current');
       if (span) span.textContent = opposite;
       btn.setAttribute('aria-label', ariaSwitch);
-    }
-
-    // Phase 5 — mobile footer pill (id=lang-pill). Размещён в
-    // .site-footer__row--pill рядом с Contact и Free Assets. Виден только
-    // на ≤767px через CSS; на desktop display:none.
-    const pill = document.getElementById('lang-pill');
-    if (pill) {
-      const pillLabel = pill.querySelector('.top-pill__label');
-      if (pillLabel) pillLabel.textContent = opposite;
-      pill.setAttribute('aria-label', ariaSwitch);
     }
   }
 
@@ -406,16 +397,11 @@
   }
 
   function bindToggle() {
-    const handler = function (ev) {
-      // <a href="#…"> в footer pill — prevent navigation; <button> — no-op.
-      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
-      applyLang(currentLang === 'ru' ? 'en' : 'ru');
-    };
     const btn = document.getElementById('lang-toggle');
-    if (btn) btn.addEventListener('click', handler);
-    // Phase 5 — second click-target on mobile.
-    const pill = document.getElementById('lang-pill');
-    if (pill) pill.addEventListener('click', handler);
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      applyLang(currentLang === 'ru' ? 'en' : 'ru');
+    });
   }
 
   function init() {
