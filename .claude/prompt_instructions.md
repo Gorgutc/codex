@@ -76,8 +76,12 @@ HDR:         Polyhaven CC0 (studio / outdoor / dark) в assets/hdr/
 <link rel="stylesheet" href="./css/tokens.css">
 <link rel="stylesheet" href="./css/reset.css">
 <link rel="stylesheet" href="./css/shared.css">
-<!-- index.html: -->
-<link rel="stylesheet" href="./css/portfolio.css">
+<!-- index.html (v0.9.5 split: core eager, case lazy/preloaded): -->
+<link rel="stylesheet" href="./css/portfolio-core.css">
+<link rel="preload" as="style"
+      href="./css/portfolio-case.css"
+      onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="./css/portfolio-case.css"></noscript>
 <!-- free-assets.html: -->
 <link rel="stylesheet" href="./css/free-assets.css">
 ```
