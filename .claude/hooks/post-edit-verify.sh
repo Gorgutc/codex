@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 # After any Edit/Write/MultiEdit to shipped code, auto-run verify-frozen.js.
-# On test failure: exit 2 with the failure summary so Claude must fix.
+#
+# Baseline-aware logic (v0.8.x):
+#   - If verify-frozen exits clean → PASS, print summary.
+#   - If verify-frozen exits with FAILs → compare to KNOWN_BASELINE set
+#     (8 cloud-env CDN/TLS failures documented in SessionStart hook).
+#     If every FAIL is in the baseline → PASS (warn only, no block).
+#     If any FAIL is NOT in the baseline → BLOCK (exit 2) and print the
+#     regression(s) so Claude must fix.
+#
+# In CI / local dev where the CDN allowlist is open, all 56/56 PASS and the
+# old fast-path runs unchanged. The baseline check only matters in sandboxed
+# cloud environments.
 
 set -euo pipefail
 
@@ -49,18 +60,66 @@ if [ ! -f "$CLAUDE_PROJECT_DIR/verify-frozen.js" ]; then
   exit 0
 fi
 
+# Known cloud-env baseline failures (closed CDN allowlist + TLS interception).
+# Format: "[scope] TEST-NAME" (must match the "Failures:" block in verify-frozen
+# output exactly, minus the trailing colon and any reason text).
+#
+# These 8 tests fail in cloud envs because:
+#   - GSAP / ScrollTrigger / SplitText come from jsdelivr (blocked).
+#   - CURSOR-html-fine / CURSOR-native-hidden depend on GSAP being loaded.
+#   - CONSOLE-no-internal-errors trips on net::ERR_CERT_AUTHORITY_INVALID from
+#     the same CDN block.
+#
+# Documented in SessionStart hook context: "in cloud envs with closed CDN
+# allowlist baseline may show 48/56".
+KNOWN_BASELINE='[index] GSAP-loaded
+[index] ScrollTrigger-loaded
+[index] SplitText-loaded
+[index] CURSOR-html-fine
+[index] CURSOR-native-hidden
+[index] CONSOLE-no-internal-errors
+[fa] GSAP-loaded
+[fa] CONSOLE-no-internal-errors'
+
 # Run the regression. Capture output.
 cd "$CLAUDE_PROJECT_DIR"
 if OUTPUT=$(node verify-frozen.js 2>&1); then
-  # verify-frozen.js prints "SUMMARY: N/N PASS, M FAIL" — match that.
   SUMMARY=$(printf '%s' "$OUTPUT" | grep -oE 'SUMMARY:[[:space:]]+[0-9]+/[0-9]+[[:space:]]+PASS' | tail -1 || echo "PASS (count unknown)")
   echo "verify-frozen.js: $SUMMARY"
   exit 0
 fi
 
-# Test failed. Surface a compact failure summary to Claude.
-echo "verify-frozen.js FAILED after editing $FILE" >&2
-printf '%s\n' "$OUTPUT" | grep -E "^\s*\[FAIL\]|FAIL\]" | head -10 >&2
+# Some tests failed. Parse the "Failures:" block to get exact [scope] testName lines.
+ACTUAL=$(printf '%s\n' "$OUTPUT" \
+  | awk '/^Failures:/{flag=1; next} flag {print}' \
+  | sed -E 's/^[[:space:]]*//; s/:[[:space:]].*$//; s/:$//' \
+  | grep -E '^\[(index|fa)\] ' || true)
+
+if [ -z "$ACTUAL" ]; then
+  # Verify-frozen exited non-zero but we couldn't parse a Failures block —
+  # likely a runtime crash. Block with full output.
+  echo "verify-frozen.js FAILED after editing $FILE (no parseable Failures block)" >&2
+  printf '%s\n' "$OUTPUT" | tail -20 >&2
+  echo "" >&2
+  echo "Revert the change or fix the failing tests before continuing." >&2
+  exit 2
+fi
+
+# Diff ACTUAL against KNOWN_BASELINE. Anything in ACTUAL not in baseline = regression.
+REGRESSIONS=$(printf '%s\n' "$ACTUAL" | grep -vxF -f <(printf '%s\n' "$KNOWN_BASELINE") || true)
+
+if [ -z "$REGRESSIONS" ]; then
+  # All FAILs are documented baseline. Emit a warning summary, do NOT block.
+  SUMMARY=$(printf '%s' "$OUTPUT" | grep -oE 'SUMMARY:[[:space:]]+[0-9]+/[0-9]+[[:space:]]+PASS,[[:space:]]+[0-9]+[[:space:]]+FAIL' | tail -1 || echo "")
+  COUNT=$(printf '%s\n' "$ACTUAL" | wc -l | tr -d ' ')
+  echo "verify-frozen.js: ${SUMMARY:-baseline-only} — ${COUNT} cloud-env baseline fails, NO regressions"
+  exit 0
+fi
+
+# Real regression detected. Block.
+echo "verify-frozen.js REGRESSION after editing $FILE" >&2
+echo "Tests that are FAILing but are NOT in the documented cloud-env baseline:" >&2
+printf '%s\n' "$REGRESSIONS" | sed 's/^/  /' >&2
 echo "" >&2
-echo "Revert the change or fix the failing tests before continuing." >&2
+echo "Revert the change or fix these tests before continuing." >&2
 exit 2
