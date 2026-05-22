@@ -132,6 +132,52 @@
       statsFa: 'FREE  ·  25 ASSETS  ·  CC0',
     },
 
+    // Phase 4a — dynamic JS strings.
+    // cards-toggle: четыре варианта (Show/Hide × Projects/Categories) +
+    // соответствующие aria-labels. main.js setCollapsed() читает их по странице.
+    toggle: {
+      showProjects: 'Show projects',
+      hideProjects: 'Hide projects',
+      showCategories: 'Show categories',
+      hideCategories: 'Hide categories',
+      showProjectsAria: 'Show projects panel',
+      hideProjectsAria: 'Hide projects panel',
+      showCategoriesAria: 'Show categories panel',
+      hideCategoriesAria: 'Hide categories panel',
+    },
+
+    // theme-toggle aria-label (label text шевеление пиктограммы, не текст).
+    theme: {
+      toDark: 'Switch to dark theme',
+      toLight: 'Switch to light theme',
+    },
+
+    // COPY LINK kit.
+    copy: {
+      label: 'COPY LINK',
+      copied: 'COPIED ✓',
+    },
+
+    // Filter chip remove button: 'Remove ' + filter-label.
+    chip: {
+      remove: 'Remove',
+    },
+
+    // Fullscreen overlay counters / aria-labels.
+    fs: {
+      fullscreenView: 'Fullscreen view',
+      closeFullscreen: 'Close fullscreen',
+      previousImage: 'Previous image',
+      nextImage: 'Next image',
+      imageGallery: 'Image gallery viewer',
+      blueprintViewer: 'Blueprint viewer',
+      // Counter prefixes — assembled in JS as
+      // `${imagePrefix} ${i+1} ${ofWord} ${total}`.
+      imagePrefix: 'Image',
+      blueprintPrefix: 'Blueprint',
+      ofWord: 'of',
+    },
+
     faTag: {
       hardSurface: {
         title: 'Hard Surface',
@@ -200,6 +246,50 @@
     en: UI_STRINGS_EN,
     ru: deepClone(UI_STRINGS_EN),
   };
+
+  // Phase 4a — RU overrides для всех новых ключей. UI_STRINGS_EN — единый
+  // source; здесь оверрайдим только те поля, где RU реально отличается.
+  // Filter / category-имена / tools остаются англицизмами (см. Phase 1/2/3),
+  // поэтому не оверрайдятся.
+  UI_STRINGS.ru.toggle = {
+    showProjects: 'Показать проекты',
+    hideProjects: 'Скрыть проекты',
+    showCategories: 'Показать категории',
+    hideCategories: 'Скрыть категории',
+    showProjectsAria: 'Развернуть панель проектов',
+    hideProjectsAria: 'Свернуть панель проектов',
+    showCategoriesAria: 'Развернуть панель категорий',
+    hideCategoriesAria: 'Свернуть панель категорий',
+  };
+  UI_STRINGS.ru.theme = {
+    toDark: 'Переключить на тёмную тему',
+    toLight: 'Переключить на светлую тему',
+  };
+  UI_STRINGS.ru.copy = {
+    label: 'СКОПИРОВАТЬ',
+    copied: 'СКОПИРОВАНО ✓',
+  };
+  UI_STRINGS.ru.chip = {
+    remove: 'Убрать',
+  };
+  UI_STRINGS.ru.fs = {
+    fullscreenView: 'Полноэкранный режим',
+    closeFullscreen: 'Закрыть полноэкранный режим',
+    previousImage: 'Предыдущее изображение',
+    nextImage: 'Следующее изображение',
+    imageGallery: 'Галерея изображений',
+    blueprintViewer: 'Просмотр чертежа',
+    imagePrefix: 'Изображение',
+    blueprintPrefix: 'Чертёж',
+    ofWord: 'из',
+  };
+
+  // Также — btn.copyLink (RU вариант для самого CTA). Английский вариант
+  // 'COPY LINK' уже есть в EN. RU делаем тише регистром (для контраста с
+  // КОПИРОВАНО).
+  UI_STRINGS.ru.btn = Object.assign({}, UI_STRINGS.ru.btn, {
+    copyLink: 'СКОПИРОВАТЬ',
+  });
 
   // ── META_STRINGS ───────────────────────────────────────────────────────────
   // Per-page (index / fa). Ключи: title, description, ogTitle, ogDescription,

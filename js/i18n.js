@@ -116,6 +116,10 @@
   function applyTextContent() {
     const els = document.querySelectorAll('[data-i18n]');
     for (let i = 0; i < els.length; i++) {
+      // Phase 4a — JS-driven transitions (COPY LINK → COPIED → COPY LINK)
+      // могут временно ставить data-i18n-pause, чтобы walker не вытер их
+      // promo-state на смене языка в середине таймаута.
+      if (els[i].hasAttribute('data-i18n-pause')) continue;
       const key = els[i].getAttribute('data-i18n');
       if (!key) continue;
       const v = t(key);
@@ -422,9 +426,24 @@
     init();
   }
 
+  // Phase 4a — format-helper для строк с плейсхолдерами вида '{name}'.
+  // Использование: I18N.tFmt('fs.imageNofM', { n: 3, total: 10 })  → 'Image 3 of 10'.
+  // Если ключ в словаре не содержит фигурных скобок (как в Phase 4a, где мы
+  // собираем counters из 3 кусков), tFmt деградирует до обычного t().
+  function tFmt(key, vars) {
+    let s = t(key);
+    if (vars && typeof s === 'string') {
+      Object.keys(vars).forEach(function (k) {
+        s = s.split('{' + k + '}').join(String(vars[k]));
+      });
+    }
+    return s;
+  }
+
   window.I18N = {
     getLang: getLang,
     t: t,
+    tFmt: tFmt,
     applyLang: applyLang,
     isValidLang: isValidLang,
     SUPPORTED_LANGS: SUPPORTED_LANGS.slice(),

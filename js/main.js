@@ -919,7 +919,11 @@
       var remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'tags-dropdown__chip-remove';
-      remove.setAttribute('aria-label', 'Remove ' + (FILTER_LABELS[key] || key));
+      // Phase 4a — i18n префикс 'Remove' / 'Убрать'. FILTER_LABELS[key] —
+      // англицизм-категория ('Hard Surface' и т.п.), не переводится.
+      var __i18n = window.I18N;
+      var __removeWord = (__i18n && __i18n.t) ? __i18n.t('chip.remove') : 'Remove';
+      remove.setAttribute('aria-label', __removeWord + ' ' + (FILTER_LABELS[key] || key));
       remove.setAttribute('data-remove-filter', key);
       remove.textContent = '×';
       chip.appendChild(remove);
@@ -2901,9 +2905,24 @@
     if (!toggleBtn) return;
 
     toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    toggleBtn.setAttribute('aria-label', collapsed ? 'Show projects panel' : 'Hide projects panel');
+    // Phase 4a — i18n + page-aware: на FA это категории, не проекты.
+    var isFA = !!document.getElementById('fa-grid');
+    var I18N = window.I18N;
+    var ariaKey, labelKey, ariaFallback, labelFallback;
+    if (collapsed) {
+      ariaKey = isFA ? 'toggle.showCategoriesAria' : 'toggle.showProjectsAria';
+      labelKey = isFA ? 'toggle.showCategories' : 'toggle.showProjects';
+      ariaFallback = isFA ? 'Show categories panel' : 'Show projects panel';
+      labelFallback = isFA ? 'Show categories' : 'Show projects';
+    } else {
+      ariaKey = isFA ? 'toggle.hideCategoriesAria' : 'toggle.hideProjectsAria';
+      labelKey = isFA ? 'toggle.hideCategories' : 'toggle.hideProjects';
+      ariaFallback = isFA ? 'Hide categories panel' : 'Hide projects panel';
+      labelFallback = isFA ? 'Hide categories' : 'Hide projects';
+    }
+    toggleBtn.setAttribute('aria-label', (I18N && I18N.t) ? I18N.t(ariaKey) : ariaFallback);
     var label = toggleBtn.querySelector('.cards-toggle__label');
-    if (label) label.textContent = collapsed ? 'Show projects' : 'Hide projects';
+    if (label) label.textContent = (I18N && I18N.t) ? I18N.t(labelKey) : labelFallback;
 
     document.body.classList.toggle('cards-collapsed', collapsed);
 
@@ -2944,9 +2963,13 @@
       var reduced = prm.matches;
       var isLight = next === 'light';
 
-      // ARIA и lookup-лейблы — обновляем сразу
+      // ARIA и lookup-лейблы — обновляем сразу.
+      // Phase 4a — aria-label через I18N с fallback на EN.
       themeBtn.setAttribute('aria-pressed', isLight ? 'true' : 'false');
-      themeBtn.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+      var I18N = window.I18N;
+      var themeAriaKey = isLight ? 'theme.toDark' : 'theme.toLight';
+      var themeAriaFallback = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+      themeBtn.setAttribute('aria-label', (I18N && I18N.t) ? I18N.t(themeAriaKey) : themeAriaFallback);
       if (themeMetaColor) themeMetaColor.setAttribute('content', isLight ? '#f5f5f5' : '#212121');
 
       if (reduced || typeof gsap === 'undefined') {
@@ -3116,6 +3139,20 @@
     if (currentCaseId && typeof openCase === 'function') {
       openCase(currentCaseId, { skipHashSync: true, initial: true });
     }
+    // Phase 4a — refresh aria/labels на JS-driven toggles (state-dependent).
+    // Cards-toggle: читаем текущий collapsed-state из body class.
+    if (typeof setCollapsed === 'function' && toggleBtn) {
+      setCollapsed(document.body.classList.contains('cards-collapsed'));
+    }
+    // Theme-toggle: re-apply aria через помощник, если есть.
+    var __tb = document.getElementById('theme-toggle');
+    if (__tb) {
+      var isLight = document.body.getAttribute('data-theme') === 'light';
+      var I18N = window.I18N;
+      var key = isLight ? 'theme.toDark' : 'theme.toLight';
+      var fb  = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+      __tb.setAttribute('aria-label', (I18N && I18N.t) ? I18N.t(key) : fb);
+    }
   });
 
   /* v0.2.3 [П2] — кнопка COPY LINK (desktop + mobile).
@@ -3135,13 +3172,20 @@
       if (!button) return;
       var label = button.querySelector('.case-share__label');
       if (!label) return;
-      var prev = label.textContent;
+      // Phase 4a — data-i18n-pause защищает label от walker в момент
+      // транзишена, если пользователь успел переключить язык за 2 секунды.
+      // После таймаута мы заново читаем актуальный t('btn.copyLink').
+      var I18N = window.I18N;
+      var copiedTxt = (I18N && I18N.t) ? I18N.t('copy.copied') : 'COPIED ✓';
+      label.setAttribute('data-i18n-pause', 'true');
       button.classList.add('case-share--copied');
-      label.textContent = 'COPIED ✓';
+      label.textContent = copiedTxt;
       button.setAttribute('aria-live', 'polite');
       setTimeout(function () {
         button.classList.remove('case-share--copied');
-        label.textContent = prev || 'COPY LINK';
+        label.removeAttribute('data-i18n-pause');
+        // Re-read current language label (а не закешированный prev).
+        label.textContent = (I18N && I18N.t) ? I18N.t('btn.copyLink') : 'COPY LINK';
       }, 2000);
     }
 
@@ -3585,7 +3629,13 @@
   function updateBlueprintFsUI(wrapped) {
     var i = blueprintFs.index, n = blueprintFs.total;
     if (fsCounter) fsCounter.textContent = (i + 1) + ' / ' + n;
-    if (fsAnnouncer) fsAnnouncer.textContent = 'Blueprint ' + (i + 1) + ' of ' + n;
+    // Phase 4a — собираем counter из i18n-кусков (prefix + N + of + total).
+    if (fsAnnouncer) {
+      var __I = window.I18N;
+      var __pfx = (__I && __I.t) ? __I.t('fs.blueprintPrefix') : 'Blueprint';
+      var __of  = (__I && __I.t) ? __I.t('fs.ofWord') : 'of';
+      fsAnnouncer.textContent = __pfx + ' ' + (i + 1) + ' ' + __of + ' ' + n;
+    }
     if (wrapped && fsCounter && typeof gsap !== 'undefined' &&
         !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       gsap.fromTo(fsCounter,
@@ -3634,7 +3684,13 @@
   function updateGalleryUI(wrapped) {
     var i = gallery.index, n = gallery.list.length;
     if (fsCounter) fsCounter.textContent = (i + 1) + ' / ' + n;
-    if (fsAnnouncer) fsAnnouncer.textContent = 'Image ' + (i + 1) + ' of ' + n;
+    // Phase 4a — counter из i18n-кусков.
+    if (fsAnnouncer) {
+      var __II = window.I18N;
+      var __ipfx = (__II && __II.t) ? __II.t('fs.imagePrefix') : 'Image';
+      var __iof  = (__II && __II.t) ? __II.t('fs.ofWord') : 'of';
+      fsAnnouncer.textContent = __ipfx + ' ' + (i + 1) + ' ' + __iof + ' ' + n;
+    }
     if (wrapped && fsCounter && typeof gsap !== 'undefined' &&
         !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       gsap.fromTo(fsCounter,
