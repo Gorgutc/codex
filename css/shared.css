@@ -435,6 +435,28 @@ body::after {
 }
 .top-pill--contact { color: var(--color-text); }
 
+/* Phase 5 — mobile-only language switch pill. На desktop скрыт; на ≤767px
+   показывается (см. media-query в конце файла), в то же время .lang-toggle
+   в sidebar header скрывается. На FA-странице участвует в том же row
+   между Contact pill и Portfolio pill. */
+.top-pill--lang {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  flex: 0 0 auto;
+  min-width: 56px;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-body);
+  font-weight: 500;
+}
+.top-pill--lang:hover { border-color: var(--color-text); }
+.top-pill--lang:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 /* ─── LOGO ─── */
 .logo {
   display: inline-flex;
@@ -1190,12 +1212,14 @@ body::after {
   }
   .theme-toggle__icon { width: 18px; height: 18px; }
 
-  .lang-toggle {
-    width: 44px;
-    height: 44px;
-    background: transparent;
-    border-color: var(--color-border);
-    color: var(--color-text);
+  /* Phase 5 — на mobile sidebar header слишком тесно (logo + contact + theme
+     + cards). lang-toggle уходит в footer pill (см. .top-pill--lang ниже). */
+  .lang-toggle { display: none; }
+  /* Footer-pill version becomes visible on mobile. */
+  .top-pill--lang {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .contact-btn {

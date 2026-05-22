@@ -649,6 +649,15 @@
             id="free-assets-footer" data-i18n-attr="title:pill.freeAssets" title="Free Assets">
           <span class="top-pill__label" data-i18n="pill.freeAssets">Free Assets</span>
         </a>
+
+        <!-- Phase 5 — mobile-only language switch. CSS показывает этот pill
+             только на ≤767px и одновременно прячет .lang-toggle в sidebar
+             header (там слишком тесно с logo + contact + theme + cards).
+             Текст ('EN' / 'RU') обновляется через i18n.js updateToggleLabels. -->
+        <button type="button" class="top-pill top-pill--lang" id="lang-pill"
+                aria-label="Switch language to Russian">
+          <span class="top-pill__label">RU</span>
+        </button>
       </div>
     </footer>
 
