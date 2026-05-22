@@ -215,8 +215,12 @@ async function testIndex(BASE) {
   add('index', 'THEME-toggle', afterToggle === 'light');
   await page.click('#theme-toggle');
 
-  // CONSOLE — игнорируем внешние CDN failures (model-viewer 403/404, ERR_FAILED от заблокированного googleapis)
-  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|model-viewer|googleapis|jsdelivr)/i.test(e));
+  // CONSOLE — игнорируем внешние CDN failures (model-viewer 403/404, ERR_FAILED от заблокированного googleapis).
+  // v0.8.x — добавлены fontshare (TLS MITM в sandboxed cloud envs) и cloudflare
+  // (i18n.js geo-fetch endpoint; в corp envs TLS перехватывается, fetch падает
+  // тихо в try/catch внутри i18n.js, но requestfailed-эхо всё равно попадает
+  // в console). Plus ERR_CERT_AUTHORITY_INVALID — общий TLS-noise от MITM proxy.
+  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|jsdelivr|fontshare|cloudflare)/i.test(e));
   add('index', 'CONSOLE-no-internal-errors', internalErrors.length === 0, internalErrors.slice(0,2).join(' | ') || 'clean');
 
   await browser.close();
@@ -327,8 +331,10 @@ async function testFreeAssets(BASE) {
   add('fa', 'THEME-toggle', await page.getAttribute('body', 'data-theme') === 'light');
   await page.click('#theme-toggle');
 
-  // CONSOLE — без внутренних ошибок
-  const internalErrors = consoleErrors.filter(e => !/(403|404|model-viewer|googleapis|og-image\.jpg)/i.test(e));
+  // CONSOLE — без внутренних ошибок.
+  // v0.8.x — filter расширен идентично index (fontshare, cloudflare, ERR_CERT_AUTHORITY_INVALID,
+  // ERR_FAILED, jsdelivr) для устойчивости в cloud envs с corp TLS-перехватом.
+  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|jsdelivr|fontshare|cloudflare|og-image\.jpg)/i.test(e));
   add('fa', 'CONSOLE-no-internal-errors', internalErrors.length === 0);
 
   await browser.close();

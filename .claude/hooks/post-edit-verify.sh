@@ -64,22 +64,13 @@ fi
 # Format: "[scope] TEST-NAME" (must match the "Failures:" block in verify-frozen
 # output exactly, minus the trailing colon and any reason text).
 #
-# These 8 tests fail in cloud envs because:
-#   - GSAP / ScrollTrigger / SplitText come from jsdelivr (blocked).
-#   - CURSOR-html-fine / CURSOR-native-hidden depend on GSAP being loaded.
-#   - CONSOLE-no-internal-errors trips on net::ERR_CERT_AUTHORITY_INVALID from
-#     the same CDN block.
-#
-# Documented in SessionStart hook context: "in cloud envs with closed CDN
-# allowlist baseline may show 48/56".
-KNOWN_BASELINE='[index] GSAP-loaded
-[index] ScrollTrigger-loaded
-[index] SplitText-loaded
-[index] CURSOR-html-fine
-[index] CURSOR-native-hidden
-[index] CONSOLE-no-internal-errors
-[fa] GSAP-loaded
-[fa] CONSOLE-no-internal-errors'
+# v0.8.x — baseline is empty: GSAP / ScrollTrigger / SplitText / Lenis are now
+# vendored in ./js/vendor/ (npm registry was the only CDN-style host in the
+# allowlist), and verify-frozen.js CONSOLE filter was widened to ignore
+# fontshare / cloudflare / ERR_CERT_AUTHORITY_INVALID TLS noise. The mechanism
+# stays in place so any future cloud-env shift (e.g. fontshare lockdown) can
+# be added here without changing the regression itself.
+KNOWN_BASELINE=''
 
 # Run the regression. Capture output.
 cd "$CLAUDE_PROJECT_DIR"

@@ -6,7 +6,7 @@ This file is read automatically at every session start. The full briefs and skil
 
 ## Project in one paragraph
 
-Codex Studio is a Senior-level 3D-designer portfolio (Hard Surface, Product Viz, Game Assets). Two pages: `index.html` (portfolio) + `free-assets.html` (CC0 catalog). Vanilla HTML/CSS/JS, GSAP 3.13.0 from CDN, `<model-viewer>` lazy-loaded on the 3D tab. Domain `codex.promo`. Currently **v0.8 GOLDEN** — architecture is locked; only content and incremental quality updates are allowed without an explicit refactor request.
+Codex Studio is a Senior-level 3D-designer portfolio (Hard Surface, Product Viz, Game Assets). Two pages: `index.html` (portfolio) + `free-assets.html` (CC0 catalog). Vanilla HTML/CSS/JS, GSAP 3.13.0 + Lenis 1.1.20 self-hosted in `./js/vendor/` (v0.8.x change — moved off jsdelivr/unpkg CDNs after sandboxed cloud envs closed the allowlist; SCRIPTS-order regression test passes the same way because regex `gsap.min.js` matches the vendor path). `<model-viewer>` still lazy-loaded from googleapis on the 3D tab. Domain `codex.promo`. Currently **v0.8 GOLDEN** — architecture is locked; only content and incremental quality updates are allowed without an explicit refactor request.
 
 ## Source of truth
 
@@ -18,7 +18,7 @@ node verify-frozen.js
 
 Expected: `SUMMARY: 56/56 PASS, 0 FAIL`.
 
-Cloud-environment note: in sandboxed environments where outbound CDN access is restricted (e.g. `jsdelivr`, `unpkg`, `modelviewer.dev`), the suite caps at 48/56 with the missing 8 always being the GSAP / cursor / console-noise tests. The 48 architectural tests still validate.
+Cloud-environment note (historical, v0.8.x resolved): in sandboxed environments outbound CDN access is restricted by a corp egress proxy. Until v0.8.x the suite capped at 48/56 because GSAP / ScrollTrigger / SplitText / Lenis loaded from jsdelivr / unpkg, which the proxy blocks with `host_not_allowed`. v0.8.x moved them to `./js/vendor/` (npm registry was the only CDN-shape host on the allowlist), and the `CONSOLE-no-internal-errors` filter was widened to ignore `fontshare` / `cloudflare` TLS interception noise. The suite is now 56/56 in cloud and CI alike.
 
 ## Authority order on conflicts
 
