@@ -2,6 +2,8 @@
 
 This file is read automatically at every session start. The full briefs and skill files live in `.claude/`.
 
+> **For the human operator launching this session:** see `RUN_INSTRUCTIONS.md` in the repo root — it has the copy-paste blocks for smoke-testing the infrastructure (block **[A]**) and for pre-task headers that enforce the workflow (block **[B]**). The pre-task header tells Claude to spawn `codex-spec-guardian` + `codex-quality-gate` + `codex-context-keeper` in parallel before any code write. **Always paste block [B] before a real task** — without it, the gate-agent workflow becomes Claude-best-effort instead of guaranteed.
+
 ## Project in one paragraph
 
 Codex Studio is a Senior-level 3D-designer portfolio (Hard Surface, Product Viz, Game Assets). Two pages: `index.html` (portfolio) + `free-assets.html` (CC0 catalog). Vanilla HTML/CSS/JS, GSAP 3.13.0 from CDN, `<model-viewer>` lazy-loaded on the 3D tab. Domain `codex.promo`. Currently **v0.8 GOLDEN** — architecture is locked; only content and incremental quality updates are allowed without an explicit refactor request.
@@ -48,13 +50,16 @@ The full set is in `.claude/prompt_instructions.md` and is cross-tested by `veri
 For any change to `index.html`, `free-assets.html`, `css/*.css`, `js/*.js`, or `verify-frozen.js`:
 
 1. Generate the change.
-2. Invoke `/ship`. This spawns `codex-context-keeper` + `codex-spec-guardian` + `codex-quality-gate` in parallel.
+2. **Spawn three subagents in parallel via the Agent tool in a single tool-turn**: `codex-context-keeper`, `codex-spec-guardian`, `codex-quality-gate`. Wait for all three.
+   - Equivalent slash command (user-typed only): `/ship`.
 3. If all gates PASS, write the file. The PostToolUse hook auto-runs `verify-frozen.js`.
 4. If the hook reports FAIL, revert and iterate.
 
-For visual-feel checks (hero, cards, typography), invoke `/run-5sec` after a screenshot.
+For visual-feel checks (hero, cards, typography), the user invokes `/run-5sec` after starting a local server. Claude on its own can spawn `codex-5sec-test` directly with a screenshot path.
 
-For skill-drift suspicion, invoke `/audit-skills`. Never auto-rewrite skill files — produce a report and let the user decide.
+For skill-drift suspicion, the user invokes `/audit-skills`. Never auto-rewrite skill files — produce a report and let the user decide.
+
+**Important — slash commands** (`/ship`, `/run-5sec`, `/audit-skills`) can only be typed by the user. Claude cannot trigger them. The workflow above achieves the same effect by spawning the agents directly. Operator pre-task header in `RUN_INSTRUCTIONS.md` (block **[B]**) makes this explicit per session.
 
 ## File map
 

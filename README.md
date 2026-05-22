@@ -50,7 +50,8 @@ codex/
 │   ├── tokens.css           ← дизайн-токены (цвета/шрифты/отступы) — единственное место для значений
 │   ├── reset.css            ← Andy-Bell-style modern reset
 │   ├── shared.css           ← общие компоненты обеих страниц (sidebar, cursor, theme, work-card база)
-│   ├── portfolio.css        ← только index.html (case-view, case-3d, gallery, blueprints)
+│   ├── portfolio-core.css   ← только index.html, initial paint (work-card thumb backgrounds, ~1.5 KB)
+│   ├── portfolio-case.css   ← только index.html, lazy/preloaded (case-view, case-3d, gallery, ~16 KB)
 │   └── free-assets.css      ← только free-assets.html (fa-grid, fa-card, tag-cards)
 │
 ├── js/
@@ -92,6 +93,16 @@ Static site. Любой хост (GitHub Pages / Netlify / Vercel / Beget). Doma
 - `build_rules.md` — токены, дизайн-система
 - `motion_brief.md` — GSAP анимации
 - `skill-*.md` — методические гайды (code-review, motion, SEO, a11y, deploy и т.д.)
+
+## Запуск Claude Code в этом репо
+
+Репо настроен под Claude Code: `CLAUDE.md` (session bootstrap), `.claude/agents/` (4 субагента), `.claude/commands/` (3 slash-команды), `.claude/hooks/` (SessionStart + UserPromptSubmit + PostToolUse гейт на verify-frozen.js).
+
+**Обязательно прочитай `RUN_INSTRUCTIONS.md` перед первой сессией** — там готовые copy-paste блоки:
+- **[A] Smoke-test** для первого prompt'а свежей сессии (проверяет что хуки и агенты подцепились).
+- **[B] Pre-task header** — вставляется перед каждым ТЗ; форсит Claude'а спавнить gate-агенты параллельно.
+
+`SKILL_DRIFT_REPORT.md` — справочный аудит skill-файлов (advisory).
 
 ## Замена плейсхолдеров
 

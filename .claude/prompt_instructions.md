@@ -1,6 +1,8 @@
 # Prompt Instructions — Codex Studio
 
 > Мета-файл: правила приоритетов, порядка чтения и неизменяемых решений.
+>
+> **Для оператора, запускающего Claude Code:** runbook запуска и copy-paste блоки (smoke-test + pre-task header) — в `RUN_INSTRUCTIONS.md` в корне репо. Этот файл (`prompt_instructions.md`) — для агентов, не для запуска.
 
 ---
 
