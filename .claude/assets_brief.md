@@ -208,7 +208,7 @@ Inline SVG, не иконочные шрифты, не PNG:
 <!-- <link rel="preload" as="image" href="./assets/img/some-critical.webp" fetchpriority="high"> -->
 
 <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<!-- v0.8.x — jsdelivr preconnect dropped, GSAP/Lenis self-hosted in ./js/vendor/. -->
 ```
 
 ---

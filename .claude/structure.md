@@ -30,8 +30,15 @@ codex/
 │   └── free-assets.css         ← только FA: fa-grid, fa-card, tag-cards грид
 │
 ├── js/
+│   ├── vendor/                 ← v0.8.x: self-hosted libs (npm registry tarballs)
+│   │   ├── gsap.min.js         ← GSAP 3.13.0
+│   │   ├── ScrollTrigger.min.js
+│   │   ├── SplitText.min.js
+│   │   └── lenis.min.js        ← Lenis 1.1.20 (index only)
 │   ├── main.js                 ← CARDS_DATA + sidebar UI + case-view + 3D-вьювер + theme + filters (eager)
 │   ├── animations.js           ← все GSAP-анимации (eager, после main.js)
+│   ├── i18n-data.js            ← UI_STRINGS + META_STRINGS (en/ru) + CARDS_LOCALES (Phase 2)
+│   ├── i18n.js                 ← applyLang() / walker / lang-toggle / geo-detect
 │   ├── free-assets.js          ← логика страницы free-assets.html (только на FA)
 │   ├── fa-data.js              ← каталог FA (вынесен из inline в free-assets.html)
 │   └── model-data.js           ← inline GLB data 1.1 MB — LAZY-LOADED по первому клику на 3D-tab
@@ -74,7 +81,7 @@ codex/
   <!-- robots, theme-color (single tag, no media) -->
   <!-- favicon-комплект + manifest -->
   <!-- JSON-LD: Organization + WebSite + ItemList -->
-  <!-- preconnect (api.fontshare.com, cdn.jsdelivr.net) + Fontshare CSS -->
+  <!-- preconnect api.fontshare.com + Fontshare CSS (v0.8.x: jsdelivr preconnect dropped, vendor libs are local) -->
   <!-- CSS: tokens → reset → shared → portfolio-core (+ preload portfolio-case) -->
 </head>
 <body data-theme="dark">
@@ -153,7 +160,8 @@ codex/
 
   <div class="cursor" aria-hidden="true"><div class="cursor-dot"></div></div>
 
-  <!-- JS перед </body>: gsap → ScrollTrigger → SplitText → main.js → animations.js -->
+  <!-- JS перед </body>: ./js/vendor/lenis → ./js/vendor/gsap → ScrollTrigger → SplitText →
+       i18n-data → i18n → main.js → animations.js (v0.8.x vendored paths) -->
 </body>
 </html>
 ```
@@ -179,7 +187,7 @@ codex/
 
 В `<head>` — preconnect → Fontshare → tokens → reset → shared → (portfolio-core + preload portfolio-case на index | free-assets на FA).
 
-Перед `</body>` — gsap → ScrollTrigger → SplitText → main.js → animations.js. Все БЕЗ `defer` и `type="module"`.
+Перед `</body>` — `./js/vendor/lenis` (только index) → `./js/vendor/gsap` → `ScrollTrigger` → `SplitText` → `i18n-data` → `i18n` → `main.js` → `animations.js`. Все БЕЗ `defer` и `type="module"`. (v0.8.x: пути vendor вместо CDN; SCRIPTS-order regression регулярки `gsap.min.js` / `ScrollTrigger` всё ещё совпадают.)
 
 ---
 

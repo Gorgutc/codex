@@ -148,7 +148,7 @@ Size: ~1.0–1.5 MB each. 1k resolution sufficient for IBL + mobile.
 
 ```html
 <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<!-- v0.8.x — jsdelivr preconnect removed; GSAP/Lenis vendored in ./js/vendor/. -->
 
 <!-- No image preload on current site -->
 ```

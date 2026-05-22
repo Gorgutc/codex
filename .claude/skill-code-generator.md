@@ -21,10 +21,11 @@ Senior Frontend Developer role. Production-ready code first try. No placeholders
 ## Stack — immutable, NEVER change without explicit user permission
 
 - HTML + CSS + Vanilla JS ONLY
-- GSAP **3.13.0** + ScrollTrigger + SplitText via CDN ONLY
+- GSAP **3.13.0** + ScrollTrigger + SplitText self-hosted in `./js/vendor/` (v0.8.x — moved off jsdelivr after sandboxed cloud envs closed the CDN allowlist; npm registry tarball is the install source)
+- Lenis **1.1.20** self-hosted in `./js/vendor/` (same reason)
 - Clash Display + General Sans via Fontshare CDN ONLY
 - `<model-viewer>` 4.0.0 (Google) via CDN, lazy-loaded
-- NO React / Vue / Next / Tailwind / npm / build tools / bundlers / PostCSS
+- NO React / Vue / Next / Tailwind / npm-runtime / build tools / bundlers / PostCSS (`playwright` is dev-only, allowed)
 - NO `localStorage` / `sessionStorage`
 - NO `defer` / `type="module"` on any script tag
 - NO hardcoded colors outside CSS custom properties (exception: `#fff` on `--color-primary` for WCAG AA)
@@ -33,12 +34,17 @@ Senior Frontend Developer role. Production-ready code first try. No placeholders
 ## Script order — strictly before `</body>`, ALL without defer
 
 ```
-1. https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js
-2. https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js
-3. https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js
-4. ./js/main.js
-5. ./js/animations.js
+1. ./js/vendor/lenis.min.js                (index.html only)
+2. ./js/vendor/gsap.min.js
+3. ./js/vendor/ScrollTrigger.min.js
+4. ./js/vendor/SplitText.min.js
+5. ./js/i18n-data.js
+6. ./js/i18n.js
+7. ./js/main.js
+8. ./js/animations.js
 ```
+
+`verify-frozen.js` SCRIPTS-order regression matches by regex (`gsap.min.js`, `ScrollTrigger`, `main.js`, `animations.js`); the vendor path satisfies the same regex as the old CDN URL.
 
 `model-data.js` — lazy-load only via `loadModelData()` in `main.js` on first 3D-tab click. NEVER include eagerly.
 `<model-viewer>` script — lazy-injected in `build3D()` from `main.js`.
@@ -47,14 +53,15 @@ Senior Frontend Developer role. Production-ready code first try. No placeholders
 
 ```
 1. preconnect: api.fontshare.com (crossorigin)
-2. preconnect: cdn.jsdelivr.net (crossorigin)
-3. Fontshare stylesheet
-4. ./css/tokens.css
-5. ./css/reset.css
-6. ./css/shared.css
-7. (index.html only) ./css/portfolio.css
+2. Fontshare stylesheet
+3. ./css/tokens.css
+4. ./css/reset.css
+5. ./css/shared.css
+6. (index.html only) ./css/portfolio-core.css + preload portfolio-case.css
    (free-assets.html only) ./css/free-assets.css
 ```
+
+NOTE: the `cdn.jsdelivr.net` preconnect was removed in v0.8.x (no longer used). The line still appears in old HTML but it's a no-op and may be cleaned up.
 
 ## Theme
 

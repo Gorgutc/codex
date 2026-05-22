@@ -55,7 +55,8 @@ Before suggesting any change in `<head>`, DOM IDs, theme-color, scripts, or work
 
 ### Stack
 - [ ] HTML + CSS + Vanilla JS only (no React/Vue/Next/Tailwind/npm)
-- [ ] GSAP **3.13.0** via CDN (gsap + ScrollTrigger + SplitText)
+- [ ] GSAP **3.13.0** self-hosted at `./js/vendor/` (gsap + ScrollTrigger + SplitText; v0.8.x moved off jsdelivr CDN due to closed allowlist on sandboxed cloud envs)
+- [ ] Lenis **1.1.20** self-hosted at `./js/vendor/lenis.min.js` (index.html only)
 - [ ] Fontshare CDN for fonts only
 - [ ] No `localStorage` / `sessionStorage`
 - [ ] No `defer` / `type="module"` on any script
@@ -69,7 +70,7 @@ Before suggesting any change in `<head>`, DOM IDs, theme-color, scripts, or work
 - [ ] `model-data.js` lazy-loaded ONLY via `loadModelData()` in main.js — NOT in HTML
 
 ### CSS link order (BLOCKER if wrong)
-- [ ] preconnect Fontshare + jsdelivr → Fontshare CSS → tokens → reset → shared → portfolio (or free-assets)
+- [ ] preconnect Fontshare → Fontshare CSS → tokens → reset → shared → portfolio-core + preload portfolio-case (or free-assets). The `cdn.jsdelivr.net` preconnect is harmless legacy if still present but should not be required by review.
 
 ### File structure
 - [ ] index.html, free-assets.html at project root
@@ -158,7 +159,7 @@ Before suggesting any change in `<head>`, DOM IDs, theme-color, scripts, or work
 ### Performance risks
 - [ ] No render-blocking scripts in `<head>`
 - [ ] Fontshare preconnect present
-- [ ] cdn.jsdelivr.net preconnect present
+- [ ] cdn.jsdelivr.net preconnect — N/A in v0.8.x (vendor libs are local); if present it's a legacy no-op, do not flag
 - [ ] All images have explicit `width` + `height`
 - [ ] `model-data.js` lazy-loaded (NOT in HTML)
 - [ ] `<model-viewer>` script lazy-injected (NOT in HTML)
