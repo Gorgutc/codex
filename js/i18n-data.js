@@ -242,8 +242,64 @@
   META_STRINGS.ru.index.ogLocale = 'ru_RU';
   META_STRINGS.ru.fa.ogLocale = 'ru_RU';
 
-  // ── CARDS_LOCALES / FA_LOCALES — пустые скелеты (Phase 2 / Phase 3) ────────
-  const CARDS_LOCALES = { en: {}, ru: {} };
+  // ── CARDS_LOCALES — 18 портфолио-кейсов, по data-id (Phase 2) ──────────────
+  //
+  // Поля card-level (выводятся прямо в HTML work-card):
+  //   - title — название кейса. Брэнды / 3D-product-names НЕ переводятся
+  //     (Orbital Mk.II, Vega Shell, Nightshard и т.д. — это имена работ,
+  //     как у живописных полотен; локализация = ноль).
+  //   - desc — короткое описание. Tech-термины (PBR, LOD, AAA, UE5, CAD,
+  //     turntable, groom, SSS, displacement, UAV) остаются англицизмами —
+  //     это профессиональный сленг 3D-индустрии, и senior-аудитория видит
+  //     их именно в этой форме.
+  //   - alt — alt-текст для <img>. Структура "<Brand> — <RU-описание>".
+  //
+  // Поля cat / year / role / tools / modelStats / captions / text-блоки
+  // живут в CARDS_DATA в main.js (case-view content) и обрабатываются в
+  // Phase 2b отдельно через CARDS_DATA snapshot-and-overlay механизм.
+  const CARDS_LOCALES_EN = {
+    'orbital-mk-ii':  { title: 'Orbital Mk.II',  desc: 'Sci-fi prop engineered for AAA pipeline. Full PBR, clean topology.',                     alt: 'Orbital Mk.II — sci-fi hard surface prop' },
+    'vega-shell':     { title: 'Vega Shell',     desc: 'Modular exo-armor system. 47 individual parts, LOD-ready.',                              alt: 'Vega Shell — modular exo-armor system' },
+    'ironclad-frame': { title: 'Ironclad Frame', desc: 'Industrial chassis breakdown. Every bolt and seam modeled to spec.',                     alt: 'Ironclad Frame — industrial chassis breakdown' },
+    'corten-series':  { title: 'Corten Series',  desc: 'Product viz for an industrial furniture brand. Launch-ready renders.',                   alt: 'Corten Series — industrial furniture product viz' },
+    'lumen-one':      { title: 'Lumen One',      desc: 'Architectural lighting unit. Photorealistic turntable for pitch deck.',                  alt: 'Lumen One — architectural lighting unit' },
+    'flux-capsule':   { title: 'Flux Capsule',   desc: 'Consumer tech device. E-commerce shot set, studio lighting rig.',                        alt: 'Flux Capsule — consumer tech device' },
+    'nightshard':     { title: 'Nightshard',     desc: 'Hero weapon asset. 4K PBR textures, optimised for real-time.',                           alt: 'Nightshard — hero weapon asset, game-ready' },
+    'recon-drone':    { title: 'Recon Drone',    desc: 'Tactical UAV prop. Game-ready, LOD0–LOD2, UE5-compatible.',                              alt: 'Recon Drone — tactical UAV prop' },
+    'apex-frame':     { title: 'Apex Frame',     desc: 'Mechanical component breakdown for engineering client. Mfg-reference accuracy.',         alt: 'Apex Frame — mechanical component breakdown' },
+    'core-rig':       { title: 'Core Rig',       desc: 'Structural assembly prototype. Modeled for 3D-print validation.',                        alt: 'Core Rig — structural assembly prototype' },
+    'helix-reveal':   { title: 'Helix Reveal',   desc: 'Product reveal animation. 6-second loop, render for hero section.',                      alt: 'Helix Reveal — product reveal animation' },
+    'arc-motion':     { title: 'Arc Motion',     desc: 'Turntable sequence for industrial product. 360° orbit, 4K export.',                      alt: 'Arc Motion — turntable sequence for industrial product' },
+    'nyx-panther':    { title: 'Nyx Panther',    desc: 'Stylized feline creature. Hand-sculpted anatomy, dual-coat fur groom.',                  alt: 'Nyx Panther — stylized feline creature' },
+    'drift-koi':      { title: 'Drift Koi',      desc: 'Ornamental fish study. Displacement scales, subsurface scattering pass.',                alt: 'Drift Koi — ornamental fish study' },
+    'glint-owl':      { title: 'Glint Owl',      desc: 'Stylized bird character. Feather grooming with procedural asymmetry.',                   alt: 'Glint Owl — stylized bird character' },
+    'mech-link':      { title: 'Mech Link',      desc: 'Industrial CAD assembly. Placeholder kit — final GLB + renders in progress.',            alt: 'Mech Link — CAD assembly placeholder' },
+    'flex-spine':     { title: 'Flex Spine',     desc: 'Kinematic spine study. CAD constraints, parametric ribs — work in progress.',            alt: 'Flex Spine — CAD kinematic placeholder' },
+    'cad-strut':      { title: 'CAD Strut',      desc: 'Structural strut node. CAD-first geometry — final model & textures pending.',           alt: 'CAD Strut — structural node placeholder' },
+  };
+  const CARDS_LOCALES_RU = {
+    'orbital-mk-ii':  { title: 'Orbital Mk.II',  desc: 'Sci-fi-проп для AAA-пайплайна. Полный PBR, чистая топология.',                            alt: 'Orbital Mk.II — sci-fi-проп hard surface' },
+    'vega-shell':     { title: 'Vega Shell',     desc: 'Модульный экзо-доспех. 47 отдельных деталей, LOD-ready.',                                 alt: 'Vega Shell — модульный экзо-доспех' },
+    'ironclad-frame': { title: 'Ironclad Frame', desc: 'Промышленное шасси в разборе. Каждый болт и шов — по чертежу.',                           alt: 'Ironclad Frame — промышленное шасси в разборе' },
+    'corten-series':  { title: 'Corten Series',  desc: 'Product viz для бренда промышленной мебели. Рендеры готовы к запуску.',                   alt: 'Corten Series — индустриальная мебель, product viz' },
+    'lumen-one':      { title: 'Lumen One',      desc: 'Архитектурный светильник. Фотореалистичный turntable для pitch-deck.',                    alt: 'Lumen One — архитектурный светильник' },
+    'flux-capsule':   { title: 'Flux Capsule',   desc: 'Consumer-гаджет. E-commerce сет, studio lighting rig.',                                   alt: 'Flux Capsule — consumer-гаджет' },
+    'nightshard':     { title: 'Nightshard',     desc: 'Hero-оружие. 4K PBR-текстуры, оптимизация под real-time.',                                alt: 'Nightshard — hero-оружие, game-ready' },
+    'recon-drone':    { title: 'Recon Drone',    desc: 'Тактический UAV-проп. Game-ready, LOD0–LOD2, под UE5.',                                   alt: 'Recon Drone — тактический UAV-проп' },
+    'apex-frame':     { title: 'Apex Frame',     desc: 'Разборка механического узла для инженерного заказчика. Точность по заводскому чертежу.',  alt: 'Apex Frame — механический узел в разборе' },
+    'core-rig':       { title: 'Core Rig',       desc: 'Прототип несущей сборки. Геометрия под 3D-печатную валидацию.',                           alt: 'Core Rig — прототип несущей сборки' },
+    'helix-reveal':   { title: 'Helix Reveal',   desc: 'Product reveal-анимация. 6-секундный луп, рендер под hero-секцию.',                       alt: 'Helix Reveal — product reveal-анимация' },
+    'arc-motion':     { title: 'Arc Motion',     desc: 'Turntable-секвенция для промышленного продукта. Орбита 360°, выгрузка 4K.',               alt: 'Arc Motion — turntable для индустриального продукта' },
+    'nyx-panther':    { title: 'Nyx Panther',    desc: 'Стилизованный хищник кошачьих. Скульптинг анатомии вручную, двухслойный грум меха.',      alt: 'Nyx Panther — стилизованный хищник' },
+    'drift-koi':      { title: 'Drift Koi',      desc: 'Этюд декоративной рыбы. Displacement-чешуя, SSS-пасс.',                                   alt: 'Drift Koi — этюд декоративной рыбы' },
+    'glint-owl':      { title: 'Glint Owl',      desc: 'Стилизованный птичий персонаж. Грум пера с процедурной асимметрией.',                     alt: 'Glint Owl — стилизованный птичий персонаж' },
+    'mech-link':      { title: 'Mech Link',      desc: 'Промышленная CAD-сборка. Placeholder-кит — финальный GLB и рендеры в работе.',            alt: 'Mech Link — CAD-сборка, плейсхолдер' },
+    'flex-spine':     { title: 'Flex Spine',     desc: 'Этюд кинематической оси. CAD-констрейнты, параметрические рёбра — в работе.',             alt: 'Flex Spine — этюд кинематической оси, CAD' },
+    'cad-strut':      { title: 'CAD Strut',      desc: 'Структурный strut-узел. CAD-first геометрия — финальная модель и текстуры в очереди.',    alt: 'CAD Strut — структурный узел, CAD' },
+  };
+  const CARDS_LOCALES = { en: CARDS_LOCALES_EN, ru: CARDS_LOCALES_RU };
+
+  // FA_LOCALES — пустой скелет, Phase 3 (free-assets каталог в fa-data.js).
   const FA_LOCALES = { en: {}, ru: {} };
 
   window.I18N_DATA = {

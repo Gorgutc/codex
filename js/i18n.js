@@ -56,8 +56,26 @@
   }
   function t(key) {
     const d = uiDict();
+    // 1) Primary: UI_STRINGS[currentLang].<key>
     const v = getKey(d[currentLang], key);
     if (typeof v === 'string') return v;
+
+    // 2) Namespace lookup: 'card.<id>.<field>' → CARDS_LOCALES[currentLang][id][field]
+    //    Phase 2 — work-card title/desc/alt живут в CARDS_LOCALES чтобы не
+    //    раздувать UI_STRINGS на 18×3 ключей.
+    if (key.indexOf('card.') === 0) {
+      const data = window.I18N_DATA;
+      const cards = data && data.CARDS_LOCALES;
+      if (cards) {
+        const sub = key.slice(5); // strip 'card.'
+        const v2 = getKey(cards[currentLang], sub);
+        if (typeof v2 === 'string') return v2;
+        const fb2 = getKey(cards[DEFAULT_LANG], sub);
+        if (typeof fb2 === 'string') return fb2;
+      }
+    }
+
+    // 3) Fallback: UI_STRINGS[DEFAULT_LANG].<key>
     const fb = getKey(d[DEFAULT_LANG], key);
     return typeof fb === 'string' ? fb : key;
   }
