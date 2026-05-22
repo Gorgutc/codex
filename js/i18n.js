@@ -286,6 +286,53 @@
     });
   }
 
+  // Phase 3 — overlay FA catalog (window.FA_DATA в fa-data.js) translations
+  // из I18N_DATA.FA_LOCALES.
+  //
+  // FA_DATA structure: { category: [ { id, cat, title, desc, badge,
+  // contents, size, file, bg }, ... ] }
+  // Переводимое поле: desc. Остальное — англицизмы proff-индустрии.
+  //
+  // Baseline snapshot — отдельный от cases (это отдельная страница);
+  // на free-assets.js fires re-render через i18n:changed listener.
+  let __faDataBaseline = null;
+  function overlayFA(lang) {
+    const data = window.I18N_DATA;
+    const fa = window.FA_DATA;
+    if (!data || !data.FA_LOCALES || !fa) return;
+
+    if (!__faDataBaseline) {
+      try { __faDataBaseline = JSON.parse(JSON.stringify(fa)); }
+      catch (_) { return; }
+    }
+
+    // 1) Restore baseline (desc) для каждого asset в каждом category-bucket.
+    Object.keys(fa).forEach(cat => {
+      const items = fa[cat];
+      const baseItems = __faDataBaseline[cat];
+      if (!Array.isArray(items) || !Array.isArray(baseItems)) return;
+      items.forEach((it, i) => {
+        const bi = baseItems[i];
+        if (!bi) return;
+        if (typeof bi.desc === 'string') it.desc = bi.desc;
+      });
+    });
+
+    if (lang === DEFAULT_LANG) return;
+
+    // 2) Overlay по id. FA_LOCALES — плоский dict, искать по item.id.
+    const dict = data.FA_LOCALES[lang];
+    if (!dict) return;
+    Object.keys(fa).forEach(cat => {
+      const items = fa[cat];
+      if (!Array.isArray(items)) return;
+      items.forEach(it => {
+        const tr = dict[it.id];
+        if (tr && typeof tr.desc === 'string') it.desc = tr.desc;
+      });
+    });
+  }
+
   function applyLang(lang) {
     if (!isValidLang(lang)) lang = DEFAULT_LANG;
     const changed = lastAppliedLang !== lang;
@@ -296,6 +343,7 @@
     applyAttrs();
     applyMetaAttrs();
     overlayCases(lang);
+    overlayFA(lang);
     updateURL(lang);
     if (changed) propagateLangToLinks(lang);
     updateToggleLabels(lang);

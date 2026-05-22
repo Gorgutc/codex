@@ -312,6 +312,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initial load: pre-select first category but DO NOT collapse sidebar on mobile.
   // User should land on the tag-cards overview, not inside a category.
   selectTag('hard-surface', { noCollapse: true });
+
+  /* Phase 3 — re-render FA grid при смене языка. i18n.js overlayFA() уже
+     мутировал window.FA_DATA для нового языка; renderGrid(activeTag) пере-
+     соберёт DOM grid из переведённых данных. Мы не трогаем sidebar-state
+     и не вызываем selectTag (он закрыл бы sidebar на mobile) — re-render
+     только grid'а. */
+  window.addEventListener('i18n:changed', function () {
+    if (typeof renderGrid === 'function') renderGrid(activeTag);
+  });
+
   // v0.4 [N4]: rebind game-switch ПОСЛЕ main.js (который тоже слушает DOMContentLoaded).
   // main.js регистрирует listener раньше нас, его init выполнится первым — успевает
   // повесить handler на оригинальный #game-switch. Clone-replace его убирает.

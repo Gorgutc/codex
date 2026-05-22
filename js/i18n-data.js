@@ -757,8 +757,78 @@
 
   const CASE_LOCALES = { en: CASE_LOCALES_EN, ru: CASE_LOCALES_RU };
 
-  // FA_LOCALES — пустой скелет, Phase 3 (free-assets каталог в fa-data.js).
-  const FA_LOCALES = { en: {}, ru: {} };
+  // ── FA_LOCALES — каталог free-assets (Phase 3) ──────────────────────────
+  //
+  // Покрывает поле `desc` каждой записи в FA_DATA[category]. Поля:
+  //   - title    — брэнд/имя ассета, не переводится (Orbital Mk.II,
+  //                Bolt Cluster, Terra Base, Wraith Blade, Echo Shell etc).
+  //   - cat      — англицизм (Hard Surface, Product Viz, Game Asset,
+  //                Organic, Animation, CAD) — уже в UI_STRINGS.filter.*.
+  //   - badge    — англицизм (Hard Surface, Mechanical, Product Viz, Game
+  //                Asset, Organic, Animation, CAD).
+  //   - contents — массив технических ярлыков (.blend / .fbx / 4K PBR /
+  //                LOD 0–2 / GeoNodes / etc) — proff-сленг, не переводится.
+  //   - size / file / bg / id — техническое, не переводится.
+  //
+  // Один dict[id] на каждый ассет — id в каталоге уникальны
+  // (включая `-g` варианты для game-категории), плоская структура без
+  // вложенности по category. На overlay i18n.js обходит все category-bucket'ы
+  // FA_DATA и ищет item.id в FA_LOCALES[lang].
+  const FA_LOCALES_EN = {
+    'orbital-mk-ii':  { desc: 'Sci-fi prop engineered for AAA pipeline. Full PBR, clean topology.' },
+    'vega-shell':     { desc: 'Modular exo-armor system — 47 parts. Snap-together assembly, clean UVs.' },
+    'ironclad-frame': { desc: 'Industrial chassis breakdown. Every bolt and seam modeled to spec.' },
+    'bolt-cluster':   { desc: 'Industrial fastener kit — 12 variants. Scatter-ready GeoNodes setup.' },
+    'terra-base':     { desc: 'Modular environment kit — 24 tileable pieces. GeoNodes scatter system.' },
+    'shard-cannon':   { desc: 'Sci-fi heavy weapon — three skin variations, UE5-compatible export.' },
+    'wraith-blade':   { desc: 'Thin melee weapon with emissive edge glow texture variant included.' },
+    'apex-frame':     { desc: 'Mechanical component breakdown. Exploded view rig. Mfg-reference accuracy.' },
+    'corten-series':  { desc: 'Industrial furniture scene. HDRI + camera rigs for stills and turntable.' },
+    'lumen-one':      { desc: 'Minimalist product scene. Cycles render with area lights and reflectors.' },
+    'flux-capsule':   { desc: 'Consumer tech device — 8 camera angles, e-commerce shot set.' },
+    'echo-shell':     { desc: 'Speaker product scene — three colorways, compositing nodes included.' },
+    'prism-lab':      { desc: 'Architectural product viz — day and night lighting setups.' },
+    'nightshard':     { desc: 'Hero weapon. 4K PBR textures, optimised for real-time. UE5-ready.' },
+    'recon-drone':    { desc: 'Tactical UAV prop. LOD 0–2, UE5-compatible. Full PBR texture set.' },
+    'wraith-blade-g': { desc: 'Thin melee weapon. High-poly bake, emissive edge glow variant.' },
+    'shard-cannon-g': { desc: 'Sci-fi heavy weapon — three skin variations, UE5-compatible.' },
+    'nyx-panther':    { desc: 'Stylized feline. Hand-sculpted anatomy, dual-coat fur groom. Rigged.' },
+    'drift-koi':      { desc: 'Ornamental fish. SSS pass, displacement scales, swim cycle at 30fps.' },
+    'glint-owl':      { desc: 'Stylized bird. Procedural feather asymmetry, idle animation rig.' },
+    'helix-reveal':   { desc: 'Product reveal loop — 6 seconds. Camera path + keyframes fully editable.' },
+    'arc-motion':     { desc: 'Turntable sequence — full 360° orbit, 4K export. Lighting customizable.' },
+    'mech-link':      { desc: 'Industrial CAD assembly. Exported from Fusion 360, cleaned for Blender.' },
+    'flex-spine':     { desc: 'Kinematic spine study. Parametric ribs — robotics and biomedical reference.' },
+    'cad-strut':      { desc: 'Structural strut node system. Modular connectors, manufacturing docs.' }
+  };
+  const FA_LOCALES_RU = {
+    'orbital-mk-ii':  { desc: 'Sci-fi-проп для AAA-пайплайна. Полный PBR, чистая топология.' },
+    'vega-shell':     { desc: 'Модульный экзо-доспех — 47 деталей. Snap-сборка, чистые UV.' },
+    'ironclad-frame': { desc: 'Промышленное шасси в разборе. Каждый болт и шов — по чертежу.' },
+    'bolt-cluster':   { desc: 'Кит промышленного крепежа — 12 вариантов. Scatter-ready на GeoNodes.' },
+    'terra-base':     { desc: 'Модульный environment-кит — 24 tileable-куска. GeoNodes scatter-система.' },
+    'shard-cannon':   { desc: 'Sci-fi тяжёлое оружие — три варианта скина, экспорт под UE5.' },
+    'wraith-blade':   { desc: 'Тонкое холодное оружие с вариантом эмиссивного свечения кромки.' },
+    'apex-frame':     { desc: 'Разборка механического узла. Exploded view-риг. Точность по заводскому чертежу.' },
+    'corten-series':  { desc: 'Сцена индустриальной мебели. HDRI и камерные риги под стиллы и turntable.' },
+    'lumen-one':      { desc: 'Минималистичная product-сцена. Рендер в Cycles с area-lights и рефлекторами.' },
+    'flux-capsule':   { desc: 'Consumer-гаджет — 8 ракурсов камеры, e-commerce-сет.' },
+    'echo-shell':     { desc: 'Сцена со спикером — три colorway, compositing-ноды в комплекте.' },
+    'prism-lab':      { desc: 'Архитектурный product viz — день/ночь lighting-сетапы.' },
+    'nightshard':     { desc: 'Hero-оружие. 4K PBR-текстуры, оптимизация под real-time. UE5-ready.' },
+    'recon-drone':    { desc: 'Тактический UAV-проп. LOD 0–2, под UE5. Полный сет PBR-текстур.' },
+    'wraith-blade-g': { desc: 'Тонкое холодное оружие. Hi-poly bake, вариант эмиссивного свечения.' },
+    'shard-cannon-g': { desc: 'Sci-fi тяжёлое оружие — три варианта скина, под UE5.' },
+    'nyx-panther':    { desc: 'Стилизованный хищник кошачьих. Скульптинг анатомии, двухслойный грум меха. С ригом.' },
+    'drift-koi':      { desc: 'Декоративная рыба. SSS-пасс, displacement-чешуя, swim-цикл на 30 fps.' },
+    'glint-owl':      { desc: 'Стилизованная птица. Процедурная асимметрия перьев, idle-анимация на риге.' },
+    'helix-reveal':   { desc: 'Product reveal-луп — 6 секунд. Путь камеры и ключи — редактируемые.' },
+    'arc-motion':     { desc: 'Turntable-секвенция — орбита 360°, экспорт 4K. Свет настраиваемый.' },
+    'mech-link':      { desc: 'Промышленная CAD-сборка. Экспорт из Fusion 360, причёсано для Blender.' },
+    'flex-spine':     { desc: 'Этюд кинематической оси. Параметрические рёбра — reference для робототехники и biomed.' },
+    'cad-strut':      { desc: 'Структурный strut-узел. Модульные коннекторы, производственная документация.' }
+  };
+  const FA_LOCALES = { en: FA_LOCALES_EN, ru: FA_LOCALES_RU };
 
   window.I18N_DATA = {
     CIS_COUNTRIES: CIS_COUNTRIES.slice(),
