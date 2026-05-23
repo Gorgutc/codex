@@ -61,6 +61,30 @@ For skill-drift suspicion, the user invokes `/audit-skills`. Never auto-rewrite 
 
 **Important — slash commands** (`/ship`, `/run-5sec`, `/audit-skills`) can only be typed by the user. Claude cannot trigger them. The workflow above achieves the same effect by spawning the agents directly. Operator pre-task header in `RUN_INSTRUCTIONS.md` (block **[B]**) makes this explicit per session.
 
+## Intent-confirm rule (anti-drift)
+
+**Plan drift is the failure mode `verify-frozen.js` cannot catch.** A change can pass every architectural gate and still implement the wrong feature. To prevent this, before any Edit/Write that:
+- changes UX behaviour (where a control lives, what it does)
+- moves DOM elements between regions (sidebar ↔ footer ↔ header)
+- changes responsive layout semantics (what shows/hides per breakpoint)
+- introduces or removes interactive elements
+- pivots away from the approach the user articulated in chat or in a prior commit
+
+— first output a single `### Intent:` block in chat, 2–4 sentences, naming the concrete DOM/CSS/JS surfaces the change will touch and the resulting user-visible behaviour. Then wait for the user's one-word `ack` (`ok` / `да` / `поехали`) **or** a correction. Only after `ack` proceed to tool calls.
+
+If during implementation a conflict surfaces with the stated intent (e.g. a frozen rule blocks the approach, or two requirements seem to contradict), **STOP and use `AskUserQuestion`**. Never silently pick a different approach. Never decide that the user's earlier instruction was "outdated" because something else seems cleaner now.
+
+This rule overrides the default "be concise, just do the work" tendency. The cost of one extra round-trip is far below the cost of building the wrong thing and having to revert it (see Phase 5 in i18n PR for a concrete miss).
+
+Mechanical changes that do NOT need intent-confirm:
+- bug fixes with a single obvious correction
+- typo / copy edits
+- adding a single i18n key that was discussed
+- following an explicit "do X" from the user verbatim
+- doc edits (README, CLAUDE.md, .claude/*.md) when the user asked for a specific change
+
+When in doubt, **state the intent**. The user can always say "ok just do it" — but cannot undo a silent pivot.
+
 ## File map
 
 ```
