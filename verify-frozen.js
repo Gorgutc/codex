@@ -69,6 +69,43 @@ const add = (suite, name, pass, detail = '') => {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
+   STATIC — file-level checks без браузера (Stage 1, A7+A8)
+   ─────────────────────────────────────────────────────────────────────
+   Грепаем shipped HTML + JS на запрещённые pattern'ы. Это runs ДО
+   подъёма серверa: если static check FAIL — runtime тесты бессмысленны.
+═══════════════════════════════════════════════════════════════════════ */
+function runStaticChecks() {
+  console.log('\n=== Static file-level checks ===');
+
+  // A7 — Vendor paths only: GSAP / Lenis / ScrollTrigger / SplitText не
+  // должны грузиться с jsdelivr / unpkg / cdnjs (v0.8.x cloud-env-fix).
+  // Проверяем content обеих HTML на наличие запрещённых URLs.
+  const blockedCDN = /(cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)[^\s"]*\/(gsap|lenis|ScrollTrigger|SplitText)/i;
+  const indexHTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const faHTML = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
+  add('static', 'A7-vendor-only-index', !blockedCDN.test(indexHTML), 'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
+  add('static', 'A7-vendor-only-fa',    !blockedCDN.test(faHTML),    'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
+  // Sanity: vendor files actually present on disk.
+  const vendorFiles = ['gsap.min.js', 'ScrollTrigger.min.js', 'SplitText.min.js', 'lenis.min.js'];
+  const vendorOK = vendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
+  add('static', 'A7-vendor-files-present', vendorOK, vendorFiles.join(', '));
+
+  // A8 — localStorage / sessionStorage НЕ должны использоваться runtime в
+  // shipped JS. Frozen rule top-10. Regex ловит method/property access
+  // (foo.localStorage. / foo.sessionStorage[ ) — комментарии "no localStorage"
+  // не попадают, т.к. там нет точки/bracket access после слова.
+  const forbidden = /(localStorage|sessionStorage)\s*[.\[]/;
+  const jsFiles = ['main.js', 'animations.js', 'free-assets.js', 'i18n.js', 'i18n-data.js', 'fa-data.js'];
+  const jsViolations = jsFiles.filter(f => {
+    const full = path.join(ROOT, 'js', f);
+    if (!fs.existsSync(full)) return false;
+    return forbidden.test(fs.readFileSync(full, 'utf8'));
+  });
+  add('static', 'A8-no-localStorage-runtime', jsViolations.length === 0,
+      jsViolations.length ? 'violations in: ' + jsViolations.join(', ') : 'all clean');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    INDEX.HTML — расширенный регрешен (37 тестов)
 ═══════════════════════════════════════════════════════════════════════ */
 async function testIndex(BASE) {
@@ -85,14 +122,23 @@ async function testIndex(BASE) {
   const scripts = await page.$$eval('script[src]', els => els.map(e => ({ src: e.getAttribute('src'), defer: e.hasAttribute('defer'), async: e.hasAttribute('async') })));
   add('index', 'SCRIPTS-no-defer', !scripts.some(s => s.defer));
   const order = scripts.map(s => s.src);
+  // A1 — Full chain: gsap → ScrollTrigger → SplitText → i18n-data → i18n → main → animations.
+  // Phase 1+ added i18n-data + i18n; they must sit ПОСЛЕ vendor GSAP-bundle и
+  // ПЕРЕД main.js (main.js dereferences window.I18N at boot).
+  const idx = (rx) => order.findIndex(s => rx.test(s));
+  const iGsap = idx(/gsap\.min\.js/);
+  const iST   = idx(/ScrollTrigger/);
+  const iSpT  = idx(/SplitText/);
+  const iI18nD = idx(/i18n-data\.js$/);
+  const iI18n  = idx(/i18n\.js$/);
+  const iMain  = idx(/main\.js$/);
+  const iAnim  = idx(/animations\.js$/);
   const orderOK =
-    order.findIndex(s => /gsap\.min\.js/.test(s)) <
-    order.findIndex(s => /ScrollTrigger/.test(s)) &&
-    order.findIndex(s => /ScrollTrigger/.test(s)) <
-    order.findIndex(s => /main\.js$/.test(s)) &&
-    order.findIndex(s => /main\.js$/.test(s)) <
-    order.findIndex(s => /animations\.js$/.test(s));
-  add('index', 'SCRIPTS-order', orderOK);
+    iGsap >= 0 && iST > iGsap && iSpT > iST &&
+    iI18nD > iSpT && iI18n > iI18nD &&
+    iMain > iI18n && iAnim > iMain;
+  add('index', 'SCRIPTS-order', orderOK,
+      `gsap=${iGsap} ST=${iST} SpT=${iSpT} i18n-data=${iI18nD} i18n=${iI18n} main=${iMain} anim=${iAnim}`);
 
   // BODY THEME
   const theme = await page.getAttribute('body', 'data-theme');
@@ -215,6 +261,47 @@ async function testIndex(BASE) {
   add('index', 'THEME-toggle', afterToggle === 'light');
   await page.click('#theme-toggle');
 
+  /* ───── Stage 1 (A2-A6) ─ i18n runtime surfaces ───────────────────────── */
+
+  // A2 — window.I18N API: object + required methods.
+  const i18nAPI = await page.evaluate(() => ({
+    obj:        typeof window.I18N === 'object',
+    getLang:    typeof (window.I18N && window.I18N.getLang)   === 'function',
+    t:          typeof (window.I18N && window.I18N.t)         === 'function',
+    applyLang:  typeof (window.I18N && window.I18N.applyLang) === 'function',
+    isValid:    typeof (window.I18N && window.I18N.isValidLang) === 'function',
+    data:       typeof window.I18N_DATA === 'object',
+  }));
+  add('index', 'A2-I18N-api', i18nAPI.obj && i18nAPI.getLang && i18nAPI.t && i18nAPI.applyLang && i18nAPI.isValid && i18nAPI.data,
+      `api=${JSON.stringify(i18nAPI)}`);
+
+  // A3 — <html lang> set to a valid two-letter code after init.
+  const htmlLang = await page.getAttribute('html', 'lang');
+  add('index', 'A3-html-lang-valid', /^(en|ru)$/.test(htmlLang || ''), `lang="${htmlLang}"`);
+
+  // A4 — #lang-toggle present в DOM (inside .header-top__controls).
+  const langToggleInHeader = await page.evaluate(() => {
+    const t = document.getElementById('lang-toggle');
+    if (!t) return false;
+    return !!t.closest('.header-top__controls');
+  });
+  add('index', 'A4-lang-toggle-present', langToggleInHeader);
+
+  // A6 — og:locale meta exists and matches lang code shape.
+  const ogLocale = await page.getAttribute('meta[property="og:locale"]', 'content');
+  add('index', 'A6-og-locale', /^(en_US|ru_RU)$/.test(ogLocale || ''), `og:locale="${ogLocale}"`);
+
+  // A5 — click #lang-toggle → URL ?lang flips. Round-trip обратно, чтобы
+  // не оставлять страницу в RU-state для последующих тестов.
+  const langBefore = await page.evaluate(() => window.I18N.getLang());
+  await page.click('#lang-toggle'); await page.waitForTimeout(400);
+  const urlAfter = await page.evaluate(() => location.search);
+  const langAfter = await page.evaluate(() => window.I18N.getLang());
+  await page.click('#lang-toggle'); await page.waitForTimeout(400); // restore
+  add('index', 'A5-lang-toggle-flips-url',
+      langAfter !== langBefore && /[?&]lang=(en|ru)\b/.test(urlAfter),
+      `${langBefore}→${langAfter}, url="${urlAfter}"`);
+
   // CONSOLE — игнорируем внешние CDN failures (model-viewer 403/404, ERR_FAILED от заблокированного googleapis).
   // v0.8.x — добавлены fontshare (TLS MITM в sandboxed cloud envs) и cloudflare
   // (i18n.js geo-fetch endpoint; в corp envs TLS перехватывается, fetch падает
@@ -243,9 +330,50 @@ async function testFreeAssets(BASE) {
   const scripts = await page.$$eval('script[src]', els => els.map(e => ({ src: e.getAttribute('src'), defer: e.hasAttribute('defer') })));
   add('fa', 'SCRIPTS-no-defer', !scripts.some(s => s.defer));
 
+  // A1 — script order на FA (нет Lenis, нет animations.js, есть free-assets.js):
+  // gsap → ScrollTrigger → SplitText → i18n-data → i18n → main → free-assets.
+  const faOrder = scripts.map(s => s.src);
+  const faIdx = (rx) => faOrder.findIndex(s => rx.test(s));
+  const f = {
+    gsap:    faIdx(/gsap\.min\.js/),
+    st:      faIdx(/ScrollTrigger/),
+    spt:     faIdx(/SplitText/),
+    i18nD:   faIdx(/i18n-data\.js$/),
+    i18n:    faIdx(/i18n\.js$/),
+    main:    faIdx(/main\.js$/),
+    faJs:    faIdx(/free-assets\.js$/),
+  };
+  const faOrderOK = f.gsap >= 0 && f.st > f.gsap && f.spt > f.st &&
+                    f.i18nD > f.spt && f.i18n > f.i18nD &&
+                    f.main > f.i18n && f.faJs > f.main;
+  add('fa', 'SCRIPTS-order', faOrderOK, JSON.stringify(f));
+
   // GSAP loaded
   const gsap = await page.evaluate(() => typeof window.gsap);
   add('fa', 'GSAP-loaded', gsap === 'object');
+
+  /* ───── Stage 1 (A2-A6) ─ i18n runtime surfaces (мirror'им index) ─────── */
+  const faI18nAPI = await page.evaluate(() => ({
+    obj:        typeof window.I18N === 'object',
+    getLang:    typeof (window.I18N && window.I18N.getLang)   === 'function',
+    t:          typeof (window.I18N && window.I18N.t)         === 'function',
+    applyLang:  typeof (window.I18N && window.I18N.applyLang) === 'function',
+    data:       typeof window.I18N_DATA === 'object',
+  }));
+  add('fa', 'A2-I18N-api', faI18nAPI.obj && faI18nAPI.getLang && faI18nAPI.t && faI18nAPI.applyLang && faI18nAPI.data,
+      JSON.stringify(faI18nAPI));
+
+  const faHtmlLang = await page.getAttribute('html', 'lang');
+  add('fa', 'A3-html-lang-valid', /^(en|ru)$/.test(faHtmlLang || ''), `lang="${faHtmlLang}"`);
+
+  const faLangTogglePresent = await page.evaluate(() => {
+    const t = document.getElementById('lang-toggle');
+    return !!(t && t.closest('.header-top__controls'));
+  });
+  add('fa', 'A4-lang-toggle-present', faLangTogglePresent);
+
+  const faOgLocale = await page.getAttribute('meta[property="og:locale"]', 'content');
+  add('fa', 'A6-og-locale', /^(en_US|ru_RU)$/.test(faOgLocale || ''), `og:locale="${faOgLocale}"`);
 
   // BODY THEME
   add('fa', 'BODY-theme-dark', await page.getAttribute('body', 'data-theme') === 'dark');
@@ -360,6 +488,7 @@ async function testFreeAssets(BASE) {
   console.log('══════════════════════════════════════════════════════════════════');
 
   try {
+    runStaticChecks();
     await testIndex(BASE);
     await testFreeAssets(BASE);
   } catch (e) {
