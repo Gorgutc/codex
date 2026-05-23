@@ -22,6 +22,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
+const { AxeBuilder } = require('@axe-core/playwright');
 
 const ROOT = process.env.SITE_ROOT || __dirname;
 const PORT = parseInt(process.env.PORT || '5555', 10);
@@ -448,6 +449,52 @@ async function testIndex(BASE) {
   });
   add('index', 'B10-skip-to-content', skipLink);
 
+  /* ───── Stage 4 (D1, D3, D4) ─ a11y + asset hygiene ───────────────────── */
+
+  // D1 — WCAG 2 A/AA via axe-core in WHITELIST mode. Snapshot 2026-05:
+  //   index: 1 violation (aria-required-children, critical, 1 node)
+  // Budget = current count. Любое НОВОЕ violation поднимет actual выше
+  // budget → FAIL. При плановом fix этого aria issue budget уменьшается.
+  const axeIndex = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  const axeIndexCount = axeIndex.violations.length;
+  const AXE_INDEX_BUDGET = 1;
+  add('index', 'D1-axe-wcag-aa', axeIndexCount <= AXE_INDEX_BUDGET,
+      `violations=${axeIndexCount} budget=${AXE_INDEX_BUDGET}` +
+      (axeIndexCount > 0 ? ' [' + axeIndex.violations.map(v => v.id).join(',') + ']' : ''));
+
+  // D3 — every <img> has alt + width + height + loading + decoding.
+  // Frozen rule from CLAUDE.md. Lazy SVG-data:image are exempted because
+  // they're inline base64 with no <img> wrapper anyway.
+  const imgIssues = await page.evaluate(() => {
+    const required = ['alt', 'width', 'height', 'loading', 'decoding'];
+    const fails = [];
+    document.querySelectorAll('img').forEach(img => {
+      const missing = required.filter(a => !img.hasAttribute(a));
+      if (missing.length) {
+        const src = img.getAttribute('src') || '(no src)';
+        fails.push(`${src.slice(-40)} missing=[${missing.join(',')}]`);
+      }
+    });
+    return fails;
+  });
+  add('index', 'D3-img-required-attrs', imgIssues.length === 0,
+      imgIssues.length ? imgIssues.slice(0, 2).join(' | ') : 'all clean');
+
+  // D4 — Fontshare CSS URL includes display=swap (prevents FOIT, frozen
+  // perf rule). Проверяет только stylesheet/preload links — preconnect
+  // указывает на хост без query params, у него display=swap по определению
+  // быть не может.
+  const fontDisplaySwap = await page.evaluate(() => {
+    const links = [...document.querySelectorAll(
+      'link[rel="stylesheet"][href*="fontshare"], link[rel="preload"][href*="fontshare"]'
+    )];
+    if (!links.length) return { ok: false, reason: 'no fontshare CSS link' };
+    const bad = links.filter(l => !/display=swap/i.test(l.getAttribute('href') || ''));
+    return { ok: bad.length === 0, total: links.length, bad: bad.length };
+  });
+  add('index', 'D4-font-display-swap', fontDisplaySwap.ok,
+      `css-links=${fontDisplaySwap.total} bad=${fontDisplaySwap.bad || 0}`);
+
   // CONSOLE — игнорируем внешние CDN failures (model-viewer 403/404, ERR_FAILED от заблокированного googleapis).
   // v0.8.x — добавлены fontshare (TLS MITM в sandboxed cloud envs) и cloudflare
   // (i18n.js geo-fetch endpoint; в corp envs TLS перехватывается, fetch падает
@@ -547,6 +594,45 @@ async function testFreeAssets(BASE) {
   const faSkipLink = await page.evaluate(() =>
     !!document.querySelector('a.skip-to-content[href="#main"]'));
   add('fa', 'B10-skip-to-content', faSkipLink);
+
+  /* ───── Stage 4 (D2, D3, D4) ─ a11y + asset hygiene ──────────────────── */
+
+  // D2 — WCAG 2 A/AA via axe-core. Current FA = 0 violations (clean).
+  // Budget = 0; ANY new violation → FAIL. Strict mode на FA потому что
+  // FA layout проще и должен оставаться чистым.
+  const axeFA = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  const axeFACount = axeFA.violations.length;
+  add('fa', 'D2-axe-wcag-aa', axeFACount === 0,
+      `violations=${axeFACount}` +
+      (axeFACount > 0 ? ' [' + axeFA.violations.map(v => v.id).join(',') + ']' : ' clean'));
+
+  // D3 — img attributes (mirror index).
+  const faImgIssues = await page.evaluate(() => {
+    const required = ['alt', 'width', 'height', 'loading', 'decoding'];
+    const fails = [];
+    document.querySelectorAll('img').forEach(img => {
+      const missing = required.filter(a => !img.hasAttribute(a));
+      if (missing.length) {
+        const src = img.getAttribute('src') || '(no src)';
+        fails.push(`${src.slice(-40)} missing=[${missing.join(',')}]`);
+      }
+    });
+    return fails;
+  });
+  add('fa', 'D3-img-required-attrs', faImgIssues.length === 0,
+      faImgIssues.length ? faImgIssues.slice(0, 2).join(' | ') : 'all clean');
+
+  // D4 — Fontshare display=swap on FA (mirror index).
+  const faFontSwap = await page.evaluate(() => {
+    const links = [...document.querySelectorAll(
+      'link[rel="stylesheet"][href*="fontshare"], link[rel="preload"][href*="fontshare"]'
+    )];
+    if (!links.length) return { ok: false, reason: 'no fontshare CSS link' };
+    const bad = links.filter(l => !/display=swap/i.test(l.getAttribute('href') || ''));
+    return { ok: bad.length === 0, total: links.length, bad: bad.length };
+  });
+  add('fa', 'D4-font-display-swap', faFontSwap.ok,
+      `css-links=${faFontSwap.total} bad=${faFontSwap.bad || 0}`);
 
   // BODY THEME
   add('fa', 'BODY-theme-dark', await page.getAttribute('body', 'data-theme') === 'dark');

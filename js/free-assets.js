@@ -60,7 +60,7 @@ function renderGrid(tag) {
        Если .glb 404/CORS — error handler ниже добавляет .--failed → CSS hide → SVG виден. */
     return '<li class="fa-card">'
       + '<div class="fa-card__thumb" data-label="' + a.title + '" style="background:' + a.bg + '">'
-      + '<img src="./assets/cards/' + a.id + '.svg" alt="" aria-hidden="true" loading="lazy" width="800" height="600">'
+      + '<img src="./assets/cards/' + a.id + '.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="800" height="600">'
       + '<model-viewer class="fa-card__thumb-mv"'
       +   ' src="./assets/models/free/' + a.id + '.glb"'
       +   ' alt="' + a.title + ' — 3D preview"'

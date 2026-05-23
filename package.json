@@ -12,6 +12,7 @@
   },
   "license": "UNLICENSED",
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "playwright": "^1.56.0"
   }
 }
