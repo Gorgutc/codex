@@ -302,6 +302,114 @@ async function testIndex(BASE) {
       langAfter !== langBefore && /[?&]lang=(en|ru)\b/.test(urlAfter),
       `${langBefore}→${langAfter}, url="${urlAfter}"`);
 
+  /* ───── Stage 2 (B1-B8, B10) ─ i18n dict shape + walker + a11y ────────── */
+
+  // B1 — data-i18n attribute count floor. Index HTML carries ~121 total
+  // occurrences (61 data-i18n + 51 data-i18n-attr + 9 data-i18n-meta);
+  // unique elements (some carry two attrs simultaneously) are slightly less.
+  // Floor at 100 catches regressions where >15% of attrs go missing while
+  // staying above noise from minor refactors.
+  const indexI18nAttrCount = await page.evaluate(() =>
+    document.querySelectorAll('[data-i18n], [data-i18n-attr], [data-i18n-html], [data-i18n-meta]').length);
+  add('index', 'B1-data-i18n-attr-floor', indexI18nAttrCount >= 100,
+      `count=${indexI18nAttrCount} (floor 100)`);
+
+  // B2 — UI_STRINGS shape: both langs exist, each has all critical namespaces.
+  const uiShape = await page.evaluate(() => {
+    const ui = window.I18N_DATA && window.I18N_DATA.UI_STRINGS;
+    if (!ui || !ui.en || !ui.ru) return { ok: false, reason: 'no en/ru' };
+    const required = ['aria', 'title', 'btn', 'pill', 'preloader', 'filter',
+                      'tabs', 'footer', 'toggle', 'theme', 'copy', 'chip', 'fs',
+                      'bp', 'viz'];
+    const missingEn = required.filter(k => !ui.en[k]);
+    const missingRu = required.filter(k => !ui.ru[k]);
+    return { ok: missingEn.length === 0 && missingRu.length === 0, missingEn, missingRu };
+  });
+  add('index', 'B2-UI_STRINGS-namespaces', uiShape.ok,
+      uiShape.ok ? 'all 15 namespaces × en+ru' : JSON.stringify(uiShape));
+
+  // B3 — CARDS_LOCALES.ru has 18 keys matching EXPECTED_IDS.
+  const cardsLocaleShape = await page.evaluate((expected) => {
+    const cl = window.I18N_DATA && window.I18N_DATA.CARDS_LOCALES;
+    if (!cl || !cl.en || !cl.ru) return { ok: false, reason: 'no en/ru' };
+    const keys = Object.keys(cl.ru);
+    const ok = keys.length === expected.length && expected.every(id => cl.ru[id] && cl.ru[id].title);
+    return { ok, count: keys.length };
+  }, EXPECTED_IDS);
+  add('index', 'B3-CARDS_LOCALES-18-ru', cardsLocaleShape.ok,
+      `ru.length=${cardsLocaleShape.count} (expected 18)`);
+
+  // B4 — CASE_LOCALES.ru has 18 keys matching EXPECTED_IDS.
+  const caseLocaleShape = await page.evaluate((expected) => {
+    const cl = window.I18N_DATA && window.I18N_DATA.CASE_LOCALES;
+    if (!cl || !cl.en || !cl.ru) return { ok: false, reason: 'no en/ru' };
+    const keys = Object.keys(cl.ru);
+    const ok = keys.length === expected.length &&
+               expected.every(id => cl.ru[id] && cl.ru[id].role && Array.isArray(cl.ru[id].captions));
+    return { ok, count: keys.length };
+  }, EXPECTED_IDS);
+  add('index', 'B4-CASE_LOCALES-18-ru', caseLocaleShape.ok,
+      `ru.length=${caseLocaleShape.count} (expected 18, with role+captions)`);
+
+  // B6 — Full EN ⇄ RU round-trip on lang-toggle. Verifies <html lang>,
+  // currentLang AND that we restore EN cleanly (no stuck state).
+  const roundTrip = await page.evaluate(async () => {
+    const out = { steps: [] };
+    const snap = () => ({
+      htmlLang: document.documentElement.lang,
+      apiLang: window.I18N.getLang(),
+      togglerLabel: document.querySelector('#lang-toggle .lang-toggle__current')?.textContent.trim(),
+    });
+    out.steps.push({ at: 'initial', ...snap() });
+    document.getElementById('lang-toggle').click();
+    await new Promise(r => setTimeout(r, 350));
+    out.steps.push({ at: 'after-1st-click', ...snap() });
+    document.getElementById('lang-toggle').click();
+    await new Promise(r => setTimeout(r, 350));
+    out.steps.push({ at: 'after-2nd-click', ...snap() });
+    return out;
+  });
+  const rtOK = roundTrip.steps[0].apiLang !== roundTrip.steps[1].apiLang &&
+               roundTrip.steps[0].apiLang === roundTrip.steps[2].apiLang &&
+               roundTrip.steps[1].apiLang !== roundTrip.steps[2].apiLang;
+  add('index', 'B6-lang-toggle-round-trip', rtOK,
+      roundTrip.steps.map(s => `${s.at}=${s.apiLang}`).join(' → '));
+
+  // B7 — Walker mutated DOM: after switching to ru, the first work-card desc
+  // contains Cyrillic. Switch back to en after.
+  const cyrillicCheck = await page.evaluate(async () => {
+    await window.I18N.applyLang('ru');
+    await new Promise(r => setTimeout(r, 200));
+    const ruText = document.querySelector('.work-card .work-card__desc')?.textContent || '';
+    await window.I18N.applyLang('en');
+    await new Promise(r => setTimeout(r, 200));
+    const enText = document.querySelector('.work-card .work-card__desc')?.textContent || '';
+    return { hasCyrillic: /[Ѐ-ӿ]/.test(ruText), ruSample: ruText.slice(0, 40), enSample: enText.slice(0, 40) };
+  });
+  add('index', 'B7-walker-mutates-cyrillic', cyrillicCheck.hasCyrillic,
+      `ru="${cyrillicCheck.ruSample}…"`);
+
+  // B8 — i18n:changed CustomEvent fires on language switch.
+  const eventFires = await page.evaluate(async () => {
+    let fired = null;
+    const handler = e => { fired = e && e.detail && e.detail.lang; };
+    window.addEventListener('i18n:changed', handler, { once: true });
+    await window.I18N.applyLang(window.I18N.getLang() === 'ru' ? 'en' : 'ru');
+    await new Promise(r => setTimeout(r, 200));
+    await window.I18N.applyLang('en'); // restore
+    await new Promise(r => setTimeout(r, 200));
+    return fired;
+  });
+  add('index', 'B8-i18n-changed-event', typeof eventFires === 'string' && /^(en|ru)$/.test(eventFires),
+      `detail.lang="${eventFires}"`);
+
+  // B10 — skip-to-content link present (a11y, Phase 1 addition).
+  const skipLink = await page.evaluate(() => {
+    const a = document.querySelector('a.skip-to-content[href="#main"]');
+    return !!a;
+  });
+  add('index', 'B10-skip-to-content', skipLink);
+
   // CONSOLE — игнорируем внешние CDN failures (model-viewer 403/404, ERR_FAILED от заблокированного googleapis).
   // v0.8.x — добавлены fontshare (TLS MITM в sandboxed cloud envs) и cloudflare
   // (i18n.js geo-fetch endpoint; в corp envs TLS перехватывается, fetch падает
@@ -374,6 +482,33 @@ async function testFreeAssets(BASE) {
 
   const faOgLocale = await page.getAttribute('meta[property="og:locale"]', 'content');
   add('fa', 'A6-og-locale', /^(en_US|ru_RU)$/.test(faOgLocale || ''), `og:locale="${faOgLocale}"`);
+
+  /* ───── Stage 2 (B1, B5, B10) ─ FA dict shape + a11y ─────────────────── */
+
+  // B1-fa — data-i18n attribute count floor. FA HTML carries ~87 occurrences
+  // (51 data-i18n + 27 data-i18n-attr + 9 data-i18n-meta). Floor at 70 with
+  // same 15%-regression tolerance as index.
+  const faI18nAttrCount = await page.evaluate(() =>
+    document.querySelectorAll('[data-i18n], [data-i18n-attr], [data-i18n-html], [data-i18n-meta]').length);
+  add('fa', 'B1-data-i18n-attr-floor', faI18nAttrCount >= 70,
+      `count=${faI18nAttrCount} (floor 70)`);
+
+  // B5 — FA_LOCALES.ru has 25 keys (8 hard-surface + 5 product + 4 game +
+  // 3 organic + 2 animation + 3 cad = 25). Каждая запись хотя бы { desc }.
+  const faLocaleShape = await page.evaluate(() => {
+    const fa = window.I18N_DATA && window.I18N_DATA.FA_LOCALES;
+    if (!fa || !fa.en || !fa.ru) return { ok: false, reason: 'no en/ru' };
+    const keys = Object.keys(fa.ru);
+    const allHaveDesc = keys.every(k => fa.ru[k] && typeof fa.ru[k].desc === 'string');
+    return { ok: keys.length === 25 && allHaveDesc, count: keys.length };
+  });
+  add('fa', 'B5-FA_LOCALES-25-ru', faLocaleShape.ok,
+      `ru.length=${faLocaleShape.count} (expected 25)`);
+
+  // B10 — skip-to-content link present (a11y, Phase 1 addition).
+  const faSkipLink = await page.evaluate(() =>
+    !!document.querySelector('a.skip-to-content[href="#main"]'));
+  add('fa', 'B10-skip-to-content', faSkipLink);
 
   // BODY THEME
   add('fa', 'BODY-theme-dark', await page.getAttribute('body', 'data-theme') === 'dark');
@@ -469,6 +604,52 @@ async function testFreeAssets(BASE) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   MOBILE VIEWPORT — Stage 2 (B9). Проверка Phase 5 invariant: на ≤767px
+   #lang-toggle visible (на месте contact icon), #contact-btn hidden,
+   footer pill row остаётся 2 pills (не Phase-5-первая-версия с 3 pills).
+═══════════════════════════════════════════════════════════════════════ */
+async function testMobileViewport(BASE) {
+  console.log(`\n=== Mobile 375×667 viewport invariants ===`);
+  const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const ctx = await browser.newContext({ viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true });
+
+  for (const url of ['/index.html', '/free-assets.html']) {
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}${url}`, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+
+    const state = await page.evaluate(() => {
+      const lt = document.getElementById('lang-toggle');
+      const cb = document.getElementById('contact-btn');
+      const lp = document.getElementById('lang-pill');
+      const pills = document.querySelectorAll('.site-footer__row--pill .top-pill');
+      return {
+        langToggleVisible: lt ? window.getComputedStyle(lt).display !== 'none' : false,
+        contactBtnHidden:  cb ? window.getComputedStyle(cb).display === 'none' : true,
+        noLangPill:        !lp, // Phase 5 fix: removed the third footer pill.
+        footerPillsCount:  pills.length,
+      };
+    });
+    const scope = url.includes('free-assets') ? 'fa-mobile' : 'index-mobile';
+
+    // B9 — Phase 5 invariant: lang-toggle stays in header on mobile, contact
+    // icon hidden, no orphan #lang-pill in footer (would mean Phase 5 first
+    // version slipped back in), footer pill row keeps exactly 2 pills.
+    add(scope, 'B9-lang-toggle-visible', state.langToggleVisible,
+        `display!=none: ${state.langToggleVisible}`);
+    add(scope, 'B9-contact-btn-hidden', state.contactBtnHidden,
+        `display=none: ${state.contactBtnHidden}`);
+    add(scope, 'B9-no-lang-pill', state.noLangPill,
+        'no #lang-pill in DOM');
+    add(scope, 'B9-footer-pills-count', state.footerPillsCount === 2,
+        `count=${state.footerPillsCount} (expected 2)`);
+
+    await page.close();
+  }
+  await browser.close();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    MAIN
 ═══════════════════════════════════════════════════════════════════════ */
 (async () => {
@@ -491,6 +672,7 @@ async function testFreeAssets(BASE) {
     runStaticChecks();
     await testIndex(BASE);
     await testFreeAssets(BASE);
+    await testMobileViewport(BASE);
   } catch (e) {
     console.error('\nTEST ERROR:', e.message);
     console.error(e.stack);
