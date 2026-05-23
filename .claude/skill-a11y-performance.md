@@ -96,7 +96,7 @@ Light theme contrasts: see comments in `tokens.css` (`#7f7e7e` divider 3.49:1 vs
 ## Performance mandatory checks
 
 ### LCP optimization
-- [ ] Fontshare + jsdelivr preconnect in `<head>`
+- [ ] Fontshare preconnect in `<head>` (jsdelivr preconnect removed in v0.8.x — GSAP/Lenis self-hosted in `./js/vendor/`)
 - [ ] `font-display: swap` (already in Fontshare URL)
 - [ ] No render-blocking JS in `<head>`
 - [ ] No hero image to preload — site has none

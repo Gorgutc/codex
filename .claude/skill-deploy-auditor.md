@@ -60,7 +60,7 @@ If ANY test FAIL → not shippable.
 - [ ] `<meta name="theme-color" content="#212121">` — single tag, NO `media=""` (test `META-theme-color-single`)
 - [ ] Favicon: `.ico` + `favicon-16.png` + `favicon-32.png` + `apple-touch-icon` (180×180)
 - [ ] `<link rel="manifest" href="./assets/favicon/site.webmanifest">`
-- [ ] `<link rel="preconnect" href="https://api.fontshare.com" crossorigin>` + jsdelivr preconnect
+- [ ] `<link rel="preconnect" href="https://api.fontshare.com" crossorigin>` (jsdelivr preconnect removed in v0.8.x — GSAP/Lenis live in `./js/vendor/`)
 - [ ] Fontshare CSS link
 - [ ] CSS order: tokens → reset → shared → (portfolio | free-assets)
 - [ ] JSON-LD: index → Organization + WebSite + ItemList; FA → Organization + WebPage
@@ -136,7 +136,7 @@ If ANY test FAIL → not shippable.
 
 ### Performance risks (MAJOR)
 - [ ] No render-blocking scripts in `<head>`
-- [ ] Fontshare + jsdelivr preconnect present
+- [ ] Fontshare preconnect present (v0.8.x — jsdelivr preconnect dropped, vendor libs self-hosted)
 - [ ] All images have explicit `width` + `height` (CLS prevention)
 - [ ] `model-data.js` lazy-loaded
 - [ ] `<model-viewer>` script lazy-injected

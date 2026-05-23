@@ -91,9 +91,15 @@ HDR:         Polyhaven CC0 (studio / outdoor / dark) в assets/hdr/
 ### Порядок JS перед `</body>` (строго, БЕЗ `defer` / `type="module"`)
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js"></script>
+<!-- v0.8.x — vendored в ./js/vendor/ из npm registry (sandboxed cloud envs
+     закрыли allowlist для jsdelivr/unpkg/cdnjs). SCRIPTS-order regression
+     ловит `gsap.min.js` / `ScrollTrigger` regex-match → vendor path проходит. -->
+<script src="./js/vendor/lenis.min.js"></script>
+<script src="./js/vendor/gsap.min.js"></script>
+<script src="./js/vendor/ScrollTrigger.min.js"></script>
+<script src="./js/vendor/SplitText.min.js"></script>
+<script src="./js/i18n-data.js"></script>
+<script src="./js/i18n.js"></script>
 <script src="./js/main.js"></script>
 <script src="./js/animations.js"></script>
 ```

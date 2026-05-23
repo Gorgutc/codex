@@ -730,6 +730,11 @@
       }
     }) }
   };
+  // Phase 2b — expose CARDS_DATA на window так что i18n.js overlayCases()
+  // может мутировать поля при смене языка. Read-write reference: main.js
+  // и дальше использует local `CARDS_DATA` (тот же объект), i18n.js пишет
+  // через window.CARDS_DATA[id].* — обе ссылки указывают на одну структуру.
+  window.CARDS_DATA = CARDS_DATA;
 
   /* ══════════════════════════════════════════════════════════════════
      Seeded shuffle (Mulberry32) — детерминированный порядок на каждый кейс.
@@ -914,7 +919,11 @@
       var remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'tags-dropdown__chip-remove';
-      remove.setAttribute('aria-label', 'Remove ' + (FILTER_LABELS[key] || key));
+      // Phase 4a — i18n префикс 'Remove' / 'Убрать'. FILTER_LABELS[key] —
+      // англицизм-категория ('Hard Surface' и т.п.), не переводится.
+      var __i18n = window.I18N;
+      var __removeWord = (__i18n && __i18n.t) ? __i18n.t('chip.remove') : 'Remove';
+      remove.setAttribute('aria-label', __removeWord + ' ' + (FILTER_LABELS[key] || key));
       remove.setAttribute('data-remove-filter', key);
       remove.textContent = '×';
       chip.appendChild(remove);
@@ -1961,8 +1970,13 @@
     b.type = 'button';
     b.className = 'bp-export-btn case-blueprints__page-export';
     b.setAttribute('data-bp-page', pageIdx);
-    b.setAttribute('aria-label', 'Export blueprint page ' + (pageIdx + 1) + ' as SVG');
-    b.innerHTML = fsIconSVG('export') + '<span class="bp-export-btn__label">Export SVG</span>';
+    // Phase 4b — page aria через tFmt + label через t().
+    var __I = window.I18N;
+    b.setAttribute('aria-label',
+      (__I && __I.tFmt) ? __I.tFmt('bp.exportPage', { n: pageIdx + 1 })
+                        : 'Export blueprint page ' + (pageIdx + 1) + ' as SVG');
+    var __lbl = (__I && __I.t) ? __I.t('btn.exportSvg') : 'Export SVG';
+    b.innerHTML = fsIconSVG('export') + '<span class="bp-export-btn__label" data-i18n="btn.exportSvg">' + __lbl + '</span>';
     b.querySelector('svg').setAttribute('class', 'bp-export-btn__icon');
     return b;
   }
@@ -1971,8 +1985,12 @@
     b.type = 'button';
     b.className = 'case-blueprints__fs-btn case-blueprints__page-fs';
     b.setAttribute('data-bp-page', pageIdx);
-    b.setAttribute('aria-label', 'Open blueprint page ' + (pageIdx + 1) + ' fullscreen');
-    b.setAttribute('title', 'Fullscreen');
+    // Phase 4b
+    var __I = window.I18N;
+    b.setAttribute('aria-label',
+      (__I && __I.tFmt) ? __I.tFmt('bp.fullscreenPage', { n: pageIdx + 1 })
+                        : 'Open blueprint page ' + (pageIdx + 1) + ' fullscreen');
+    b.setAttribute('title', (__I && __I.t) ? __I.t('title.fullscreen') : 'Fullscreen');
     b.innerHTML = fsIconSVG('fs');
     b.querySelector('svg').setAttribute('class', 'case-blueprints__fs-btn__icon');
     return b;
@@ -1985,7 +2003,9 @@
     var prev = document.createElement('button');
     prev.type = 'button';
     prev.className = 'case-blueprints__pager-btn case-blueprints__pager-btn--prev';
-    prev.setAttribute('aria-label', 'Previous blueprint');
+    // Phase 4b
+    var __Ip = window.I18N;
+    prev.setAttribute('aria-label', (__Ip && __Ip.t) ? __Ip.t('bp.previous') : 'Previous blueprint');
     prev.setAttribute('data-cursor', 'link');
     prev.innerHTML = '<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M11 4L5 9l6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     prev.addEventListener('click', function () { setCurrentBpPage(currentBpPage - 1); });
@@ -1993,7 +2013,9 @@
     var next = document.createElement('button');
     next.type = 'button';
     next.className = 'case-blueprints__pager-btn case-blueprints__pager-btn--next';
-    next.setAttribute('aria-label', 'Next blueprint');
+    // Phase 4b
+    var __In = window.I18N;
+    next.setAttribute('aria-label', (__In && __In.t) ? __In.t('bp.next') : 'Next blueprint');
     next.setAttribute('data-cursor', 'link');
     next.innerHTML = '<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4l6 5-6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     next.addEventListener('click', function () { setCurrentBpPage(currentBpPage + 1); });
@@ -2321,13 +2343,18 @@
       /* UI: hint + controls + info panel */
       // v0.15.1 [1.5] — два варианта хинта для desktop/mobile,
       // видимость переключается через @media pointer/hover в CSS.
+      // Phase 4b — i18n hint texts. data-i18n attached so walker re-applies
+      // on language change без необходимости re-build 3D-viewer.
+      var __viz = window.I18N;
       var hint = document.createElement('div');
       hint.className = 'case-3d__hint case-3d__hint--desktop';
-      hint.textContent = 'RIGHT MOUSE · ROTATE';
+      hint.setAttribute('data-i18n', 'viz.hintDesktop');
+      hint.textContent = (__viz && __viz.t) ? __viz.t('viz.hintDesktop') : 'RIGHT MOUSE · ROTATE';
 
       var hintMobile = document.createElement('div');
       hintMobile.className = 'case-3d__hint case-3d__hint--mobile';
-      hintMobile.textContent = 'DRAG · ZOOM';
+      hintMobile.setAttribute('data-i18n', 'viz.hintMobile');
+      hintMobile.textContent = (__viz && __viz.t) ? __viz.t('viz.hintMobile') : 'DRAG · ZOOM';
 
       var controls = document.createElement('div');
       controls.className = 'case-3d__controls';
@@ -2360,8 +2387,11 @@
       var resetBtn = document.createElement('button');
       resetBtn.type = 'button';
       resetBtn.className = 'case-3d__ctrl case-3d__ctrl--icon';
-      resetBtn.setAttribute('aria-label', 'Reset camera to initial position');
-      resetBtn.setAttribute('title', 'Reset camera');
+      // Phase 4b — viz.resetCamera. title — англоязычный short tooltip,
+      // мы используем тот же aria-text без 'to initial position' части.
+      var __v1 = window.I18N;
+      resetBtn.setAttribute('aria-label', (__v1 && __v1.t) ? __v1.t('viz.resetCamera') : 'Reset camera to initial position');
+      resetBtn.setAttribute('title', (__v1 && __v1.t) ? __v1.t('viz.resetCamera') : 'Reset camera');
       resetBtn.innerHTML =
         '<svg class="case-3d__ctrl-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
           '<path d="M3 8a5 5 0 1 0 1.46-3.54"/>' +
@@ -2372,7 +2402,9 @@
       var fsBtn3d = document.createElement('button');
       fsBtn3d.type = 'button';
       fsBtn3d.className = 'case-3d__fs-btn';
-      fsBtn3d.setAttribute('aria-label', 'Open 3D fullscreen');
+      // Phase 4b
+      var __v2 = window.I18N;
+      fsBtn3d.setAttribute('aria-label', (__v2 && __v2.t) ? __v2.t('viz.openFullscreen3d') : 'Open 3D fullscreen');
       fsBtn3d.setAttribute('title', 'Fullscreen');
       // v0.19.0 — override drag-state из родительского .case-3d__canvas
       fsBtn3d.setAttribute('data-cursor', 'link');
@@ -2448,7 +2480,9 @@
         var envGroup = document.createElement('div');
         envGroup.className = 'case-3d__env-group';
         envGroup.setAttribute('role', 'group');
-        envGroup.setAttribute('aria-label', 'Environment preset');
+        // Phase 4b
+        var __v3 = window.I18N;
+        envGroup.setAttribute('aria-label', (__v3 && __v3.t) ? __v3.t('viz.envPreset') : 'Environment preset');
 
         ['studio', 'outdoor', 'dark'].forEach(function (key) {
           envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
@@ -2458,11 +2492,16 @@
         // Значение пишется в model-viewer property mv.exposure (быстрее, чем setAttribute).
         var expoWrap = document.createElement('label');
         expoWrap.className = 'case-3d__expo';
-        expoWrap.setAttribute('aria-label', 'Exposure');
+        // Phase 4b
+        var __v4 = window.I18N;
+        expoWrap.setAttribute('aria-label', (__v4 && __v4.t) ? __v4.t('viz.exposure') : 'Exposure');
 
         var expoLabelEl = document.createElement('span');
         expoLabelEl.className = 'case-3d__expo-label';
-        expoLabelEl.textContent = 'EXPOSURE';
+        // Phase 4b — data-i18n чтобы walker рестейтил при смене языка.
+        var __v5 = window.I18N;
+        expoLabelEl.setAttribute('data-i18n', 'viz.exposureLabel');
+        expoLabelEl.textContent = (__v5 && __v5.t) ? __v5.t('viz.exposureLabel') : 'EXPOSURE';
 
         var expoInput = document.createElement('input');
         expoInput.type = 'range';
@@ -2471,7 +2510,9 @@
         expoInput.step = '0.05';
         expoInput.value = '1';
         expoInput.className = 'case-3d__expo-input';
-        expoInput.setAttribute('aria-label', 'Exposure level from 0.5 to 2.0');
+        // Phase 4b
+        var __v6 = window.I18N;
+        expoInput.setAttribute('aria-label', (__v6 && __v6.t) ? __v6.t('viz.exposureRange') : 'Exposure level from 0.5 to 2.0');
 
         // v0.7.3 — единый handler: меняет mv.exposure + синхронизирует mobile slider.
         // ddExpoInput объявляется ниже (forward-ref OK — handler работает после mount).
@@ -2508,7 +2549,9 @@
         lightTrigger.className = 'case-3d__ctrl case-3d__ctrl--icon case-3d__light-dd__trigger';
         lightTrigger.setAttribute('aria-haspopup', 'true');
         lightTrigger.setAttribute('aria-expanded', 'false');
-        lightTrigger.setAttribute('aria-label', 'Lighting settings');
+        // Phase 4b
+        var __v7 = window.I18N;
+        lightTrigger.setAttribute('aria-label', (__v7 && __v7.t) ? __v7.t('viz.lightingSettings') : 'Lighting settings');
         // Lightbulb icon — env + exposure = lighting controls
         lightTrigger.innerHTML =
           '<svg class="case-3d__ctrl-icon" viewBox="0 0 20 20" width="16" height="16" ' +
@@ -2522,19 +2565,26 @@
         lightPanel.className = 'case-3d__light-dd__panel';
         lightPanel.hidden = true;
         lightPanel.setAttribute('role', 'group');
-        lightPanel.setAttribute('aria-label', 'Lighting presets and exposure');
+        // Phase 4b
+        var __v8 = window.I18N;
+        lightPanel.setAttribute('aria-label', (__v8 && __v8.t) ? __v8.t('viz.lightingPanel') : 'Lighting presets and exposure');
 
         // Section title for env list
         var ddEnvLabel = document.createElement('div');
         ddEnvLabel.className = 'case-3d__light-dd__section-label';
-        ddEnvLabel.textContent = 'ENVIRONMENT';
+        // Phase 4b
+        var __v9 = window.I18N;
+        ddEnvLabel.setAttribute('data-i18n', 'viz.environmentLabel');
+        ddEnvLabel.textContent = (__v9 && __v9.t) ? __v9.t('viz.environmentLabel') : 'ENVIRONMENT';
         lightPanel.appendChild(ddEnvLabel);
 
         // Vertical list of env buttons
         var ddEnvList = document.createElement('div');
         ddEnvList.className = 'case-3d__light-dd__env-list';
         ddEnvList.setAttribute('role', 'group');
-        ddEnvList.setAttribute('aria-label', 'Environment preset');
+        // Phase 4b
+        var __v10 = window.I18N;
+        ddEnvList.setAttribute('aria-label', (__v10 && __v10.t) ? __v10.t('viz.envPreset') : 'Environment preset');
 
         // v0.8.6 [M6] — фабрика createEnvBtn (см. desktop envGroup выше).
         ['studio', 'outdoor', 'dark'].forEach(function (key) {
@@ -2545,7 +2595,10 @@
         // Section title for exposure
         var ddExpoLabel = document.createElement('label');
         ddExpoLabel.className = 'case-3d__light-dd__section-label';
-        ddExpoLabel.textContent = 'EXPOSURE';
+        // Phase 4b
+        var __v11 = window.I18N;
+        ddExpoLabel.setAttribute('data-i18n', 'viz.exposureLabel');
+        ddExpoLabel.textContent = (__v11 && __v11.t) ? __v11.t('viz.exposureLabel') : 'EXPOSURE';
         lightPanel.appendChild(ddExpoLabel);
 
         // Mobile exposure slider (mirrors expoInput)
@@ -2556,7 +2609,9 @@
         ddExpoInput.step = '0.05';
         ddExpoInput.value = '1';
         ddExpoInput.className = 'case-3d__light-dd__expo-input';
-        ddExpoInput.setAttribute('aria-label', 'Exposure level from 0.5 to 2.0');
+        // Phase 4b
+        var __v12 = window.I18N;
+        ddExpoInput.setAttribute('aria-label', (__v12 && __v12.t) ? __v12.t('viz.exposureRange') : 'Exposure level from 0.5 to 2.0');
 
         ddExpoInput.addEventListener('input', function () {
           var v = parseFloat(ddExpoInput.value);
@@ -2896,9 +2951,24 @@
     if (!toggleBtn) return;
 
     toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    toggleBtn.setAttribute('aria-label', collapsed ? 'Show projects panel' : 'Hide projects panel');
+    // Phase 4a — i18n + page-aware: на FA это категории, не проекты.
+    var isFA = !!document.getElementById('fa-grid');
+    var I18N = window.I18N;
+    var ariaKey, labelKey, ariaFallback, labelFallback;
+    if (collapsed) {
+      ariaKey = isFA ? 'toggle.showCategoriesAria' : 'toggle.showProjectsAria';
+      labelKey = isFA ? 'toggle.showCategories' : 'toggle.showProjects';
+      ariaFallback = isFA ? 'Show categories panel' : 'Show projects panel';
+      labelFallback = isFA ? 'Show categories' : 'Show projects';
+    } else {
+      ariaKey = isFA ? 'toggle.hideCategoriesAria' : 'toggle.hideProjectsAria';
+      labelKey = isFA ? 'toggle.hideCategories' : 'toggle.hideProjects';
+      ariaFallback = isFA ? 'Hide categories panel' : 'Hide projects panel';
+      labelFallback = isFA ? 'Hide categories' : 'Hide projects';
+    }
+    toggleBtn.setAttribute('aria-label', (I18N && I18N.t) ? I18N.t(ariaKey) : ariaFallback);
     var label = toggleBtn.querySelector('.cards-toggle__label');
-    if (label) label.textContent = collapsed ? 'Show projects' : 'Hide projects';
+    if (label) label.textContent = (I18N && I18N.t) ? I18N.t(labelKey) : labelFallback;
 
     document.body.classList.toggle('cards-collapsed', collapsed);
 
@@ -2939,9 +3009,13 @@
       var reduced = prm.matches;
       var isLight = next === 'light';
 
-      // ARIA и lookup-лейблы — обновляем сразу
+      // ARIA и lookup-лейблы — обновляем сразу.
+      // Phase 4a — aria-label через I18N с fallback на EN.
       themeBtn.setAttribute('aria-pressed', isLight ? 'true' : 'false');
-      themeBtn.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+      var I18N = window.I18N;
+      var themeAriaKey = isLight ? 'theme.toDark' : 'theme.toLight';
+      var themeAriaFallback = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+      themeBtn.setAttribute('aria-label', (I18N && I18N.t) ? I18N.t(themeAriaKey) : themeAriaFallback);
       if (themeMetaColor) themeMetaColor.setAttribute('content', isLight ? '#f5f5f5' : '#212121');
 
       if (reduced || typeof gsap === 'undefined') {
@@ -3102,6 +3176,31 @@
     }
   });
 
+  /* Phase 2b — re-render активного case-view при смене языка.
+     i18n.js overlayCases() уже замутировал window.CARDS_DATA под новый язык.
+     Если кейс открыт — openCase() с теми же id перестроит case-view из
+     обновлённой data. Передаём skipHashSync (URL уже актуален) и initial:true,
+     чтобы не было scrollIntoView и анимаций (visually instantaneous swap). */
+  window.addEventListener('i18n:changed', function () {
+    if (currentCaseId && typeof openCase === 'function') {
+      openCase(currentCaseId, { skipHashSync: true, initial: true });
+    }
+    // Phase 4a — refresh aria/labels на JS-driven toggles (state-dependent).
+    // Cards-toggle: читаем текущий collapsed-state из body class.
+    if (typeof setCollapsed === 'function' && toggleBtn) {
+      setCollapsed(document.body.classList.contains('cards-collapsed'));
+    }
+    // Theme-toggle: re-apply aria через помощник, если есть.
+    var __tb = document.getElementById('theme-toggle');
+    if (__tb) {
+      var isLight = document.body.getAttribute('data-theme') === 'light';
+      var I18N = window.I18N;
+      var key = isLight ? 'theme.toDark' : 'theme.toLight';
+      var fb  = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+      __tb.setAttribute('aria-label', (I18N && I18N.t) ? I18N.t(key) : fb);
+    }
+  });
+
   /* v0.2.3 [П2] — кнопка COPY LINK (desktop + mobile).
      Собираем полный URL: origin + pathname + '#' + currentCaseId
      (даже если кейс = первый и в URL hash очищен — для share
@@ -3119,13 +3218,20 @@
       if (!button) return;
       var label = button.querySelector('.case-share__label');
       if (!label) return;
-      var prev = label.textContent;
+      // Phase 4a — data-i18n-pause защищает label от walker в момент
+      // транзишена, если пользователь успел переключить язык за 2 секунды.
+      // После таймаута мы заново читаем актуальный t('btn.copyLink').
+      var I18N = window.I18N;
+      var copiedTxt = (I18N && I18N.t) ? I18N.t('copy.copied') : 'COPIED ✓';
+      label.setAttribute('data-i18n-pause', 'true');
       button.classList.add('case-share--copied');
-      label.textContent = 'COPIED ✓';
+      label.textContent = copiedTxt;
       button.setAttribute('aria-live', 'polite');
       setTimeout(function () {
         button.classList.remove('case-share--copied');
-        label.textContent = prev || 'COPY LINK';
+        label.removeAttribute('data-i18n-pause');
+        // Re-read current language label (а не закешированный prev).
+        label.textContent = (I18N && I18N.t) ? I18N.t('btn.copyLink') : 'COPY LINK';
       }, 2000);
     }
 
@@ -3189,7 +3295,7 @@
     fsOverlay.className = 'media-fs';
     fsOverlay.setAttribute('role', 'dialog');
     fsOverlay.setAttribute('aria-modal', 'true');
-    fsOverlay.setAttribute('aria-label', 'Fullscreen view');
+    (function(){ var __I=window.I18N; fsOverlay.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.fullscreenView'):'Fullscreen view'); })();
     fsOverlay.hidden = true;
 
     fsStage = document.createElement('div');
@@ -3198,8 +3304,8 @@
     fsCloseBtn = document.createElement('button');
     fsCloseBtn.type = 'button';
     fsCloseBtn.className = 'media-fs__close';
-    fsCloseBtn.setAttribute('aria-label', 'Close fullscreen');
-    fsCloseBtn.setAttribute('title', 'Close fullscreen');
+    (function(){ var __I=window.I18N; var s=(__I&&__I.t)?__I.t('fs.closeFullscreen'):'Close fullscreen';
+      fsCloseBtn.setAttribute('aria-label', s); fsCloseBtn.setAttribute('title', s); })();
     // v0.19.0 — media-fs overlay создаётся динамически, помечаем при build
     fsCloseBtn.setAttribute('data-cursor', 'link');
     fsCloseBtn.innerHTML = '<svg class="media-fs__close-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M6 2v4H2M12 2v4h4M2 12h4v4M12 16v-4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
@@ -3209,7 +3315,7 @@
     fsPrev = document.createElement('button');
     fsPrev.type = 'button';
     fsPrev.className = 'media-fs__prev';
-    fsPrev.setAttribute('aria-label', 'Previous image');
+    (function(){ var __I=window.I18N; fsPrev.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.previousImage'):'Previous image'); })();
     fsPrev.setAttribute('data-cursor', 'link');
     fsPrev.hidden = true;
     fsPrev.innerHTML = '<svg class="media-fs__nav-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 4L5 9l6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -3218,7 +3324,7 @@
     fsNext = document.createElement('button');
     fsNext.type = 'button';
     fsNext.className = 'media-fs__next';
-    fsNext.setAttribute('aria-label', 'Next image');
+    (function(){ var __I=window.I18N; fsNext.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.nextImage'):'Next image'); })();
     fsNext.setAttribute('data-cursor', 'link');
     fsNext.hidden = true;
     fsNext.innerHTML = '<svg class="media-fs__nav-icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4l6 5-6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -3356,7 +3462,7 @@
     fsContext = 'gallery';
     fsPreviousFocus = sourceImg;
 
-    fsOverlay.setAttribute('aria-label', 'Image gallery viewer');
+    (function(){ var __I=window.I18N; fsOverlay.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.imageGallery'):'Image gallery viewer'); })();
     fsPrev.hidden    = imgs.length < 2;
     fsNext.hidden    = imgs.length < 2;
     fsCounter.hidden = imgs.length < 2;
@@ -3505,7 +3611,7 @@
     fsContext = 'blueprint';
     fsPreviousFocus = triggerEl || null;
 
-    fsOverlay.setAttribute('aria-label', 'Blueprint viewer');
+    (function(){ var __I=window.I18N; fsOverlay.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.blueprintViewer'):'Blueprint viewer'); })();
     var hasNav = pages.length > 1;
     fsPrev.hidden    = !hasNav;
     fsNext.hidden    = !hasNav;
@@ -3569,7 +3675,13 @@
   function updateBlueprintFsUI(wrapped) {
     var i = blueprintFs.index, n = blueprintFs.total;
     if (fsCounter) fsCounter.textContent = (i + 1) + ' / ' + n;
-    if (fsAnnouncer) fsAnnouncer.textContent = 'Blueprint ' + (i + 1) + ' of ' + n;
+    // Phase 4a — собираем counter из i18n-кусков (prefix + N + of + total).
+    if (fsAnnouncer) {
+      var __I = window.I18N;
+      var __pfx = (__I && __I.t) ? __I.t('fs.blueprintPrefix') : 'Blueprint';
+      var __of  = (__I && __I.t) ? __I.t('fs.ofWord') : 'of';
+      fsAnnouncer.textContent = __pfx + ' ' + (i + 1) + ' ' + __of + ' ' + n;
+    }
     if (wrapped && fsCounter && typeof gsap !== 'undefined' &&
         !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       gsap.fromTo(fsCounter,
@@ -3618,7 +3730,13 @@
   function updateGalleryUI(wrapped) {
     var i = gallery.index, n = gallery.list.length;
     if (fsCounter) fsCounter.textContent = (i + 1) + ' / ' + n;
-    if (fsAnnouncer) fsAnnouncer.textContent = 'Image ' + (i + 1) + ' of ' + n;
+    // Phase 4a — counter из i18n-кусков.
+    if (fsAnnouncer) {
+      var __II = window.I18N;
+      var __ipfx = (__II && __II.t) ? __II.t('fs.imagePrefix') : 'Image';
+      var __iof  = (__II && __II.t) ? __II.t('fs.ofWord') : 'of';
+      fsAnnouncer.textContent = __ipfx + ' ' + (i + 1) + ' ' + __iof + ' ' + n;
+    }
     if (wrapped && fsCounter && typeof gsap !== 'undefined' &&
         !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       gsap.fromTo(fsCounter,

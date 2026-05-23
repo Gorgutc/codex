@@ -10,7 +10,8 @@ Rule of one surprise: 1–2 "wow" moments per page. Everything else: quiet preci
 
 ## Stack (immutable)
 
-- GSAP **3.13.0** + ScrollTrigger + SplitText (free since 3.13.0) via CDN
+- GSAP **3.13.0** + ScrollTrigger + SplitText (SplitText free since 3.13.0) — self-hosted in `./js/vendor/` (v0.8.x; npm registry tarball is the install source)
+- Lenis **1.1.20** smooth scroll — self-hosted in `./js/vendor/`
 - CSS transitions/animations ONLY for hover, focus, button feedback
 - NO jQuery animate(), NO Web Animations API for scroll
 - NO CSS @keyframes where GSAP timeline/scrub/pin needed

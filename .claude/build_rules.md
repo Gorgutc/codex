@@ -111,7 +111,7 @@
 
 ```html
 <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<!-- v0.8.x — `cdn.jsdelivr.net` preconnect removed. GSAP / Lenis are now in `./js/vendor/`. -->
 <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap">
 ```
 

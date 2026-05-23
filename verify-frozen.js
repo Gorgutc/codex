@@ -22,6 +22,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
+const { AxeBuilder } = require('@axe-core/playwright');
 
 const ROOT = process.env.SITE_ROOT || __dirname;
 const PORT = parseInt(process.env.PORT || '5555', 10);
@@ -69,6 +70,81 @@ const add = (suite, name, pass, detail = '') => {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
+   STATIC — file-level checks без браузера (Stage 1, A7+A8)
+   ─────────────────────────────────────────────────────────────────────
+   Грепаем shipped HTML + JS на запрещённые pattern'ы. Это runs ДО
+   подъёма серверa: если static check FAIL — runtime тесты бессмысленны.
+═══════════════════════════════════════════════════════════════════════ */
+function runStaticChecks() {
+  console.log('\n=== Static file-level checks ===');
+
+  // A7 — Vendor paths only: GSAP / Lenis / ScrollTrigger / SplitText не
+  // должны грузиться с jsdelivr / unpkg / cdnjs (v0.8.x cloud-env-fix).
+  // Проверяем content обеих HTML на наличие запрещённых URLs.
+  const blockedCDN = /(cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)[^\s"]*\/(gsap|lenis|ScrollTrigger|SplitText)/i;
+  const indexHTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const faHTML = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
+  add('static', 'A7-vendor-only-index', !blockedCDN.test(indexHTML), 'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
+  add('static', 'A7-vendor-only-fa',    !blockedCDN.test(faHTML),    'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
+  // Sanity: vendor files actually present on disk.
+  const vendorFiles = ['gsap.min.js', 'ScrollTrigger.min.js', 'SplitText.min.js', 'lenis.min.js'];
+  const vendorOK = vendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
+  add('static', 'A7-vendor-files-present', vendorOK, vendorFiles.join(', '));
+
+  // A8 — localStorage / sessionStorage НЕ должны использоваться runtime в
+  // shipped JS. Frozen rule top-10. Regex ловит method/property access
+  // (foo.localStorage. / foo.sessionStorage[ ) — комментарии "no localStorage"
+  // не попадают, т.к. там нет точки/bracket access после слова.
+  const forbidden = /(localStorage|sessionStorage)\s*[.\[]/;
+  const jsFiles = ['main.js', 'animations.js', 'free-assets.js', 'i18n.js', 'i18n-data.js', 'fa-data.js'];
+  const jsViolations = jsFiles.filter(f => {
+    const full = path.join(ROOT, 'js', f);
+    if (!fs.existsSync(full)) return false;
+    return forbidden.test(fs.readFileSync(full, 'utf8'));
+  });
+  add('static', 'A8-no-localStorage-runtime', jsViolations.length === 0,
+      jsViolations.length ? 'violations in: ' + jsViolations.join(', ') : 'all clean');
+
+  // C1 — `font-size: Npx` budget per CSS file (Stage 3 whitelist mode).
+  // Frozen rule говорит "px для font-size запрещено — rem / clamp() only",
+  // но репо имеет 25 pre-existing occurrences (главным образом в
+  // portfolio-case.css на крупных сложных typografic-зонах case-view).
+  // Чинить — отдельный CSS refactor. Тест в whitelist-mode: actual count
+  // per file не должен превышать current budget. Новые добавления → FAIL.
+  //
+  // Snapshot 2026-05 (i18n PR head):
+  //   shared.css         → 3 occurrences
+  //   portfolio-case.css → 22 occurrences
+  //   tokens / reset / portfolio-core / free-assets → 0
+  //
+  // При планомерной rem-conversion этот budget уменьшается; обновлять
+  // прямо в PR который удаляет px-rules. Никогда не увеличивать.
+  const PX_FONT_SIZE_BUDGET = {
+    'shared.css': 3,
+    'portfolio-case.css': 22,
+    'tokens.css': 0,
+    'reset.css': 0,
+    'portfolio-core.css': 0,
+    'free-assets.css': 0,
+  };
+  const pxFontSizeRe = /font-size:\s*\d+px/g;
+  const pxViolations = [];
+  let pxBudgetOK = true;
+  Object.keys(PX_FONT_SIZE_BUDGET).forEach(file => {
+    const full = path.join(ROOT, 'css', file);
+    if (!fs.existsSync(full)) return;
+    const matches = fs.readFileSync(full, 'utf8').match(pxFontSizeRe) || [];
+    const budget = PX_FONT_SIZE_BUDGET[file];
+    if (matches.length > budget) {
+      pxBudgetOK = false;
+      pxViolations.push(`${file}: ${matches.length} > budget ${budget}`);
+    }
+  });
+  add('static', 'C1-no-new-px-font-size', pxBudgetOK,
+      pxBudgetOK ? 'all CSS within budget (3+22+0×4 = 25 grandfathered)' : pxViolations.join('; '));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    INDEX.HTML — расширенный регрешен (37 тестов)
 ═══════════════════════════════════════════════════════════════════════ */
 async function testIndex(BASE) {
@@ -85,14 +161,23 @@ async function testIndex(BASE) {
   const scripts = await page.$$eval('script[src]', els => els.map(e => ({ src: e.getAttribute('src'), defer: e.hasAttribute('defer'), async: e.hasAttribute('async') })));
   add('index', 'SCRIPTS-no-defer', !scripts.some(s => s.defer));
   const order = scripts.map(s => s.src);
+  // A1 — Full chain: gsap → ScrollTrigger → SplitText → i18n-data → i18n → main → animations.
+  // Phase 1+ added i18n-data + i18n; they must sit ПОСЛЕ vendor GSAP-bundle и
+  // ПЕРЕД main.js (main.js dereferences window.I18N at boot).
+  const idx = (rx) => order.findIndex(s => rx.test(s));
+  const iGsap = idx(/gsap\.min\.js/);
+  const iST   = idx(/ScrollTrigger/);
+  const iSpT  = idx(/SplitText/);
+  const iI18nD = idx(/i18n-data\.js$/);
+  const iI18n  = idx(/i18n\.js$/);
+  const iMain  = idx(/main\.js$/);
+  const iAnim  = idx(/animations\.js$/);
   const orderOK =
-    order.findIndex(s => /gsap\.min\.js/.test(s)) <
-    order.findIndex(s => /ScrollTrigger/.test(s)) &&
-    order.findIndex(s => /ScrollTrigger/.test(s)) <
-    order.findIndex(s => /main\.js$/.test(s)) &&
-    order.findIndex(s => /main\.js$/.test(s)) <
-    order.findIndex(s => /animations\.js$/.test(s));
-  add('index', 'SCRIPTS-order', orderOK);
+    iGsap >= 0 && iST > iGsap && iSpT > iST &&
+    iI18nD > iSpT && iI18n > iI18nD &&
+    iMain > iI18n && iAnim > iMain;
+  add('index', 'SCRIPTS-order', orderOK,
+      `gsap=${iGsap} ST=${iST} SpT=${iSpT} i18n-data=${iI18nD} i18n=${iI18n} main=${iMain} anim=${iAnim}`);
 
   // BODY THEME
   const theme = await page.getAttribute('body', 'data-theme');
@@ -215,8 +300,207 @@ async function testIndex(BASE) {
   add('index', 'THEME-toggle', afterToggle === 'light');
   await page.click('#theme-toggle');
 
-  // CONSOLE — игнорируем внешние CDN failures (model-viewer 403/404, ERR_FAILED от заблокированного googleapis)
-  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|model-viewer|googleapis|jsdelivr)/i.test(e));
+  /* ───── Stage 1 (A2-A6) ─ i18n runtime surfaces ───────────────────────── */
+
+  // A2 — window.I18N API: object + required methods.
+  const i18nAPI = await page.evaluate(() => ({
+    obj:        typeof window.I18N === 'object',
+    getLang:    typeof (window.I18N && window.I18N.getLang)   === 'function',
+    t:          typeof (window.I18N && window.I18N.t)         === 'function',
+    applyLang:  typeof (window.I18N && window.I18N.applyLang) === 'function',
+    isValid:    typeof (window.I18N && window.I18N.isValidLang) === 'function',
+    data:       typeof window.I18N_DATA === 'object',
+  }));
+  add('index', 'A2-I18N-api', i18nAPI.obj && i18nAPI.getLang && i18nAPI.t && i18nAPI.applyLang && i18nAPI.isValid && i18nAPI.data,
+      `api=${JSON.stringify(i18nAPI)}`);
+
+  // A3 — <html lang> set to a valid two-letter code after init.
+  const htmlLang = await page.getAttribute('html', 'lang');
+  add('index', 'A3-html-lang-valid', /^(en|ru)$/.test(htmlLang || ''), `lang="${htmlLang}"`);
+
+  // A4 — #lang-toggle present в DOM (inside .header-top__controls).
+  const langToggleInHeader = await page.evaluate(() => {
+    const t = document.getElementById('lang-toggle');
+    if (!t) return false;
+    return !!t.closest('.header-top__controls');
+  });
+  add('index', 'A4-lang-toggle-present', langToggleInHeader);
+
+  // A6 — og:locale meta exists and matches lang code shape.
+  const ogLocale = await page.getAttribute('meta[property="og:locale"]', 'content');
+  add('index', 'A6-og-locale', /^(en_US|ru_RU)$/.test(ogLocale || ''), `og:locale="${ogLocale}"`);
+
+  // A5 — click #lang-toggle → URL ?lang flips. Round-trip обратно, чтобы
+  // не оставлять страницу в RU-state для последующих тестов.
+  const langBefore = await page.evaluate(() => window.I18N.getLang());
+  await page.click('#lang-toggle'); await page.waitForTimeout(400);
+  const urlAfter = await page.evaluate(() => location.search);
+  const langAfter = await page.evaluate(() => window.I18N.getLang());
+  await page.click('#lang-toggle'); await page.waitForTimeout(400); // restore
+  add('index', 'A5-lang-toggle-flips-url',
+      langAfter !== langBefore && /[?&]lang=(en|ru)\b/.test(urlAfter),
+      `${langBefore}→${langAfter}, url="${urlAfter}"`);
+
+  /* ───── Stage 2 (B1-B8, B10) ─ i18n dict shape + walker + a11y ────────── */
+
+  // B1 — data-i18n attribute count floor. Index HTML carries ~121 total
+  // occurrences (61 data-i18n + 51 data-i18n-attr + 9 data-i18n-meta);
+  // unique elements (some carry two attrs simultaneously) are slightly less.
+  // Floor at 100 catches regressions where >15% of attrs go missing while
+  // staying above noise from minor refactors.
+  const indexI18nAttrCount = await page.evaluate(() =>
+    document.querySelectorAll('[data-i18n], [data-i18n-attr], [data-i18n-html], [data-i18n-meta]').length);
+  add('index', 'B1-data-i18n-attr-floor', indexI18nAttrCount >= 100,
+      `count=${indexI18nAttrCount} (floor 100)`);
+
+  // B2 — UI_STRINGS shape: both langs exist, each has all critical namespaces.
+  const uiShape = await page.evaluate(() => {
+    const ui = window.I18N_DATA && window.I18N_DATA.UI_STRINGS;
+    if (!ui || !ui.en || !ui.ru) return { ok: false, reason: 'no en/ru' };
+    const required = ['aria', 'title', 'btn', 'pill', 'preloader', 'filter',
+                      'tabs', 'footer', 'toggle', 'theme', 'copy', 'chip', 'fs',
+                      'bp', 'viz'];
+    const missingEn = required.filter(k => !ui.en[k]);
+    const missingRu = required.filter(k => !ui.ru[k]);
+    return { ok: missingEn.length === 0 && missingRu.length === 0, missingEn, missingRu };
+  });
+  add('index', 'B2-UI_STRINGS-namespaces', uiShape.ok,
+      uiShape.ok ? 'all 15 namespaces × en+ru' : JSON.stringify(uiShape));
+
+  // B3 — CARDS_LOCALES.ru has 18 keys matching EXPECTED_IDS.
+  const cardsLocaleShape = await page.evaluate((expected) => {
+    const cl = window.I18N_DATA && window.I18N_DATA.CARDS_LOCALES;
+    if (!cl || !cl.en || !cl.ru) return { ok: false, reason: 'no en/ru' };
+    const keys = Object.keys(cl.ru);
+    const ok = keys.length === expected.length && expected.every(id => cl.ru[id] && cl.ru[id].title);
+    return { ok, count: keys.length };
+  }, EXPECTED_IDS);
+  add('index', 'B3-CARDS_LOCALES-18-ru', cardsLocaleShape.ok,
+      `ru.length=${cardsLocaleShape.count} (expected 18)`);
+
+  // B4 — CASE_LOCALES.ru has 18 keys matching EXPECTED_IDS.
+  const caseLocaleShape = await page.evaluate((expected) => {
+    const cl = window.I18N_DATA && window.I18N_DATA.CASE_LOCALES;
+    if (!cl || !cl.en || !cl.ru) return { ok: false, reason: 'no en/ru' };
+    const keys = Object.keys(cl.ru);
+    const ok = keys.length === expected.length &&
+               expected.every(id => cl.ru[id] && cl.ru[id].role && Array.isArray(cl.ru[id].captions));
+    return { ok, count: keys.length };
+  }, EXPECTED_IDS);
+  add('index', 'B4-CASE_LOCALES-18-ru', caseLocaleShape.ok,
+      `ru.length=${caseLocaleShape.count} (expected 18, with role+captions)`);
+
+  // B6 — Full EN ⇄ RU round-trip on lang-toggle. Verifies <html lang>,
+  // currentLang AND that we restore EN cleanly (no stuck state).
+  const roundTrip = await page.evaluate(async () => {
+    const out = { steps: [] };
+    const snap = () => ({
+      htmlLang: document.documentElement.lang,
+      apiLang: window.I18N.getLang(),
+      togglerLabel: document.querySelector('#lang-toggle .lang-toggle__current')?.textContent.trim(),
+    });
+    out.steps.push({ at: 'initial', ...snap() });
+    document.getElementById('lang-toggle').click();
+    await new Promise(r => setTimeout(r, 350));
+    out.steps.push({ at: 'after-1st-click', ...snap() });
+    document.getElementById('lang-toggle').click();
+    await new Promise(r => setTimeout(r, 350));
+    out.steps.push({ at: 'after-2nd-click', ...snap() });
+    return out;
+  });
+  const rtOK = roundTrip.steps[0].apiLang !== roundTrip.steps[1].apiLang &&
+               roundTrip.steps[0].apiLang === roundTrip.steps[2].apiLang &&
+               roundTrip.steps[1].apiLang !== roundTrip.steps[2].apiLang;
+  add('index', 'B6-lang-toggle-round-trip', rtOK,
+      roundTrip.steps.map(s => `${s.at}=${s.apiLang}`).join(' → '));
+
+  // B7 — Walker mutated DOM: after switching to ru, the first work-card desc
+  // contains Cyrillic. Switch back to en after.
+  const cyrillicCheck = await page.evaluate(async () => {
+    await window.I18N.applyLang('ru');
+    await new Promise(r => setTimeout(r, 200));
+    const ruText = document.querySelector('.work-card .work-card__desc')?.textContent || '';
+    await window.I18N.applyLang('en');
+    await new Promise(r => setTimeout(r, 200));
+    const enText = document.querySelector('.work-card .work-card__desc')?.textContent || '';
+    return { hasCyrillic: /[Ѐ-ӿ]/.test(ruText), ruSample: ruText.slice(0, 40), enSample: enText.slice(0, 40) };
+  });
+  add('index', 'B7-walker-mutates-cyrillic', cyrillicCheck.hasCyrillic,
+      `ru="${cyrillicCheck.ruSample}…"`);
+
+  // B8 — i18n:changed CustomEvent fires on language switch.
+  const eventFires = await page.evaluate(async () => {
+    let fired = null;
+    const handler = e => { fired = e && e.detail && e.detail.lang; };
+    window.addEventListener('i18n:changed', handler, { once: true });
+    await window.I18N.applyLang(window.I18N.getLang() === 'ru' ? 'en' : 'ru');
+    await new Promise(r => setTimeout(r, 200));
+    await window.I18N.applyLang('en'); // restore
+    await new Promise(r => setTimeout(r, 200));
+    return fired;
+  });
+  add('index', 'B8-i18n-changed-event', typeof eventFires === 'string' && /^(en|ru)$/.test(eventFires),
+      `detail.lang="${eventFires}"`);
+
+  // B10 — skip-to-content link present (a11y, Phase 1 addition).
+  const skipLink = await page.evaluate(() => {
+    const a = document.querySelector('a.skip-to-content[href="#main"]');
+    return !!a;
+  });
+  add('index', 'B10-skip-to-content', skipLink);
+
+  /* ───── Stage 4 (D1, D3, D4) ─ a11y + asset hygiene ───────────────────── */
+
+  // D1 — WCAG 2 A/AA via axe-core in WHITELIST mode. Snapshot 2026-05:
+  //   index: 1 violation (aria-required-children, critical, 1 node)
+  // Budget = current count. Любое НОВОЕ violation поднимет actual выше
+  // budget → FAIL. При плановом fix этого aria issue budget уменьшается.
+  const axeIndex = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  const axeIndexCount = axeIndex.violations.length;
+  const AXE_INDEX_BUDGET = 1;
+  add('index', 'D1-axe-wcag-aa', axeIndexCount <= AXE_INDEX_BUDGET,
+      `violations=${axeIndexCount} budget=${AXE_INDEX_BUDGET}` +
+      (axeIndexCount > 0 ? ' [' + axeIndex.violations.map(v => v.id).join(',') + ']' : ''));
+
+  // D3 — every <img> has alt + width + height + loading + decoding.
+  // Frozen rule from CLAUDE.md. Lazy SVG-data:image are exempted because
+  // they're inline base64 with no <img> wrapper anyway.
+  const imgIssues = await page.evaluate(() => {
+    const required = ['alt', 'width', 'height', 'loading', 'decoding'];
+    const fails = [];
+    document.querySelectorAll('img').forEach(img => {
+      const missing = required.filter(a => !img.hasAttribute(a));
+      if (missing.length) {
+        const src = img.getAttribute('src') || '(no src)';
+        fails.push(`${src.slice(-40)} missing=[${missing.join(',')}]`);
+      }
+    });
+    return fails;
+  });
+  add('index', 'D3-img-required-attrs', imgIssues.length === 0,
+      imgIssues.length ? imgIssues.slice(0, 2).join(' | ') : 'all clean');
+
+  // D4 — Fontshare CSS URL includes display=swap (prevents FOIT, frozen
+  // perf rule). Проверяет только stylesheet/preload links — preconnect
+  // указывает на хост без query params, у него display=swap по определению
+  // быть не может.
+  const fontDisplaySwap = await page.evaluate(() => {
+    const links = [...document.querySelectorAll(
+      'link[rel="stylesheet"][href*="fontshare"], link[rel="preload"][href*="fontshare"]'
+    )];
+    if (!links.length) return { ok: false, reason: 'no fontshare CSS link' };
+    const bad = links.filter(l => !/display=swap/i.test(l.getAttribute('href') || ''));
+    return { ok: bad.length === 0, total: links.length, bad: bad.length };
+  });
+  add('index', 'D4-font-display-swap', fontDisplaySwap.ok,
+      `css-links=${fontDisplaySwap.total} bad=${fontDisplaySwap.bad || 0}`);
+
+  // CONSOLE — игнорируем внешние CDN failures (model-viewer 403/404, ERR_FAILED от заблокированного googleapis).
+  // v0.8.x — добавлены fontshare (TLS MITM в sandboxed cloud envs) и cloudflare
+  // (i18n.js geo-fetch endpoint; в corp envs TLS перехватывается, fetch падает
+  // тихо в try/catch внутри i18n.js, но requestfailed-эхо всё равно попадает
+  // в console). Plus ERR_CERT_AUTHORITY_INVALID — общий TLS-noise от MITM proxy.
+  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|jsdelivr|fontshare|cloudflare)/i.test(e));
   add('index', 'CONSOLE-no-internal-errors', internalErrors.length === 0, internalErrors.slice(0,2).join(' | ') || 'clean');
 
   await browser.close();
@@ -239,9 +523,116 @@ async function testFreeAssets(BASE) {
   const scripts = await page.$$eval('script[src]', els => els.map(e => ({ src: e.getAttribute('src'), defer: e.hasAttribute('defer') })));
   add('fa', 'SCRIPTS-no-defer', !scripts.some(s => s.defer));
 
+  // A1 — script order на FA (нет Lenis, нет animations.js, есть free-assets.js):
+  // gsap → ScrollTrigger → SplitText → i18n-data → i18n → main → free-assets.
+  const faOrder = scripts.map(s => s.src);
+  const faIdx = (rx) => faOrder.findIndex(s => rx.test(s));
+  const f = {
+    gsap:    faIdx(/gsap\.min\.js/),
+    st:      faIdx(/ScrollTrigger/),
+    spt:     faIdx(/SplitText/),
+    i18nD:   faIdx(/i18n-data\.js$/),
+    i18n:    faIdx(/i18n\.js$/),
+    main:    faIdx(/main\.js$/),
+    faJs:    faIdx(/free-assets\.js$/),
+  };
+  const faOrderOK = f.gsap >= 0 && f.st > f.gsap && f.spt > f.st &&
+                    f.i18nD > f.spt && f.i18n > f.i18nD &&
+                    f.main > f.i18n && f.faJs > f.main;
+  add('fa', 'SCRIPTS-order', faOrderOK, JSON.stringify(f));
+
   // GSAP loaded
   const gsap = await page.evaluate(() => typeof window.gsap);
   add('fa', 'GSAP-loaded', gsap === 'object');
+
+  /* ───── Stage 1 (A2-A6) ─ i18n runtime surfaces (мirror'им index) ─────── */
+  const faI18nAPI = await page.evaluate(() => ({
+    obj:        typeof window.I18N === 'object',
+    getLang:    typeof (window.I18N && window.I18N.getLang)   === 'function',
+    t:          typeof (window.I18N && window.I18N.t)         === 'function',
+    applyLang:  typeof (window.I18N && window.I18N.applyLang) === 'function',
+    data:       typeof window.I18N_DATA === 'object',
+  }));
+  add('fa', 'A2-I18N-api', faI18nAPI.obj && faI18nAPI.getLang && faI18nAPI.t && faI18nAPI.applyLang && faI18nAPI.data,
+      JSON.stringify(faI18nAPI));
+
+  const faHtmlLang = await page.getAttribute('html', 'lang');
+  add('fa', 'A3-html-lang-valid', /^(en|ru)$/.test(faHtmlLang || ''), `lang="${faHtmlLang}"`);
+
+  const faLangTogglePresent = await page.evaluate(() => {
+    const t = document.getElementById('lang-toggle');
+    return !!(t && t.closest('.header-top__controls'));
+  });
+  add('fa', 'A4-lang-toggle-present', faLangTogglePresent);
+
+  const faOgLocale = await page.getAttribute('meta[property="og:locale"]', 'content');
+  add('fa', 'A6-og-locale', /^(en_US|ru_RU)$/.test(faOgLocale || ''), `og:locale="${faOgLocale}"`);
+
+  /* ───── Stage 2 (B1, B5, B10) ─ FA dict shape + a11y ─────────────────── */
+
+  // B1-fa — data-i18n attribute count floor. FA HTML carries ~87 occurrences
+  // (51 data-i18n + 27 data-i18n-attr + 9 data-i18n-meta). Floor at 70 with
+  // same 15%-regression tolerance as index.
+  const faI18nAttrCount = await page.evaluate(() =>
+    document.querySelectorAll('[data-i18n], [data-i18n-attr], [data-i18n-html], [data-i18n-meta]').length);
+  add('fa', 'B1-data-i18n-attr-floor', faI18nAttrCount >= 70,
+      `count=${faI18nAttrCount} (floor 70)`);
+
+  // B5 — FA_LOCALES.ru has 25 keys (8 hard-surface + 5 product + 4 game +
+  // 3 organic + 2 animation + 3 cad = 25). Каждая запись хотя бы { desc }.
+  const faLocaleShape = await page.evaluate(() => {
+    const fa = window.I18N_DATA && window.I18N_DATA.FA_LOCALES;
+    if (!fa || !fa.en || !fa.ru) return { ok: false, reason: 'no en/ru' };
+    const keys = Object.keys(fa.ru);
+    const allHaveDesc = keys.every(k => fa.ru[k] && typeof fa.ru[k].desc === 'string');
+    return { ok: keys.length === 25 && allHaveDesc, count: keys.length };
+  });
+  add('fa', 'B5-FA_LOCALES-25-ru', faLocaleShape.ok,
+      `ru.length=${faLocaleShape.count} (expected 25)`);
+
+  // B10 — skip-to-content link present (a11y, Phase 1 addition).
+  const faSkipLink = await page.evaluate(() =>
+    !!document.querySelector('a.skip-to-content[href="#main"]'));
+  add('fa', 'B10-skip-to-content', faSkipLink);
+
+  /* ───── Stage 4 (D2, D3, D4) ─ a11y + asset hygiene ──────────────────── */
+
+  // D2 — WCAG 2 A/AA via axe-core. Current FA = 0 violations (clean).
+  // Budget = 0; ANY new violation → FAIL. Strict mode на FA потому что
+  // FA layout проще и должен оставаться чистым.
+  const axeFA = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  const axeFACount = axeFA.violations.length;
+  add('fa', 'D2-axe-wcag-aa', axeFACount === 0,
+      `violations=${axeFACount}` +
+      (axeFACount > 0 ? ' [' + axeFA.violations.map(v => v.id).join(',') + ']' : ' clean'));
+
+  // D3 — img attributes (mirror index).
+  const faImgIssues = await page.evaluate(() => {
+    const required = ['alt', 'width', 'height', 'loading', 'decoding'];
+    const fails = [];
+    document.querySelectorAll('img').forEach(img => {
+      const missing = required.filter(a => !img.hasAttribute(a));
+      if (missing.length) {
+        const src = img.getAttribute('src') || '(no src)';
+        fails.push(`${src.slice(-40)} missing=[${missing.join(',')}]`);
+      }
+    });
+    return fails;
+  });
+  add('fa', 'D3-img-required-attrs', faImgIssues.length === 0,
+      faImgIssues.length ? faImgIssues.slice(0, 2).join(' | ') : 'all clean');
+
+  // D4 — Fontshare display=swap on FA (mirror index).
+  const faFontSwap = await page.evaluate(() => {
+    const links = [...document.querySelectorAll(
+      'link[rel="stylesheet"][href*="fontshare"], link[rel="preload"][href*="fontshare"]'
+    )];
+    if (!links.length) return { ok: false, reason: 'no fontshare CSS link' };
+    const bad = links.filter(l => !/display=swap/i.test(l.getAttribute('href') || ''));
+    return { ok: bad.length === 0, total: links.length, bad: bad.length };
+  });
+  add('fa', 'D4-font-display-swap', faFontSwap.ok,
+      `css-links=${faFontSwap.total} bad=${faFontSwap.bad || 0}`);
 
   // BODY THEME
   add('fa', 'BODY-theme-dark', await page.getAttribute('body', 'data-theme') === 'dark');
@@ -327,10 +718,58 @@ async function testFreeAssets(BASE) {
   add('fa', 'THEME-toggle', await page.getAttribute('body', 'data-theme') === 'light');
   await page.click('#theme-toggle');
 
-  // CONSOLE — без внутренних ошибок
-  const internalErrors = consoleErrors.filter(e => !/(403|404|model-viewer|googleapis|og-image\.jpg)/i.test(e));
+  // CONSOLE — без внутренних ошибок.
+  // v0.8.x — filter расширен идентично index (fontshare, cloudflare, ERR_CERT_AUTHORITY_INVALID,
+  // ERR_FAILED, jsdelivr) для устойчивости в cloud envs с corp TLS-перехватом.
+  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|jsdelivr|fontshare|cloudflare|og-image\.jpg)/i.test(e));
   add('fa', 'CONSOLE-no-internal-errors', internalErrors.length === 0);
 
+  await browser.close();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE VIEWPORT — Stage 2 (B9). Проверка Phase 5 invariant: на ≤767px
+   #lang-toggle visible (на месте contact icon), #contact-btn hidden,
+   footer pill row остаётся 2 pills (не Phase-5-первая-версия с 3 pills).
+═══════════════════════════════════════════════════════════════════════ */
+async function testMobileViewport(BASE) {
+  console.log(`\n=== Mobile 375×667 viewport invariants ===`);
+  const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const ctx = await browser.newContext({ viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true });
+
+  for (const url of ['/index.html', '/free-assets.html']) {
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}${url}`, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+
+    const state = await page.evaluate(() => {
+      const lt = document.getElementById('lang-toggle');
+      const cb = document.getElementById('contact-btn');
+      const lp = document.getElementById('lang-pill');
+      const pills = document.querySelectorAll('.site-footer__row--pill .top-pill');
+      return {
+        langToggleVisible: lt ? window.getComputedStyle(lt).display !== 'none' : false,
+        contactBtnHidden:  cb ? window.getComputedStyle(cb).display === 'none' : true,
+        noLangPill:        !lp, // Phase 5 fix: removed the third footer pill.
+        footerPillsCount:  pills.length,
+      };
+    });
+    const scope = url.includes('free-assets') ? 'fa-mobile' : 'index-mobile';
+
+    // B9 — Phase 5 invariant: lang-toggle stays in header on mobile, contact
+    // icon hidden, no orphan #lang-pill in footer (would mean Phase 5 first
+    // version slipped back in), footer pill row keeps exactly 2 pills.
+    add(scope, 'B9-lang-toggle-visible', state.langToggleVisible,
+        `display!=none: ${state.langToggleVisible}`);
+    add(scope, 'B9-contact-btn-hidden', state.contactBtnHidden,
+        `display=none: ${state.contactBtnHidden}`);
+    add(scope, 'B9-no-lang-pill', state.noLangPill,
+        'no #lang-pill in DOM');
+    add(scope, 'B9-footer-pills-count', state.footerPillsCount === 2,
+        `count=${state.footerPillsCount} (expected 2)`);
+
+    await page.close();
+  }
   await browser.close();
 }
 
@@ -354,8 +793,10 @@ async function testFreeAssets(BASE) {
   console.log('══════════════════════════════════════════════════════════════════');
 
   try {
+    runStaticChecks();
     await testIndex(BASE);
     await testFreeAssets(BASE);
+    await testMobileViewport(BASE);
   } catch (e) {
     console.error('\nTEST ERROR:', e.message);
     console.error(e.stack);
