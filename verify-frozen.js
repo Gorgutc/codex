@@ -103,6 +103,44 @@ function runStaticChecks() {
   });
   add('static', 'A8-no-localStorage-runtime', jsViolations.length === 0,
       jsViolations.length ? 'violations in: ' + jsViolations.join(', ') : 'all clean');
+
+  // C1 — `font-size: Npx` budget per CSS file (Stage 3 whitelist mode).
+  // Frozen rule говорит "px для font-size запрещено — rem / clamp() only",
+  // но репо имеет 25 pre-existing occurrences (главным образом в
+  // portfolio-case.css на крупных сложных typografic-зонах case-view).
+  // Чинить — отдельный CSS refactor. Тест в whitelist-mode: actual count
+  // per file не должен превышать current budget. Новые добавления → FAIL.
+  //
+  // Snapshot 2026-05 (i18n PR head):
+  //   shared.css         → 3 occurrences
+  //   portfolio-case.css → 22 occurrences
+  //   tokens / reset / portfolio-core / free-assets → 0
+  //
+  // При планомерной rem-conversion этот budget уменьшается; обновлять
+  // прямо в PR который удаляет px-rules. Никогда не увеличивать.
+  const PX_FONT_SIZE_BUDGET = {
+    'shared.css': 3,
+    'portfolio-case.css': 22,
+    'tokens.css': 0,
+    'reset.css': 0,
+    'portfolio-core.css': 0,
+    'free-assets.css': 0,
+  };
+  const pxFontSizeRe = /font-size:\s*\d+px/g;
+  const pxViolations = [];
+  let pxBudgetOK = true;
+  Object.keys(PX_FONT_SIZE_BUDGET).forEach(file => {
+    const full = path.join(ROOT, 'css', file);
+    if (!fs.existsSync(full)) return;
+    const matches = fs.readFileSync(full, 'utf8').match(pxFontSizeRe) || [];
+    const budget = PX_FONT_SIZE_BUDGET[file];
+    if (matches.length > budget) {
+      pxBudgetOK = false;
+      pxViolations.push(`${file}: ${matches.length} > budget ${budget}`);
+    }
+  });
+  add('static', 'C1-no-new-px-font-size', pxBudgetOK,
+      pxBudgetOK ? 'all CSS within budget (3+22+0×4 = 25 grandfathered)' : pxViolations.join('; '));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
