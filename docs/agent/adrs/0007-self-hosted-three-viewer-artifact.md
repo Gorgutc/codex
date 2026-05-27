@@ -46,6 +46,16 @@ runtime build step in the deployed site.
 The first implementation should keep `<model-viewer>` fallback available until
 Three.js reaches screenshot and interaction parity.
 
+Current pinned artifact:
+
+- Source package: `three@0.184.0`.
+- Vendored entrypoint: `js/vendor/codex-three-viewer.js`.
+- Vendored Three files: `js/vendor/three/three.module.js`,
+  `js/vendor/three/three.core.js`, `GLTFLoader.js`, `OrbitControls.js`, and the
+  two utility modules required by `GLTFLoader`.
+- The copied addon imports are patched to repo-local relative paths. No npm
+  runtime dependency or deployed build step is required.
+
 ## Acceptance
 
 - `npm run verify` passes with `0 FAIL`.

@@ -1140,6 +1140,14 @@
   --progress-bar-height: 2px;
 }
 
+.case-3d__canvas .case-3d__three-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  touch-action: none;
+}
+
 /* Плейсхолдер до загрузки <model-viewer>-скрипта или когда у кейса нет модели */
 .case-3d__fallback {
   position: absolute;
@@ -2126,11 +2134,18 @@
   object-fit: contain;
   display: block;
 }
-.media-fs__stage > model-viewer {
+.media-fs__stage > model-viewer,
+.media-fs__stage > .media-fs__three {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+.media-fs__three .case-3d__three-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
 }
 @media (max-width: 640px) {
   .media-fs__stage > img,

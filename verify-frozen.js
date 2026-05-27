@@ -102,6 +102,15 @@ function runStaticChecks() {
   const vendorFiles = ['gsap.min.js', 'ScrollTrigger.min.js', 'SplitText.min.js', 'lenis.min.js'];
   const vendorOK = vendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
   add('static', 'A7-vendor-files-present', vendorOK, vendorFiles.join(', '));
+  const threeVendorFiles = [
+    'codex-three-viewer.js',
+    path.join('three', 'three.module.js'),
+    path.join('three', 'three.core.js'),
+    path.join('three', 'GLTFLoader.js'),
+    path.join('three', 'OrbitControls.js')
+  ];
+  const threeVendorOK = threeVendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
+  add('static', 'A7-three-vendor-files-present', threeVendorOK, threeVendorFiles.join(', '));
 
   // A8 — localStorage / sessionStorage НЕ должны использоваться runtime в
   // shipped JS. Frozen rule top-10. Regex ловит method/property access
@@ -293,13 +302,28 @@ async function testIndex(BASE) {
   add('index', 'CASE-blueprint-svg', !!await page.$('.case-blueprints svg'));
 
   // 3D
+  const before3DResources = await page.evaluate(() => performance.getEntriesByType('resource')
+    .map(e => e.name)
+    .filter(n => /codex-three-viewer|three\.module|model-data\.js/i.test(n)));
+  add('index', 'CASE-3d-lazy-before-click', before3DResources.length === 0, before3DResources.join(', ') || 'clean');
   await page.click('.case-tab[data-viz="3d"]'); await page.waitForTimeout(800);
+  await page.waitForSelector('#case-3d-canvas canvas.case-3d__three-canvas', { timeout: 5000 }).catch(() => {});
   const c3d = await page.evaluate(() => ({
     canvas: !!document.getElementById('case-3d-canvas'),
     children: document.getElementById('case-3d-canvas')?.children.length > 0,
+    threeCanvas: !!document.querySelector('#case-3d-canvas canvas.case-3d__three-canvas'),
+    modelViewer: !!document.querySelector('#case-3d-canvas model-viewer'),
+    resources: performance.getEntriesByType('resource')
+      .map(e => e.name)
+      .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|model-data\.js/i.test(n))
   }));
   add('index', 'CASE-3d-canvas', c3d.canvas);
   add('index', 'CASE-3d-content', c3d.children);
+  add('index', 'CASE-3d-three-island', c3d.threeCanvas && !c3d.modelViewer, c3d.resources.join(', '));
+  add('index', 'CASE-3d-lazy-after-click',
+      c3d.resources.some(n => /codex-three-viewer/i.test(n)) &&
+      c3d.resources.some(n => /model-data\.js/i.test(n)),
+      c3d.resources.join(', '));
 
   // SHARE BUTTONS
   add('index', 'CASE-share-desktop', !!await page.$('#case-share-desktop'));

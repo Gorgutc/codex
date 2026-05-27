@@ -815,6 +815,9 @@
   // v0.8.2: currentCategory удалён — переменная только писалась внутри
   // applyFilters и сразу же шла в evt.detail. Поле detail.category
   // оставлено для обратной совместимости публичного API codex:filter.
+  var currentThreeViewer = null;           // Phase 3 - active self-hosted Three.js viewer island
+  var currentThreeSource = null;           // Phase 3 - source used for fullscreen rehydration
+  var fsThreeViewer = null;                // Phase 3 - fullscreen Three.js viewer clone
   var gameOnly = false;
 
   // v0.15.5 [П2] — массив выбранных дисциплин (OR-логика). Пусто или ['all'] → все кейсы.
@@ -2106,9 +2109,11 @@
   ══════════════════════════════════ */
   var MODEL_VIEWER_SRC = 'https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
   var MODEL_DATA_SRC = './js/model-data.js';
+  var THREE_VIEWER_SRC = './vendor/codex-three-viewer.js';
 
   /* v0.5 — Lazy-load model-data.js. Возвращает Promise. Идемпотентно. */
   var modelDataLoading = null;
+  var threeViewerLoading = null;
   function loadModelData() {
     if (modelDataLoading) return modelDataLoading;
     modelDataLoading = new Promise(function (resolve, reject) {
@@ -2147,6 +2152,21 @@
       document.head.appendChild(s);
     });
     return modelViewerLoading;
+  }
+
+  function loadThreeViewer() {
+    if (threeViewerLoading) return threeViewerLoading;
+    threeViewerLoading = import(THREE_VIEWER_SRC);
+    return threeViewerLoading;
+  }
+
+  function resolveModelSource(data) {
+    var src = data && data.modelSrc;
+    if (src && src.indexOf('./assets/models/') === 0 && window.CODEX_LOCAL_GLB) {
+      var key = src.replace('./assets/models/', '').replace(/\.glb$/, '');
+      if (window.CODEX_LOCAL_GLB[key]) src = window.CODEX_LOCAL_GLB[key];
+    }
+    return src;
   }
 
   function render3DFallback(title, hint) {
@@ -2199,6 +2219,11 @@
       document.removeEventListener('keydown', currentLightDdDocKey);
       currentLightDdDocKey = null;
     }
+    if (currentThreeViewer && typeof currentThreeViewer.dispose === 'function') {
+      try { currentThreeViewer.dispose(); } catch (_) { /* no-op */ }
+      currentThreeViewer = null;
+    }
+    currentThreeSource = null;
     if (currentMv) {
       try { currentMv.removeAttribute('src'); } catch (_) { /* no-op */ }
       try { currentMv.remove(); } catch (_) { /* no-op */ }
@@ -2740,9 +2765,358 @@
     });
   }
 
+  function mountThreeViewer3D(options) {
+    options = options || {};
+    var id = options.caseId;
+    if (!case3dCanvas || !id) return;
+    var data = options.data || CARDS_DATA[id];
+    if (!data) return;
+
+    destroy3D();
+
+    if (!data.modelSrc) {
+      render3DFallback(
+        'MODEL SOON',
+        'Интерактивная 3D-модель готовится. Пока смотри 2D-рендеры и технический чертеж.'
+      );
+      model3dBuiltFor = id;
+      return;
+    }
+
+    render3DFallback(
+      'LOADING 3D',
+      'Подгружаем интерактивный вьюер и GLB-модель. Первый запуск занимает несколько секунд.'
+    );
+    model3dBuiltFor = id;
+    var targetId = id;
+
+    Promise.all([loadModelData(), loadThreeViewer()]).then(function (result) {
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+
+      var threeRuntime = result[1];
+      if (!threeRuntime || !threeRuntime.canUseCodexThreeViewer || !threeRuntime.canUseCodexThreeViewer()) {
+        mountModelViewer3D(options);
+        return;
+      }
+
+      var src = resolveModelSource(data);
+      if (!src) {
+        render3DFallback('MODEL SOON', 'Интерактивная 3D-модель готовится.');
+        return;
+      }
+
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var autoRotateOn = !prefersReduced;
+      var isMobileMI = window.matchMedia('(max-width: 767px)').matches;
+      if (typeof window.CODEX_MI_ON === 'undefined') window.CODEX_MI_ON = true;
+      var infoOn = isMobileMI ? false : window.CODEX_MI_ON;
+      var currentEnv = 'studio';
+
+      var __viz = window.I18N;
+      var hint = document.createElement('div');
+      hint.className = 'case-3d__hint case-3d__hint--desktop';
+      hint.setAttribute('data-i18n', 'viz.hintDesktop');
+      hint.textContent = (__viz && __viz.t) ? __viz.t('viz.hintDesktop') : 'RIGHT MOUSE · ROTATE';
+
+      var hintMobile = document.createElement('div');
+      hintMobile.className = 'case-3d__hint case-3d__hint--mobile';
+      hintMobile.setAttribute('data-i18n', 'viz.hintMobile');
+      hintMobile.textContent = (__viz && __viz.t) ? __viz.t('viz.hintMobile') : 'DRAG · ZOOM';
+
+      var controls = document.createElement('div');
+      controls.className = 'case-3d__controls';
+
+      var autoBtn = document.createElement('button');
+      autoBtn.type = 'button';
+      autoBtn.className = 'case-3d__ctrl' + (autoRotateOn ? ' is-on' : '');
+      autoBtn.setAttribute('aria-pressed', autoRotateOn ? 'true' : 'false');
+      autoBtn.innerHTML = '<span class="case-3d__ctrl__txt-full">AUTO ROTATION</span><span class="case-3d__ctrl__txt-short">Auto-R</span>';
+
+      var infoBtn = document.createElement('button');
+      infoBtn.type = 'button';
+      infoBtn.className = 'case-3d__ctrl';
+      infoBtn.setAttribute('aria-pressed', 'false');
+      infoBtn.innerHTML = '<span class="case-3d__ctrl__txt-full">MODEL INFO</span><span class="case-3d__ctrl__txt-short">Info</span>';
+      if (infoOn) {
+        infoBtn.classList.add('is-on');
+        infoBtn.setAttribute('aria-pressed', 'true');
+      }
+
+      var resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'case-3d__ctrl case-3d__ctrl--icon';
+      var __v2 = window.I18N;
+      resetBtn.setAttribute('aria-label', (__v2 && __v2.t) ? __v2.t('viz.resetCamera') : 'Reset camera');
+      resetBtn.setAttribute('title', (__v2 && __v2.t) ? __v2.t('viz.resetCamera') : 'Reset camera');
+      resetBtn.innerHTML =
+        '<svg class="case-3d__ctrl-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M3.5 7.5a4.5 4.5 0 1 1 1.2 3.1"/><path d="M3.2 11.5V8.2h3.3"/>' +
+        '</svg>';
+
+      var fsBtn3d = document.createElement('button');
+      fsBtn3d.type = 'button';
+      fsBtn3d.className = 'case-3d__fs-btn';
+      var __vFs = window.I18N;
+      fsBtn3d.setAttribute('aria-label', (__vFs && __vFs.t) ? __vFs.t('viz.openFullscreen') : 'Open 3D fullscreen');
+      fsBtn3d.setAttribute('title', (__vFs && __vFs.t) ? __vFs.t('viz.openFullscreen') : 'Open 3D fullscreen');
+      fsBtn3d.setAttribute('data-cursor', 'link');
+      fsBtn3d.innerHTML = '<svg class="case-3d__fs-btn__icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
+
+      controls.appendChild(autoBtn);
+      controls.appendChild(infoBtn);
+      controls.appendChild(resetBtn);
+      controls.appendChild(fsBtn3d);
+
+      function syncEnvUI(key) {
+        [envGroup, ddEnvList].forEach(function (root) {
+          if (!root) return;
+          root.querySelectorAll('[data-env]').forEach(function (b) {
+            var on = b.dataset.env === key;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+        });
+      }
+
+      function createEnvBtn(key, className) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = className + (key === currentEnv ? ' is-on' : '');
+        btn.setAttribute('aria-pressed', key === currentEnv ? 'true' : 'false');
+        btn.dataset.env = key;
+        btn.textContent = key.toUpperCase();
+        btn.addEventListener('click', function () {
+          if (currentEnv === key) return;
+          currentEnv = key;
+          if (currentThreeViewer && currentThreeViewer.setEnvironment) currentThreeViewer.setEnvironment(key);
+          if (currentThreeSource) currentThreeSource.environment = key;
+          syncEnvUI(key);
+        });
+        return btn;
+      }
+
+      var envGroup = document.createElement('div');
+      envGroup.className = 'case-3d__env-group';
+      envGroup.setAttribute('role', 'group');
+      var __v3 = window.I18N;
+      envGroup.setAttribute('aria-label', (__v3 && __v3.t) ? __v3.t('viz.envPreset') : 'Environment preset');
+      ['studio', 'outdoor', 'dark'].forEach(function (key) {
+        envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
+      });
+
+      var expoWrap = document.createElement('label');
+      expoWrap.className = 'case-3d__expo';
+      var __v4 = window.I18N;
+      expoWrap.setAttribute('aria-label', (__v4 && __v4.t) ? __v4.t('viz.exposure') : 'Exposure');
+
+      var expoLabelEl = document.createElement('span');
+      expoLabelEl.className = 'case-3d__expo-label';
+      var __v5 = window.I18N;
+      expoLabelEl.setAttribute('data-i18n', 'viz.exposureLabel');
+      expoLabelEl.textContent = (__v5 && __v5.t) ? __v5.t('viz.exposureLabel') : 'EXPOSURE';
+
+      var expoInput = document.createElement('input');
+      expoInput.type = 'range';
+      expoInput.min = '0.5';
+      expoInput.max = '2';
+      expoInput.step = '0.05';
+      expoInput.value = '1';
+      expoInput.className = 'case-3d__expo-input';
+      var __v6 = window.I18N;
+      expoInput.setAttribute('aria-label', (__v6 && __v6.t) ? __v6.t('viz.exposureRange') : 'Exposure level from 0.5 to 2.0');
+
+      expoInput.addEventListener('input', function () {
+        var value = parseFloat(expoInput.value);
+        if (currentThreeViewer && currentThreeViewer.setExposure) currentThreeViewer.setExposure(value);
+        if (currentThreeSource) currentThreeSource.exposure = value;
+        if (typeof ddExpoInput !== 'undefined' && ddExpoInput.value !== expoInput.value) {
+          ddExpoInput.value = expoInput.value;
+        }
+      });
+
+      expoWrap.appendChild(expoLabelEl);
+      expoWrap.appendChild(expoInput);
+      controls.appendChild(envGroup);
+      controls.appendChild(expoWrap);
+
+      var lightDd = document.createElement('div');
+      lightDd.className = 'case-3d__light-dd';
+      lightDd.dataset.open = 'false';
+
+      var lightTrigger = document.createElement('button');
+      lightTrigger.type = 'button';
+      lightTrigger.className = 'case-3d__ctrl case-3d__ctrl--icon case-3d__light-dd__trigger';
+      lightTrigger.setAttribute('aria-haspopup', 'true');
+      lightTrigger.setAttribute('aria-expanded', 'false');
+      var __v7 = window.I18N;
+      lightTrigger.setAttribute('aria-label', (__v7 && __v7.t) ? __v7.t('viz.lightingSettings') : 'Lighting settings');
+      lightTrigger.innerHTML =
+        '<svg class="case-3d__ctrl-icon" viewBox="0 0 20 20" width="16" height="16" ' +
+        'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" ' +
+        'stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+        '<path d="M10 2.5c-3 0-5 2.2-5 4.8 0 1.7.8 3.1 2 4v2h6v-2c1.2-.9 2-2.3 2-4 0-2.6-2-4.8-5-4.8z"/>' +
+        '<path d="M8 16h4M8.5 18h3"/>' +
+        '</svg>';
+
+      var lightPanel = document.createElement('div');
+      lightPanel.className = 'case-3d__light-dd__panel';
+      lightPanel.hidden = true;
+      lightPanel.setAttribute('role', 'group');
+      var __v8 = window.I18N;
+      lightPanel.setAttribute('aria-label', (__v8 && __v8.t) ? __v8.t('viz.lightingPanel') : 'Lighting presets and exposure');
+
+      var ddEnvLabel = document.createElement('div');
+      ddEnvLabel.className = 'case-3d__light-dd__section-label';
+      var __v9 = window.I18N;
+      ddEnvLabel.setAttribute('data-i18n', 'viz.environmentLabel');
+      ddEnvLabel.textContent = (__v9 && __v9.t) ? __v9.t('viz.environmentLabel') : 'ENVIRONMENT';
+      lightPanel.appendChild(ddEnvLabel);
+
+      var ddEnvList = document.createElement('div');
+      ddEnvList.className = 'case-3d__light-dd__env-list';
+      ddEnvList.setAttribute('role', 'group');
+      var __v10 = window.I18N;
+      ddEnvList.setAttribute('aria-label', (__v10 && __v10.t) ? __v10.t('viz.envPreset') : 'Environment preset');
+      ['studio', 'outdoor', 'dark'].forEach(function (key) {
+        ddEnvList.appendChild(createEnvBtn(key, 'case-3d__light-dd__env-btn'));
+      });
+      lightPanel.appendChild(ddEnvList);
+
+      var ddExpoLabel = document.createElement('label');
+      ddExpoLabel.className = 'case-3d__light-dd__section-label';
+      var __v11 = window.I18N;
+      ddExpoLabel.setAttribute('data-i18n', 'viz.exposureLabel');
+      ddExpoLabel.textContent = (__v11 && __v11.t) ? __v11.t('viz.exposureLabel') : 'EXPOSURE';
+      lightPanel.appendChild(ddExpoLabel);
+
+      var ddExpoInput = document.createElement('input');
+      ddExpoInput.type = 'range';
+      ddExpoInput.min = '0.5';
+      ddExpoInput.max = '2';
+      ddExpoInput.step = '0.05';
+      ddExpoInput.value = '1';
+      ddExpoInput.className = 'case-3d__light-dd__expo-input';
+      var __v12 = window.I18N;
+      ddExpoInput.setAttribute('aria-label', (__v12 && __v12.t) ? __v12.t('viz.exposureRange') : 'Exposure level from 0.5 to 2.0');
+      ddExpoInput.addEventListener('input', function () {
+        var value = parseFloat(ddExpoInput.value);
+        if (currentThreeViewer && currentThreeViewer.setExposure) currentThreeViewer.setExposure(value);
+        if (currentThreeSource) currentThreeSource.exposure = value;
+        if (expoInput.value !== ddExpoInput.value) expoInput.value = ddExpoInput.value;
+      });
+      lightPanel.appendChild(ddExpoInput);
+
+      function closeLightDd() {
+        if (lightDd.dataset.open !== 'true') return;
+        lightDd.dataset.open = 'false';
+        lightTrigger.setAttribute('aria-expanded', 'false');
+        lightPanel.hidden = true;
+      }
+      function openLightDd() {
+        lightDd.dataset.open = 'true';
+        lightTrigger.setAttribute('aria-expanded', 'true');
+        lightPanel.hidden = false;
+      }
+      lightTrigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (lightDd.dataset.open === 'true') closeLightDd();
+        else openLightDd();
+      });
+      currentLightDdDocClick = function (e) {
+        if (lightDd.dataset.open !== 'true') return;
+        if (lightDd.contains(e.target)) return;
+        closeLightDd();
+      };
+      currentLightDdDocKey = function (e) {
+        if (e.key === 'Escape' && lightDd.dataset.open === 'true') {
+          closeLightDd();
+          lightTrigger.focus();
+        }
+      };
+      document.addEventListener('click', currentLightDdDocClick);
+      document.addEventListener('keydown', currentLightDdDocKey);
+
+      lightDd.appendChild(lightTrigger);
+      lightDd.appendChild(lightPanel);
+      controls.appendChild(lightDd);
+
+      var infoPanel = document.createElement('div');
+      infoPanel.className = 'case-3d__info-panel';
+      infoPanel.innerHTML = buildInfoHTML(data);
+      if (infoOn) infoPanel.classList.add('is-visible');
+
+      autoBtn.addEventListener('click', function () {
+        autoRotateOn = !autoRotateOn;
+        autoBtn.classList.toggle('is-on', autoRotateOn);
+        autoBtn.setAttribute('aria-pressed', autoRotateOn ? 'true' : 'false');
+        if (currentThreeViewer && currentThreeViewer.setAutoRotate) currentThreeViewer.setAutoRotate(autoRotateOn);
+        if (currentThreeSource) currentThreeSource.autoRotate = autoRotateOn;
+      });
+
+      infoBtn.addEventListener('click', function () {
+        infoOn = !infoOn;
+        if (!isMobileMI) window.CODEX_MI_ON = infoOn;
+        infoBtn.classList.toggle('is-on', infoOn);
+        infoBtn.setAttribute('aria-pressed', infoOn ? 'true' : 'false');
+        infoPanel.classList.toggle('is-visible', infoOn);
+      });
+
+      resetBtn.addEventListener('click', function () {
+        resetBtn.classList.add('is-pulse');
+        setTimeout(function () { resetBtn.classList.remove('is-pulse'); }, 520);
+        if (currentThreeViewer && currentThreeViewer.resetCamera) currentThreeViewer.resetCamera();
+      });
+
+      currentMvReset = function () {
+        if (currentThreeViewer && currentThreeViewer.resetCamera) currentThreeViewer.resetCamera();
+      };
+
+      case3dCanvas.innerHTML = '';
+      case3dCanvas.classList.remove('is-ready');
+
+      currentThreeSource = {
+        caseId: id,
+        src: src,
+        alt: (data.title || id) + ' - 3D model',
+        autoRotate: autoRotateOn,
+        exposure: parseFloat(expoInput.value),
+        environment: currentEnv
+      };
+      currentThreeViewer = threeRuntime.createCodexThreeViewer({
+        host: case3dCanvas,
+        src: src,
+        alt: currentThreeSource.alt,
+        autoRotate: autoRotateOn,
+        exposure: currentThreeSource.exposure,
+        environment: currentEnv,
+        onReady: function () {
+          if (model3dBuiltFor === targetId && currentCaseId === targetId && case3dCanvas) {
+            case3dCanvas.classList.add('is-ready');
+          }
+        },
+        onError: function () {
+          if (model3dBuiltFor === targetId && currentCaseId === targetId) {
+            destroy3D();
+            render3DFallback(
+              'MODEL UNAVAILABLE',
+              'Не удалось загрузить GLB. Проверь интернет-соединение или вернись к 2D / Blueprints.'
+            );
+          }
+        }
+      });
+      case3dCanvas.appendChild(hint);
+      case3dCanvas.appendChild(hintMobile);
+      case3dCanvas.appendChild(controls);
+      case3dCanvas.appendChild(infoPanel);
+    }).catch(function () {
+      threeViewerLoading = null;
+      mountModelViewer3D(options);
+    });
+  }
+
   var CodexModelViewerAdapter = {
     mount3D: function (options) {
-      return mountModelViewer3D(options);
+      return mountThreeViewer3D(options);
     },
     destroy3D: function () {
       destroy3D();
@@ -2751,6 +3125,10 @@
       if (typeof currentMvReset === 'function') currentMvReset();
     },
     openFullscreen: function (source) {
+      if (currentThreeSource) {
+        openFsThree(currentThreeSource);
+        return;
+      }
       var target = source || currentMv;
       if (target) openFs(target, 'model-viewer');
     }
@@ -3400,6 +3778,10 @@
 
   function openFs(sourceEl, kind) {
     ensureFsOverlay();
+    if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
+      try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
+      fsThreeViewer = null;
+    }
     // Очистить stage
     while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
 
@@ -3448,6 +3830,62 @@
     updateLenisState();
   }
 
+  function openFsThree(source) {
+    if (!source || !source.src) return;
+    ensureFsOverlay();
+    if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
+      try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
+      fsThreeViewer = null;
+    }
+    while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+
+    fsContext = null;
+    fsPreviousFocus = document.activeElement;
+    fsPrev.hidden = true;
+    fsNext.hidden = true;
+    fsCounter.hidden = true;
+    fsAnnouncer.textContent = '';
+
+    var holder = document.createElement('div');
+    holder.className = 'media-fs__three';
+    fsStage.appendChild(holder);
+
+    fsOverlay.hidden = false;
+    void fsOverlay.offsetWidth;
+    fsOverlay.classList.add('is-open');
+    document.documentElement.style.overflow = 'hidden';
+    try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+    updateLenisState();
+
+    loadThreeViewer().then(function (threeRuntime) {
+      if (!fsOverlay || fsOverlay.hidden || !holder.isConnected) return;
+      if (!threeRuntime || !threeRuntime.canUseCodexThreeViewer || !threeRuntime.canUseCodexThreeViewer()) {
+        throw new Error('WebGL2 unavailable');
+      }
+      fsThreeViewer = threeRuntime.createCodexThreeViewer({
+        host: holder,
+        src: source.src,
+        alt: source.alt || '3D model',
+        autoRotate: source.autoRotate !== false,
+        exposure: source.exposure || 1,
+        environment: source.environment || 'studio',
+        onError: function () {
+          holder.innerHTML =
+            '<div class="case-3d__fallback">' +
+              '<p class="case-3d__fallback-title">MODEL UNAVAILABLE</p>' +
+              '<p class="case-3d__fallback-hint">Не удалось загрузить GLB.</p>' +
+            '</div>';
+        }
+      });
+    }).catch(function () {
+      holder.innerHTML =
+        '<div class="case-3d__fallback">' +
+          '<p class="case-3d__fallback-title">VIEWER OFFLINE</p>' +
+          '<p class="case-3d__fallback-hint">Не удалось открыть 3D fullscreen.</p>' +
+        '</div>';
+    });
+  }
+
   function closeFs() {
     if (!fsOverlay || fsOverlay.hidden) return;
     var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3468,6 +3906,10 @@
     setTimeout(function () {
       if (fsOverlay && !fsOverlay.classList.contains('is-open')) {
         fsOverlay.hidden = true;
+        if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
+          try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
+          fsThreeViewer = null;
+        }
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
         restoreFsContext();
         if (prevFocus && typeof prevFocus.focus === 'function') {
@@ -3906,8 +4348,9 @@
     var btn3d = e.target.closest('.case-3d__fs-btn');
     if (btn3d) {
       e.preventDefault();
-      var mv = document.querySelector('#case-3d-canvas model-viewer');
-      if (mv) openFs(mv, 'model-viewer');
+      if (window.CodexViewer && typeof window.CodexViewer.openFullscreen === 'function') {
+        window.CodexViewer.openFullscreen();
+      }
       return;
     }
     // Blueprints — top-toolbar (открывает текущую страницу) или per-page mini-toolbar.
