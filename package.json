@@ -4,7 +4,9 @@
   "description": "Codex Studio — портфолио-сайт 3D-дизайн-студии. Vanilla HTML+CSS+JS, deploy на статический хост.",
   "private": true,
   "scripts": {
-    "verify": "node verify-frozen.js"
+    "verify": "node verify-frozen.js",
+    "codex:verify-plugin": "node scripts/verify-codex-plugin.mjs",
+    "codex:ship": "npm run codex:verify-plugin && npm run verify"
   },
   "repository": {
     "type": "git",
