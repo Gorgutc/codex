@@ -2260,6 +2260,77 @@
 }
 .media-fs__counter[hidden] { display: none; }
 
+.media-fs__zoom {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--color-fs-close-border);
+  border-radius: 4px;
+  background: var(--color-fs-close-bg);
+  color: var(--color-fs-close-text);
+  transform: translateX(-50%);
+}
+.media-fs__zoom[hidden] { display: none; }
+.media-fs__zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  transition:
+    color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    opacity 160ms var(--ease-out);
+}
+.media-fs__zoom-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+@media (hover: hover) and (pointer: fine) {
+  .media-fs__zoom-btn:not(:disabled):hover {
+    color: var(--color-fs-close-text-hover);
+    border-color: var(--color-fs-close-border-hover);
+  }
+}
+.media-fs__zoom-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.media-fs__zoom-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.media-fs.is-gallery .media-fs__stage > img {
+  cursor: zoom-in;
+  transform-origin: center center;
+  touch-action: none;
+  will-change: transform;
+}
+.media-fs.is-gallery.is-zoomed .media-fs__stage > img { cursor: grab; }
+.media-fs.is-gallery.is-panning .media-fs__stage > img { cursor: grabbing; }
+@media (max-width: 640px) {
+  .media-fs__zoom {
+    bottom: 12px;
+    gap: 4px;
+  }
+  .media-fs__zoom-btn {
+    width: 34px;
+    height: 34px;
+  }
+}
+
 /* visually hidden live-region для скринридеров */
 .media-fs__announcer {
   position: absolute;

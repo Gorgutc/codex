@@ -3689,6 +3689,7 @@
      ════════════════════════════════════════════ */
   var fsOverlay = null, fsStage = null, fsCloseBtn = null;
   var fsPrev = null, fsNext = null, fsCounter = null, fsAnnouncer = null;
+  var fsZoomBar = null, fsZoomOutBtn = null, fsZoomFitBtn = null, fsZoomActualBtn = null, fsZoomInBtn = null;
   // v0.8.2: fsOriginalEl удалён — задумывался для video time-sync, но
   // video в fs-overlay не реализовано; переменная только писалась, никем
   // не читалась.
@@ -3697,7 +3698,35 @@
   var blueprintFs = { id: null, total: 0, index: 0, triggerEl: null };
   var fsCurrentEl = null;           // v0.20.2 — текущая видимая картинка в stage
   var focusTrapHandler = null;
+  var fsImageZoom = {
+    scale: 1,
+    x: 0,
+    y: 0,
+    min: 1,
+    max: 4,
+    actual: 1,
+    pointers: {},
+    panStart: null,
+    pinchStart: null,
+    suppressClick: false
+  };
   var fsPreviousFocus = null;       // элемент для возврата фокуса при close
+
+  function createFsZoomButton(action, label, iconPath, handler) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'media-fs__zoom-btn media-fs__zoom-btn--' + action;
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+    btn.setAttribute('data-cursor', 'link');
+    btn.innerHTML = '<svg class="media-fs__zoom-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + iconPath + '</svg>';
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      handler();
+    });
+    return btn;
+  }
 
   function ensureFsOverlay() {
     if (fsOverlay) return fsOverlay;
@@ -3749,16 +3778,43 @@
     fsAnnouncer.setAttribute('aria-live', 'polite');
     fsAnnouncer.setAttribute('aria-atomic', 'true');
 
+    fsZoomBar = document.createElement('div');
+    fsZoomBar.className = 'media-fs__zoom';
+    fsZoomBar.hidden = true;
+    fsZoomOutBtn = createFsZoomButton('zoom-out', 'Zoom out',
+      '<path d="M4 9h10"/>',
+      function () { zoomFsImageBy(0.8); });
+    fsZoomFitBtn = createFsZoomButton('fit', 'Fit to screen',
+      '<path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4"/>',
+      function () { resetFsImageZoom(true); });
+    fsZoomActualBtn = createFsZoomButton('actual', 'Actual size',
+      '<text x="9" y="10.6" fill="currentColor" stroke="none" font-size="5" font-family="monospace" text-anchor="middle" dominant-baseline="middle">1:1</text>',
+      function () { setFsImageScale(fsImageZoom.actual, window.innerWidth / 2, window.innerHeight / 2); });
+    fsZoomInBtn = createFsZoomButton('zoom-in', 'Zoom in',
+      '<path d="M4 9h10M9 4v10"/>',
+      function () { zoomFsImageBy(1.25); });
+    fsZoomBar.appendChild(fsZoomOutBtn);
+    fsZoomBar.appendChild(fsZoomFitBtn);
+    fsZoomBar.appendChild(fsZoomActualBtn);
+    fsZoomBar.appendChild(fsZoomInBtn);
+
     fsOverlay.appendChild(fsCloseBtn);
     fsOverlay.appendChild(fsPrev);
     fsOverlay.appendChild(fsNext);
     fsOverlay.appendChild(fsCounter);
+    fsOverlay.appendChild(fsZoomBar);
     fsOverlay.appendChild(fsAnnouncer);
     fsOverlay.appendChild(fsStage);
     document.body.appendChild(fsOverlay);
 
     // Backdrop click: в gallery/blueprint — навигация по половинам, иначе — close.
     fsOverlay.addEventListener('click', function (e) {
+      if (fsImageZoom.suppressClick) {
+        fsImageZoom.suppressClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (e.target !== fsOverlay && e.target !== fsStage) return;
       if (fsContext === 'gallery' || fsContext === 'blueprint') {
         navFs(e.clientX < window.innerWidth / 2 ? -1 : +1);
@@ -3769,6 +3825,7 @@
 
     // Touch swipe (gallery only)
     setupFsSwipe(fsOverlay);
+    setupFsImageZoom();
     // Cursor zone tracker — добавляет is-fs-prev/is-fs-next к .cursor
     fsOverlay.addEventListener('mousemove', trackFsCursorZones);
     fsOverlay.addEventListener('mouseleave', clearFsCursorZones);
@@ -3778,6 +3835,7 @@
 
   function openFs(sourceEl, kind) {
     ensureFsOverlay();
+    releaseFsImageZoom();
     if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
       try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
       fsThreeViewer = null;
@@ -3833,6 +3891,7 @@
   function openFsThree(source) {
     if (!source || !source.src) return;
     ensureFsOverlay();
+    releaseFsImageZoom();
     if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
       try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
       fsThreeViewer = null;
@@ -3911,6 +3970,7 @@
           fsThreeViewer = null;
         }
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+        releaseFsImageZoom();
         restoreFsContext();
         if (prevFocus && typeof prevFocus.focus === 'function') {
           try { prevFocus.focus({ preventScroll: true }); } catch (_) {}
@@ -3976,6 +4036,7 @@
 
     var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced || document.hidden || typeof gsap === 'undefined') {
+      activateFsImageZoom(clone);
       setupFocusTrap();
       return;
     }
@@ -3998,7 +4059,10 @@
       x: 0, y: 0, scaleX: 1, scaleY: 1,
       duration: 0.5, ease: 'expo.inOut',
       clearProps: 'transform,transformOrigin',
-      onComplete: setupFocusTrap
+      onComplete: function () {
+        activateFsImageZoom(clone);
+        setupFocusTrap();
+      }
     });
   }
 
@@ -4011,6 +4075,7 @@
     });
     var clone = fsCurrentEl;
     var thumb = gallery.triggerEl;
+    resetFsImageZoom();
     if (!clone || !thumb || !thumb.isConnected) {
       // fallback: чистый close без FLIP
       fsContext = null;
@@ -4047,6 +4112,7 @@
         fsOverlay.style.opacity = '';
         fsOverlay.hidden = true;
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+        releaseFsImageZoom();
         document.documentElement.style.overflow = '';
         updateLenisState();
         restoreFsContext();
@@ -4078,6 +4144,7 @@
     var pages = getBpPages(id);
     if (!pages.length) return;
     ensureFsOverlay();
+    releaseFsImageZoom();
     blueprintFs.id = id;
     blueprintFs.total = pages.length;
     blueprintFs.index = Math.max(0, Math.min(pages.length - 1, pageIdx || 0));
@@ -4185,10 +4252,12 @@
     var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced || document.hidden || typeof gsap === 'undefined') {
       if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
+      activateFsImageZoom(newEl);
       updateGalleryUI(wrapped);
       preloadNeighbors();
       return;
     }
+    activateFsImageZoom(newEl);
     gsap.set(newEl, { opacity: 0 });
     gsap.to(newEl, { opacity: 1, duration: 0.35, ease: 'power2.out' });
     if (oldEl) {
@@ -4255,6 +4324,10 @@
     var focusable = [];
     if (fsPrev && !fsPrev.hidden) focusable.push(fsPrev);
     if (fsNext && !fsNext.hidden) focusable.push(fsNext);
+    if (fsZoomOutBtn && fsZoomBar && !fsZoomBar.hidden && !fsZoomOutBtn.disabled) focusable.push(fsZoomOutBtn);
+    if (fsZoomFitBtn && fsZoomBar && !fsZoomBar.hidden && !fsZoomFitBtn.disabled) focusable.push(fsZoomFitBtn);
+    if (fsZoomActualBtn && fsZoomBar && !fsZoomBar.hidden && !fsZoomActualBtn.disabled) focusable.push(fsZoomActualBtn);
+    if (fsZoomInBtn && fsZoomBar && !fsZoomBar.hidden && !fsZoomInBtn.disabled) focusable.push(fsZoomInBtn);
     focusable.push(fsCloseBtn);
 
     focusTrapHandler = function (e) {
@@ -4278,14 +4351,251 @@
     focusTrapHandler = null;
   }
 
+  function setupFsImageZoom() {
+    fsStage.addEventListener('wheel', handleFsImageWheel, { passive: false });
+    fsStage.addEventListener('pointerdown', handleFsImagePointerDown);
+    fsStage.addEventListener('pointermove', handleFsImagePointerMove);
+    fsStage.addEventListener('pointerup', handleFsImagePointerUp);
+    fsStage.addEventListener('pointercancel', handleFsImagePointerUp);
+    fsStage.addEventListener('dblclick', handleFsImageDoubleClick);
+    window.addEventListener('resize', function () {
+      if (isFsImageZoomActive()) applyFsImageTransform();
+    });
+  }
+
+  function isFsImageZoomActive() {
+    return fsContext === 'gallery' && fsCurrentEl && fsCurrentEl.tagName === 'IMG';
+  }
+
+  function clampFsZoom(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function activateFsImageZoom(img) {
+    if (!img) return;
+    fsImageZoom.scale = 1;
+    fsImageZoom.x = 0;
+    fsImageZoom.y = 0;
+    fsImageZoom.min = 1;
+    fsImageZoom.pointers = {};
+    fsImageZoom.panStart = null;
+    fsImageZoom.pinchStart = null;
+    fsImageZoom.suppressClick = false;
+    fsImageZoom.actual = computeFsActualScale(img);
+    fsImageZoom.max = Math.max(4, Math.min(8, fsImageZoom.actual * 2));
+    if (fsZoomBar) fsZoomBar.hidden = false;
+    if (fsOverlay) fsOverlay.classList.add('is-gallery');
+    applyFsImageTransform();
+  }
+
+  function releaseFsImageZoom() {
+    if (fsCurrentEl && fsCurrentEl.style) {
+      fsCurrentEl.style.transform = '';
+      fsCurrentEl.style.transformOrigin = '';
+    }
+    fsImageZoom.scale = 1;
+    fsImageZoom.x = 0;
+    fsImageZoom.y = 0;
+    fsImageZoom.pointers = {};
+    fsImageZoom.panStart = null;
+    fsImageZoom.pinchStart = null;
+    fsImageZoom.suppressClick = false;
+    if (fsZoomBar) fsZoomBar.hidden = true;
+    if (fsOverlay) fsOverlay.classList.remove('is-gallery', 'is-zoomed', 'is-panning');
+    updateFsZoomButtons();
+  }
+
+  function computeFsActualScale(img) {
+    var rect = img.getBoundingClientRect();
+    var baseW = img.offsetWidth || rect.width || 1;
+    var baseH = img.offsetHeight || rect.height || 1;
+    var naturalW = img.naturalWidth || baseW;
+    var naturalH = img.naturalHeight || baseH;
+    return Math.max(1, Math.min(naturalW / baseW, naturalH / baseH, 6));
+  }
+
+  function applyFsImageTransform() {
+    if (!isFsImageZoomActive()) return;
+    var stageW = fsStage.clientWidth || window.innerWidth;
+    var stageH = fsStage.clientHeight || window.innerHeight;
+    var baseW = fsCurrentEl.offsetWidth || 1;
+    var baseH = fsCurrentEl.offsetHeight || 1;
+    var maxX = Math.max(0, (baseW * fsImageZoom.scale - stageW) / 2);
+    var maxY = Math.max(0, (baseH * fsImageZoom.scale - stageH) / 2);
+    if (fsImageZoom.scale <= 1.001) {
+      fsImageZoom.scale = 1;
+      fsImageZoom.x = 0;
+      fsImageZoom.y = 0;
+    } else {
+      fsImageZoom.x = clampFsZoom(fsImageZoom.x, -maxX, maxX);
+      fsImageZoom.y = clampFsZoom(fsImageZoom.y, -maxY, maxY);
+    }
+    fsCurrentEl.style.transformOrigin = 'center center';
+    fsCurrentEl.style.transform =
+      'translate3d(' + fsImageZoom.x.toFixed(2) + 'px,' + fsImageZoom.y.toFixed(2) + 'px,0) ' +
+      'scale(' + fsImageZoom.scale.toFixed(4) + ')';
+    if (fsOverlay) fsOverlay.classList.toggle('is-zoomed', fsImageZoom.scale > 1.01);
+    updateFsZoomButtons();
+  }
+
+  function updateFsZoomButtons() {
+    if (!fsZoomBar || fsZoomBar.hidden) return;
+    var atFit = fsImageZoom.scale <= 1.01;
+    var atActual = Math.abs(fsImageZoom.scale - fsImageZoom.actual) < 0.03;
+    fsZoomOutBtn.disabled = atFit;
+    fsZoomFitBtn.disabled = atFit && Math.abs(fsImageZoom.x) < 1 && Math.abs(fsImageZoom.y) < 1;
+    fsZoomActualBtn.disabled = atActual;
+    fsZoomInBtn.disabled = fsImageZoom.scale >= fsImageZoom.max - 0.03;
+  }
+
+  function setFsImageScale(nextScale, clientX, clientY) {
+    if (!isFsImageZoomActive()) return;
+    var next = clampFsZoom(nextScale, fsImageZoom.min, fsImageZoom.max);
+    var old = fsImageZoom.scale || 1;
+    var stageRect = fsStage.getBoundingClientRect();
+    var centerX = stageRect.left + stageRect.width / 2;
+    var centerY = stageRect.top + stageRect.height / 2;
+    var relX = (clientX || centerX) - centerX;
+    var relY = (clientY || centerY) - centerY;
+    var localX = (relX - fsImageZoom.x) / old;
+    var localY = (relY - fsImageZoom.y) / old;
+    fsImageZoom.scale = next;
+    fsImageZoom.x = relX - localX * next;
+    fsImageZoom.y = relY - localY * next;
+    applyFsImageTransform();
+  }
+
+  function zoomFsImageBy(factor) {
+    setFsImageScale(fsImageZoom.scale * factor, window.innerWidth / 2, window.innerHeight / 2);
+  }
+
+  function resetFsImageZoom() {
+    if (!isFsImageZoomActive()) return;
+    fsImageZoom.scale = 1;
+    fsImageZoom.x = 0;
+    fsImageZoom.y = 0;
+    applyFsImageTransform();
+  }
+
+  function handleFsImageWheel(e) {
+    if (!isFsImageZoomActive()) return;
+    e.preventDefault();
+    var factor = e.deltaY < 0 ? 1.12 : 0.88;
+    setFsImageScale(fsImageZoom.scale * factor, e.clientX, e.clientY);
+  }
+
+  function handleFsImageDoubleClick(e) {
+    if (!isFsImageZoomActive()) return;
+    if (e.target.closest && e.target.closest('.media-fs__prev, .media-fs__next, .media-fs__close, .media-fs__zoom')) return;
+    e.preventDefault();
+    if (fsImageZoom.scale <= 1.01) setFsImageScale(fsImageZoom.actual, e.clientX, e.clientY);
+    else resetFsImageZoom();
+  }
+
+  function getFsPointers() {
+    return Object.keys(fsImageZoom.pointers).map(function (key) { return fsImageZoom.pointers[key]; });
+  }
+
+  function getPointerDistance(a, b) {
+    var dx = a.x - b.x;
+    var dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function getPointerMidpoint(a, b) {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function handleFsImagePointerDown(e) {
+    if (!isFsImageZoomActive()) return;
+    if (e.target.closest && e.target.closest('.media-fs__prev, .media-fs__next, .media-fs__close, .media-fs__zoom')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    fsImageZoom.pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { fsStage.setPointerCapture(e.pointerId); } catch (_) {}
+    var pointers = getFsPointers();
+    if (pointers.length === 1) {
+      fsImageZoom.panStart = {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        startX: fsImageZoom.x,
+        startY: fsImageZoom.y
+      };
+    } else if (pointers.length === 2) {
+      fsImageZoom.pinchStart = {
+        distance: getPointerDistance(pointers[0], pointers[1]) || 1,
+        midpoint: getPointerMidpoint(pointers[0], pointers[1]),
+        scale: fsImageZoom.scale,
+        x: fsImageZoom.x,
+        y: fsImageZoom.y
+      };
+    }
+    e.preventDefault();
+  }
+
+  function handleFsImagePointerMove(e) {
+    if (!isFsImageZoomActive() || !fsImageZoom.pointers[e.pointerId]) return;
+    fsImageZoom.pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var pointers = getFsPointers();
+    if (pointers.length >= 2 && fsImageZoom.pinchStart) {
+      fsImageZoom.suppressClick = true;
+      var midpoint = getPointerMidpoint(pointers[0], pointers[1]);
+      var ratio = getPointerDistance(pointers[0], pointers[1]) / fsImageZoom.pinchStart.distance;
+      fsImageZoom.scale = clampFsZoom(fsImageZoom.pinchStart.scale * ratio, fsImageZoom.min, fsImageZoom.max);
+      fsImageZoom.x = fsImageZoom.pinchStart.x + (midpoint.x - fsImageZoom.pinchStart.midpoint.x);
+      fsImageZoom.y = fsImageZoom.pinchStart.y + (midpoint.y - fsImageZoom.pinchStart.midpoint.y);
+      applyFsImageTransform();
+      e.preventDefault();
+      return;
+    }
+    if (pointers.length === 1 && fsImageZoom.scale > 1.01 && fsImageZoom.panStart) {
+      if (Math.abs(e.clientX - fsImageZoom.panStart.x) > 4 ||
+          Math.abs(e.clientY - fsImageZoom.panStart.y) > 4) {
+        fsImageZoom.suppressClick = true;
+      }
+      fsImageZoom.x = fsImageZoom.panStart.startX + (e.clientX - fsImageZoom.panStart.x);
+      fsImageZoom.y = fsImageZoom.panStart.startY + (e.clientY - fsImageZoom.panStart.y);
+      if (fsOverlay) fsOverlay.classList.add('is-panning');
+      applyFsImageTransform();
+      e.preventDefault();
+    }
+  }
+
+  function handleFsImagePointerUp(e) {
+    if (fsImageZoom.pointers[e.pointerId]) delete fsImageZoom.pointers[e.pointerId];
+    try { fsStage.releasePointerCapture(e.pointerId); } catch (_) {}
+    var pointers = getFsPointers();
+    if (pointers.length === 1) {
+      fsImageZoom.panStart = {
+        pointerId: null,
+        x: pointers[0].x,
+        y: pointers[0].y,
+        startX: fsImageZoom.x,
+        startY: fsImageZoom.y
+      };
+      fsImageZoom.pinchStart = null;
+    } else {
+      fsImageZoom.panStart = null;
+      fsImageZoom.pinchStart = null;
+      if (fsOverlay) fsOverlay.classList.remove('is-panning');
+    }
+  }
+
   function setupFsSwipe(target) {
     var x0 = null, y0 = null;
     target.addEventListener('touchstart', function (e) {
+      if (fsContext === 'gallery' && fsImageZoom.scale > 1.01) {
+        x0 = y0 = null;
+        return;
+      }
       if (e.touches.length !== 1) return;
       x0 = e.touches[0].clientX;
       y0 = e.touches[0].clientY;
     }, { passive: true });
     target.addEventListener('touchend', function (e) {
+      if (fsContext === 'gallery' && fsImageZoom.scale > 1.01) {
+        x0 = y0 = null; return;
+      }
       if (x0 == null || (fsContext !== 'gallery' && fsContext !== 'blueprint')) {
         x0 = y0 = null; return;
       }
