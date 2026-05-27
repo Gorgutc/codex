@@ -1,0 +1,17 @@
+{
+  "threshold": 5,
+  "minLines": 30,
+  "minTokens": 180,
+  "reporters": ["console"],
+  "formats": ["javascript", "css", "html"],
+  "ignore": [
+    "node_modules/**",
+    "js/vendor/**",
+    "assets/**",
+    "downloads/**",
+    "plugins/**/references/claude-original/**",
+    "playwright-report/**",
+    "test-results/**",
+    ".lighthouseci/**"
+  ]
+}

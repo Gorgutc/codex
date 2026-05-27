@@ -16,12 +16,7 @@ function readJson(file) {
 const marketplacePath = path.join(root, '.agents', 'plugins', 'marketplace.json');
 const manifestPath = path.join(pluginRoot, '.codex-plugin', 'plugin.json');
 const skillsRoot = path.join(pluginRoot, 'skills');
-const originalRefs = path.join(
-  skillsRoot,
-  'codex-studio-rules',
-  'references',
-  'claude-original',
-);
+const originalRefs = path.join(skillsRoot, 'codex-studio-rules', 'references', 'claude-original');
 
 check('marketplace exists', existsSync(marketplacePath), marketplacePath);
 check('plugin manifest exists', existsSync(manifestPath), manifestPath);
