@@ -84,10 +84,20 @@ function runStaticChecks() {
   const blockedCDN = /(cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)[^\s"]*\/(gsap|lenis|ScrollTrigger|SplitText)/i;
   const indexHTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const faHTML = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
+  const staticScriptTags = (indexHTML + '\n' + faHTML).match(/<script\b[^>]*>/gi) || [];
   add('static', 'A7-vendor-only-index', !blockedCDN.test(indexHTML), 'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
   add('static', 'A7-vendor-only-fa',    !blockedCDN.test(faHTML),    'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
   add('static', 'A7-no-static-model-viewer-fa', !/<script[^>]+model-viewer/i.test(faHTML),
       'free-assets loads mini 3D viewer lazily from JS');
+  add('static', 'A7-no-static-three-scripts',
+      !staticScriptTags.some(tag => /src=["'][^"']*(three|GLTFLoader|OrbitControls)[^"']*["']/i.test(tag)),
+      'Three viewer artifacts must load through the adapter');
+  add('static', 'A7-no-importmaps',
+      !staticScriptTags.some(tag => /type=["']importmap["']/i.test(tag)),
+      'no import-map architecture in shipped HTML');
+  add('static', 'A7-no-first-party-module-scripts',
+      !staticScriptTags.some(tag => /type=["']module["']/i.test(tag) && /src=["']\.?\/?js\//i.test(tag)),
+      'first-party page scripts stay classic');
   // Sanity: vendor files actually present on disk.
   const vendorFiles = ['gsap.min.js', 'ScrollTrigger.min.js', 'SplitText.min.js', 'lenis.min.js'];
   const vendorOK = vendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
