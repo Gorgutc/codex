@@ -54,6 +54,8 @@ export function createCodexThreeViewer(options) {
   let ready = false;
   let model = null;
   let frameId = 0;
+  let continuous = autoRotate;
+  let interactionFrames = 0;
   let resizeObserver = null;
   let initialPosition = null;
   let initialTarget = null;
@@ -120,13 +122,29 @@ export function createCodexThreeViewer(options) {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    requestRender(continuous ? 0 : 1);
+  }
+
+  function requestRender(extraFrames) {
+    if (disposed) return;
+    if (Number.isFinite(extraFrames)) interactionFrames = Math.max(interactionFrames, extraFrames);
+    if (!frameId) frameId = window.requestAnimationFrame(frame);
+  }
+
+  function renderOnce() {
+    if (disposed) return;
+    controls.update();
+    renderer.render(scene, camera);
   }
 
   function frame() {
     if (disposed) return;
-    controls.update();
-    renderer.render(scene, camera);
-    frameId = window.requestAnimationFrame(frame);
+    frameId = 0;
+    renderOnce();
+    if (continuous || interactionFrames > 0) {
+      if (interactionFrames > 0) interactionFrames -= 1;
+      requestRender();
+    }
   }
 
   function fitModel(object) {
@@ -179,6 +197,13 @@ export function createCodexThreeViewer(options) {
   resize();
   resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(host);
+  controls.addEventListener('start', () => requestRender(90));
+  controls.addEventListener('change', () => {
+    if (!continuous) requestRender(8);
+  });
+  controls.addEventListener('end', () => {
+    if (!continuous) requestRender(24);
+  });
 
   const loader = new GLTFLoader();
   loader.load(
@@ -195,7 +220,7 @@ export function createCodexThreeViewer(options) {
       fitModel(model);
       ready = true;
       if (options.onReady) options.onReady();
-      frame();
+      requestRender(continuous ? 0 : 1);
     },
     undefined,
     (error) => {
@@ -210,14 +235,27 @@ export function createCodexThreeViewer(options) {
       return ready;
     },
     setAutoRotate(value) {
-      controls.autoRotate = !!value;
+      continuous = !!value;
+      controls.autoRotate = continuous;
+      if (continuous) {
+        requestRender();
+      } else {
+        interactionFrames = 0;
+        if (frameId) {
+          window.cancelAnimationFrame(frameId);
+          frameId = 0;
+        }
+        renderOnce();
+      }
     },
     setExposure(value) {
       const next = Number.parseFloat(value);
       renderer.toneMappingExposure = Number.isFinite(next) ? next : 1;
+      requestRender(1);
     },
     setEnvironment(name) {
       applyEnvironment(name);
+      requestRender(1);
     },
     resetCamera() {
       if (!initialPosition || !initialTarget) return;
@@ -226,6 +264,7 @@ export function createCodexThreeViewer(options) {
       camera.updateProjectionMatrix();
       controls.target.copy(initialTarget);
       controls.update();
+      requestRender(1);
     },
     dispose() {
       if (disposed) return;

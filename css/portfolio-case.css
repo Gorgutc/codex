@@ -1537,11 +1537,11 @@
 }
 
 /* ══════════════════════════════════
-   v0.7.3 — Responsive switch: ≤1023px — light-dropdown UI
+   v0.7.3 — Responsive switch: ≤1199px — light-dropdown UI
    На mobile/tablet portrait скрываем "толстый" desktop UI (env-group + expoWrap),
    показываем компактный dropdown.
    ══════════════════════════════════ */
-@media (max-width: 1023px) {
+@media (max-width: 1199px) {
   .case-3d__env-group { display: none; }
   .case-3d__expo { display: none; }
   .case-3d__light-dd { display: inline-flex; }
@@ -1557,7 +1557,7 @@
      На iPad Air 820px при раскрытом sidebar правая колонка теряет ширину
      и title переносится буквами вертикально (см. screenshot 3 → "ReconDrone"
      становится столбиком). Решение: переводим header в column flow начиная с
-     ≤1023px (раньше это работало только ≤767px), уменьшаем title до --text-xl. */
+     ≤1199px (раньше это работало только ≤767px), уменьшаем title до --text-xl. */
   .case-view__header {
     flex-direction: column;
     align-items: stretch;
@@ -1591,7 +1591,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   v0.7.7 [planshet-fix] — точечная адаптация case-view для planshet 768-1023.
+   v0.7.7 [planshet-fix] — точечная адаптация case-view для planshet 768-1199.
    ──────────────────────────────────────────────────────────────────────────
    Контекст: на iPad Air portrait (820×1180) с открытым sidebar главная зона
    сжимается до ~480px. Фиксим три источника overflow в этом range:
@@ -1601,9 +1601,9 @@
    3. case-3d__hint--desktop "RIGHT MOUSE · ROTATE" — overlap с controls →
       показываем mobile-hint "DRAG · ZOOM" (актуальнее для touch input)
 
-   Range НЕ затрагивает mobile (≤767, есть свои rules) и desktop (≥1024, full UI).
+   Range НЕ затрагивает mobile (≤767, есть свои rules) и desktop baseline (≥1200, full UI).
    ══════════════════════════════════════════════════════════════════════════ */
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 768px) and (max-width: 1199px) {
   /* 1. Pills text swap — dual-span паттерн.
      JS рендерит обе версии в spans (см. main.js:1921, 1927). CSS показывает
      нужную в зависимости от viewport — без resize-listener'а. */
