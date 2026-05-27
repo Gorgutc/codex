@@ -2207,9 +2207,11 @@
     currentMvReset = null;
   }
 
-  function build3D(id) {
-    if (!case3dCanvas) return;
-    var data = CARDS_DATA[id];
+  function mountModelViewer3D(options) {
+    options = options || {};
+    var id = options.caseId;
+    if (!case3dCanvas || !id) return;
+    var data = options.data || CARDS_DATA[id];
     if (!data) return;
 
     // v0.11.4 — утилизируем предыдущий MV, чтобы не копить инстансы
@@ -2735,6 +2737,34 @@
       );
       // сброс Promise — дадим ещё одну попытку при следующем клике
       modelViewerLoading = null;
+    });
+  }
+
+  var CodexModelViewerAdapter = {
+    mount3D: function (options) {
+      return mountModelViewer3D(options);
+    },
+    destroy3D: function () {
+      destroy3D();
+    },
+    resetCamera: function () {
+      if (typeof currentMvReset === 'function') currentMvReset();
+    },
+    openFullscreen: function (source) {
+      var target = source || currentMv;
+      if (target) openFs(target, 'model-viewer');
+    }
+  };
+  window.CodexViewer = CodexModelViewerAdapter;
+
+  function build3D(id) {
+    if (!case3dCanvas) return;
+    var data = CARDS_DATA[id];
+    if (!data) return;
+    CodexModelViewerAdapter.mount3D({
+      caseId: id,
+      container: case3dCanvas,
+      data: data
     });
   }
 

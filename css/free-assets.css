@@ -160,37 +160,6 @@
 }
 .fa-card:hover .fa-card__thumb img { transform: scale(1.04); }
 
-/* ═══ 3D PREVIEW (v0.7.5 [model-viewer]) ═══════════════════════════════════
-   <model-viewer> перекрывает SVG-fallback (img) когда модель загружена.
-   Если .glb fails (404 / CORS / malformed) — error-handler в free-assets.html
-   добавляет .fa-card__thumb-mv--failed → display:none → SVG остаётся видим.
-   model-viewer 4.0.0 САМ респектит prefers-reduced-motion (auto-rotate
-   отключается без дополнительной CSS-страховки).
-   ─────────────────────────────────────────────────────────────────────── */
-.fa-card__thumb-mv {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  /* Custom element default — inline. Делаем block для геометрии. */
-  display: block;
-  background: transparent;
-  /* Тот же z-index что у img (z:2) — ниже badge (z:3). model-viewer идёт
-     ПОСЛЕ img в DOM-порядке, поэтому при равном z перекрывает его. */
-  z-index: 2;
-  /* Без camera-controls курсор должен оставаться default (не grab из shadow DOM). */
-  cursor: default;
-  /* Скрываем встроенный progress-bar — для маленькой карточки 240×180 он избыточен. */
-  --progress-bar-color: transparent;
-  --progress-bar-height: 0;
-  --progress-mask: transparent;
-}
-
-.fa-card__thumb-mv--failed {
-  /* .glb 404 / CORS / malformed — скрываем model-viewer, фолбэк на SVG. */
-  display: none;
-}
-
 /* Badge */
 .fa-card__badge {
   position: absolute;
