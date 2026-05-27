@@ -1,0 +1,3 @@
+display_name: Codex Studio Audit Skills
+short_description: Drift audit for migrated Codex Studio skills.
+default_prompt: Use this skill to audit Codex Studio skill drift against AGENTS.md and verify-frozen.js.

@@ -1,0 +1,3 @@
+display_name: Codex Studio Rules
+short_description: Project rules and migrated references for Gorgutc/codex.
+default_prompt: Use this skill before changing Codex Studio site code or repo workflow.

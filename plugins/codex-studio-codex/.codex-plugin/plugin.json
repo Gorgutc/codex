@@ -1,0 +1,23 @@
+{
+  "name": "codex-studio-codex",
+  "version": "0.1.0",
+  "description": "Repo-local Codex skills and workflow guardrails for the Gorgutc/codex static portfolio site.",
+  "author": {
+    "name": "Gorgutc"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Studio Codex",
+    "shortDescription": "Codex Studio repo skills and gates",
+    "longDescription": "Repo-local Codex plugin that migrates the former Claude Code briefs, skills, agents, slash commands, and verification workflow into Codex-native skills for Gorgutc/codex.",
+    "developerName": "Gorgutc",
+    "category": "Productivity",
+    "capabilities": ["Code", "Review", "Workflow"],
+    "defaultPrompt": [
+      "Use $codex-studio-rules before changing Gorgutc/codex.",
+      "Use $codex-studio-ship before publishing a site change.",
+      "Use $codex-studio-quality-gate to review frontend changes."
+    ],
+    "brandColor": "#327AAE"
+  }
+}

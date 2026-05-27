@@ -1,0 +1,3 @@
+display_name: Codex Studio Context Keeper
+short_description: Focused read-only slices of current code.
+default_prompt: Use this skill to inspect a small, relevant part of Codex Studio before editing.
