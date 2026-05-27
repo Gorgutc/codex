@@ -3833,7 +3833,7 @@
     return fsOverlay;
   }
 
-  function openFs(sourceEl, kind) {
+  function openFs(sourceEl, kind, triggerEl) {
     ensureFsOverlay();
     releaseFsImageZoom();
     if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
@@ -3842,6 +3842,14 @@
     }
     // Очистить stage
     while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+
+    fsContext = null;
+    fsPreviousFocus = triggerEl || sourceEl || document.activeElement;
+    fsPrev.hidden = true;
+    fsNext.hidden = true;
+    fsCounter.hidden = true;
+    fsAnnouncer.textContent = '';
+    (function(){ var __I=window.I18N; fsOverlay.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.fullscreenView'):'Fullscreen view'); })();
 
     var clone;
     if (kind === 'video' || (sourceEl && sourceEl.tagName === 'VIDEO')) {
@@ -3884,6 +3892,7 @@
     fsOverlay.classList.add('is-open');
     document.documentElement.style.overflow = 'hidden';
     try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+    setupFocusTrap();
     // v0.16.0 — media-fs overlay открыт → нативный scroll внутри stage.
     updateLenisState();
   }
@@ -3904,6 +3913,7 @@
     fsNext.hidden = true;
     fsCounter.hidden = true;
     fsAnnouncer.textContent = '';
+    (function(){ var __I=window.I18N; fsOverlay.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.fullscreenView'):'Fullscreen view'); })();
 
     var holder = document.createElement('div');
     holder.className = 'media-fs__three';
@@ -3914,6 +3924,7 @@
     fsOverlay.classList.add('is-open');
     document.documentElement.style.overflow = 'hidden';
     try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+    setupFocusTrap();
     updateLenisState();
 
     loadThreeViewer().then(function (threeRuntime) {
@@ -4695,6 +4706,11 @@
       navFs(+1);
     }
   });
+
+  window.CodexMediaFullscreen = {
+    openElement: openFs,
+    close: closeFs
+  };
 
 })();
 

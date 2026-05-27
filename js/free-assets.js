@@ -50,6 +50,13 @@ function dlIcon() {
     + '</svg>';
 }
 
+function escapeAttr(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
 function renderGrid(tag) {
   var grid = document.getElementById('fa-grid');
   if (!grid) return;
@@ -58,6 +65,7 @@ function renderGrid(tag) {
   grid.innerHTML = assets.map(function(a) {
     var thumb = Object.prototype.hasOwnProperty.call(a, 'thumb') ? a.thumb : a.id;
     var model = Object.prototype.hasOwnProperty.call(a, 'model') ? a.model : a.id;
+    var titleAttr = escapeAttr(a.title);
     var thumbHTML = thumb
       ? '<img src="./assets/cards/' + thumb + '.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="800" height="600">'
       : '';
@@ -65,17 +73,21 @@ function renderGrid(tag) {
     var modelHTML = model
       ? '<model-viewer class="fa-card__thumb-mv"'
         + ' src="./assets/models/free/' + model + '.glb"'
-        + ' alt="' + a.title + ' — 3D preview"'
+        + ' alt="' + titleAttr + ' — 3D preview"'
         + ' loading="lazy" reveal="auto"'
         + rotateAttrs
         + ' shadow-intensity="0" exposure="1.0" environment-image="neutral"'
         + ' interaction-prompt="none"'
         + '></model-viewer>'
       : '';
+    var previewButton = thumbHTML || modelHTML
+      ? '<button class="fa-card__preview-btn" type="button" aria-label="Open preview of ' + titleAttr + '"></button>'
+      : '';
     return '<li class="fa-card">'
-      + '<div class="fa-card__thumb" data-label="' + a.title + '" style="background:' + a.bg + '">'
+      + '<div class="fa-card__thumb" data-label="' + titleAttr + '" style="background:' + a.bg + '">'
       + thumbHTML
       + modelHTML
+      + previewButton
       + '<span class="fa-card__badge">' + a.badge + '</span>'
       + '</div>'
       + '<div class="fa-card__body">'
@@ -105,6 +117,13 @@ function renderGrid(tag) {
     btn.addEventListener('click', handleDownload);
   });
 
+  grid.querySelectorAll('.fa-card__preview-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var thumb = btn.closest && btn.closest('.fa-card__thumb');
+      openAssetPreview(thumb, btn);
+    });
+  });
+
   grid.querySelectorAll('.fa-card__thumb-mv').forEach(function(mv) {
     mv.addEventListener('load', function() {
       mv.classList.add('is-ready');
@@ -131,6 +150,65 @@ function renderGrid(tag) {
   // вызывает reflow, даже если значение не меняется).
   if (scroll && scroll.scrollTop !== 0) scroll.scrollTop = 0;
   observeModelViewers();
+}
+
+/* ─── PREVIEW FULLSCREEN ─── */
+function buildFullscreenModelSource(mv) {
+  var proxy = document.createElement('model-viewer');
+  [
+    'src',
+    'alt',
+    'poster',
+    'environment-image',
+    'exposure',
+    'shadow-intensity',
+    'interaction-prompt'
+  ].forEach(function(name) {
+    if (mv.hasAttribute(name)) proxy.setAttribute(name, mv.getAttribute(name));
+  });
+  proxy.setAttribute('loading', 'eager');
+  proxy.setAttribute('reveal', 'auto');
+  proxy.setAttribute('camera-controls', '');
+  proxy.setAttribute('touch-action', 'none');
+  proxy.setAttribute('interaction-prompt', 'none');
+  if (mv.hasAttribute('auto-rotate')) {
+    proxy.setAttribute('auto-rotate', '');
+    proxy.setAttribute('auto-rotate-delay', mv.getAttribute('auto-rotate-delay') || '0');
+    proxy.setAttribute('rotation-per-second', mv.getAttribute('rotation-per-second') || '20deg');
+  }
+  return proxy;
+}
+
+function openFallbackPreview(thumb, triggerEl) {
+  if (!thumb || !window.CodexMediaFullscreen ||
+      typeof window.CodexMediaFullscreen.openElement !== 'function') {
+    return;
+  }
+  var img = thumb.querySelector('img');
+  if (img) window.CodexMediaFullscreen.openElement(img, 'img', triggerEl || thumb);
+}
+
+function openAssetPreview(thumb, triggerEl) {
+  if (!thumb || !window.CodexMediaFullscreen ||
+      typeof window.CodexMediaFullscreen.openElement !== 'function') {
+    return;
+  }
+  var mv = thumb.querySelector('.fa-card__thumb-mv:not(.fa-card__thumb-mv--failed)');
+  if (!mv) {
+    openFallbackPreview(thumb, triggerEl);
+    return;
+  }
+  loadModelViewerScript()
+    .then(function() {
+      if (!window.customElements || !window.customElements.get('model-viewer')) {
+        openFallbackPreview(thumb, triggerEl);
+        return;
+      }
+      window.CodexMediaFullscreen.openElement(buildFullscreenModelSource(mv), 'model-viewer', triggerEl || thumb);
+    })
+    .catch(function() {
+      openFallbackPreview(thumb, triggerEl);
+    });
 }
 
 /* ─── DOWNLOAD ─── */
