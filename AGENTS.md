@@ -80,9 +80,12 @@ Use npm scripts instead of Claude hooks:
 npm run codex:verify-plugin
 npm run verify
 npm run codex:ship
+npm run quality:fast
+npm run quality:deep
+npm run check:lighthouse
 ```
 
-`npm run codex:ship` is mandatory before committing or pushing code changes. If Chromium cannot spawn inside a sandbox with `EPERM`, rerun verification outside the sandbox.
+`npm run codex:ship` is mandatory before committing or pushing code changes. Use `quality:fast` for broad static checks and `quality:deep` for audit/refactor/PR-readiness work. If Chromium cannot spawn inside a sandbox with `EPERM`, rerun browser-based verification outside the sandbox.
 
 ## Done When
 
@@ -98,6 +101,7 @@ npm run codex:ship
 - Architecture and stack: `docs/agent/architecture.md`
 - Code review: `docs/agent/code_review.md`
 - Verification: `docs/agent/verification.md`
+- Quality tooling: `docs/agent/quality-tooling.md`
 - Skill map: `docs/agent/skill-map.md`
 - Archive policy: `docs/agent/archive_policy.md`
 - Long-task template: `docs/agent/plan_template.md`

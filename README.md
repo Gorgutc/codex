@@ -7,7 +7,7 @@ Static portfolio site for a 3D design studio.
 - Vanilla HTML, CSS, and JavaScript
 - No runtime framework, no bundler, no build step
 - GSAP, ScrollTrigger, SplitText, and Lenis vendored under `js/vendor/`
-- Playwright is dev-only for regression verification
+- Playwright, ESLint, Stylelint, HTMLHint, Knip, JSCPD, Pa11y, Lighthouse CI, CSpell, Markdownlint, and dependency-cruiser are dev-only quality tools
 
 ## Local Setup
 
@@ -60,7 +60,13 @@ Use a `codex/*` branch for every task, push it to GitHub, and open a draft PR.
 npm run codex:verify-plugin
 npm run verify
 npm run codex:ship
+npm run quality:fast
+npm run quality:deep
+npm run check:lighthouse
+npm run check:format
 ```
+
+`quality:fast` is the normal static quality gate. `quality:deep` adds dead-code, duplication, browser smoke, and Pa11y checks. Browser-based checks may need to run outside a filesystem sandbox on Windows.
 
 ## Before Push
 

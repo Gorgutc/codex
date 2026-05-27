@@ -25,8 +25,21 @@ If Playwright Chromium fails with `spawn EPERM`, rerun the verification outside 
 2. Let Codex read `AGENTS.md`.
 3. Work on a `codex/*` branch.
 4. For changes to `index.html`, `free-assets.html`, `css/`, `js/`, `verify-frozen.js`, metadata, assets, or deploy config, use the repo-local Codex skills and run `npm run codex:ship`.
-5. Check `DO_NOT_PUSH.md`.
-6. Commit, push, and open a draft PR.
+5. For broader cleanup, audit, or PR-readiness work, run `npm run quality:fast`; use `npm run quality:deep` when browser/a11y/dead-code checks matter.
+6. Check `DO_NOT_PUSH.md`.
+7. Commit, push, and open a draft PR.
+
+## Quality Commands
+
+```bash
+npm run quality:fast
+npm run quality:deep
+npm run check:format
+npm run check:lighthouse
+npm run hooks:install
+```
+
+`quality:deep`, `check:a11y`, `test:browser`, and `check:lighthouse` launch Chromium. On Windows they may need to run outside the filesystem sandbox.
 
 ## Replacements For Claude Code
 

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "js/animations.js",
+    "js/fa-data.js",
+    "js/free-assets.js",
+    "js/i18n-data.js",
+    "js/i18n.js",
+    "js/main.js",
+    "js/model-data.js",
+    "scripts/**/*.mjs",
+    "tests/**/*.mjs"
+  ],
+  "project": ["js/**/*.js", "scripts/**/*.mjs", "tests/**/*.mjs", "*.config.mjs", "*.config.cjs"],
+  "ignore": ["js/vendor/**"],
+  "ignoreDependencies": ["@lhci/cli"]
+}

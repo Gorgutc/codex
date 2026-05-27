@@ -6,7 +6,26 @@
   "scripts": {
     "verify": "node verify-frozen.js",
     "codex:verify-plugin": "node scripts/verify-codex-plugin.mjs",
-    "codex:ship": "npm run codex:verify-plugin && npm run verify"
+    "codex:ship": "npm run codex:verify-plugin && npm run verify",
+    "check:js": "eslint \"js/**/*.js\" \"scripts/**/*.mjs\" \"verify-frozen.js\" \"*.config.mjs\" \"*.config.cjs\"",
+    "check:css": "stylelint \"css/**/*.css\"",
+    "check:html": "htmlhint \"*.html\"",
+    "check:markdown": "markdownlint-cli2 \"*.md\" \"docs/**/*.md\" \".agents/**/*.md\" \"plugins/**/*.md\"",
+    "check:spelling": "cspell",
+    "check:deps": "depcruise --config dependency-cruiser.config.cjs \"js/**/*.js\" \"scripts/**/*.mjs\" \"verify-frozen.js\"",
+    "check:dead": "knip",
+    "check:duplicates": "jscpd",
+    "check:audit": "npm audit --omit=dev --audit-level=high",
+    "check:a11y": "node scripts/run-pa11y.mjs",
+    "check:lighthouse": "node scripts/run-lhci.mjs",
+    "test:browser": "playwright test",
+    "format": "prettier --write \"*.{json,yml,yaml,cjs,mjs}\" \"scripts/**/*.mjs\" \"tests/**/*.mjs\" \"docs/agent/quality-tooling.md\"",
+    "format:all": "prettier --write .",
+    "check:format": "prettier --check \"*.{json,yml,yaml,cjs,mjs}\" \"scripts/**/*.mjs\" \"tests/**/*.mjs\" \"docs/agent/quality-tooling.md\"",
+    "quality:fast": "npm run codex:verify-plugin && npm run check:js && npm run check:css && npm run check:html && npm run check:markdown && npm run check:spelling && npm run check:deps && npm run check:audit",
+    "quality:deep": "npm run quality:fast && npm run check:dead && npm run check:duplicates && npm run test:browser && npm run check:a11y",
+    "quality:all": "npm run quality:deep && npm run check:lighthouse && npm run codex:ship",
+    "hooks:install": "lefthook install"
   },
   "repository": {
     "type": "git",
@@ -15,6 +34,21 @@
   "license": "UNLICENSED",
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
-    "playwright": "^1.56.0"
+    "@eslint/js": "^10.0.1",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.60.0",
+    "cspell": "^10.0.0",
+    "dependency-cruiser": "^17.4.2",
+    "eslint": "^10.4.0",
+    "htmlhint": "^1.9.2",
+    "jscpd": "^4.2.4",
+    "knip": "^6.14.2",
+    "lefthook": "^2.1.8",
+    "markdownlint-cli2": "^0.22.1",
+    "pa11y": "^9.1.1",
+    "playwright": "^1.56.0",
+    "prettier": "^3.8.3",
+    "stylelint": "^17.12.0",
+    "stylelint-config-standard": "^40.0.0"
   }
 }

@@ -1,0 +1,10 @@
+node_modules/
+assets/
+downloads/
+js/vendor/
+package-lock.json
+playwright-report/
+test-results/
+.lighthouseci/
+.jscpd-report/
+plugins/**/references/claude-original/

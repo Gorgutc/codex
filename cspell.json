@@ -1,0 +1,53 @@
+{
+  "version": "0.2",
+  "language": "en,ru",
+  "files": [
+    "AGENTS.md",
+    "README.md",
+    "RUN_INSTRUCTIONS.md",
+    "docs/agent/**/*.md",
+    ".agents/skills/**/*.md",
+    "plugins/codex-studio-codex/skills/**/*.md"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "assets/**",
+    "downloads/**",
+    "js/vendor/**",
+    "package-lock.json",
+    "plugins/**/references/claude-original/**"
+  ],
+  "ignoreRegExpList": ["/https?:\\/\\/\\S+/g", "/`[^`]+`/g", "/```[\\s\\S]*?```/g"],
+  "words": [
+    "a11y",
+    "ADR",
+    "ADRs",
+    "axe",
+    "Beget",
+    "cspell",
+    "depcruise",
+    "EPERM",
+    "evals",
+    "Fontshare",
+    "frontend",
+    "frontmatter",
+    "Gorgutc",
+    "GSAP",
+    "htmlhint",
+    "i18n",
+    "jscpd",
+    "Knip",
+    "Lenis",
+    "lhci",
+    "llms",
+    "modelviewer",
+    "Negotiables",
+    "pa11y",
+    "Playwright",
+    "ScrollTrigger",
+    "SplitText",
+    "stylelint",
+    "subagents",
+    "worktree"
+  ]
+}
