@@ -9,7 +9,13 @@ const PRESETS = {
     key: 2.25,
     fill: 0.7,
     rim: 0.55,
-    color: 0xffffff
+    color: 0xffffff,
+    envIntensity: 0.78,
+    room: 0x1d2328,
+    ground: 0x14171a,
+    panelKey: 0xf6fbff,
+    panelFill: 0x9cbfe4,
+    panelRim: 0xffffff
   },
   outdoor: {
     ambient: 0.95,
@@ -17,7 +23,13 @@ const PRESETS = {
     key: 2.55,
     fill: 0.85,
     rim: 0.65,
-    color: 0xf8fbff
+    color: 0xf8fbff,
+    envIntensity: 0.95,
+    room: 0x26313a,
+    ground: 0x1c2328,
+    panelKey: 0xffffff,
+    panelFill: 0xb9d6ff,
+    panelRim: 0xf3fbff
   },
   dark: {
     ambient: 0.42,
@@ -25,9 +37,17 @@ const PRESETS = {
     key: 1.65,
     fill: 0.42,
     rim: 0.95,
-    color: 0xe8efff
+    color: 0xe8efff,
+    envIntensity: 0.58,
+    room: 0x111419,
+    ground: 0x0b0d10,
+    panelKey: 0xbfd7ff,
+    panelFill: 0x4d6a8d,
+    panelRim: 0xffffff
   }
 };
+
+const ENVIRONMENT_SIZE = 128;
 
 export function canUseCodexThreeViewer() {
   const canvas = document.createElement('canvas');
@@ -60,6 +80,7 @@ export function createCodexThreeViewer(options) {
   let initialPosition = null;
   let initialTarget = null;
   let initialZoom = 1;
+  let environmentTargets = {};
 
   const canvas = document.createElement('canvas');
   canvas.className = 'case-3d__three-canvas';
@@ -78,6 +99,7 @@ export function createCodexThreeViewer(options) {
   renderer.setClearColor(0x000000, 0);
 
   const scene = new THREE.Scene();
+  scene.environmentIntensity = 0.78;
   const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
@@ -101,6 +123,95 @@ export function createCodexThreeViewer(options) {
 
   host.appendChild(canvas);
 
+  function createBasicMaterial(color, side, strength) {
+    const value = new THREE.Color(color);
+    value.multiplyScalar(strength || 1);
+    return new THREE.MeshBasicMaterial({
+      color: value,
+      side: side || THREE.FrontSide
+    });
+  }
+
+  function createEnvironmentTarget(name) {
+    const preset = PRESETS[name] || PRESETS.studio;
+    const envScene = new THREE.Scene();
+    const materials = [];
+    const registerMaterial = (material) => {
+      materials.push(material);
+      return material;
+    };
+
+    const room = new THREE.Mesh(
+      new THREE.BoxGeometry(20, 20, 20),
+      [
+        registerMaterial(createBasicMaterial(preset.room, THREE.BackSide, 1.15)),
+        registerMaterial(createBasicMaterial(preset.room, THREE.BackSide, 1.15)),
+        registerMaterial(createBasicMaterial(preset.room, THREE.BackSide, 1.28)),
+        registerMaterial(createBasicMaterial(preset.ground, THREE.BackSide, 1)),
+        registerMaterial(createBasicMaterial(preset.room, THREE.BackSide, 1.1)),
+        registerMaterial(createBasicMaterial(preset.room, THREE.BackSide, 1.05))
+      ]
+    );
+    envScene.add(room);
+
+    const panelGeometry = new THREE.PlaneGeometry(1, 1);
+    function addPanel(color, strength, position, rotation, scale) {
+      const material = registerMaterial(createBasicMaterial(color, THREE.DoubleSide, strength));
+      const panel = new THREE.Mesh(panelGeometry, material);
+      panel.position.set(position[0], position[1], position[2]);
+      panel.rotation.set(rotation[0], rotation[1], rotation[2]);
+      panel.scale.set(scale[0], scale[1], 1);
+      envScene.add(panel);
+    }
+
+    addPanel(preset.panelKey, 1.7, [0, 6.8, -2.4], [-Math.PI / 2, 0, 0], [7.5, 3.1]);
+    addPanel(preset.panelFill, 1.15, [-6.4, 1.8, 1.2], [0, Math.PI / 2, 0], [3.6, 4.8]);
+    addPanel(preset.panelRim, name === 'dark' ? 1.85 : 1.25, [5.8, 2.6, -4.8], [0, -Math.PI / 3, 0], [3.2, 5.2]);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const target = pmrem.fromScene(envScene, 0.04, 0.1, 100, { size: ENVIRONMENT_SIZE });
+    pmrem.dispose();
+    panelGeometry.dispose();
+    room.geometry.dispose();
+    materials.forEach((material) => material.dispose());
+    return target;
+  }
+
+  function getEnvironmentTarget(name) {
+    if (!environmentTargets[name]) environmentTargets[name] = createEnvironmentTarget(name);
+    return environmentTargets[name];
+  }
+
+  function tuneTexture(texture, maxAnisotropy) {
+    if (!texture || !maxAnisotropy) return;
+    texture.anisotropy = Math.max(texture.anisotropy || 1, maxAnisotropy);
+    texture.needsUpdate = true;
+  }
+
+  function tuneMaterial(material, preset) {
+    if (!material) return;
+    const materials = Array.isArray(material) ? material : [material];
+    const maxAnisotropy = Math.min(renderer.capabilities.getMaxAnisotropy() || 1, 8);
+    materials.forEach((item) => {
+      if (!item) return;
+      ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'].forEach((keyName) => {
+        tuneTexture(item[keyName], maxAnisotropy);
+      });
+      if (item.isMeshStandardMaterial || item.isMeshPhysicalMaterial) {
+        item.envMapIntensity = preset.envIntensity;
+        item.needsUpdate = true;
+      }
+    });
+  }
+
+  function tuneModelMaterials(preset) {
+    if (!model) return;
+    model.traverse((child) => {
+      if (!child.isMesh) return;
+      tuneMaterial(child.material, preset);
+    });
+  }
+
   function applyEnvironment(name) {
     const preset = PRESETS[name] || PRESETS.studio;
     ambient.intensity = preset.ambient;
@@ -109,6 +220,9 @@ export function createCodexThreeViewer(options) {
     fill.intensity = preset.fill;
     rim.intensity = preset.rim;
     key.color.setHex(preset.color);
+    scene.environment = getEnvironmentTarget(name).texture;
+    scene.environmentIntensity = preset.envIntensity;
+    tuneModelMaterials(preset);
   }
 
   function resize() {
@@ -218,6 +332,7 @@ export function createCodexThreeViewer(options) {
 
       scene.add(model);
       fitModel(model);
+      tuneModelMaterials(PRESETS[initialEnvironment] || PRESETS.studio);
       ready = true;
       if (options.onReady) options.onReady();
       requestRender(continuous ? 0 : 1);
@@ -277,6 +392,10 @@ export function createCodexThreeViewer(options) {
         disposeObject(model);
         model = null;
       }
+      Object.keys(environmentTargets).forEach((name) => {
+        environmentTargets[name].dispose();
+      });
+      environmentTargets = {};
       renderer.dispose();
       try { renderer.forceContextLoss(); } catch (_) {}
       canvas.remove();
