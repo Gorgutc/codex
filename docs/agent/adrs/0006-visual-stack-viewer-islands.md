@@ -22,9 +22,11 @@ screenshot and verifier parity.
 - Preserve the existing DOM, CSS, events, i18n, theme, filters, tabs,
   full-screen overlay, and visual layout unless the user approves a specific
   drift.
-- Keep free-assets grid previews lightweight. Do not instantiate one active 3D
-  viewer per catalog card; any catalog 3D preview must use a single lazy viewer
-  created only on explicit fullscreen/open action.
+- Keep free-assets grid previews lightweight while preserving the product goal:
+  model cards may show small auto-rotating 3D previews on a clean background.
+  These mini previews must load the viewer runtime lazily, avoid camera controls,
+  disable rotation for reduced motion, and fall back to SVG/gradient cards when a
+  GLB is missing.
 - Treat `verify-frozen.js` and `0 FAIL` as the runtime contract.
 
 ## Consequences

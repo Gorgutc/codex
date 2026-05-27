@@ -86,6 +86,8 @@ function runStaticChecks() {
   const faHTML = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
   add('static', 'A7-vendor-only-index', !blockedCDN.test(indexHTML), 'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
   add('static', 'A7-vendor-only-fa',    !blockedCDN.test(faHTML),    'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
+  add('static', 'A7-no-static-model-viewer-fa', !/<script[^>]+model-viewer/i.test(faHTML),
+      'free-assets loads mini 3D viewer lazily from JS');
   // Sanity: vendor files actually present on disk.
   const vendorFiles = ['gsap.min.js', 'ScrollTrigger.min.js', 'SplitText.min.js', 'lenis.min.js'];
   const vendorOK = vendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
@@ -694,6 +696,24 @@ async function testFreeAssets(BASE) {
     first: document.querySelector('.fa-card .fa-card__title')?.textContent,
   }));
   add('fa', 'GRID-rendered', grid.count > 0, `${grid.count} cards, first="${grid.first}"`);
+
+  const mini3D = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.fa-card')];
+    const previews = [...document.querySelectorAll('.fa-card__thumb-mv')];
+    return {
+      previews: previews.length,
+      noPreview: cards.filter(card => !card.querySelector('.fa-card__thumb-mv')).length,
+      autoRotate: previews.filter(mv => mv.hasAttribute('auto-rotate')).length,
+      cameraControls: previews.filter(mv => mv.hasAttribute('camera-controls')).length,
+      localSrcs: previews.every(mv => /^\.\/assets\/models\/free\/.+\.glb$/.test(mv.getAttribute('src') || '')),
+    };
+  });
+  add('fa', 'GRID-mini-3d-previews', mini3D.previews === 4 && mini3D.noPreview === 4,
+      `previews=${mini3D.previews}, fallback-only=${mini3D.noPreview}`);
+  add('fa', 'GRID-mini-3d-auto-rotate-only', mini3D.autoRotate === mini3D.previews && mini3D.cameraControls === 0,
+      `auto=${mini3D.autoRotate}, camera-controls=${mini3D.cameraControls}`);
+  add('fa', 'GRID-mini-3d-local-srcs', mini3D.localSrcs,
+      'all preview GLBs load from ./assets/models/free/');
 
   // TAG SWITCH
   await page.click('#tag-product'); await page.waitForTimeout(300);
