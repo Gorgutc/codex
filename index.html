@@ -55,8 +55,6 @@
     "logo": "https://codex.promo/assets/img/og-image.jpg",
     "description": "Remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender.",
     "sameAs": [
-      "https://www.artstation.com/REPLACE_WITH_REAL",
-      "https://www.behance.net/REPLACE_WITH_REAL",
       "https://t.me/WhiteCatWeb"
     ]
   }
@@ -128,10 +126,9 @@
 
   <!-- v0.9.7 — api.fontshare.com preconnect без crossorigin (CSS endpoint
        не отдаёт matching ACAO). cdn.fontshare.com — crossorigin для woff2.
-       cdn.jsdelivr.net — crossorigin для GSAP-скриптов. -->
+       Runtime animation libraries are self-hosted in ./js/vendor/. -->
   <link rel="preconnect" href="https://api.fontshare.com">
   <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <!-- v0.9.4 — Fontshare CSS через preload+onload. URL уже содержит
        display=swap (см. ниже), поэтому fallback-шрифт виден сразу,
        без FOUT. Снимает ≈780ms render-blocking от внешнего CSS.

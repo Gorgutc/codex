@@ -351,9 +351,7 @@ body::after {
 
 /* v0.13.8.2 — Desktop: #contact-btn в sidebar header-top, icon-only 32×32
    (в одной строке с theme-toggle и HIDE PROJECTS, все по 32px).
-   Копия .contact-btn--case в case-view скрыта всегда.
    v0.14.0 [7] — на desktop обе sidebar/case-копии Contact скрыты в пользу .top-pill--contact. */
-.contact-btn--case { display: none; }
 @media (min-width: 768px) {
   /* v0.14.0 [7]: #contact-btn (sidebar) на desktop скрыт — роль CTA взял .top-pill--contact.
      Mobile оставляем как было — #contact-btn остаётся в .header-top__controls. */
@@ -423,16 +421,6 @@ body::after {
   border-color: var(--color-border);
   background: var(--color-surface-2);
 }
-.top-pill__soon {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  color: var(--color-text-faint);
-  padding: 2px 6px;
-  border: 1px solid var(--color-divider);
-  border-radius: 999px;
-  line-height: 1;
-  text-transform: uppercase;
-}
 .top-pill--contact { color: var(--color-text); }
 
 /* ─── LOGO ─── */
@@ -457,13 +445,6 @@ body::after {
   color: var(--color-text);
   line-height: 1;
 }
-.logo__svg {
-  display: block;
-  height: 22px;
-  width: auto;
-  color: var(--color-text);
-}
-
 /* ═══════════════════════════════════
    CARDS TOGGLE — кнопка Hide / Show
 ═══════════════════════════════════ */
@@ -542,12 +523,6 @@ body::after {
 /* ═══════════════════════════════════
    TAGS
 ═══════════════════════════════════ */
-.tags-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-content: flex-start;
-}
 /* v0.8.2: .tag / .tag--active / .tag--badge удалены — DOM использует
    .tags-dropdown__* с v0.15.5, ни одного class="tag" не осталось. */
 
@@ -790,13 +765,6 @@ body::after {
 .tags-dropdown__label {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.sidebar__divider {
-  flex-shrink: 0;
-  height: 1px;
-  background: var(--color-divider);
-  margin-inline: var(--space-4);
 }
 
 /* ─── TAGS DIVIDER — 1px horizontal rule between tags cloud and game-switch */

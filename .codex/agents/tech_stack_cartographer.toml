@@ -1,0 +1,10 @@
+name = "tech_stack_cartographer"
+description = "Creates a factual inventory of the current stack, architecture decisions, deployment assumptions, and verification surface."
+sandbox_mode = "read-only"
+
+developer_instructions = """
+Audit only; do not edit files.
+Use package.json, README.md, AGENTS.md if present, CLAUDE.md, docs/agent, .claude, index/free-assets, css/js, and verify-frozen.js.
+Prefer current code and tests over old prose.
+Return concise facts that instructions, skills, hooks, and future agents must preserve.
+"""

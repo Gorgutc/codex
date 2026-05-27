@@ -39,17 +39,17 @@ Full list: see the sidebar on https://codex.promo/
 
 - Hand-written HTML + CSS + vanilla JavaScript. No framework.
 - Typography: Clash Display + General Sans (Fontshare).
-- Animation: GSAP 3 (ScrollTrigger, SplitText) via CDN.
-- Accessibility: WCAG 2.1 AA, axe-core clean, `prefers-reduced-motion`
-  honored, 44px touch targets.
+- Animation: GSAP 3 (ScrollTrigger, SplitText) self-hosted in `js/vendor/`.
+- Accessibility: WCAG 2.1 AA target, `prefers-reduced-motion` honored,
+  44px touch targets. Current verification budget allows one known
+  index axe issue; free-assets is axe-clean.
 - Sitemap: https://codex.promo/sitemap.xml
 - Robots: https://codex.promo/robots.txt
 
 ## Contact
 
 - Telegram: https://t.me/WhiteCatWeb
-- ArtStation: https://www.artstation.com/REPLACE_WITH_REAL
-- Behance: https://www.behance.net/REPLACE_WITH_REAL
+- ArtStation / Behance: pending real profile URLs
 
 ## Usage permissions
 
