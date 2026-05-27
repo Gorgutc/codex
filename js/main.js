@@ -257,7 +257,7 @@
      CARDS_DATA
   ════════════════════════════════════════ */
   var CARDS_DATA = {
-    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb', modelStats: { triangles: '18,432', vertices: '9,521', materials: 3, textures: '4 × 4 K', software: 'Blender' }, items: makeItems({
+    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: './assets/models/orbital-mk-ii.glb', modelStats: { triangles: '18,432', vertices: '9,521', materials: 3, textures: '4 × 4 K', software: 'Blender' }, items: makeItems({
       id: 'orbital-mk-ii',
       palette: [
         'linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%)',
@@ -284,7 +284,7 @@
       }
     }) },
 
-    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: 'https://modelviewer.dev/shared-assets/models/RobotExpressive.glb', modelStats: { triangles: '25,600', vertices: '13,200', materials: 5, textures: '6 × 2 K', software: 'Blender' }, items: makeItems({
+    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: './assets/models/vega-shell.glb', modelStats: { triangles: '25,600', vertices: '13,200', materials: 5, textures: '6 × 2 K', software: 'Blender' }, items: makeItems({
       id: 'vega-shell',
       palette: [
         'linear-gradient(135deg,#1a2030 0%,#252e40 100%)',
@@ -414,7 +414,7 @@
       }
     }) },
 
-    'nightshard': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'UE5'], modelSrc: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb', modelStats: { triangles: '15,488', vertices: '8,000', materials: 1, textures: '5 × 4 K', software: 'Blender + Substance' }, items: makeItems({
+    'nightshard': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'UE5'], modelSrc: './assets/models/nightshard.glb', modelStats: { triangles: '15,488', vertices: '8,000', materials: 1, textures: '5 × 4 K', software: 'Blender + Substance' }, items: makeItems({
       id: 'nightshard',
       palette: [
         'linear-gradient(135deg,#1a1a2a 0%,#252535 100%)',
@@ -466,7 +466,7 @@
       }
     }) },
 
-    'apex-frame': { role: 'Client', tools: ['Blender', 'CAD export', 'Inkscape'], modelSrc: 'https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb', modelStats: { triangles: '12,200', vertices: '6,300', materials: 4, textures: '4 × 2 K', software: 'ZBrush + Blender' }, items: makeItems({
+    'apex-frame': { role: 'Client', tools: ['Blender', 'CAD export', 'Inkscape'], modelSrc: './assets/models/apex-frame.glb', modelStats: { triangles: '12,200', vertices: '6,300', materials: 4, textures: '4 × 2 K', software: 'ZBrush + Blender' }, items: makeItems({
       id: 'apex-frame',
       palette: [
         'linear-gradient(135deg,#202428 0%,#2c3034 100%)',
@@ -1376,7 +1376,11 @@
           var targetCard = card;
           requestAnimationFrame(function () {
             requestAnimationFrame(function () {
-              targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              var prefersReducedScroll = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              targetCard.scrollIntoView({
+                behavior: prefersReducedScroll ? 'auto' : 'smooth',
+                block: 'center'
+              });
             });
           });
         }
@@ -1593,7 +1597,6 @@
     var title = card ? (card.querySelector('.work-card__title') || {}).textContent || id : id;
 
     var rng = mulberry32(hashStr(id + '-bp-' + (pageIdx || 0)));
-    function rand(min, max) { return min + rng() * (max - min); }
     // unique suffix для defs id (несколько SVG на странице — нельзя коллидить)
     var uid = id + '-' + (pageIdx || 0);
 
@@ -2247,7 +2250,6 @@
       var isMobileMI = window.matchMedia('(max-width: 767px)').matches;
       if (typeof window.CODEX_MI_ON === 'undefined') window.CODEX_MI_ON = true;
       var infoOn = isMobileMI ? false : window.CODEX_MI_ON;
-      var resumeTimer = null;
 
       // v0.11.4 — если страница открыта через file:// — относительные пути к GLB ломаются о CORS.
       // Подменяем src на data:URI из window.CODEX_LOCAL_GLB (инлайн в model-data.js).
@@ -3974,7 +3976,7 @@
   // и не ломает dev-flow поиска по data-cursor в index.html (drag и skip
   // помечены статически как опорные точки).
   function markStatic() {
-    document.querySelectorAll('.work-card').forEach(function (e) {
+    document.querySelectorAll('.work-card:not(.tag-card)').forEach(function (e) {
       if (!e.hasAttribute('data-cursor')) e.setAttribute('data-cursor', 'work');
     });
     var LINK_SELECTOR =
@@ -4018,11 +4020,11 @@
   // Free Assets pill — disabled, магнит ему не нужен.
   // v0.8.2: .tag убран — класс мёртв с переезда на .tags-dropdown__* (v0.15.5).
   var MAGNETIC_SELECTOR =
-    '.cards-toggle, .theme-toggle, .case-back, .logo, .work-card, ' +
+    '.cards-toggle, .theme-toggle, .case-back, .logo, .work-card:not(.tag-card), ' +
     '.case-tab, .case-mobile-bar__logo, .top-pill--contact';
 
   // Селекторы с ослабленной силой магнита (-80% от стандартной).
-  var SOFT_MAGNETIC_SELECTOR = '.work-card';
+  var SOFT_MAGNETIC_SELECTOR = '.work-card:not(.tag-card)';
 
   // Сила притяжения. Чем больше — тем сильнее элемент едет за курсором.
   var PULL_DEFAULT = 0.18;  // ≈-50% от v0.13.0 (было 0.35)
@@ -4065,7 +4067,6 @@
      Делегирование через mouseover/mouseout на document — ловит
      динамически добавленные .work-card (фильтр тэгов их перестраивает,
      и навешивать слушатели на каждую карточку — хрупко). */
-  var currentTween = null;
   var currentEl    = null;
 
   function enterMagnetic(el) {
