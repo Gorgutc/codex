@@ -1,0 +1,3 @@
+display_name: Codex Studio Frontend
+short_description: Frontend implementation and review rules for the static site.
+default_prompt: Use this skill for Codex Studio HTML, CSS, JS, animation, SEO, asset, and accessibility work.

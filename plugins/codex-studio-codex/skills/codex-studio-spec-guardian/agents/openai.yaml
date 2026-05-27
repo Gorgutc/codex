@@ -1,0 +1,3 @@
+display_name: Codex Studio Spec Guardian
+short_description: Frozen architecture review for Codex Studio.
+default_prompt: Use this skill to validate a proposed Codex Studio change against verify-frozen.js and AGENTS.md.

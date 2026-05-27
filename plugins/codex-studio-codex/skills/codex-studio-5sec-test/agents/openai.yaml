@@ -1,0 +1,3 @@
+display_name: Codex Studio 5-Second Test
+short_description: First-impression visual quality check.
+default_prompt: Use this skill with a screenshot or local URL after visual Codex Studio changes.
