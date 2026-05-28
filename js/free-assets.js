@@ -364,10 +364,34 @@ function ensureModelViewerObserver() {
 
 function observeModelViewers() {
   var obs = ensureModelViewerObserver();
-  if (!obs) return;
-  document.querySelectorAll('.fa-card__thumb-mv').forEach(function(mv) {
+  var previews = Array.prototype.slice.call(document.querySelectorAll('.fa-card__thumb-mv'));
+  if (!obs || !previews.length) return;
+  previews.forEach(function(mv) {
     obs.observe(mv);
   });
+  requestAnimationFrame(function() {
+    for (var i = 0; i < previews.length; i++) {
+      if (isModelViewerNearView(previews[i])) {
+        loadModelViewerScript();
+        if (modelViewerObserver) {
+          modelViewerObserver.disconnect();
+          modelViewerObserver = null;
+        }
+        break;
+      }
+    }
+  });
+}
+
+function isModelViewerNearView(mv) {
+  if (!mv || !mv.getClientRects || !mv.getClientRects().length) return false;
+  var rect = mv.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  var scroll = document.getElementById('fa-scroll');
+  var root = scroll && scroll.getClientRects && scroll.getClientRects().length
+    ? scroll.getBoundingClientRect()
+    : { top: 0, bottom: window.innerHeight || document.documentElement.clientHeight };
+  return rect.bottom >= root.top - 200 && rect.top <= root.bottom + 200;
 }
 
 /* ─── INIT ─── */
