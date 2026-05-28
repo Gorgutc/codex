@@ -503,8 +503,8 @@ if (typeof SplitText !== 'undefined') {
      6) TYPEWRITER (v0.18.0) — type-on effect for [data-typewriter]
      ─────────────────────────────────────────────────────────────────
      Opt-in only. Element's textContent сохраняется, очищается,
-     перепечатывается по символам при попадании в viewport. aria-label
-     сохраняет полный текст для screen-readers. once:true — без reverse.
+     перепечатывается по символам при попадании в viewport. Текст остаётся
+     нативным textContent без aria-label на roleless-элементе. once:true — без reverse.
      Reduced-motion: эта IIFE уже early-return'нула на line 25, поэтому
      для reduced пользователей текст остаётся как в HTML (без анимации).
 
@@ -526,7 +526,6 @@ if (typeof SplitText !== 'undefined') {
     typewriterEls.forEach(function (el) {
       var original = el.textContent;
       if (!original) return;
-      el.setAttribute('aria-label', original);
       el.textContent = '';
       var io = new IntersectionObserver(function (entries, obs) {
         entries.forEach(function (entry) {

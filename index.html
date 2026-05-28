@@ -298,9 +298,8 @@
           type="button"
           class="tags-dropdown__trigger"
           id="tags-dropdown-trigger"
-          aria-haspopup="listbox"
+          aria-haspopup="true"
           aria-expanded="false"
-          aria-controls="tags-dropdown-panel"
           data-i18n-attr="aria-label:aria.filterByDiscipline"
           aria-label="Filter by discipline"
         >
@@ -713,35 +712,37 @@
                case-nav перемещён ПОСЛЕ Blueprints (была своя обёртка .case-nav).
                Desktop: вся группа по правому краю, case-nav высота 32px (как .case-tab).
                Mobile: вся группа от края до края, gap 8px между кнопками. -->
-          <div class="case-view__tabs" role="tablist" data-i18n-attr="aria-label:aria.visualizationMode" aria-label="Visualization mode">
-            <button type="button"
-                    class="case-tab case-tab--active"
-                    id="case-tab-2d"
-                    data-viz="2d"
-                    role="tab"
-                    aria-selected="true"
-                    aria-controls="case-scroll"
-                    data-i18n="tabs.twoD">2D</button>
-            <button type="button"
-                    class="case-tab"
-                    id="case-tab-3d"
-                    data-viz="3d"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="case-3d"
-                    data-i18n="tabs.threeD"
-                    data-i18n-attr="title:title.interactive3d"
-                    title="Interactive 3D viewer">3D</button>
-            <button type="button"
-                    class="case-tab"
-                    id="case-tab-bp"
-                    data-viz="blueprints"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="case-blueprints"
-                    data-i18n="tabs.blueprints"
-                    data-i18n-attr="title:title.technicalBlueprint"
-                    title="Technical blueprint view">Blueprints</button>
+          <div class="case-view__tabs">
+            <div class="case-view__tablist" role="tablist" data-i18n-attr="aria-label:aria.visualizationMode" aria-label="Visualization mode">
+              <button type="button"
+                      class="case-tab case-tab--active"
+                      id="case-tab-2d"
+                      data-viz="2d"
+                      role="tab"
+                      aria-selected="true"
+                      aria-controls="case-scroll"
+                      data-i18n="tabs.twoD">2D</button>
+              <button type="button"
+                      class="case-tab"
+                      id="case-tab-3d"
+                      data-viz="3d"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="case-3d"
+                      data-i18n="tabs.threeD"
+                      data-i18n-attr="title:title.interactive3d"
+                      title="Interactive 3D viewer">3D</button>
+              <button type="button"
+                      class="case-tab"
+                      id="case-tab-bp"
+                      data-viz="blueprints"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="case-blueprints"
+                      data-i18n="tabs.blueprints"
+                      data-i18n-attr="title:title.technicalBlueprint"
+                      title="Technical blueprint view">Blueprints</button>
+            </div>
 
             <!-- NAV: стрелки переключения кейсов + счётчик.
                  v0.15.2 [B1] — перенесён внутрь .case-view__tabs, после Blueprints. -->

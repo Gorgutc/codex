@@ -212,6 +212,12 @@
   align-items: center;
   justify-content: flex-end;
 }
+.case-view__tablist {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
 .case-tab {
   display: inline-flex;
   align-items: center;
@@ -1927,21 +1933,26 @@
     justify-content: flex-start;
     align-items: center;
   }
-  .case-view__tabs > .case-tab {
+  .case-view__tablist {
+    flex: 0 0 auto;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  .case-view__tablist > .case-tab {
     flex: 0 0 auto;
     min-width: 0;
     justify-content: center;
   }
   /* v0.15.3 [П2] — 2D / 3D: fix 36×36 квадрат. Override .case-tab min-height:44px. */
-  .case-view__tabs > #case-tab-2d,
-  .case-view__tabs > #case-tab-3d {
+  .case-view__tablist > #case-tab-2d,
+  .case-view__tablist > #case-tab-3d {
     width: 36px;
     height: 36px;
     min-height: 36px;
     padding: 0;
   }
   /* v0.15.3 [П2] — Blueprints: height 36, padding 16/16, width by content. */
-  .case-view__tabs > #case-tab-bp {
+  .case-view__tablist > #case-tab-bp {
     height: 36px;
     min-height: 36px;
     padding: 0 16px;

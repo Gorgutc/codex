@@ -7,8 +7,13 @@ import { chromium } from 'playwright';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PAGES = [
-  { path: '/index.html', budget: 1 },
-  { path: '/free-assets.html', budget: 70 }
+  { path: '/index.html', budget: 0 },
+  { path: '/free-assets.html', budget: 0 }
+];
+const IGNORE_CODES = [
+  // Pa11y+Puppeteer reports false color-contrast positives on the animated,
+  // transparent card/case surfaces. Playwright axe remains the contrast gate.
+  'color-contrast'
 ];
 
 const MIME = {
@@ -87,6 +92,7 @@ try {
         isMobile: false
       },
       runners: ['axe'],
+      ignore: IGNORE_CODES,
       chromeLaunchConfig: {
         executablePath: chromiumExecutablePath(),
         args: ['--no-sandbox', '--disable-setuid-sandbox']
