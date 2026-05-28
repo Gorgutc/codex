@@ -312,7 +312,10 @@ async function testIndex(BASE) {
     canvas: !!document.getElementById('case-3d-canvas'),
     children: document.getElementById('case-3d-canvas')?.children.length > 0,
     threeCanvas: !!document.querySelector('#case-3d-canvas canvas.case-3d__three-canvas'),
+    threeQuality: document.querySelector('#case-3d-canvas canvas.case-3d__three-canvas')?.dataset.quality || '',
     modelViewer: !!document.querySelector('#case-3d-canvas model-viewer'),
+    materialModes: [...document.querySelectorAll('.case-3d__mat-group [data-material-mode]')].map(btn => btn.dataset.materialMode),
+    activeMaterial: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
     resources: performance.getEntriesByType('resource')
       .map(e => e.name)
       .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|model-data\.js/i.test(n))
@@ -320,6 +323,20 @@ async function testIndex(BASE) {
   add('index', 'CASE-3d-canvas', c3d.canvas);
   add('index', 'CASE-3d-content', c3d.children);
   add('index', 'CASE-3d-three-island', c3d.threeCanvas && !c3d.modelViewer, c3d.resources.join(', '));
+  add('index', 'CASE-3d-quality-controls',
+      c3d.threeQuality === 'pmrem-contact-shadow-material-modes' &&
+      c3d.materialModes.join(',') === 'pbr,clay,xray' &&
+      c3d.activeMaterial === 'pbr',
+      `quality=${c3d.threeQuality}, material=${c3d.materialModes.join(',')}, active=${c3d.activeMaterial}`);
+  await page.click('.case-3d__mat-group [data-material-mode="clay"]'); await page.waitForTimeout(80);
+  await page.click('.case-3d__mat-group [data-material-mode="xray"]'); await page.waitForTimeout(80);
+  const materialSwitch = await page.evaluate(() => ({
+    active: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
+    aria: document.querySelector('.case-3d__mat-group [data-material-mode="xray"]')?.getAttribute('aria-pressed') || ''
+  }));
+  add('index', 'CASE-3d-material-switch', materialSwitch.active === 'xray' && materialSwitch.aria === 'true',
+      `active=${materialSwitch.active}, aria=${materialSwitch.aria}`);
+  await page.click('.case-3d__mat-group [data-material-mode="pbr"]'); await page.waitForTimeout(80);
   add('index', 'CASE-3d-lazy-after-click',
       c3d.resources.some(n => /codex-three-viewer/i.test(n)) &&
       c3d.resources.some(n => /model-data\.js/i.test(n)),

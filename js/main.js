@@ -2811,6 +2811,12 @@
       if (typeof window.CODEX_MI_ON === 'undefined') window.CODEX_MI_ON = true;
       var infoOn = isMobileMI ? false : window.CODEX_MI_ON;
       var currentEnv = 'studio';
+      var currentMaterial = 'pbr';
+      var MATERIAL_MODES = {
+        pbr: 'PBR',
+        clay: 'CLAY',
+        xray: 'XRAY'
+      };
 
       var __viz = window.I18N;
       var hint = document.createElement('div');
@@ -2878,6 +2884,17 @@
         });
       }
 
+      function syncMaterialUI(key) {
+        [matGroup, ddMatList].forEach(function (root) {
+          if (!root) return;
+          root.querySelectorAll('[data-material-mode]').forEach(function (b) {
+            var on = b.dataset.materialMode === key;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+        });
+      }
+
       function createEnvBtn(key, className) {
         var btn = document.createElement('button');
         btn.type = 'button';
@@ -2895,6 +2912,23 @@
         return btn;
       }
 
+      function createMaterialBtn(key, className) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = className + (key === currentMaterial ? ' is-on' : '');
+        btn.setAttribute('aria-pressed', key === currentMaterial ? 'true' : 'false');
+        btn.dataset.materialMode = key;
+        btn.textContent = MATERIAL_MODES[key] || key.toUpperCase();
+        btn.addEventListener('click', function () {
+          if (currentMaterial === key) return;
+          currentMaterial = key;
+          if (currentThreeViewer && currentThreeViewer.setMaterialMode) currentThreeViewer.setMaterialMode(key);
+          if (currentThreeSource) currentThreeSource.materialMode = key;
+          syncMaterialUI(key);
+        });
+        return btn;
+      }
+
       var envGroup = document.createElement('div');
       envGroup.className = 'case-3d__env-group';
       envGroup.setAttribute('role', 'group');
@@ -2902,6 +2936,15 @@
       envGroup.setAttribute('aria-label', (__v3 && __v3.t) ? __v3.t('viz.envPreset') : 'Environment preset');
       ['studio', 'outdoor', 'dark'].forEach(function (key) {
         envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
+      });
+
+      var matGroup = document.createElement('div');
+      matGroup.className = 'case-3d__mat-group';
+      matGroup.setAttribute('role', 'group');
+      var __vMat = window.I18N;
+      matGroup.setAttribute('aria-label', (__vMat && __vMat.t) ? __vMat.t('viz.materialMode') : 'Material view mode');
+      Object.keys(MATERIAL_MODES).forEach(function (key) {
+        matGroup.appendChild(createMaterialBtn(key, 'case-3d__ctrl case-3d__ctrl--mat'));
       });
 
       var expoWrap = document.createElement('label');
@@ -2937,6 +2980,7 @@
       expoWrap.appendChild(expoLabelEl);
       expoWrap.appendChild(expoInput);
       controls.appendChild(envGroup);
+      controls.appendChild(matGroup);
       controls.appendChild(expoWrap);
 
       var lightDd = document.createElement('div');
@@ -2981,6 +3025,23 @@
         ddEnvList.appendChild(createEnvBtn(key, 'case-3d__light-dd__env-btn'));
       });
       lightPanel.appendChild(ddEnvList);
+
+      var ddMatLabel = document.createElement('div');
+      ddMatLabel.className = 'case-3d__light-dd__section-label';
+      var __vMatLabel = window.I18N;
+      ddMatLabel.setAttribute('data-i18n', 'viz.materialLabel');
+      ddMatLabel.textContent = (__vMatLabel && __vMatLabel.t) ? __vMatLabel.t('viz.materialLabel') : 'MATERIAL';
+      lightPanel.appendChild(ddMatLabel);
+
+      var ddMatList = document.createElement('div');
+      ddMatList.className = 'case-3d__light-dd__env-list case-3d__light-dd__mat-list';
+      ddMatList.setAttribute('role', 'group');
+      var __vMatList = window.I18N;
+      ddMatList.setAttribute('aria-label', (__vMatList && __vMatList.t) ? __vMatList.t('viz.materialMode') : 'Material view mode');
+      Object.keys(MATERIAL_MODES).forEach(function (key) {
+        ddMatList.appendChild(createMaterialBtn(key, 'case-3d__light-dd__env-btn case-3d__light-dd__mat-btn'));
+      });
+      lightPanel.appendChild(ddMatList);
 
       var ddExpoLabel = document.createElement('label');
       ddExpoLabel.className = 'case-3d__light-dd__section-label';
@@ -3080,7 +3141,8 @@
         alt: (data.title || id) + ' - 3D model',
         autoRotate: autoRotateOn,
         exposure: parseFloat(expoInput.value),
-        environment: currentEnv
+        environment: currentEnv,
+        materialMode: currentMaterial
       };
       currentThreeViewer = threeRuntime.createCodexThreeViewer({
         host: case3dCanvas,
@@ -3089,6 +3151,7 @@
         autoRotate: autoRotateOn,
         exposure: currentThreeSource.exposure,
         environment: currentEnv,
+        materialMode: currentMaterial,
         onReady: function () {
           if (model3dBuiltFor === targetId && currentCaseId === targetId && case3dCanvas) {
             case3dCanvas.classList.add('is-ready');
@@ -3939,6 +4002,7 @@
         autoRotate: source.autoRotate !== false,
         exposure: source.exposure || 1,
         environment: source.environment || 'studio',
+        materialMode: source.materialMode || 'pbr',
         onError: function () {
           holder.innerHTML =
             '<div class="case-3d__fallback">' +

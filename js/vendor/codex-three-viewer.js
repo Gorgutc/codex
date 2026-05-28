@@ -15,7 +15,8 @@ const PRESETS = {
     ground: 0x14171a,
     panelKey: 0xf6fbff,
     panelFill: 0x9cbfe4,
-    panelRim: 0xffffff
+    panelRim: 0xffffff,
+    shadow: 0.26
   },
   outdoor: {
     ambient: 0.95,
@@ -29,7 +30,8 @@ const PRESETS = {
     ground: 0x1c2328,
     panelKey: 0xffffff,
     panelFill: 0xb9d6ff,
-    panelRim: 0xf3fbff
+    panelRim: 0xf3fbff,
+    shadow: 0.2
   },
   dark: {
     ambient: 0.42,
@@ -43,11 +45,13 @@ const PRESETS = {
     ground: 0x0b0d10,
     panelKey: 0xbfd7ff,
     panelFill: 0x4d6a8d,
-    panelRim: 0xffffff
+    panelRim: 0xffffff,
+    shadow: 0.34
   }
 };
 
 const ENVIRONMENT_SIZE = 128;
+const MATERIAL_MODES = ['pbr', 'clay', 'xray'];
 
 export function canUseCodexThreeViewer() {
   const canvas = document.createElement('canvas');
@@ -69,10 +73,17 @@ export function createCodexThreeViewer(options) {
   const autoRotate = options.autoRotate !== false;
   const initialExposure = Number.isFinite(options.exposure) ? options.exposure : 1;
   const initialEnvironment = options.environment || 'studio';
+  const initialMaterialMode = sanitizeMaterialMode(options.materialMode);
 
   let disposed = false;
   let ready = false;
   let model = null;
+  let modelMaterialEntries = [];
+  let materialMode = initialMaterialMode;
+  let modeMaterials = null;
+  let contactShadow = null;
+  let contactShadowTexture = null;
+  let activeEnvironment = initialEnvironment;
   let frameId = 0;
   let continuous = autoRotate;
   let interactionFrames = 0;
@@ -84,6 +95,7 @@ export function createCodexThreeViewer(options) {
 
   const canvas = document.createElement('canvas');
   canvas.className = 'case-3d__three-canvas';
+  canvas.dataset.quality = 'pmrem-contact-shadow-material-modes';
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', alt);
 
@@ -122,6 +134,10 @@ export function createCodexThreeViewer(options) {
   scene.add(ambient, hemi, key, fill, rim);
 
   host.appendChild(canvas);
+
+  function sanitizeMaterialMode(value) {
+    return MATERIAL_MODES.indexOf(value) >= 0 ? value : 'pbr';
+  }
 
   function createBasicMaterial(color, side, strength) {
     const value = new THREE.Color(color);
@@ -212,8 +228,137 @@ export function createCodexThreeViewer(options) {
     });
   }
 
+  function createContactShadowTexture() {
+    const size = 192;
+    const shadowCanvas = document.createElement('canvas');
+    shadowCanvas.width = size;
+    shadowCanvas.height = size;
+    const ctx = shadowCanvas.getContext('2d');
+    if (!ctx) return null;
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, size * 0.08, size / 2, size / 2, size * 0.48);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.68)');
+    gradient.addColorStop(0.48, 'rgba(0, 0, 0, 0.28)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const texture = new THREE.CanvasTexture(shadowCanvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  function ensureContactShadow() {
+    if (contactShadow) return contactShadow;
+    contactShadowTexture = createContactShadowTexture();
+    if (!contactShadowTexture) return null;
+    const material = new THREE.MeshBasicMaterial({
+      map: contactShadowTexture,
+      color: 0x000000,
+      transparent: true,
+      opacity: (PRESETS[activeEnvironment] || PRESETS.studio).shadow,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    contactShadow.name = 'Codex contact shadow';
+    contactShadow.rotation.x = -Math.PI / 2;
+    contactShadow.renderOrder = -1;
+    contactShadow.visible = false;
+    scene.add(contactShadow);
+    return contactShadow;
+  }
+
+  function updateContactShadow(size, maxDim) {
+    const shadow = ensureContactShadow();
+    if (!shadow) return;
+    shadow.position.set(0, -size.y / 2 - Math.max(maxDim * 0.012, 0.006), 0);
+    shadow.scale.set(
+      Math.max(maxDim * 1.16, size.x * 1.45, 0.9),
+      Math.max(maxDim * 0.72, size.z * 1.4, 0.55),
+      1
+    );
+    shadow.visible = true;
+  }
+
+  function disposeContactShadow() {
+    if (!contactShadow) return;
+    scene.remove(contactShadow);
+    if (contactShadow.geometry) contactShadow.geometry.dispose();
+    if (contactShadow.material) contactShadow.material.dispose();
+    if (contactShadowTexture) contactShadowTexture.dispose();
+    contactShadow = null;
+    contactShadowTexture = null;
+  }
+
+  function createModeMaterials() {
+    return {
+      clay: new THREE.MeshStandardMaterial({
+        name: 'Codex clay inspection',
+        color: 0xb8b2a7,
+        roughness: 0.9,
+        metalness: 0.02
+      }),
+      xray: new THREE.MeshPhysicalMaterial({
+        name: 'Codex xray inspection',
+        color: 0x8fd7ff,
+        roughness: 0.18,
+        metalness: 0,
+        transmission: 0,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      })
+    };
+  }
+
+  function disposeModeMaterials() {
+    if (!modeMaterials) return;
+    Object.keys(modeMaterials).forEach((keyName) => {
+      modeMaterials[keyName].dispose();
+    });
+    modeMaterials = null;
+  }
+
+  function registerOriginalMaterials() {
+    modelMaterialEntries = [];
+    if (!model) return;
+    model.traverse((child) => {
+      if (!child.isMesh) return;
+      modelMaterialEntries.push({
+        mesh: child,
+        material: child.material
+      });
+    });
+  }
+
+  function restoreOriginalMaterials() {
+    modelMaterialEntries.forEach((entry) => {
+      entry.mesh.material = entry.material;
+      entry.mesh.renderOrder = 0;
+    });
+  }
+
+  function applyMaterialMode(value) {
+    materialMode = sanitizeMaterialMode(value);
+    if (!model || !modelMaterialEntries.length) return;
+    if (materialMode === 'pbr') {
+      restoreOriginalMaterials();
+      tuneModelMaterials(PRESETS[activeEnvironment] || PRESETS.studio);
+      return;
+    }
+    if (!modeMaterials) modeMaterials = createModeMaterials();
+    const material = modeMaterials[materialMode] || modeMaterials.clay;
+    modelMaterialEntries.forEach((entry) => {
+      entry.mesh.material = material;
+      entry.mesh.renderOrder = materialMode === 'xray' ? 2 : 0;
+    });
+    tuneMaterial(material, PRESETS[activeEnvironment] || PRESETS.studio);
+  }
+
   function applyEnvironment(name) {
     const preset = PRESETS[name] || PRESETS.studio;
+    activeEnvironment = PRESETS[name] ? name : 'studio';
     ambient.intensity = preset.ambient;
     hemi.intensity = preset.hemi;
     key.intensity = preset.key;
@@ -223,6 +368,7 @@ export function createCodexThreeViewer(options) {
     scene.environment = getEnvironmentTarget(name).texture;
     scene.environmentIntensity = preset.envIntensity;
     tuneModelMaterials(preset);
+    if (contactShadow && contactShadow.material) contactShadow.material.opacity = preset.shadow;
   }
 
   function resize() {
@@ -270,6 +416,7 @@ export function createCodexThreeViewer(options) {
 
     const maxDim = Math.max(size.x, size.y, size.z, 1);
     object.position.sub(center);
+    updateContactShadow(size, maxDim);
 
     const fov = THREE.MathUtils.degToRad(camera.fov);
     const distance = Math.max(2.2, (maxDim / (2 * Math.tan(fov / 2))) * 1.35);
@@ -332,7 +479,9 @@ export function createCodexThreeViewer(options) {
 
       scene.add(model);
       fitModel(model);
+      registerOriginalMaterials();
       tuneModelMaterials(PRESETS[initialEnvironment] || PRESETS.studio);
+      applyMaterialMode(materialMode);
       ready = true;
       if (options.onReady) options.onReady();
       requestRender(continuous ? 0 : 1);
@@ -372,6 +521,10 @@ export function createCodexThreeViewer(options) {
       applyEnvironment(name);
       requestRender(1);
     },
+    setMaterialMode(value) {
+      applyMaterialMode(value);
+      requestRender(1);
+    },
     resetCamera() {
       if (!initialPosition || !initialTarget) return;
       camera.position.copy(initialPosition);
@@ -388,10 +541,14 @@ export function createCodexThreeViewer(options) {
       if (resizeObserver) resizeObserver.disconnect();
       controls.dispose();
       if (model) {
+        restoreOriginalMaterials();
         scene.remove(model);
         disposeObject(model);
         model = null;
+        modelMaterialEntries = [];
       }
+      disposeModeMaterials();
+      disposeContactShadow();
       Object.keys(environmentTargets).forEach((name) => {
         environmentTargets[name].dispose();
       });

@@ -1313,7 +1313,8 @@
    ══════════════════════════════════ */
 
 /* Группа Studio/Outdoor/Dark — соединены без gap, как segmented control */
-.case-3d__env-group {
+.case-3d__env-group,
+.case-3d__mat-group {
   display: inline-flex;
   border: 1px solid var(--color-divider);
   border-radius: 3px;
@@ -1324,7 +1325,8 @@
 }
 
 /* Внутри группы — снимаем индивидуальные рамки и LED-точки */
-.case-3d__ctrl--env {
+.case-3d__ctrl--env,
+.case-3d__ctrl--mat {
   border: none;
   border-radius: 0;
   background: transparent;
@@ -1332,16 +1334,20 @@
   -webkit-backdrop-filter: none;
   padding: 5px 10px;
 }
-.case-3d__ctrl--env::before { display: none; }
-.case-3d__ctrl--env + .case-3d__ctrl--env {
+.case-3d__ctrl--env::before,
+.case-3d__ctrl--mat::before { display: none; }
+.case-3d__ctrl--env + .case-3d__ctrl--env,
+.case-3d__ctrl--mat + .case-3d__ctrl--mat {
   border-left: 1px solid var(--color-divider);
 }
-.case-3d__ctrl--env.is-on {
+.case-3d__ctrl--env.is-on,
+.case-3d__ctrl--mat.is-on {
   background: var(--color-primary-highlight);
   color: var(--color-primary);
   border-color: transparent; /* перекрыто bg, отдельной рамки на active не нужно */
 }
-.case-3d__ctrl--env:focus-visible {
+.case-3d__ctrl--env:focus-visible,
+.case-3d__ctrl--mat:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
 }
@@ -1549,6 +1555,7 @@
    ══════════════════════════════════ */
 @media (max-width: 1199px) {
   .case-3d__env-group { display: none; }
+  .case-3d__mat-group { display: none; }
   .case-3d__expo { display: none; }
   .case-3d__light-dd { display: inline-flex; }
 
