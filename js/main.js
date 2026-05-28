@@ -257,7 +257,7 @@
      CARDS_DATA
   ════════════════════════════════════════ */
   var CARDS_DATA = {
-    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: './assets/models/orbital-mk-ii.glb', modelStats: { triangles: '18,432', vertices: '9,521', materials: 3, textures: '4 × 4 K', software: 'Blender' }, items: makeItems({
+    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: './assets/models/experimental/dino.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Draco compressed', vertices: 'GLB embedded', materials: 1, textures: '3 embedded', software: 'Drive test asset' }, items: makeItems({
       id: 'orbital-mk-ii',
       palette: [
         'linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%)',
@@ -284,7 +284,7 @@
       }
     }) },
 
-    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: './assets/models/vega-shell.glb', modelStats: { triangles: '25,600', vertices: '13,200', materials: 5, textures: '6 × 2 K', software: 'Blender' }, items: makeItems({
+    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: './assets/models/experimental/humanoid-2.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Meshopt compressed', vertices: 'GLB embedded', materials: 1, textures: '2 KTX2', software: 'Drive test asset' }, items: makeItems({
       id: 'vega-shell',
       palette: [
         'linear-gradient(135deg,#1a2030 0%,#252e40 100%)',
@@ -310,7 +310,7 @@
       }
     }) },
 
-    'ironclad-frame': { role: 'R&D', tools: ['Blender', 'CAD import', 'Inkscape'], modelSrc: './assets/models/ironclad-frame.glb', modelStats: { triangles: '464', vertices: '240', materials: 2, textures: 'Procedural (PBR)', software: 'Blender + Fusion 360' }, items: makeItems({
+    'ironclad-frame': { role: 'R&D', tools: ['Blender', 'CAD import', 'Inkscape'], modelSrc: './assets/models/experimental/car-paint.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Draco compressed', vertices: 'GLB embedded', materials: 1, textures: '3 embedded', software: 'Drive test asset' }, items: makeItems({
       id: 'ironclad-frame',
       palette: [
         'linear-gradient(135deg,#1c2428 0%,#28343a 100%)',
@@ -2466,9 +2466,12 @@
         var ENV_PRESETS = {
           studio:  './assets/hdr/studio.hdr',
           outdoor: './assets/hdr/outdoor.hdr',
+          citrus:  './assets/hdr/experimental/citrus-orchard-puresky-4k.hdr',
           dark:    './assets/hdr/dark.hdr'
         };
-        var currentEnv = 'studio';
+        var ENVIRONMENT_MODES = Object.keys(ENV_PRESETS);
+        var currentEnv = data.modelEnvironment && ENV_PRESETS[data.modelEnvironment] ? data.modelEnvironment : 'studio';
+        mv.setAttribute('environment-image', ENV_PRESETS[currentEnv]);
 
         // v0.7.3 — early-decl syncEnvUI: обновляет visual state на ОБОИХ
         // env-button наборах (desktop inline + mobile dropdown). Объявлена
@@ -2513,7 +2516,7 @@
         var __v3 = window.I18N;
         envGroup.setAttribute('aria-label', (__v3 && __v3.t) ? __v3.t('viz.envPreset') : 'Environment preset');
 
-        ['studio', 'outdoor', 'dark'].forEach(function (key) {
+        ENVIRONMENT_MODES.forEach(function (key) {
           envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
         });
 
@@ -2616,7 +2619,7 @@
         ddEnvList.setAttribute('aria-label', (__v10 && __v10.t) ? __v10.t('viz.envPreset') : 'Environment preset');
 
         // v0.8.6 [M6] — фабрика createEnvBtn (см. desktop envGroup выше).
-        ['studio', 'outdoor', 'dark'].forEach(function (key) {
+        ENVIRONMENT_MODES.forEach(function (key) {
           ddEnvList.appendChild(createEnvBtn(key, 'case-3d__light-dd__env-btn'));
         });
         lightPanel.appendChild(ddEnvList);
@@ -2810,7 +2813,9 @@
       var isMobileMI = window.matchMedia('(max-width: 767px)').matches;
       if (typeof window.CODEX_MI_ON === 'undefined') window.CODEX_MI_ON = true;
       var infoOn = isMobileMI ? false : window.CODEX_MI_ON;
-      var currentEnv = 'studio';
+      var ENVIRONMENT_MODES = ['studio', 'outdoor', 'dark', 'citrus'];
+      var currentEnv = ENVIRONMENT_MODES.indexOf(data.modelEnvironment) >= 0 ? data.modelEnvironment : 'studio';
+      var initialExposure = Number.isFinite(data.modelExposure) ? data.modelExposure : 1;
       var currentMaterial = 'pbr';
       var MATERIAL_MODES = {
         pbr: 'PBR',
@@ -2934,7 +2939,7 @@
       envGroup.setAttribute('role', 'group');
       var __v3 = window.I18N;
       envGroup.setAttribute('aria-label', (__v3 && __v3.t) ? __v3.t('viz.envPreset') : 'Environment preset');
-      ['studio', 'outdoor', 'dark'].forEach(function (key) {
+      ENVIRONMENT_MODES.forEach(function (key) {
         envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
       });
 
@@ -2963,7 +2968,7 @@
       expoInput.min = '0.5';
       expoInput.max = '2';
       expoInput.step = '0.05';
-      expoInput.value = '1';
+      expoInput.value = String(initialExposure);
       expoInput.className = 'case-3d__expo-input';
       var __v6 = window.I18N;
       expoInput.setAttribute('aria-label', (__v6 && __v6.t) ? __v6.t('viz.exposureRange') : 'Exposure level from 0.5 to 2.0');
@@ -3021,7 +3026,7 @@
       ddEnvList.setAttribute('role', 'group');
       var __v10 = window.I18N;
       ddEnvList.setAttribute('aria-label', (__v10 && __v10.t) ? __v10.t('viz.envPreset') : 'Environment preset');
-      ['studio', 'outdoor', 'dark'].forEach(function (key) {
+      ENVIRONMENT_MODES.forEach(function (key) {
         ddEnvList.appendChild(createEnvBtn(key, 'case-3d__light-dd__env-btn'));
       });
       lightPanel.appendChild(ddEnvList);
@@ -3055,7 +3060,7 @@
       ddExpoInput.min = '0.5';
       ddExpoInput.max = '2';
       ddExpoInput.step = '0.05';
-      ddExpoInput.value = '1';
+      ddExpoInput.value = String(initialExposure);
       ddExpoInput.className = 'case-3d__light-dd__expo-input';
       var __v12 = window.I18N;
       ddExpoInput.setAttribute('aria-label', (__v12 && __v12.t) ? __v12.t('viz.exposureRange') : 'Exposure level from 0.5 to 2.0');

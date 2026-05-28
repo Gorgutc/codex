@@ -74,7 +74,7 @@ function renderGrid(tag) {
       ? '<model-viewer class="fa-card__thumb-mv"'
         + ' src="./assets/models/free/' + model + '.glb"'
         + ' alt="' + titleAttr + ' — 3D preview"'
-        + ' loading="lazy" reveal="auto"'
+        + ' loading="eager" reveal="auto"'
         + rotateAttrs
         + ' shadow-intensity="0" exposure="1.0" environment-image="neutral"'
         + ' interaction-prompt="none"'

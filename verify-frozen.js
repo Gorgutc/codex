@@ -34,7 +34,8 @@ const MIME = {
   '.jpg':'image/jpeg', '.png':'image/png', '.ico':'image/x-icon',
   '.mp4':'video/mp4', '.webp':'image/webp', '.zip':'application/zip',
   '.txt':'text/plain', '.xml':'application/xml', '.md':'text/markdown',
-  '.webmanifest':'application/manifest+json'
+  '.webmanifest':'application/manifest+json', '.wasm':'application/wasm',
+  '.hdr':'image/vnd.radiance', '.exr':'image/x-exr', '.ktx2':'image/ktx2'
 };
 
 function startServer() {
@@ -107,7 +108,14 @@ function runStaticChecks() {
     path.join('three', 'three.module.js'),
     path.join('three', 'three.core.js'),
     path.join('three', 'GLTFLoader.js'),
-    path.join('three', 'OrbitControls.js')
+    path.join('three', 'OrbitControls.js'),
+    path.join('three', 'DRACOLoader.js'),
+    path.join('three', 'KTX2Loader.js'),
+    path.join('three', 'HDRLoader.js'),
+    path.join('three', 'EXRLoader.js'),
+    path.join('three', 'libs', 'draco', 'gltf', 'draco_decoder.wasm'),
+    path.join('three', 'libs', 'basis', 'basis_transcoder.wasm'),
+    path.join('three', 'libs', 'meshopt_decoder.module.js')
   ];
   const threeVendorOK = threeVendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
   add('static', 'A7-three-vendor-files-present', threeVendorOK, threeVendorFiles.join(', '));
@@ -304,7 +312,7 @@ async function testIndex(BASE) {
   // 3D
   const before3DResources = await page.evaluate(() => performance.getEntriesByType('resource')
     .map(e => e.name)
-    .filter(n => /codex-three-viewer|three\.module|model-data\.js/i.test(n)));
+    .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr/i.test(n)));
   add('index', 'CASE-3d-lazy-before-click', before3DResources.length === 0, before3DResources.join(', ') || 'clean');
   await page.click('.case-tab[data-viz="3d"]'); await page.waitForTimeout(800);
   await page.waitForSelector('#case-3d-canvas canvas.case-3d__three-canvas', { timeout: 5000 }).catch(() => {});
@@ -318,7 +326,7 @@ async function testIndex(BASE) {
     activeMaterial: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
     resources: performance.getEntriesByType('resource')
       .map(e => e.name)
-      .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|model-data\.js/i.test(n))
+      .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr|\.glb/i.test(n))
   }));
   add('index', 'CASE-3d-canvas', c3d.canvas);
   add('index', 'CASE-3d-content', c3d.children);

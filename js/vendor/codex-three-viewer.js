@@ -1,6 +1,11 @@
 import * as THREE from './three/three.module.js';
 import { GLTFLoader } from './three/GLTFLoader.js';
+import { DRACOLoader } from './three/DRACOLoader.js';
+import { EXRLoader } from './three/EXRLoader.js';
+import { HDRLoader } from './three/HDRLoader.js';
+import { KTX2Loader } from './three/KTX2Loader.js';
 import { OrbitControls } from './three/OrbitControls.js';
+import { MeshoptDecoder } from './three/libs/meshopt_decoder.module.js';
 
 const PRESETS = {
   studio: {
@@ -32,6 +37,23 @@ const PRESETS = {
     panelFill: 0xb9d6ff,
     panelRim: 0xf3fbff,
     shadow: 0.2
+  },
+  citrus: {
+    ambient: 1.0,
+    hemi: 1.05,
+    key: 2.35,
+    fill: 0.82,
+    rim: 0.7,
+    color: 0xfffbf0,
+    envIntensity: 1.04,
+    room: 0x29343a,
+    ground: 0x1d2522,
+    panelKey: 0xfff5dc,
+    panelFill: 0xcde7ff,
+    panelRim: 0xffffff,
+    shadow: 0.18,
+    environmentUrl: './assets/hdr/experimental/citrus-orchard-puresky-4k.hdr',
+    environmentFormat: 'hdr'
   },
   dark: {
     ambient: 0.42,
@@ -92,6 +114,10 @@ export function createCodexThreeViewer(options) {
   let initialTarget = null;
   let initialZoom = 1;
   let environmentTargets = {};
+  let environmentPromises = {};
+  let environmentRequest = 0;
+  let dracoLoader = null;
+  let ktx2Loader = null;
 
   const canvas = document.createElement('canvas');
   canvas.className = 'case-3d__three-canvas';
@@ -196,6 +222,44 @@ export function createCodexThreeViewer(options) {
   function getEnvironmentTarget(name) {
     if (!environmentTargets[name]) environmentTargets[name] = createEnvironmentTarget(name);
     return environmentTargets[name];
+  }
+
+  function createTextureEnvironmentTarget(name, preset) {
+    const loader = preset.environmentFormat === 'exr' ? new EXRLoader() : new HDRLoader();
+    if (typeof loader.setDataType === 'function') loader.setDataType(THREE.HalfFloatType);
+    return loader.loadAsync(preset.environmentUrl).then((texture) => {
+      if (disposed) {
+        texture.dispose();
+        return null;
+      }
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      const target = pmrem.fromEquirectangular(texture);
+      pmrem.dispose();
+      texture.dispose();
+      return target;
+    });
+  }
+
+  function requestTextureEnvironmentTarget(name, preset) {
+    if (!preset.environmentUrl) return null;
+    if (!environmentPromises[name]) {
+      environmentPromises[name] = createTextureEnvironmentTarget(name, preset)
+        .then((target) => {
+          if (!target) return null;
+          const previousTarget = environmentTargets[name];
+          environmentTargets[name] = target;
+          if (previousTarget && previousTarget !== target) previousTarget.dispose();
+          return target;
+        })
+        .catch((error) => {
+          if (typeof console !== 'undefined' && console.warn) {
+            console.warn('[CodexThreeViewer] Environment map failed:', preset.environmentUrl, error);
+          }
+          return null;
+        });
+    }
+    return environmentPromises[name];
   }
 
   function tuneTexture(texture, maxAnisotropy) {
@@ -357,18 +421,29 @@ export function createCodexThreeViewer(options) {
   }
 
   function applyEnvironment(name) {
-    const preset = PRESETS[name] || PRESETS.studio;
-    activeEnvironment = PRESETS[name] ? name : 'studio';
+    const resolvedName = PRESETS[name] ? name : 'studio';
+    const preset = PRESETS[resolvedName] || PRESETS.studio;
+    activeEnvironment = resolvedName;
     ambient.intensity = preset.ambient;
     hemi.intensity = preset.hemi;
     key.intensity = preset.key;
     fill.intensity = preset.fill;
     rim.intensity = preset.rim;
     key.color.setHex(preset.color);
-    scene.environment = getEnvironmentTarget(name).texture;
+    scene.environment = getEnvironmentTarget(resolvedName).texture;
     scene.environmentIntensity = preset.envIntensity;
     tuneModelMaterials(preset);
     if (contactShadow && contactShadow.material) contactShadow.material.opacity = preset.shadow;
+    const requestId = ++environmentRequest;
+    const textureTarget = requestTextureEnvironmentTarget(resolvedName, preset);
+    if (textureTarget) {
+      textureTarget.then((target) => {
+        if (!target || disposed || requestId !== environmentRequest || activeEnvironment !== resolvedName) return;
+        scene.environment = target.texture;
+        tuneModelMaterials(preset);
+        requestRender(2);
+      });
+    }
   }
 
   function resize() {
@@ -467,6 +542,14 @@ export function createCodexThreeViewer(options) {
   });
 
   const loader = new GLTFLoader();
+  dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath(new URL('./three/libs/draco/gltf/', import.meta.url).href);
+  loader.setDRACOLoader(dracoLoader);
+  ktx2Loader = new KTX2Loader();
+  ktx2Loader.setTranscoderPath(new URL('./three/libs/basis/', import.meta.url).href);
+  ktx2Loader.detectSupport(renderer);
+  loader.setKTX2Loader(ktx2Loader);
+  loader.setMeshoptDecoder(MeshoptDecoder);
   loader.load(
     src,
     (gltf) => {
@@ -553,6 +636,15 @@ export function createCodexThreeViewer(options) {
         environmentTargets[name].dispose();
       });
       environmentTargets = {};
+      environmentPromises = {};
+      if (dracoLoader) {
+        dracoLoader.dispose();
+        dracoLoader = null;
+      }
+      if (ktx2Loader) {
+        ktx2Loader.dispose();
+        ktx2Loader = null;
+      }
       renderer.dispose();
       try { renderer.forceContextLoss(); } catch (_) {}
       canvas.remove();
