@@ -742,7 +742,7 @@ async function testFreeAssets(BASE) {
       localSrcs: previews.every(mv => /^\.\/assets\/models\/free\/.+\.glb$/.test(mv.getAttribute('src') || '')),
     };
   });
-  add('fa', 'GRID-mini-3d-previews', mini3D.previews === 4 && mini3D.noPreview === 4,
+  add('fa', 'GRID-mini-3d-previews', mini3D.previews === 8 && mini3D.noPreview === 0,
       `previews=${mini3D.previews}, fallback-only=${mini3D.noPreview}`);
   add('fa', 'GRID-mini-3d-auto-rotate-only', mini3D.autoRotate === mini3D.previews && mini3D.cameraControls === 0,
       `auto=${mini3D.autoRotate}, camera-controls=${mini3D.cameraControls}`);
