@@ -350,6 +350,25 @@ async function testIndex(BASE) {
       c3d.resources.some(n => /model-data\.js/i.test(n)),
       c3d.resources.join(', '));
 
+  const studioDefaultEnvIds = ['orbital-mk-ii', 'vega-shell', 'ironclad-frame'];
+  const studioDefaultEnvState = await page.evaluate(ids => {
+    const active = document.querySelector('.case-3d__env-group [data-env].is-on');
+    return {
+      sources: ids.map(id => ({
+        id,
+        source: (window.CARDS_DATA && window.CARDS_DATA[id] && window.CARDS_DATA[id].modelEnvironment) || ''
+      })),
+      active: active ? active.dataset.env : '',
+      aria: active ? active.getAttribute('aria-pressed') : ''
+    };
+  }, studioDefaultEnvIds);
+  add('index', 'CASE-3d-studio-default-envs',
+      studioDefaultEnvState.sources.every(item => item.source === 'studio') &&
+      studioDefaultEnvState.active === 'studio' &&
+      studioDefaultEnvState.aria === 'true',
+      studioDefaultEnvState.sources.map(item => `${item.id}: source=${item.source}`).join('; ') +
+      `; active=${studioDefaultEnvState.active}, aria=${studioDefaultEnvState.aria}`);
+
   // SHARE BUTTONS
   add('index', 'CASE-share-desktop', !!await page.$('#case-share-desktop'));
   add('index', 'CASE-share-mobile', !!await page.$('#case-share-mobile'));
