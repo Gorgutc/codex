@@ -871,14 +871,18 @@ async function testMobileViewport(BASE) {
   console.log('  Codex Studio v0.4 GOLDEN regression');
   console.log('══════════════════════════════════════════════════════════════════');
 
+  let fatalError = null;
+
   try {
     runStaticChecks();
     await testIndex(BASE);
     await testFreeAssets(BASE);
     await testMobileViewport(BASE);
   } catch (e) {
+    fatalError = e;
     console.error('\nTEST ERROR:', e.message);
     console.error(e.stack);
+    add('runtime', 'fatal-test-error', false, e.message);
   }
 
   if (server) server.close();
@@ -891,6 +895,9 @@ async function testMobileViewport(BASE) {
   if (fail) {
     console.log('Failures:');
     results.filter(r => !r.pass).forEach(r => console.log(`  [${r.suite}] ${r.name}: ${r.detail}`));
+  }
+  if (fatalError) {
+    console.log('Fatal test error: verification aborted before all checks completed.');
   }
   process.exit(fail > 0 ? 1 : 0);
 })();

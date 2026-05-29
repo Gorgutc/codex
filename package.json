@@ -6,7 +6,8 @@
   "scripts": {
     "verify": "node verify-frozen.js",
     "codex:verify-plugin": "node scripts/verify-codex-plugin.mjs",
-    "codex:ship": "npm run codex:verify-plugin && npm run verify",
+    "test:verify-fatal": "node tests/quality/verify-frozen-fatal-exit.test.mjs",
+    "codex:ship": "npm run codex:verify-plugin && npm run test:verify-fatal && npm run verify",
     "check:js": "eslint \"js/**/*.js\" \"scripts/**/*.mjs\" \"verify-frozen.js\" \"*.config.mjs\" \"*.config.cjs\"",
     "check:css": "stylelint \"css/**/*.css\"",
     "check:html": "htmlhint \"*.html\"",
