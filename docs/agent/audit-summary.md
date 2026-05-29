@@ -4,7 +4,7 @@ This summary records the first Codex-native audit pass.
 
 ## Verification Baseline
 
-`npm run verify` passed with `SUMMARY: 96/96 PASS, 0 FAIL`.
+`npm run verify` passed with `0 FAIL`. The exact pass total is historical and should not be reused as a contract.
 
 ## Code Findings
 

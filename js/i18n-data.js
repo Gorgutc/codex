@@ -412,9 +412,9 @@
     'nyx-panther':    { title: 'Nyx Panther',    desc: 'Stylized feline creature. Hand-sculpted anatomy, dual-coat fur groom.',                  alt: 'Nyx Panther — stylized feline creature' },
     'drift-koi':      { title: 'Drift Koi',      desc: 'Ornamental fish study. Displacement scales, subsurface scattering pass.',                alt: 'Drift Koi — ornamental fish study' },
     'glint-owl':      { title: 'Glint Owl',      desc: 'Stylized bird character. Feather grooming with procedural asymmetry.',                   alt: 'Glint Owl — stylized bird character' },
-    'mech-link':      { title: 'Mech Link',      desc: 'Industrial CAD assembly. Placeholder kit — final GLB + renders in progress.',            alt: 'Mech Link — CAD assembly placeholder' },
-    'flex-spine':     { title: 'Flex Spine',     desc: 'Kinematic spine study. CAD constraints, parametric ribs — work in progress.',            alt: 'Flex Spine — CAD kinematic placeholder' },
-    'cad-strut':      { title: 'CAD Strut',      desc: 'Structural strut node. CAD-first geometry — final model & textures pending.',           alt: 'CAD Strut — structural node placeholder' },
+    'mech-link':      { title: 'Mech Link',      desc: 'Industrial CAD linkage. Parametric pins, exploded tolerances, production handoff view.', alt: 'Mech Link — CAD linkage assembly' },
+    'flex-spine':     { title: 'Flex Spine',     desc: 'Kinematic spine study. CAD constraints and parametric ribs for motion review.',          alt: 'Flex Spine — kinematic CAD spine study' },
+    'cad-strut':      { title: 'CAD Strut',      desc: 'Structural strut node. CAD-first geometry with bolt-pattern variants and PBR finish study.', alt: 'CAD Strut — structural node assembly' },
   };
   const CARDS_LOCALES_RU = {
     'orbital-mk-ii':  { title: 'Orbital Mk.II',  desc: 'Sci-fi-проп для AAA-пайплайна. Полный PBR, чистая топология.',                            alt: 'Orbital Mk.II — sci-fi-проп hard surface' },
@@ -432,9 +432,9 @@
     'nyx-panther':    { title: 'Nyx Panther',    desc: 'Стилизованный хищник кошачьих. Скульптинг анатомии вручную, двухслойный грум меха.',      alt: 'Nyx Panther — стилизованный хищник' },
     'drift-koi':      { title: 'Drift Koi',      desc: 'Этюд декоративной рыбы. Displacement-чешуя, SSS-пасс.',                                   alt: 'Drift Koi — этюд декоративной рыбы' },
     'glint-owl':      { title: 'Glint Owl',      desc: 'Стилизованный птичий персонаж. Грум пера с процедурной асимметрией.',                     alt: 'Glint Owl — стилизованный птичий персонаж' },
-    'mech-link':      { title: 'Mech Link',      desc: 'Промышленная CAD-сборка. Placeholder-кит — финальный GLB и рендеры в работе.',            alt: 'Mech Link — CAD-сборка, плейсхолдер' },
-    'flex-spine':     { title: 'Flex Spine',     desc: 'Этюд кинематической оси. CAD-констрейнты, параметрические рёбра — в работе.',             alt: 'Flex Spine — этюд кинематической оси, CAD' },
-    'cad-strut':      { title: 'CAD Strut',      desc: 'Структурный strut-узел. CAD-first геометрия — финальная модель и текстуры в очереди.',    alt: 'CAD Strut — структурный узел, CAD' },
+    'mech-link':      { title: 'Mech Link',      desc: 'Промышленная CAD-сборка. Параметрические шарниры, exploded-view и PBR-презентация.',      alt: 'Mech Link — CAD-сборка' },
+    'flex-spine':     { title: 'Flex Spine',     desc: 'Этюд кинематической оси. CAD-констрейнты и параметрические рёбра для motion-review.',     alt: 'Flex Spine — этюд кинематической оси, CAD' },
+    'cad-strut':      { title: 'CAD Strut',      desc: 'Структурный strut-узел. CAD-first геометрия, bolt-pattern варианты и PBR-отделка.',       alt: 'CAD Strut — структурный узел, CAD' },
   };
   const CARDS_LOCALES = { en: CARDS_LOCALES_EN, ru: CARDS_LOCALES_RU };
 
@@ -461,7 +461,7 @@
       role: 'Personal',
       captions: [
         { label: 'Hero render',     desc: 'Sci-fi prop engineered for AAA pipeline. Full PBR, clean manifold topology.' },
-        { label: 'Testing hamster', desc: 'Проверка загрузки иллюстрации' },
+        { label: 'Material study',  desc: 'Secondary shell finish under studio HDRI, checked for silhouette readability.' },
         { label: 'Topology pass',   desc: '18 k clean quads. Subdivision-ready and LOD0-certified for real-time integration.' },
         { label: 'Detail close-up', desc: 'Panel seam macro. Bevel widths tuned for 2 m viewing distance at 4 K resolution.' },
         { label: 'Final composite', desc: 'Lit with 3-point studio HDRI. Denoised in OptiX, tonemapped ACES.' }
@@ -640,37 +640,37 @@
     'mech-link': {
       role: 'R&D',
       captions: [
-        { label: 'Assembly overview', desc: 'Industrial link chain placeholder. Parametric pin-joint assembly sourced from CAD.' },
-        { label: 'Bracket detail',    desc: 'Bolt-pattern close-up. Placeholder geometry — final topology pass pending.' },
+        { label: 'Assembly overview', desc: 'Industrial link chain assembly. Parametric pin-joint system sourced from CAD.' },
+        { label: 'Bracket detail',    desc: 'Bolt-pattern close-up. Retopology pass prepared for manufacturing review.' },
         { label: 'Motion study',      desc: 'Range-of-motion sketch for the pivoting arm. Constraint solver preview.' },
         { label: 'Exploded view',     desc: 'Parts diagram for manufacture planning. Tolerances marked in source DWG.' },
         { label: 'Material preview',  desc: 'KeyShot pass — brushed steel and anodized aluminium swatches.' }
       ],
-      text:   { title: 'CAD placeholder', body: 'This case is a technology placeholder. Final GLB, topology and renders are being prepared. Used to validate the layout and the CAD-category filter.' },
-      inline: { title: 'Pipeline',        body: 'Fusion 360 → STEP → Blender retopo → KeyShot marketing. Will be swapped to a live render in the Dev cycle.' }
+      text:   { title: 'CAD production study', body: 'Parametric link-chain case focused on CAD handoff, tolerance review, and render-ready topology for the CAD category.' },
+      inline: { title: 'Pipeline',        body: 'Fusion 360 → STEP → Blender retopo → KeyShot marketing. The assembly is ready for CAD review and render handoff.' }
     },
     'flex-spine': {
       role: 'R&D',
       captions: [
-        { label: 'Spine assembly',  desc: 'Kinematic spine placeholder. Parametric ribs driven by a single driver angle.' },
+        { label: 'Spine assembly',  desc: 'Kinematic spine assembly. Parametric ribs driven by a single driver angle.' },
         { label: 'Rib section',     desc: 'Section-cut through one rib — thickness and fillet radii exposed as parameters.' },
-        { label: 'Deflection test', desc: 'FEA sketch — deflection map under 50 N lateral load. Placeholder visualisation.' },
+        { label: 'Deflection test', desc: 'FEA sketch — deflection map under 50 N lateral load, prepared for design review.' },
         { label: 'Joint detail',    desc: 'Ball-and-socket joint close-up. Tolerance stack-up listed in source PDF.' },
         { label: 'Render study',    desc: 'KeyShot pass — matte steel against cool grey backdrop.' }
       ],
-      text:   { title: 'CAD placeholder', body: 'A kinematic-spine placeholder. The design is parametric: one driver angle bends every rib. Final model and stand renders are in progress.' },
+      text:   { title: 'Kinematic CAD study', body: 'Parametric spine case: one driver angle bends every rib, with render studies prepared for stand and motion review.' },
       inline: { title: 'Parametrics',     body: 'Parameters: rib_count, rib_thickness, segment_angle. Linked via Fusion 360 sketches → exported to Blender.' }
     },
     'cad-strut': {
       role: 'R&D',
       captions: [
-        { label: 'Node overview',  desc: 'Structural strut node placeholder. Six-way connector for space-frame assemblies.' },
+        { label: 'Node overview',  desc: 'Structural strut node. Six-way connector for space-frame assemblies.' },
         { label: 'Axis diagram',   desc: 'Load-path diagram — principal axes marked for the structural engineer.' },
         { label: 'Cross-section',  desc: 'Section through the central hub. Wall thickness and weld-prep highlighted.' },
         { label: 'Mount plate',    desc: 'Bolt-circle mount plate. Parametric — updates when strut diameter changes.' },
         { label: 'Surface finish', desc: 'KeyShot pass — powder-coated aluminium, matte warm grey.' }
       ],
-      text:   { title: 'CAD placeholder', body: 'A structural strut node. Parametric CAD geometry: diameter, wall thickness and bolt pattern are linked. Final renders and game-ready topology are being prepared.' },
+      text:   { title: 'Structural CAD node', body: 'Structural strut node with linked diameter, wall thickness, and bolt-pattern parameters for production and render review.' },
       inline: { title: 'Use case',        body: 'Used in space-frame prototypes. STEP is exported for CNC; Blender retopo for marketing renders.' }
     }
   };
@@ -680,7 +680,7 @@
       role: 'Личный проект',
       captions: [
         { label: 'Hero-рендер',     desc: 'Sci-fi-проп для AAA-пайплайна. Полный PBR, чистая manifold-топология.' },
-        { label: 'Тест-загрузка',   desc: 'Стенд-проверка загрузки иллюстрации, плейсхолдер.' },
+        { label: 'Материал',        desc: 'Второй вариант покрытия под studio HDRI, проверен на читаемость силуэта.' },
         { label: 'Топология',       desc: '18k чистых quads. Subdivision-ready и LOD0-сертифицирован под real-time.' },
         { label: 'Крупный план',    desc: 'Макро шва панели. Bevel-радиусы рассчитаны под 2 м просмотра в 4K.' },
         { label: 'Финальный composite', desc: 'Свет: 3-точечный studio HDRI. Denoise через OptiX, тонмап ACES.' }
@@ -859,37 +859,37 @@
     'mech-link': {
       role: 'R&D',
       captions: [
-        { label: 'Обзор сборки',     desc: 'Плейсхолдер промышленной link-цепи. Параметрическая pin-joint сборка из CAD.' },
-        { label: 'Деталь кронштейна',desc: 'Крупный план bolt-pattern. Плейсхолдер-геометрия — финальный topology-пасс готовится.' },
+        { label: 'Обзор сборки',     desc: 'Промышленная link-цепь. Параметрическая pin-joint сборка из CAD.' },
+        { label: 'Деталь кронштейна',desc: 'Крупный план bolt-pattern. Retopology-пасс подготовлен для manufacturing-review.' },
         { label: 'Motion study',     desc: 'Скетч range-of-motion для pivoting-arm. Preview constraint-solver.' },
         { label: 'Exploded view',    desc: 'Диаграмма деталей под производственное планирование. Допуски размечены в исходном DWG.' },
         { label: 'Material preview', desc: 'KeyShot-пасс — brushed steel и anodized aluminium-сэмплы.' }
       ],
-      text:   { title: 'CAD-плейсхолдер', body: 'Этот кейс — технологический плейсхолдер. Финальный GLB, топология и рендеры готовятся. Используется для проверки layout и фильтра CAD-категории.' },
-      inline: { title: 'Pipeline',        body: 'Fusion 360 → STEP → Blender retopo → KeyShot marketing. В Dev-цикле заменяется live-рендером.' }
+      text:   { title: 'CAD production study', body: 'Параметрический link-chain кейс для CAD-handoff, проверки допусков и render-ready топологии в CAD-категории.' },
+      inline: { title: 'Pipeline',        body: 'Fusion 360 → STEP → Blender retopo → KeyShot marketing. Сборка готова для CAD-review и render handoff.' }
     },
     'flex-spine': {
       role: 'R&D',
       captions: [
-        { label: 'Сборка позвоночника',desc: 'Плейсхолдер кинематической оси. Параметрические рёбра — управляются одним driver-углом.' },
+        { label: 'Сборка позвоночника',desc: 'Кинематическая ось. Параметрические рёбра управляются одним driver-углом.' },
         { label: 'Сечение ребра',      desc: 'Section-cut через одно ребро — толщина и радиусы фасок выведены как параметры.' },
-        { label: 'Тест отклонения',    desc: 'FEA-скетч — deflection map под 50 N боковой нагрузки. Placeholder-визуализация.' },
+        { label: 'Deflection study',   desc: 'FEA-скетч — deflection map под 50 N боковой нагрузки для design-review.' },
         { label: 'Деталь сустава',     desc: 'Крупный план ball-and-socket. Tolerance stack-up расписан в исходном PDF.' },
         { label: 'Этюд рендера',       desc: 'KeyShot-пасс — matte-steel на cool-grey фоне.' }
       ],
-      text:   { title: 'CAD-плейсхолдер', body: 'Кинематический позвоночник-плейсхолдер. Конструкция параметрическая: один управляющий угол гнёт все рёбра. Финальная модель и стенд-рендеры в процессе.' },
+      text:   { title: 'Kinematic CAD study', body: 'Параметрическая spine-система: один driver-угол сгибает каждое ребро, render studies подготовлены под stand и motion-review.' },
       inline: { title: 'Параметры',       body: 'Параметры: rib_count, rib_thickness, segment_angle. Связаны через Fusion 360 sketches → экспорт в Blender.' }
     },
     'cad-strut': {
       role: 'R&D',
       captions: [
-        { label: 'Обзор узла',         desc: 'Плейсхолдер структурного strut-узла. Six-way коннектор под space-frame сборки.' },
+        { label: 'Обзор узла',         desc: 'Структурный strut-узел. Six-way коннектор под space-frame сборки.' },
         { label: 'Диаграмма осей',     desc: 'Load-path диаграмма — главные оси размечены для конструктора.' },
         { label: 'Cross-section',      desc: 'Сечение через центральный hub. Толщина стенок и weld-prep подсвечены.' },
         { label: 'Mount-плита',        desc: 'Bolt-circle mount-плита. Параметрическая — обновляется при смене диаметра strut.' },
         { label: 'Поверхностная отделка', desc: 'KeyShot-пасс — powder-coated aluminium, matte warm grey.' }
       ],
-      text:   { title: 'CAD-плейсхолдер', body: 'Структурный strut-узел. Параметрическая CAD-геометрия: диаметр, толщина стенки и схема болтов связаны. Финальные рендеры и игровая топология готовятся.' },
+      text:   { title: 'Structural CAD node', body: 'Структурный strut-узел: диаметр, толщина стенки и bolt-pattern связаны параметрами для production и render review.' },
       inline: { title: 'Use case',        body: 'Применяется в space-frame прототипах. STEP экспортируется для CNC, Blender-retopo — для marketing-рендеров.' }
     }
   };

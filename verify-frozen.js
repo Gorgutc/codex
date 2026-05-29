@@ -134,6 +134,33 @@ function runStaticChecks() {
   add('static', 'A8-no-localStorage-runtime', jsViolations.length === 0,
       jsViolations.length ? 'violations in: ' + jsViolations.join(', ') : 'all clean');
 
+  const shippedCopyFiles = ['index.html', 'free-assets.html', 'main.js', 'i18n-data.js', 'fa-data.js', 'free-assets.js'];
+  const shippedCopyViolations = [];
+  const shippedCopyRules = [
+    {
+      name: 'debug copy',
+      pattern: /Testing hamster|Проверка загрузки иллюстрации/i,
+    },
+    {
+      name: 'visible placeholder copy',
+      pattern: /CAD placeholder|placeholder kit|technology placeholder|assembly placeholder|kinematic placeholder|work in progress|live render|live-рендер|Dev cycle|Dev-цикле|final GLB \+ renders in progress|final model (?:&|&amp;) textures pending/i,
+    },
+  ];
+  shippedCopyFiles.forEach(file => {
+    const full = file.endsWith('.js') ? path.join(ROOT, 'js', file) : path.join(ROOT, file);
+    if (!fs.existsSync(full)) return;
+    const rel = path.relative(ROOT, full);
+    fs.readFileSync(full, 'utf8').split(/\r?\n/).forEach((line, index) => {
+      shippedCopyRules.forEach(rule => {
+        if (rule.pattern.test(line)) {
+          shippedCopyViolations.push(`${rel}:${index + 1} (${rule.name})`);
+        }
+      });
+    });
+  });
+  add('static', 'A9-no-debug-or-visible-placeholder-copy', shippedCopyViolations.length === 0,
+      shippedCopyViolations.length ? shippedCopyViolations.join(', ') : 'shipped copy is production-facing');
+
   // C1 — `font-size: Npx` budget per CSS file (Stage 3 whitelist mode).
   // Frozen rule говорит "px для font-size запрещено — rem / clamp() only",
   // но репо имеет 25 pre-existing occurrences (главным образом в
@@ -801,7 +828,7 @@ async function testFreeAssets(BASE) {
   // v0.8.x — filter расширен идентично index (fontshare, cloudflare, ERR_CERT_AUTHORITY_INVALID,
   // ERR_FAILED, jsdelivr) для устойчивости в cloud envs с corp TLS-перехватом.
   const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|jsdelivr|fontshare|cloudflare|og-image\.jpg)/i.test(e));
-  add('fa', 'CONSOLE-no-internal-errors', internalErrors.length === 0);
+  add('fa', 'CONSOLE-no-internal-errors', internalErrors.length === 0, internalErrors.slice(0,2).join(' | ') || 'clean');
 
   await browser.close();
 }

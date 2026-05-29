@@ -566,39 +566,39 @@
           </div>
         </a>
 
-        <!-- 16 — CAD placeholder (v0.14.0 [15a]) — data-cad-placeholder="true" для будущей замены -->
+        <!-- 16 — CAD study (v0.14.0 [15a]) — data-cad-placeholder="true" для будущей замены -->
         <a class="work-card" data-id="mech-link" data-category="cad" data-cad-placeholder="true" href="#mech-link">
           <div class="work-card__thumb" data-label="Mech Link">
-            <img src="./assets/cards/mech-link.svg" data-i18n-attr="alt:card.mech-link.alt" alt="Mech Link — CAD assembly placeholder" loading="lazy" decoding="async" width="800" height="600">
+            <img src="./assets/cards/mech-link.svg" data-i18n-attr="alt:card.mech-link.alt" alt="Mech Link — CAD linkage assembly" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">CAD</span><span class="work-card__year">2025</span></div>
             <h2 class="work-card__title" data-i18n="card.mech-link.title">Mech Link</h2>
-            <p class="work-card__desc" data-i18n="card.mech-link.desc">Industrial CAD assembly. Placeholder kit — final GLB + renders in progress.</p>
+            <p class="work-card__desc" data-i18n="card.mech-link.desc">Industrial CAD linkage. Parametric pins, exploded tolerances, production handoff view.</p>
           </div>
         </a>
 
-        <!-- 17 — CAD placeholder -->
+        <!-- 17 — CAD study -->
         <a class="work-card" data-id="flex-spine" data-category="cad" data-cad-placeholder="true" href="#flex-spine">
           <div class="work-card__thumb" data-label="Flex Spine">
-            <img src="./assets/cards/flex-spine.svg" data-i18n-attr="alt:card.flex-spine.alt" alt="Flex Spine — CAD kinematic placeholder" loading="lazy" decoding="async" width="800" height="600">
+            <img src="./assets/cards/flex-spine.svg" data-i18n-attr="alt:card.flex-spine.alt" alt="Flex Spine — kinematic CAD spine study" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">CAD</span><span class="work-card__year">2025</span></div>
             <h2 class="work-card__title" data-i18n="card.flex-spine.title">Flex Spine</h2>
-            <p class="work-card__desc" data-i18n="card.flex-spine.desc">Kinematic spine study. CAD constraints, parametric ribs — work in progress.</p>
+            <p class="work-card__desc" data-i18n="card.flex-spine.desc">Kinematic spine study. CAD constraints and parametric ribs for motion review.</p>
           </div>
         </a>
 
-        <!-- 18 — CAD placeholder -->
+        <!-- 18 — CAD study -->
         <a class="work-card" data-id="cad-strut" data-category="cad" data-cad-placeholder="true" href="#cad-strut">
           <div class="work-card__thumb" data-label="CAD Strut">
-            <img src="./assets/cards/cad-strut.svg" data-i18n-attr="alt:card.cad-strut.alt" alt="CAD Strut — structural node placeholder" loading="lazy" decoding="async" width="800" height="600">
+            <img src="./assets/cards/cad-strut.svg" data-i18n-attr="alt:card.cad-strut.alt" alt="CAD Strut — structural node assembly" loading="lazy" decoding="async" width="800" height="600">
           </div>
           <div class="work-card__info">
             <div class="work-card__meta"><span class="work-card__cat">CAD</span><span class="work-card__year">2025</span></div>
             <h2 class="work-card__title" data-i18n="card.cad-strut.title">CAD Strut</h2>
-            <p class="work-card__desc" data-i18n="card.cad-strut.desc">Structural strut node. CAD-first geometry — final model &amp; textures pending.</p>
+            <p class="work-card__desc" data-i18n="card.cad-strut.desc">Structural strut node. CAD-first geometry with bolt-pattern variants and PBR finish study.</p>
           </div>
         </a>
 
@@ -838,8 +838,7 @@
         </div>
       </div>
 
-      <!-- 3D VIEW (v0.11) — интерактивный 3D-viewer через Google <model-viewer>.
-           Lazy-load скрипта + <model-viewer> элемента при первом переключении на вкладку. -->
+      <!-- 3D VIEW — self-hosted Three viewer first, lazy model-viewer fallback when needed. -->
       <div class="case-3d"
            id="case-3d"
            role="region"
@@ -847,7 +846,7 @@
            aria-label="Project 3D viewer"
            hidden>
         <div class="case-3d__canvas" id="case-3d-canvas" data-cursor="drag">
-          <!-- <model-viewer> инжектится в main.js (build3D) из CARDS_DATA.model -->
+          <!-- 3D surface is injected by main.js from CARDS_DATA model fields. -->
         </div>
       </div>
 

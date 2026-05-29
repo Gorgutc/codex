@@ -8,7 +8,7 @@ Codex Studio is a static site with two pages: `index.html` for the portfolio and
 - No runtime framework, bundler, build step, Tailwind, cookies, `localStorage`, or `sessionStorage`.
 - Dev-only npm dependencies: Playwright and axe for verification.
 - Runtime vendor libraries are self-hosted in `js/vendor/`: GSAP, ScrollTrigger, SplitText, Lenis.
-- Fontshare remains external. `<model-viewer>` is lazy-loaded by `main.js`.
+- Fontshare remains external. Portfolio 3D mounts through the self-hosted Three viewer first and falls back to lazy `<model-viewer>` only when needed; free-assets mini previews lazy-load through `free-assets.js` near the preview grid.
 
 ## CSS
 

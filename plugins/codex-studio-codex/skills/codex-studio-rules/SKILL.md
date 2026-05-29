@@ -19,11 +19,7 @@ If a migrated Claude reference contradicts `verify-frozen.js`, treat the referen
 
 ## Current verified baseline
 
-`npm run verify` is the project gate. On this branch it is expected to report:
-
-```text
-SUMMARY: 96/96 PASS, 0 FAIL
-```
+`npm run verify` is the project gate. It must exit cleanly and report `0 FAIL`; do not treat any historic pass total as the contract.
 
 Run it outside restricted sandboxes when Chromium cannot spawn.
 
