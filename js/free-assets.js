@@ -50,24 +50,44 @@ function dlIcon() {
     + '</svg>';
 }
 
+function escapeAttr(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
 function renderGrid(tag) {
   var grid = document.getElementById('fa-grid');
   if (!grid) return;
   var assets = FA_DATA[tag] || [];
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   grid.innerHTML = assets.map(function(a) {
-    /* v0.7.5 [model-viewer]: SVG-poster становится декоративным fallback'ом
-       (alt="", aria-hidden), accessible name переходит на <model-viewer>.
-       Если .glb 404/CORS — error handler ниже добавляет .--failed → CSS hide → SVG виден. */
+    var thumb = Object.prototype.hasOwnProperty.call(a, 'thumb') ? a.thumb : a.id;
+    var model = Object.prototype.hasOwnProperty.call(a, 'model') ? a.model : a.id;
+    var titleAttr = escapeAttr(a.title);
+    var thumbHTML = thumb
+      ? '<img src="./assets/cards/' + thumb + '.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="800" height="600">'
+      : '';
+    var rotateAttrs = reducedMotion ? '' : ' auto-rotate auto-rotate-delay="0" rotation-per-second="20deg"';
+    var modelHTML = model
+      ? '<model-viewer class="fa-card__thumb-mv"'
+        + ' src="./assets/models/free/' + model + '.glb"'
+        + ' alt="' + titleAttr + ' — 3D preview"'
+        + ' loading="eager" reveal="auto"'
+        + rotateAttrs
+        + ' shadow-intensity="0" exposure="1.0" environment-image="neutral"'
+        + ' interaction-prompt="none"'
+        + '></model-viewer>'
+      : '';
+    var previewButton = thumbHTML || modelHTML
+      ? '<button class="fa-card__preview-btn" type="button" aria-label="Open preview of ' + titleAttr + '"></button>'
+      : '';
     return '<li class="fa-card">'
-      + '<div class="fa-card__thumb" data-label="' + a.title + '" style="background:' + a.bg + '">'
-      + '<img src="./assets/cards/' + a.id + '.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="800" height="600">'
-      + '<model-viewer class="fa-card__thumb-mv"'
-      +   ' src="./assets/models/free/' + a.id + '.glb"'
-      +   ' alt="' + a.title + ' — 3D preview"'
-      +   ' loading="lazy" reveal="auto"'
-      +   ' auto-rotate auto-rotate-delay="0" rotation-per-second="20deg"'
-      +   ' shadow-intensity="0" exposure="1.0" environment-image="neutral"'
-      +   '></model-viewer>'
+      + '<div class="fa-card__thumb" data-label="' + titleAttr + '" style="background:' + a.bg + '">'
+      + thumbHTML
+      + modelHTML
+      + previewButton
       + '<span class="fa-card__badge">' + a.badge + '</span>'
       + '</div>'
       + '<div class="fa-card__body">'
@@ -97,14 +117,21 @@ function renderGrid(tag) {
     btn.addEventListener('click', handleDownload);
   });
 
-  /* v0.7.5 [model-viewer]: если .glb fails (404/CORS/malformed) — помечаем класс,
-     CSS скрывает <model-viewer>, SVG-fallback под ним становится виден.
-     Связано с DIFF 2.2 в free-assets.css (.fa-card__thumb-mv--failed). */
+  grid.querySelectorAll('.fa-card__preview-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var thumb = btn.closest && btn.closest('.fa-card__thumb');
+      openAssetPreview(thumb, btn);
+    });
+  });
+
   grid.querySelectorAll('.fa-card__thumb-mv').forEach(function(mv) {
-    mv.addEventListener('error', function(e) {
-      if (e.detail && e.detail.type === 'loadfailure') {
-        mv.classList.add('fa-card__thumb-mv--failed');
-      }
+    mv.addEventListener('load', function() {
+      mv.classList.add('is-ready');
+      var thumbEl = mv.closest && mv.closest('.fa-card__thumb');
+      if (thumbEl) thumbEl.classList.add('is-model-ready');
+    });
+    mv.addEventListener('error', function() {
+      mv.classList.add('fa-card__thumb-mv--failed');
     });
   });
 
@@ -122,11 +149,66 @@ function renderGrid(tag) {
   // v0.9.3 — write scrollTop только если != 0 (write на scrollTop всегда
   // вызывает reflow, даже если значение не меняется).
   if (scroll && scroll.scrollTop !== 0) scroll.scrollTop = 0;
-
-  // v0.9.2 — после каждого renderGrid (включая switch tag) подписываем
-  // новые .fa-card__thumb-mv на observer. Если script уже загружен —
-  // ensureModelViewerObserver вернёт null и observe-loop станет no-op.
   observeModelViewers();
+}
+
+/* ─── PREVIEW FULLSCREEN ─── */
+function buildFullscreenModelSource(mv) {
+  var proxy = document.createElement('model-viewer');
+  [
+    'src',
+    'alt',
+    'poster',
+    'environment-image',
+    'exposure',
+    'shadow-intensity',
+    'interaction-prompt'
+  ].forEach(function(name) {
+    if (mv.hasAttribute(name)) proxy.setAttribute(name, mv.getAttribute(name));
+  });
+  proxy.setAttribute('loading', 'eager');
+  proxy.setAttribute('reveal', 'auto');
+  proxy.setAttribute('camera-controls', '');
+  proxy.setAttribute('touch-action', 'none');
+  proxy.setAttribute('interaction-prompt', 'none');
+  if (mv.hasAttribute('auto-rotate')) {
+    proxy.setAttribute('auto-rotate', '');
+    proxy.setAttribute('auto-rotate-delay', mv.getAttribute('auto-rotate-delay') || '0');
+    proxy.setAttribute('rotation-per-second', mv.getAttribute('rotation-per-second') || '20deg');
+  }
+  return proxy;
+}
+
+function openFallbackPreview(thumb, triggerEl) {
+  if (!thumb || !window.CodexMediaFullscreen ||
+      typeof window.CodexMediaFullscreen.openElement !== 'function') {
+    return;
+  }
+  var img = thumb.querySelector('img');
+  if (img) window.CodexMediaFullscreen.openElement(img, 'img', triggerEl || thumb);
+}
+
+function openAssetPreview(thumb, triggerEl) {
+  if (!thumb || !window.CodexMediaFullscreen ||
+      typeof window.CodexMediaFullscreen.openElement !== 'function') {
+    return;
+  }
+  var mv = thumb.querySelector('.fa-card__thumb-mv:not(.fa-card__thumb-mv--failed)');
+  if (!mv) {
+    openFallbackPreview(thumb, triggerEl);
+    return;
+  }
+  loadModelViewerScript()
+    .then(function() {
+      if (!window.customElements || !window.customElements.get('model-viewer')) {
+        openFallbackPreview(thumb, triggerEl);
+        return;
+      }
+      window.CodexMediaFullscreen.openElement(buildFullscreenModelSource(mv), 'model-viewer', triggerEl || thumb);
+    })
+    .catch(function() {
+      openFallbackPreview(thumb, triggerEl);
+    });
 }
 
 /* ─── DOWNLOAD ─── */
@@ -234,26 +316,13 @@ function rebindGameSwitch() {
   });
 }
 
-/* ─── MODEL-VIEWER SCRIPT — lazy-load один раз ────────────────────────────
-   v0.7.5 [model-viewer]: идентичный паттерн используется в js/main.js:1683
-   для 3D-таба кейсов на index.html. Дублируем здесь — main.js живёт в своей
-   IIFE, функция оттуда не доступна. type="module" = deferred-by-default,
-   первый рендер страницы не блокируется.
-   CDN тот же что на index.html (Google Hosted Libraries) → браузер кэширует
-   один раз для обеих страниц.
-
-   v0.9.2: ленивая инициализация через IntersectionObserver.
-   Раньше loadModelViewerScript() стартовала на DOMContentLoaded —
-   модуль 252 KiB начинал тянуться параллельно с первым render, удлинял
-   FCP/LCP даже когда первая fa-card-thumb-mv ещё была за viewport'ом.
-   Теперь script инжектится только когда первая .fa-card__thumb-mv реально
-   входит в viewport (или близко к нему через rootMargin). После загрузки
-   model-viewer custom-element upgrade'ит ВСЕ инстансы автоматически.
-   ─────────────────────────────────────────────────────────────────────── */
+/* ─── MINI MODEL PREVIEWS — lazy-load one viewer runtime ──────────────────
+   Free-assets cards intentionally show small rotating models. The runtime is
+   still loaded lazily: only when the first preview approaches the viewport. */
 var modelViewerLoading = null;
 function loadModelViewerScript() {
   if (modelViewerLoading) return modelViewerLoading;
-  modelViewerLoading = new Promise(function(resolve, reject) {
+  modelViewerLoading = new Promise(function(resolve) {
     if (window.customElements && window.customElements.get('model-viewer')) {
       resolve();
       return;
@@ -263,27 +332,24 @@ function loadModelViewerScript() {
     s.src = 'https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
     s.onload = function() { resolve(); };
     s.onerror = function() {
-      console.warn('[FA] model-viewer load failed — карточки покажут SVG fallback');
-      reject(new Error('model-viewer load failed'));
+      console.warn('[FA] model-viewer load failed — cards keep SVG fallback');
+      modelViewerLoading = null;
+      resolve();
     };
     document.head.appendChild(s);
   });
   return modelViewerLoading;
 }
 
-// v0.9.2 — observer для отложенной инициализации model-viewer.
-// rootMargin 200px — успеваем подкачать скрипт пока пользователь скроллит
-// к 3D-preview. Idempotent: после первого triggered loadModelViewerScript
-// возвращает same Promise.
 var modelViewerObserver = null;
 function ensureModelViewerObserver() {
+  if (window.customElements && window.customElements.get('model-viewer')) return null;
   if (modelViewerObserver) return modelViewerObserver;
   if (typeof IntersectionObserver === 'undefined') {
-    // Старый браузер — fallback на немедленную загрузку (как было до v0.9.2).
     loadModelViewerScript();
     return null;
   }
-  modelViewerObserver = new IntersectionObserver(function (entries) {
+  modelViewerObserver = new IntersectionObserver(function(entries) {
     for (var i = 0; i < entries.length; i++) {
       if (entries[i].isIntersecting) {
         loadModelViewerScript();
@@ -295,19 +361,41 @@ function ensureModelViewerObserver() {
   }, { rootMargin: '200px' });
   return modelViewerObserver;
 }
+
 function observeModelViewers() {
   var obs = ensureModelViewerObserver();
-  if (!obs) return; // fallback path или уже загружено
-  document.querySelectorAll('.fa-card__thumb-mv').forEach(function (mv) {
+  var previews = Array.prototype.slice.call(document.querySelectorAll('.fa-card__thumb-mv'));
+  if (!obs || !previews.length) return;
+  previews.forEach(function(mv) {
     obs.observe(mv);
   });
+  requestAnimationFrame(function() {
+    for (var i = 0; i < previews.length; i++) {
+      if (isModelViewerNearView(previews[i])) {
+        loadModelViewerScript();
+        if (modelViewerObserver) {
+          modelViewerObserver.disconnect();
+          modelViewerObserver = null;
+        }
+        break;
+      }
+    }
+  });
+}
+
+function isModelViewerNearView(mv) {
+  if (!mv || !mv.getClientRects || !mv.getClientRects().length) return false;
+  var rect = mv.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  var scroll = document.getElementById('fa-scroll');
+  var root = scroll && scroll.getClientRects && scroll.getClientRects().length
+    ? scroll.getBoundingClientRect()
+    : { top: 0, bottom: window.innerHeight || document.documentElement.clientHeight };
+  return rect.bottom >= root.top - 200 && rect.top <= root.bottom + 200;
 }
 
 /* ─── INIT ─── */
 document.addEventListener('DOMContentLoaded', function() {
-  // v0.9.2: убран немедленный loadModelViewerScript(). Скрипт теперь
-  // инжектится через IntersectionObserver когда первая .fa-card__thumb-mv
-  // приближается к viewport (см. observeModelViewers в renderGrid).
   bindTagCards();
   // Initial load: pre-select first category but DO NOT collapse sidebar on mobile.
   // User should land on the tag-cards overview, not inside a category.

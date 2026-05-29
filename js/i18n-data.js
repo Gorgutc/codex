@@ -200,6 +200,8 @@
       lightingSettings: 'Lighting settings',
       lightingPanel: 'Lighting presets and exposure',
       environmentLabel: 'ENVIRONMENT',
+      materialMode: 'Material view mode',
+      materialLabel: 'MATERIAL',
     },
 
     faTag: {
@@ -334,6 +336,8 @@
     lightingSettings: 'Настройки освещения',
     lightingPanel: 'Пресеты освещения и экспозиция',
     environmentLabel: 'ОКРУЖЕНИЕ',
+    materialMode: 'Режим отображения материала',
+    materialLabel: 'МАТЕРИАЛ',
   };
 
   // ── META_STRINGS ───────────────────────────────────────────────────────────

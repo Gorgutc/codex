@@ -212,6 +212,12 @@
   align-items: center;
   justify-content: flex-end;
 }
+.case-view__tablist {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
 .case-tab {
   display: inline-flex;
   align-items: center;
@@ -1140,6 +1146,14 @@
   --progress-bar-height: 2px;
 }
 
+.case-3d__canvas .case-3d__three-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  touch-action: none;
+}
+
 /* Плейсхолдер до загрузки <model-viewer>-скрипта или когда у кейса нет модели */
 .case-3d__fallback {
   position: absolute;
@@ -1299,7 +1313,8 @@
    ══════════════════════════════════ */
 
 /* Группа Studio/Outdoor/Dark — соединены без gap, как segmented control */
-.case-3d__env-group {
+.case-3d__env-group,
+.case-3d__mat-group {
   display: inline-flex;
   border: 1px solid var(--color-divider);
   border-radius: 3px;
@@ -1310,7 +1325,8 @@
 }
 
 /* Внутри группы — снимаем индивидуальные рамки и LED-точки */
-.case-3d__ctrl--env {
+.case-3d__ctrl--env,
+.case-3d__ctrl--mat {
   border: none;
   border-radius: 0;
   background: transparent;
@@ -1318,16 +1334,20 @@
   -webkit-backdrop-filter: none;
   padding: 5px 10px;
 }
-.case-3d__ctrl--env::before { display: none; }
-.case-3d__ctrl--env + .case-3d__ctrl--env {
+.case-3d__ctrl--env::before,
+.case-3d__ctrl--mat::before { display: none; }
+.case-3d__ctrl--env + .case-3d__ctrl--env,
+.case-3d__ctrl--mat + .case-3d__ctrl--mat {
   border-left: 1px solid var(--color-divider);
 }
-.case-3d__ctrl--env.is-on {
+.case-3d__ctrl--env.is-on,
+.case-3d__ctrl--mat.is-on {
   background: var(--color-primary-highlight);
   color: var(--color-primary);
   border-color: transparent; /* перекрыто bg, отдельной рамки на active не нужно */
 }
-.case-3d__ctrl--env:focus-visible {
+.case-3d__ctrl--env:focus-visible,
+.case-3d__ctrl--mat:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
 }
@@ -1529,12 +1549,13 @@
 }
 
 /* ══════════════════════════════════
-   v0.7.3 — Responsive switch: ≤1023px — light-dropdown UI
+   v0.7.3 — Responsive switch: ≤1199px — light-dropdown UI
    На mobile/tablet portrait скрываем "толстый" desktop UI (env-group + expoWrap),
    показываем компактный dropdown.
    ══════════════════════════════════ */
-@media (max-width: 1023px) {
+@media (max-width: 1199px) {
   .case-3d__env-group { display: none; }
+  .case-3d__mat-group { display: none; }
   .case-3d__expo { display: none; }
   .case-3d__light-dd { display: inline-flex; }
 
@@ -1549,7 +1570,7 @@
      На iPad Air 820px при раскрытом sidebar правая колонка теряет ширину
      и title переносится буквами вертикально (см. screenshot 3 → "ReconDrone"
      становится столбиком). Решение: переводим header в column flow начиная с
-     ≤1023px (раньше это работало только ≤767px), уменьшаем title до --text-xl. */
+     ≤1199px (раньше это работало только ≤767px), уменьшаем title до --text-xl. */
   .case-view__header {
     flex-direction: column;
     align-items: stretch;
@@ -1583,7 +1604,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   v0.7.7 [planshet-fix] — точечная адаптация case-view для planshet 768-1023.
+   v0.7.7 [planshet-fix] — точечная адаптация case-view для planshet 768-1199.
    ──────────────────────────────────────────────────────────────────────────
    Контекст: на iPad Air portrait (820×1180) с открытым sidebar главная зона
    сжимается до ~480px. Фиксим три источника overflow в этом range:
@@ -1593,9 +1614,9 @@
    3. case-3d__hint--desktop "RIGHT MOUSE · ROTATE" — overlap с controls →
       показываем mobile-hint "DRAG · ZOOM" (актуальнее для touch input)
 
-   Range НЕ затрагивает mobile (≤767, есть свои rules) и desktop (≥1024, full UI).
+   Range НЕ затрагивает mobile (≤767, есть свои rules) и desktop baseline (≥1200, full UI).
    ══════════════════════════════════════════════════════════════════════════ */
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 768px) and (max-width: 1199px) {
   /* 1. Pills text swap — dual-span паттерн.
      JS рендерит обе версии в spans (см. main.js:1921, 1927). CSS показывает
      нужную в зависимости от viewport — без resize-listener'а. */
@@ -1919,21 +1940,26 @@
     justify-content: flex-start;
     align-items: center;
   }
-  .case-view__tabs > .case-tab {
+  .case-view__tablist {
+    flex: 0 0 auto;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  .case-view__tablist > .case-tab {
     flex: 0 0 auto;
     min-width: 0;
     justify-content: center;
   }
   /* v0.15.3 [П2] — 2D / 3D: fix 36×36 квадрат. Override .case-tab min-height:44px. */
-  .case-view__tabs > #case-tab-2d,
-  .case-view__tabs > #case-tab-3d {
+  .case-view__tablist > #case-tab-2d,
+  .case-view__tablist > #case-tab-3d {
     width: 36px;
     height: 36px;
     min-height: 36px;
     padding: 0;
   }
   /* v0.15.3 [П2] — Blueprints: height 36, padding 16/16, width by content. */
-  .case-view__tabs > #case-tab-bp {
+  .case-view__tablist > #case-tab-bp {
     height: 36px;
     min-height: 36px;
     padding: 0 16px;
@@ -2126,11 +2152,18 @@
   object-fit: contain;
   display: block;
 }
-.media-fs__stage > model-viewer {
+.media-fs__stage > model-viewer,
+.media-fs__stage > .media-fs__three {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+.media-fs__three .case-3d__three-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
 }
 @media (max-width: 640px) {
   .media-fs__stage > img,
@@ -2244,6 +2277,77 @@
   transform-origin: left center;
 }
 .media-fs__counter[hidden] { display: none; }
+
+.media-fs__zoom {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--color-fs-close-border);
+  border-radius: 4px;
+  background: var(--color-fs-close-bg);
+  color: var(--color-fs-close-text);
+  transform: translateX(-50%);
+}
+.media-fs__zoom[hidden] { display: none; }
+.media-fs__zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  transition:
+    color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    opacity 160ms var(--ease-out);
+}
+.media-fs__zoom-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+@media (hover: hover) and (pointer: fine) {
+  .media-fs__zoom-btn:not(:disabled):hover {
+    color: var(--color-fs-close-text-hover);
+    border-color: var(--color-fs-close-border-hover);
+  }
+}
+.media-fs__zoom-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.media-fs__zoom-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.media-fs.is-gallery .media-fs__stage > img {
+  cursor: zoom-in;
+  transform-origin: center center;
+  touch-action: none;
+  will-change: transform;
+}
+.media-fs.is-gallery.is-zoomed .media-fs__stage > img { cursor: grab; }
+.media-fs.is-gallery.is-panning .media-fs__stage > img { cursor: grabbing; }
+@media (max-width: 640px) {
+  .media-fs__zoom {
+    bottom: 12px;
+    gap: 4px;
+  }
+  .media-fs__zoom-btn {
+    width: 34px;
+    height: 34px;
+  }
+}
 
 /* visually hidden live-region для скринридеров */
 .media-fs__announcer {

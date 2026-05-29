@@ -34,7 +34,8 @@ const MIME = {
   '.jpg':'image/jpeg', '.png':'image/png', '.ico':'image/x-icon',
   '.mp4':'video/mp4', '.webp':'image/webp', '.zip':'application/zip',
   '.txt':'text/plain', '.xml':'application/xml', '.md':'text/markdown',
-  '.webmanifest':'application/manifest+json'
+  '.webmanifest':'application/manifest+json', '.wasm':'application/wasm',
+  '.hdr':'image/vnd.radiance', '.exr':'image/x-exr', '.ktx2':'image/ktx2'
 };
 
 function startServer() {
@@ -84,12 +85,40 @@ function runStaticChecks() {
   const blockedCDN = /(cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)[^\s"]*\/(gsap|lenis|ScrollTrigger|SplitText)/i;
   const indexHTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const faHTML = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
+  const staticScriptTags = (indexHTML + '\n' + faHTML).match(/<script\b[^>]*>/gi) || [];
   add('static', 'A7-vendor-only-index', !blockedCDN.test(indexHTML), 'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
   add('static', 'A7-vendor-only-fa',    !blockedCDN.test(faHTML),    'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
+  add('static', 'A7-no-static-model-viewer-fa', !/<script[^>]+model-viewer/i.test(faHTML),
+      'free-assets loads mini 3D viewer lazily from JS');
+  add('static', 'A7-no-static-three-scripts',
+      !staticScriptTags.some(tag => /src=["'][^"']*(three|GLTFLoader|OrbitControls)[^"']*["']/i.test(tag)),
+      'Three viewer artifacts must load through the adapter');
+  add('static', 'A7-no-importmaps',
+      !staticScriptTags.some(tag => /type=["']importmap["']/i.test(tag)),
+      'no import-map architecture in shipped HTML');
+  add('static', 'A7-no-first-party-module-scripts',
+      !staticScriptTags.some(tag => /type=["']module["']/i.test(tag) && /src=["']\.?\/?js\//i.test(tag)),
+      'first-party page scripts stay classic');
   // Sanity: vendor files actually present on disk.
   const vendorFiles = ['gsap.min.js', 'ScrollTrigger.min.js', 'SplitText.min.js', 'lenis.min.js'];
   const vendorOK = vendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
   add('static', 'A7-vendor-files-present', vendorOK, vendorFiles.join(', '));
+  const threeVendorFiles = [
+    'codex-three-viewer.js',
+    path.join('three', 'three.module.js'),
+    path.join('three', 'three.core.js'),
+    path.join('three', 'GLTFLoader.js'),
+    path.join('three', 'OrbitControls.js'),
+    path.join('three', 'DRACOLoader.js'),
+    path.join('three', 'KTX2Loader.js'),
+    path.join('three', 'HDRLoader.js'),
+    path.join('three', 'EXRLoader.js'),
+    path.join('three', 'libs', 'draco', 'gltf', 'draco_decoder.wasm'),
+    path.join('three', 'libs', 'basis', 'basis_transcoder.wasm'),
+    path.join('three', 'libs', 'meshopt_decoder.module.js')
+  ];
+  const threeVendorOK = threeVendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
+  add('static', 'A7-three-vendor-files-present', threeVendorOK, threeVendorFiles.join(', '));
 
   // A8 — localStorage / sessionStorage НЕ должны использоваться runtime в
   // shipped JS. Frozen rule top-10. Regex ловит method/property access
@@ -281,13 +310,45 @@ async function testIndex(BASE) {
   add('index', 'CASE-blueprint-svg', !!await page.$('.case-blueprints svg'));
 
   // 3D
+  const before3DResources = await page.evaluate(() => performance.getEntriesByType('resource')
+    .map(e => e.name)
+    .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr/i.test(n)));
+  add('index', 'CASE-3d-lazy-before-click', before3DResources.length === 0, before3DResources.join(', ') || 'clean');
   await page.click('.case-tab[data-viz="3d"]'); await page.waitForTimeout(800);
+  await page.waitForSelector('#case-3d-canvas canvas.case-3d__three-canvas', { timeout: 5000 }).catch(() => {});
   const c3d = await page.evaluate(() => ({
     canvas: !!document.getElementById('case-3d-canvas'),
     children: document.getElementById('case-3d-canvas')?.children.length > 0,
+    threeCanvas: !!document.querySelector('#case-3d-canvas canvas.case-3d__three-canvas'),
+    threeQuality: document.querySelector('#case-3d-canvas canvas.case-3d__three-canvas')?.dataset.quality || '',
+    modelViewer: !!document.querySelector('#case-3d-canvas model-viewer'),
+    materialModes: [...document.querySelectorAll('.case-3d__mat-group [data-material-mode]')].map(btn => btn.dataset.materialMode),
+    activeMaterial: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
+    resources: performance.getEntriesByType('resource')
+      .map(e => e.name)
+      .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr|\.glb/i.test(n))
   }));
   add('index', 'CASE-3d-canvas', c3d.canvas);
   add('index', 'CASE-3d-content', c3d.children);
+  add('index', 'CASE-3d-three-island', c3d.threeCanvas && !c3d.modelViewer, c3d.resources.join(', '));
+  add('index', 'CASE-3d-quality-controls',
+      c3d.threeQuality === 'pmrem-contact-shadow-material-modes' &&
+      c3d.materialModes.join(',') === 'pbr,clay,xray' &&
+      c3d.activeMaterial === 'pbr',
+      `quality=${c3d.threeQuality}, material=${c3d.materialModes.join(',')}, active=${c3d.activeMaterial}`);
+  await page.click('.case-3d__mat-group [data-material-mode="clay"]'); await page.waitForTimeout(80);
+  await page.click('.case-3d__mat-group [data-material-mode="xray"]'); await page.waitForTimeout(80);
+  const materialSwitch = await page.evaluate(() => ({
+    active: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
+    aria: document.querySelector('.case-3d__mat-group [data-material-mode="xray"]')?.getAttribute('aria-pressed') || ''
+  }));
+  add('index', 'CASE-3d-material-switch', materialSwitch.active === 'xray' && materialSwitch.aria === 'true',
+      `active=${materialSwitch.active}, aria=${materialSwitch.aria}`);
+  await page.click('.case-3d__mat-group [data-material-mode="pbr"]'); await page.waitForTimeout(80);
+  add('index', 'CASE-3d-lazy-after-click',
+      c3d.resources.some(n => /codex-three-viewer/i.test(n)) &&
+      c3d.resources.some(n => /model-data\.js/i.test(n)),
+      c3d.resources.join(', '));
 
   // SHARE BUTTONS
   add('index', 'CASE-share-desktop', !!await page.$('#case-share-desktop'));
@@ -694,6 +755,24 @@ async function testFreeAssets(BASE) {
     first: document.querySelector('.fa-card .fa-card__title')?.textContent,
   }));
   add('fa', 'GRID-rendered', grid.count > 0, `${grid.count} cards, first="${grid.first}"`);
+
+  const mini3D = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.fa-card')];
+    const previews = [...document.querySelectorAll('.fa-card__thumb-mv')];
+    return {
+      previews: previews.length,
+      noPreview: cards.filter(card => !card.querySelector('.fa-card__thumb-mv')).length,
+      autoRotate: previews.filter(mv => mv.hasAttribute('auto-rotate')).length,
+      cameraControls: previews.filter(mv => mv.hasAttribute('camera-controls')).length,
+      localSrcs: previews.every(mv => /^\.\/assets\/models\/free\/.+\.glb$/.test(mv.getAttribute('src') || '')),
+    };
+  });
+  add('fa', 'GRID-mini-3d-previews', mini3D.previews === 8 && mini3D.noPreview === 0,
+      `previews=${mini3D.previews}, fallback-only=${mini3D.noPreview}`);
+  add('fa', 'GRID-mini-3d-auto-rotate-only', mini3D.autoRotate === mini3D.previews && mini3D.cameraControls === 0,
+      `auto=${mini3D.autoRotate}, camera-controls=${mini3D.cameraControls}`);
+  add('fa', 'GRID-mini-3d-local-srcs', mini3D.localSrcs,
+      'all preview GLBs load from ./assets/models/free/');
 
   // TAG SWITCH
   await page.click('#tag-product'); await page.waitForTimeout(300);

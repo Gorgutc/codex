@@ -18,7 +18,7 @@ The production audit is intentional: the site ships no npm runtime bundle, while
 npm run quality:deep
 ```
 
-Adds Knip, JSCPD, Playwright smoke tests, and Pa11y accessibility checks. Pa11y uses a baseline budget for `free-assets.html`; lower that budget during a dedicated accessibility cleanup.
+Adds Knip, JSCPD, Playwright smoke tests, and Pa11y accessibility checks. Playwright axe owns the color-contrast gate; Pa11y ignores `color-contrast` because Puppeteer reports false positives on the animated transparent surfaces, and stays strict (`0` budget) for the remaining axe errors.
 
 ## Optional Heavy Checks
 

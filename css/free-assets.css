@@ -140,6 +140,20 @@
   justify-content: center;
   flex-shrink: 0;
 }
+.fa-card__preview-btn {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: block;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.fa-card__preview-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
 .fa-card__thumb::after {
   content: attr(data-label);
   font-family: var(--font-display);
@@ -152,43 +166,120 @@
   display: flex; align-items: center; justify-content: center;
   z-index: 1; pointer-events: none;
 }
+.fa-card__thumb.is-model-ready::after { opacity: 0; }
 .fa-card__thumb img {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover; z-index: 2;
-  transition: transform 400ms var(--ease-out);
+  transition: opacity 220ms var(--ease-out), transform 400ms var(--ease-out);
 }
+.fa-card__thumb.is-model-ready img { opacity: 0; transform: none; }
 .fa-card:hover .fa-card__thumb img { transform: scale(1.04); }
+.fa-card:hover .fa-card__thumb.is-model-ready img { transform: none; }
 
-/* ═══ 3D PREVIEW (v0.7.5 [model-viewer]) ═══════════════════════════════════
-   <model-viewer> перекрывает SVG-fallback (img) когда модель загружена.
-   Если .glb fails (404 / CORS / malformed) — error-handler в free-assets.html
-   добавляет .fa-card__thumb-mv--failed → display:none → SVG остаётся видим.
-   model-viewer 4.0.0 САМ респектит prefers-reduced-motion (auto-rotate
-   отключается без дополнительной CSS-страховки).
-   ─────────────────────────────────────────────────────────────────────── */
+/* Mini 3D preview. The card remains a clean auto-rotating model surface; SVG
+   thumbnails stay underneath as fallback until the GLB is ready. */
 .fa-card__thumb-mv {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  /* Custom element default — inline. Делаем block для геометрии. */
   display: block;
   background: transparent;
-  /* Тот же z-index что у img (z:2) — ниже badge (z:3). model-viewer идёт
-     ПОСЛЕ img в DOM-порядке, поэтому при равном z перекрывает его. */
-  z-index: 2;
-  /* Без camera-controls курсор должен оставаться default (не grab из shadow DOM). */
   cursor: default;
-  /* Скрываем встроенный progress-bar — для маленькой карточки 240×180 он избыточен. */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms var(--ease-out);
+  z-index: 2;
   --progress-bar-color: transparent;
   --progress-bar-height: 0;
   --progress-mask: transparent;
 }
+.fa-card__thumb-mv.is-ready { opacity: 1; }
+.fa-card__thumb-mv--failed { display: none; }
 
-.fa-card__thumb-mv--failed {
-  /* .glb 404 / CORS / malformed — скрываем model-viewer, фолбэк на SVG. */
-  display: none;
+/* Shared fullscreen overlay subset for free-assets previews. */
+.media-fs {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-out);
+}
+.media-fs.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.media-fs__stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.media-fs__stage > img,
+.media-fs__stage > video,
+.media-fs__stage > svg {
+  position: absolute;
+  inset: 48px;
+  margin: auto;
+  width: auto;
+  height: auto;
+  max-width: calc(100% - 96px);
+  max-height: calc(100% - 96px);
+  object-fit: contain;
+  display: block;
+}
+.media-fs__stage > model-viewer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.media-fs__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--color-fs-close-bg);
+  border: 1px solid var(--color-fs-close-border);
+  border-radius: 3px;
+  color: var(--color-fs-close-text);
+  cursor: pointer;
+  transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .media-fs__close:hover {
+    color: var(--color-fs-close-text-hover);
+    border-color: var(--color-fs-close-border-hover);
+  }
+}
+.media-fs__close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.media-fs__close-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+@media (max-width: 640px) {
+  .media-fs__stage > img,
+  .media-fs__stage > video,
+  .media-fs__stage > svg {
+    inset: 24px;
+    max-width: calc(100% - 48px);
+    max-height: calc(100% - 48px);
+  }
 }
 
 /* Badge */
@@ -431,6 +522,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .fa-card, .fa-card__thumb img, .fa-card__download,
+  .fa-card__thumb-mv,
   .tag-card, .tag-card__thumb img { transition: none !important; transform: none !important; }
 }
 

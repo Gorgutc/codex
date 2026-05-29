@@ -257,7 +257,7 @@
      CARDS_DATA
   ════════════════════════════════════════ */
   var CARDS_DATA = {
-    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: './assets/models/orbital-mk-ii.glb', modelStats: { triangles: '18,432', vertices: '9,521', materials: 3, textures: '4 × 4 K', software: 'Blender' }, items: makeItems({
+    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: './assets/models/experimental/dino.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Draco compressed', vertices: 'GLB embedded', materials: 1, textures: '3 embedded', software: 'Drive test asset' }, items: makeItems({
       id: 'orbital-mk-ii',
       palette: [
         'linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%)',
@@ -284,7 +284,7 @@
       }
     }) },
 
-    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: './assets/models/vega-shell.glb', modelStats: { triangles: '25,600', vertices: '13,200', materials: 5, textures: '6 × 2 K', software: 'Blender' }, items: makeItems({
+    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: './assets/models/experimental/humanoid-2.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Meshopt compressed', vertices: 'GLB embedded', materials: 1, textures: '2 KTX2', software: 'Drive test asset' }, items: makeItems({
       id: 'vega-shell',
       palette: [
         'linear-gradient(135deg,#1a2030 0%,#252e40 100%)',
@@ -310,7 +310,7 @@
       }
     }) },
 
-    'ironclad-frame': { role: 'R&D', tools: ['Blender', 'CAD import', 'Inkscape'], modelSrc: './assets/models/ironclad-frame.glb', modelStats: { triangles: '464', vertices: '240', materials: 2, textures: 'Procedural (PBR)', software: 'Blender + Fusion 360' }, items: makeItems({
+    'ironclad-frame': { role: 'R&D', tools: ['Blender', 'CAD import', 'Inkscape'], modelSrc: './assets/models/experimental/car-paint.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Draco compressed', vertices: 'GLB embedded', materials: 1, textures: '3 embedded', software: 'Drive test asset' }, items: makeItems({
       id: 'ironclad-frame',
       palette: [
         'linear-gradient(135deg,#1c2428 0%,#28343a 100%)',
@@ -815,6 +815,9 @@
   // v0.8.2: currentCategory удалён — переменная только писалась внутри
   // applyFilters и сразу же шла в evt.detail. Поле detail.category
   // оставлено для обратной совместимости публичного API codex:filter.
+  var currentThreeViewer = null;           // Phase 3 - active self-hosted Three.js viewer island
+  var currentThreeSource = null;           // Phase 3 - source used for fullscreen rehydration
+  var fsThreeViewer = null;                // Phase 3 - fullscreen Three.js viewer clone
   var gameOnly = false;
 
   // v0.15.5 [П2] — массив выбранных дисциплин (OR-логика). Пусто или ['all'] → все кейсы.
@@ -2106,9 +2109,11 @@
   ══════════════════════════════════ */
   var MODEL_VIEWER_SRC = 'https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
   var MODEL_DATA_SRC = './js/model-data.js';
+  var THREE_VIEWER_SRC = './vendor/codex-three-viewer.js';
 
   /* v0.5 — Lazy-load model-data.js. Возвращает Promise. Идемпотентно. */
   var modelDataLoading = null;
+  var threeViewerLoading = null;
   function loadModelData() {
     if (modelDataLoading) return modelDataLoading;
     modelDataLoading = new Promise(function (resolve, reject) {
@@ -2147,6 +2152,21 @@
       document.head.appendChild(s);
     });
     return modelViewerLoading;
+  }
+
+  function loadThreeViewer() {
+    if (threeViewerLoading) return threeViewerLoading;
+    threeViewerLoading = import(THREE_VIEWER_SRC);
+    return threeViewerLoading;
+  }
+
+  function resolveModelSource(data) {
+    var src = data && data.modelSrc;
+    if (src && src.indexOf('./assets/models/') === 0 && window.CODEX_LOCAL_GLB) {
+      var key = src.replace('./assets/models/', '').replace(/\.glb$/, '');
+      if (window.CODEX_LOCAL_GLB[key]) src = window.CODEX_LOCAL_GLB[key];
+    }
+    return src;
   }
 
   function render3DFallback(title, hint) {
@@ -2199,6 +2219,11 @@
       document.removeEventListener('keydown', currentLightDdDocKey);
       currentLightDdDocKey = null;
     }
+    if (currentThreeViewer && typeof currentThreeViewer.dispose === 'function') {
+      try { currentThreeViewer.dispose(); } catch (_) { /* no-op */ }
+      currentThreeViewer = null;
+    }
+    currentThreeSource = null;
     if (currentMv) {
       try { currentMv.removeAttribute('src'); } catch (_) { /* no-op */ }
       try { currentMv.remove(); } catch (_) { /* no-op */ }
@@ -2207,9 +2232,11 @@
     currentMvReset = null;
   }
 
-  function build3D(id) {
-    if (!case3dCanvas) return;
-    var data = CARDS_DATA[id];
+  function mountModelViewer3D(options) {
+    options = options || {};
+    var id = options.caseId;
+    if (!case3dCanvas || !id) return;
+    var data = options.data || CARDS_DATA[id];
     if (!data) return;
 
     // v0.11.4 — утилизируем предыдущий MV, чтобы не копить инстансы
@@ -2439,9 +2466,12 @@
         var ENV_PRESETS = {
           studio:  './assets/hdr/studio.hdr',
           outdoor: './assets/hdr/outdoor.hdr',
+          citrus:  './assets/hdr/experimental/citrus-orchard-puresky-4k.hdr',
           dark:    './assets/hdr/dark.hdr'
         };
-        var currentEnv = 'studio';
+        var ENVIRONMENT_MODES = Object.keys(ENV_PRESETS);
+        var currentEnv = data.modelEnvironment && ENV_PRESETS[data.modelEnvironment] ? data.modelEnvironment : 'studio';
+        mv.setAttribute('environment-image', ENV_PRESETS[currentEnv]);
 
         // v0.7.3 — early-decl syncEnvUI: обновляет visual state на ОБОИХ
         // env-button наборах (desktop inline + mobile dropdown). Объявлена
@@ -2486,7 +2516,7 @@
         var __v3 = window.I18N;
         envGroup.setAttribute('aria-label', (__v3 && __v3.t) ? __v3.t('viz.envPreset') : 'Environment preset');
 
-        ['studio', 'outdoor', 'dark'].forEach(function (key) {
+        ENVIRONMENT_MODES.forEach(function (key) {
           envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
         });
 
@@ -2589,7 +2619,7 @@
         ddEnvList.setAttribute('aria-label', (__v10 && __v10.t) ? __v10.t('viz.envPreset') : 'Environment preset');
 
         // v0.8.6 [M6] — фабрика createEnvBtn (см. desktop envGroup выше).
-        ['studio', 'outdoor', 'dark'].forEach(function (key) {
+        ENVIRONMENT_MODES.forEach(function (key) {
           ddEnvList.appendChild(createEnvBtn(key, 'case-3d__light-dd__env-btn'));
         });
         lightPanel.appendChild(ddEnvList);
@@ -2735,6 +2765,452 @@
       );
       // сброс Promise — дадим ещё одну попытку при следующем клике
       modelViewerLoading = null;
+    });
+  }
+
+  function mountThreeViewer3D(options) {
+    options = options || {};
+    var id = options.caseId;
+    if (!case3dCanvas || !id) return;
+    var data = options.data || CARDS_DATA[id];
+    if (!data) return;
+
+    destroy3D();
+
+    if (!data.modelSrc) {
+      render3DFallback(
+        'MODEL SOON',
+        'Интерактивная 3D-модель готовится. Пока смотри 2D-рендеры и технический чертеж.'
+      );
+      model3dBuiltFor = id;
+      return;
+    }
+
+    render3DFallback(
+      'LOADING 3D',
+      'Подгружаем интерактивный вьюер и GLB-модель. Первый запуск занимает несколько секунд.'
+    );
+    model3dBuiltFor = id;
+    var targetId = id;
+
+    Promise.all([loadModelData(), loadThreeViewer()]).then(function (result) {
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+
+      var threeRuntime = result[1];
+      if (!threeRuntime || !threeRuntime.canUseCodexThreeViewer || !threeRuntime.canUseCodexThreeViewer()) {
+        mountModelViewer3D(options);
+        return;
+      }
+
+      var src = resolveModelSource(data);
+      if (!src) {
+        render3DFallback('MODEL SOON', 'Интерактивная 3D-модель готовится.');
+        return;
+      }
+
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var autoRotateOn = !prefersReduced;
+      var isMobileMI = window.matchMedia('(max-width: 767px)').matches;
+      if (typeof window.CODEX_MI_ON === 'undefined') window.CODEX_MI_ON = true;
+      var infoOn = isMobileMI ? false : window.CODEX_MI_ON;
+      var ENVIRONMENT_MODES = ['studio', 'outdoor', 'dark', 'citrus'];
+      var currentEnv = ENVIRONMENT_MODES.indexOf(data.modelEnvironment) >= 0 ? data.modelEnvironment : 'studio';
+      var initialExposure = Number.isFinite(data.modelExposure) ? data.modelExposure : 1;
+      var currentMaterial = 'pbr';
+      var MATERIAL_MODES = {
+        pbr: 'PBR',
+        clay: 'CLAY',
+        xray: 'XRAY'
+      };
+
+      var __viz = window.I18N;
+      var hint = document.createElement('div');
+      hint.className = 'case-3d__hint case-3d__hint--desktop';
+      hint.setAttribute('data-i18n', 'viz.hintDesktop');
+      hint.textContent = (__viz && __viz.t) ? __viz.t('viz.hintDesktop') : 'RIGHT MOUSE · ROTATE';
+
+      var hintMobile = document.createElement('div');
+      hintMobile.className = 'case-3d__hint case-3d__hint--mobile';
+      hintMobile.setAttribute('data-i18n', 'viz.hintMobile');
+      hintMobile.textContent = (__viz && __viz.t) ? __viz.t('viz.hintMobile') : 'DRAG · ZOOM';
+
+      var controls = document.createElement('div');
+      controls.className = 'case-3d__controls';
+
+      var autoBtn = document.createElement('button');
+      autoBtn.type = 'button';
+      autoBtn.className = 'case-3d__ctrl' + (autoRotateOn ? ' is-on' : '');
+      autoBtn.setAttribute('aria-pressed', autoRotateOn ? 'true' : 'false');
+      autoBtn.innerHTML = '<span class="case-3d__ctrl__txt-full">AUTO ROTATION</span><span class="case-3d__ctrl__txt-short">Auto-R</span>';
+
+      var infoBtn = document.createElement('button');
+      infoBtn.type = 'button';
+      infoBtn.className = 'case-3d__ctrl';
+      infoBtn.setAttribute('aria-pressed', 'false');
+      infoBtn.innerHTML = '<span class="case-3d__ctrl__txt-full">MODEL INFO</span><span class="case-3d__ctrl__txt-short">Info</span>';
+      if (infoOn) {
+        infoBtn.classList.add('is-on');
+        infoBtn.setAttribute('aria-pressed', 'true');
+      }
+
+      var resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'case-3d__ctrl case-3d__ctrl--icon';
+      var __v2 = window.I18N;
+      resetBtn.setAttribute('aria-label', (__v2 && __v2.t) ? __v2.t('viz.resetCamera') : 'Reset camera');
+      resetBtn.setAttribute('title', (__v2 && __v2.t) ? __v2.t('viz.resetCamera') : 'Reset camera');
+      resetBtn.innerHTML =
+        '<svg class="case-3d__ctrl-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M3.5 7.5a4.5 4.5 0 1 1 1.2 3.1"/><path d="M3.2 11.5V8.2h3.3"/>' +
+        '</svg>';
+
+      var fsBtn3d = document.createElement('button');
+      fsBtn3d.type = 'button';
+      fsBtn3d.className = 'case-3d__fs-btn';
+      var __vFs = window.I18N;
+      fsBtn3d.setAttribute('aria-label', (__vFs && __vFs.t) ? __vFs.t('viz.openFullscreen') : 'Open 3D fullscreen');
+      fsBtn3d.setAttribute('title', (__vFs && __vFs.t) ? __vFs.t('viz.openFullscreen') : 'Open 3D fullscreen');
+      fsBtn3d.setAttribute('data-cursor', 'link');
+      fsBtn3d.innerHTML = '<svg class="case-3d__fs-btn__icon" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
+
+      controls.appendChild(autoBtn);
+      controls.appendChild(infoBtn);
+      controls.appendChild(resetBtn);
+      controls.appendChild(fsBtn3d);
+
+      function syncEnvUI(key) {
+        [envGroup, ddEnvList].forEach(function (root) {
+          if (!root) return;
+          root.querySelectorAll('[data-env]').forEach(function (b) {
+            var on = b.dataset.env === key;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+        });
+      }
+
+      function syncMaterialUI(key) {
+        [matGroup, ddMatList].forEach(function (root) {
+          if (!root) return;
+          root.querySelectorAll('[data-material-mode]').forEach(function (b) {
+            var on = b.dataset.materialMode === key;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+        });
+      }
+
+      function createEnvBtn(key, className) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = className + (key === currentEnv ? ' is-on' : '');
+        btn.setAttribute('aria-pressed', key === currentEnv ? 'true' : 'false');
+        btn.dataset.env = key;
+        btn.textContent = key.toUpperCase();
+        btn.addEventListener('click', function () {
+          if (currentEnv === key) return;
+          currentEnv = key;
+          if (currentThreeViewer && currentThreeViewer.setEnvironment) currentThreeViewer.setEnvironment(key);
+          if (currentThreeSource) currentThreeSource.environment = key;
+          syncEnvUI(key);
+        });
+        return btn;
+      }
+
+      function createMaterialBtn(key, className) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = className + (key === currentMaterial ? ' is-on' : '');
+        btn.setAttribute('aria-pressed', key === currentMaterial ? 'true' : 'false');
+        btn.dataset.materialMode = key;
+        btn.textContent = MATERIAL_MODES[key] || key.toUpperCase();
+        btn.addEventListener('click', function () {
+          if (currentMaterial === key) return;
+          currentMaterial = key;
+          if (currentThreeViewer && currentThreeViewer.setMaterialMode) currentThreeViewer.setMaterialMode(key);
+          if (currentThreeSource) currentThreeSource.materialMode = key;
+          syncMaterialUI(key);
+        });
+        return btn;
+      }
+
+      var envGroup = document.createElement('div');
+      envGroup.className = 'case-3d__env-group';
+      envGroup.setAttribute('role', 'group');
+      var __v3 = window.I18N;
+      envGroup.setAttribute('aria-label', (__v3 && __v3.t) ? __v3.t('viz.envPreset') : 'Environment preset');
+      ENVIRONMENT_MODES.forEach(function (key) {
+        envGroup.appendChild(createEnvBtn(key, 'case-3d__ctrl case-3d__ctrl--env'));
+      });
+
+      var matGroup = document.createElement('div');
+      matGroup.className = 'case-3d__mat-group';
+      matGroup.setAttribute('role', 'group');
+      var __vMat = window.I18N;
+      matGroup.setAttribute('aria-label', (__vMat && __vMat.t) ? __vMat.t('viz.materialMode') : 'Material view mode');
+      Object.keys(MATERIAL_MODES).forEach(function (key) {
+        matGroup.appendChild(createMaterialBtn(key, 'case-3d__ctrl case-3d__ctrl--mat'));
+      });
+
+      var expoWrap = document.createElement('label');
+      expoWrap.className = 'case-3d__expo';
+      var __v4 = window.I18N;
+      expoWrap.setAttribute('aria-label', (__v4 && __v4.t) ? __v4.t('viz.exposure') : 'Exposure');
+
+      var expoLabelEl = document.createElement('span');
+      expoLabelEl.className = 'case-3d__expo-label';
+      var __v5 = window.I18N;
+      expoLabelEl.setAttribute('data-i18n', 'viz.exposureLabel');
+      expoLabelEl.textContent = (__v5 && __v5.t) ? __v5.t('viz.exposureLabel') : 'EXPOSURE';
+
+      var expoInput = document.createElement('input');
+      expoInput.type = 'range';
+      expoInput.min = '0.5';
+      expoInput.max = '2';
+      expoInput.step = '0.05';
+      expoInput.value = String(initialExposure);
+      expoInput.className = 'case-3d__expo-input';
+      var __v6 = window.I18N;
+      expoInput.setAttribute('aria-label', (__v6 && __v6.t) ? __v6.t('viz.exposureRange') : 'Exposure level from 0.5 to 2.0');
+
+      expoInput.addEventListener('input', function () {
+        var value = parseFloat(expoInput.value);
+        if (currentThreeViewer && currentThreeViewer.setExposure) currentThreeViewer.setExposure(value);
+        if (currentThreeSource) currentThreeSource.exposure = value;
+        if (typeof ddExpoInput !== 'undefined' && ddExpoInput.value !== expoInput.value) {
+          ddExpoInput.value = expoInput.value;
+        }
+      });
+
+      expoWrap.appendChild(expoLabelEl);
+      expoWrap.appendChild(expoInput);
+      controls.appendChild(envGroup);
+      controls.appendChild(matGroup);
+      controls.appendChild(expoWrap);
+
+      var lightDd = document.createElement('div');
+      lightDd.className = 'case-3d__light-dd';
+      lightDd.dataset.open = 'false';
+
+      var lightTrigger = document.createElement('button');
+      lightTrigger.type = 'button';
+      lightTrigger.className = 'case-3d__ctrl case-3d__ctrl--icon case-3d__light-dd__trigger';
+      lightTrigger.setAttribute('aria-haspopup', 'true');
+      lightTrigger.setAttribute('aria-expanded', 'false');
+      var __v7 = window.I18N;
+      lightTrigger.setAttribute('aria-label', (__v7 && __v7.t) ? __v7.t('viz.lightingSettings') : 'Lighting settings');
+      lightTrigger.innerHTML =
+        '<svg class="case-3d__ctrl-icon" viewBox="0 0 20 20" width="16" height="16" ' +
+        'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" ' +
+        'stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+        '<path d="M10 2.5c-3 0-5 2.2-5 4.8 0 1.7.8 3.1 2 4v2h6v-2c1.2-.9 2-2.3 2-4 0-2.6-2-4.8-5-4.8z"/>' +
+        '<path d="M8 16h4M8.5 18h3"/>' +
+        '</svg>';
+
+      var lightPanel = document.createElement('div');
+      lightPanel.className = 'case-3d__light-dd__panel';
+      lightPanel.hidden = true;
+      lightPanel.setAttribute('role', 'group');
+      var __v8 = window.I18N;
+      lightPanel.setAttribute('aria-label', (__v8 && __v8.t) ? __v8.t('viz.lightingPanel') : 'Lighting presets and exposure');
+
+      var ddEnvLabel = document.createElement('div');
+      ddEnvLabel.className = 'case-3d__light-dd__section-label';
+      var __v9 = window.I18N;
+      ddEnvLabel.setAttribute('data-i18n', 'viz.environmentLabel');
+      ddEnvLabel.textContent = (__v9 && __v9.t) ? __v9.t('viz.environmentLabel') : 'ENVIRONMENT';
+      lightPanel.appendChild(ddEnvLabel);
+
+      var ddEnvList = document.createElement('div');
+      ddEnvList.className = 'case-3d__light-dd__env-list';
+      ddEnvList.setAttribute('role', 'group');
+      var __v10 = window.I18N;
+      ddEnvList.setAttribute('aria-label', (__v10 && __v10.t) ? __v10.t('viz.envPreset') : 'Environment preset');
+      ENVIRONMENT_MODES.forEach(function (key) {
+        ddEnvList.appendChild(createEnvBtn(key, 'case-3d__light-dd__env-btn'));
+      });
+      lightPanel.appendChild(ddEnvList);
+
+      var ddMatLabel = document.createElement('div');
+      ddMatLabel.className = 'case-3d__light-dd__section-label';
+      var __vMatLabel = window.I18N;
+      ddMatLabel.setAttribute('data-i18n', 'viz.materialLabel');
+      ddMatLabel.textContent = (__vMatLabel && __vMatLabel.t) ? __vMatLabel.t('viz.materialLabel') : 'MATERIAL';
+      lightPanel.appendChild(ddMatLabel);
+
+      var ddMatList = document.createElement('div');
+      ddMatList.className = 'case-3d__light-dd__env-list case-3d__light-dd__mat-list';
+      ddMatList.setAttribute('role', 'group');
+      var __vMatList = window.I18N;
+      ddMatList.setAttribute('aria-label', (__vMatList && __vMatList.t) ? __vMatList.t('viz.materialMode') : 'Material view mode');
+      Object.keys(MATERIAL_MODES).forEach(function (key) {
+        ddMatList.appendChild(createMaterialBtn(key, 'case-3d__light-dd__env-btn case-3d__light-dd__mat-btn'));
+      });
+      lightPanel.appendChild(ddMatList);
+
+      var ddExpoLabel = document.createElement('label');
+      ddExpoLabel.className = 'case-3d__light-dd__section-label';
+      var __v11 = window.I18N;
+      ddExpoLabel.setAttribute('data-i18n', 'viz.exposureLabel');
+      ddExpoLabel.textContent = (__v11 && __v11.t) ? __v11.t('viz.exposureLabel') : 'EXPOSURE';
+      lightPanel.appendChild(ddExpoLabel);
+
+      var ddExpoInput = document.createElement('input');
+      ddExpoInput.type = 'range';
+      ddExpoInput.min = '0.5';
+      ddExpoInput.max = '2';
+      ddExpoInput.step = '0.05';
+      ddExpoInput.value = String(initialExposure);
+      ddExpoInput.className = 'case-3d__light-dd__expo-input';
+      var __v12 = window.I18N;
+      ddExpoInput.setAttribute('aria-label', (__v12 && __v12.t) ? __v12.t('viz.exposureRange') : 'Exposure level from 0.5 to 2.0');
+      ddExpoInput.addEventListener('input', function () {
+        var value = parseFloat(ddExpoInput.value);
+        if (currentThreeViewer && currentThreeViewer.setExposure) currentThreeViewer.setExposure(value);
+        if (currentThreeSource) currentThreeSource.exposure = value;
+        if (expoInput.value !== ddExpoInput.value) expoInput.value = ddExpoInput.value;
+      });
+      lightPanel.appendChild(ddExpoInput);
+
+      function closeLightDd() {
+        if (lightDd.dataset.open !== 'true') return;
+        lightDd.dataset.open = 'false';
+        lightTrigger.setAttribute('aria-expanded', 'false');
+        lightPanel.hidden = true;
+      }
+      function openLightDd() {
+        lightDd.dataset.open = 'true';
+        lightTrigger.setAttribute('aria-expanded', 'true');
+        lightPanel.hidden = false;
+      }
+      lightTrigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (lightDd.dataset.open === 'true') closeLightDd();
+        else openLightDd();
+      });
+      currentLightDdDocClick = function (e) {
+        if (lightDd.dataset.open !== 'true') return;
+        if (lightDd.contains(e.target)) return;
+        closeLightDd();
+      };
+      currentLightDdDocKey = function (e) {
+        if (e.key === 'Escape' && lightDd.dataset.open === 'true') {
+          closeLightDd();
+          lightTrigger.focus();
+        }
+      };
+      document.addEventListener('click', currentLightDdDocClick);
+      document.addEventListener('keydown', currentLightDdDocKey);
+
+      lightDd.appendChild(lightTrigger);
+      lightDd.appendChild(lightPanel);
+      controls.appendChild(lightDd);
+
+      var infoPanel = document.createElement('div');
+      infoPanel.className = 'case-3d__info-panel';
+      infoPanel.innerHTML = buildInfoHTML(data);
+      if (infoOn) infoPanel.classList.add('is-visible');
+
+      autoBtn.addEventListener('click', function () {
+        autoRotateOn = !autoRotateOn;
+        autoBtn.classList.toggle('is-on', autoRotateOn);
+        autoBtn.setAttribute('aria-pressed', autoRotateOn ? 'true' : 'false');
+        if (currentThreeViewer && currentThreeViewer.setAutoRotate) currentThreeViewer.setAutoRotate(autoRotateOn);
+        if (currentThreeSource) currentThreeSource.autoRotate = autoRotateOn;
+      });
+
+      infoBtn.addEventListener('click', function () {
+        infoOn = !infoOn;
+        if (!isMobileMI) window.CODEX_MI_ON = infoOn;
+        infoBtn.classList.toggle('is-on', infoOn);
+        infoBtn.setAttribute('aria-pressed', infoOn ? 'true' : 'false');
+        infoPanel.classList.toggle('is-visible', infoOn);
+      });
+
+      resetBtn.addEventListener('click', function () {
+        resetBtn.classList.add('is-pulse');
+        setTimeout(function () { resetBtn.classList.remove('is-pulse'); }, 520);
+        if (currentThreeViewer && currentThreeViewer.resetCamera) currentThreeViewer.resetCamera();
+      });
+
+      currentMvReset = function () {
+        if (currentThreeViewer && currentThreeViewer.resetCamera) currentThreeViewer.resetCamera();
+      };
+
+      case3dCanvas.innerHTML = '';
+      case3dCanvas.classList.remove('is-ready');
+
+      currentThreeSource = {
+        caseId: id,
+        src: src,
+        alt: (data.title || id) + ' - 3D model',
+        autoRotate: autoRotateOn,
+        exposure: parseFloat(expoInput.value),
+        environment: currentEnv,
+        materialMode: currentMaterial
+      };
+      currentThreeViewer = threeRuntime.createCodexThreeViewer({
+        host: case3dCanvas,
+        src: src,
+        alt: currentThreeSource.alt,
+        autoRotate: autoRotateOn,
+        exposure: currentThreeSource.exposure,
+        environment: currentEnv,
+        materialMode: currentMaterial,
+        onReady: function () {
+          if (model3dBuiltFor === targetId && currentCaseId === targetId && case3dCanvas) {
+            case3dCanvas.classList.add('is-ready');
+          }
+        },
+        onError: function () {
+          if (model3dBuiltFor === targetId && currentCaseId === targetId) {
+            destroy3D();
+            render3DFallback(
+              'MODEL UNAVAILABLE',
+              'Не удалось загрузить GLB. Проверь интернет-соединение или вернись к 2D / Blueprints.'
+            );
+          }
+        }
+      });
+      case3dCanvas.appendChild(hint);
+      case3dCanvas.appendChild(hintMobile);
+      case3dCanvas.appendChild(controls);
+      case3dCanvas.appendChild(infoPanel);
+    }).catch(function () {
+      threeViewerLoading = null;
+      mountModelViewer3D(options);
+    });
+  }
+
+  var CodexModelViewerAdapter = {
+    mount3D: function (options) {
+      return mountThreeViewer3D(options);
+    },
+    destroy3D: function () {
+      destroy3D();
+    },
+    resetCamera: function () {
+      if (typeof currentMvReset === 'function') currentMvReset();
+    },
+    openFullscreen: function (source) {
+      if (currentThreeSource) {
+        openFsThree(currentThreeSource);
+        return;
+      }
+      var target = source || currentMv;
+      if (target) openFs(target, 'model-viewer');
+    }
+  };
+  window.CodexViewer = CodexModelViewerAdapter;
+
+  function build3D(id) {
+    if (!case3dCanvas) return;
+    var data = CARDS_DATA[id];
+    if (!data) return;
+    CodexModelViewerAdapter.mount3D({
+      caseId: id,
+      container: case3dCanvas,
+      data: data
     });
   }
 
@@ -3281,6 +3757,7 @@
      ════════════════════════════════════════════ */
   var fsOverlay = null, fsStage = null, fsCloseBtn = null;
   var fsPrev = null, fsNext = null, fsCounter = null, fsAnnouncer = null;
+  var fsZoomBar = null, fsZoomOutBtn = null, fsZoomFitBtn = null, fsZoomActualBtn = null, fsZoomInBtn = null;
   // v0.8.2: fsOriginalEl удалён — задумывался для video time-sync, но
   // video в fs-overlay не реализовано; переменная только писалась, никем
   // не читалась.
@@ -3289,7 +3766,35 @@
   var blueprintFs = { id: null, total: 0, index: 0, triggerEl: null };
   var fsCurrentEl = null;           // v0.20.2 — текущая видимая картинка в stage
   var focusTrapHandler = null;
+  var fsImageZoom = {
+    scale: 1,
+    x: 0,
+    y: 0,
+    min: 1,
+    max: 4,
+    actual: 1,
+    pointers: {},
+    panStart: null,
+    pinchStart: null,
+    suppressClick: false
+  };
   var fsPreviousFocus = null;       // элемент для возврата фокуса при close
+
+  function createFsZoomButton(action, label, iconPath, handler) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'media-fs__zoom-btn media-fs__zoom-btn--' + action;
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+    btn.setAttribute('data-cursor', 'link');
+    btn.innerHTML = '<svg class="media-fs__zoom-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + iconPath + '</svg>';
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      handler();
+    });
+    return btn;
+  }
 
   function ensureFsOverlay() {
     if (fsOverlay) return fsOverlay;
@@ -3341,16 +3846,43 @@
     fsAnnouncer.setAttribute('aria-live', 'polite');
     fsAnnouncer.setAttribute('aria-atomic', 'true');
 
+    fsZoomBar = document.createElement('div');
+    fsZoomBar.className = 'media-fs__zoom';
+    fsZoomBar.hidden = true;
+    fsZoomOutBtn = createFsZoomButton('zoom-out', 'Zoom out',
+      '<path d="M4 9h10"/>',
+      function () { zoomFsImageBy(0.8); });
+    fsZoomFitBtn = createFsZoomButton('fit', 'Fit to screen',
+      '<path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4"/>',
+      function () { resetFsImageZoom(true); });
+    fsZoomActualBtn = createFsZoomButton('actual', 'Actual size',
+      '<text x="9" y="10.6" fill="currentColor" stroke="none" font-size="5" font-family="monospace" text-anchor="middle" dominant-baseline="middle">1:1</text>',
+      function () { setFsImageScale(fsImageZoom.actual, window.innerWidth / 2, window.innerHeight / 2); });
+    fsZoomInBtn = createFsZoomButton('zoom-in', 'Zoom in',
+      '<path d="M4 9h10M9 4v10"/>',
+      function () { zoomFsImageBy(1.25); });
+    fsZoomBar.appendChild(fsZoomOutBtn);
+    fsZoomBar.appendChild(fsZoomFitBtn);
+    fsZoomBar.appendChild(fsZoomActualBtn);
+    fsZoomBar.appendChild(fsZoomInBtn);
+
     fsOverlay.appendChild(fsCloseBtn);
     fsOverlay.appendChild(fsPrev);
     fsOverlay.appendChild(fsNext);
     fsOverlay.appendChild(fsCounter);
+    fsOverlay.appendChild(fsZoomBar);
     fsOverlay.appendChild(fsAnnouncer);
     fsOverlay.appendChild(fsStage);
     document.body.appendChild(fsOverlay);
 
     // Backdrop click: в gallery/blueprint — навигация по половинам, иначе — close.
     fsOverlay.addEventListener('click', function (e) {
+      if (fsImageZoom.suppressClick) {
+        fsImageZoom.suppressClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (e.target !== fsOverlay && e.target !== fsStage) return;
       if (fsContext === 'gallery' || fsContext === 'blueprint') {
         navFs(e.clientX < window.innerWidth / 2 ? -1 : +1);
@@ -3361,6 +3893,7 @@
 
     // Touch swipe (gallery only)
     setupFsSwipe(fsOverlay);
+    setupFsImageZoom();
     // Cursor zone tracker — добавляет is-fs-prev/is-fs-next к .cursor
     fsOverlay.addEventListener('mousemove', trackFsCursorZones);
     fsOverlay.addEventListener('mouseleave', clearFsCursorZones);
@@ -3368,10 +3901,23 @@
     return fsOverlay;
   }
 
-  function openFs(sourceEl, kind) {
+  function openFs(sourceEl, kind, triggerEl) {
     ensureFsOverlay();
+    releaseFsImageZoom();
+    if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
+      try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
+      fsThreeViewer = null;
+    }
     // Очистить stage
     while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+
+    fsContext = null;
+    fsPreviousFocus = triggerEl || sourceEl || document.activeElement;
+    fsPrev.hidden = true;
+    fsNext.hidden = true;
+    fsCounter.hidden = true;
+    fsAnnouncer.textContent = '';
+    (function(){ var __I=window.I18N; fsOverlay.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.fullscreenView'):'Fullscreen view'); })();
 
     var clone;
     if (kind === 'video' || (sourceEl && sourceEl.tagName === 'VIDEO')) {
@@ -3414,8 +3960,69 @@
     fsOverlay.classList.add('is-open');
     document.documentElement.style.overflow = 'hidden';
     try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+    setupFocusTrap();
     // v0.16.0 — media-fs overlay открыт → нативный scroll внутри stage.
     updateLenisState();
+  }
+
+  function openFsThree(source) {
+    if (!source || !source.src) return;
+    ensureFsOverlay();
+    releaseFsImageZoom();
+    if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
+      try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
+      fsThreeViewer = null;
+    }
+    while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+
+    fsContext = null;
+    fsPreviousFocus = document.activeElement;
+    fsPrev.hidden = true;
+    fsNext.hidden = true;
+    fsCounter.hidden = true;
+    fsAnnouncer.textContent = '';
+    (function(){ var __I=window.I18N; fsOverlay.setAttribute('aria-label', (__I&&__I.t)?__I.t('fs.fullscreenView'):'Fullscreen view'); })();
+
+    var holder = document.createElement('div');
+    holder.className = 'media-fs__three';
+    fsStage.appendChild(holder);
+
+    fsOverlay.hidden = false;
+    void fsOverlay.offsetWidth;
+    fsOverlay.classList.add('is-open');
+    document.documentElement.style.overflow = 'hidden';
+    try { fsCloseBtn.focus({ preventScroll: true }); } catch (_) {}
+    setupFocusTrap();
+    updateLenisState();
+
+    loadThreeViewer().then(function (threeRuntime) {
+      if (!fsOverlay || fsOverlay.hidden || !holder.isConnected) return;
+      if (!threeRuntime || !threeRuntime.canUseCodexThreeViewer || !threeRuntime.canUseCodexThreeViewer()) {
+        throw new Error('WebGL2 unavailable');
+      }
+      fsThreeViewer = threeRuntime.createCodexThreeViewer({
+        host: holder,
+        src: source.src,
+        alt: source.alt || '3D model',
+        autoRotate: source.autoRotate !== false,
+        exposure: source.exposure || 1,
+        environment: source.environment || 'studio',
+        materialMode: source.materialMode || 'pbr',
+        onError: function () {
+          holder.innerHTML =
+            '<div class="case-3d__fallback">' +
+              '<p class="case-3d__fallback-title">MODEL UNAVAILABLE</p>' +
+              '<p class="case-3d__fallback-hint">Не удалось загрузить GLB.</p>' +
+            '</div>';
+        }
+      });
+    }).catch(function () {
+      holder.innerHTML =
+        '<div class="case-3d__fallback">' +
+          '<p class="case-3d__fallback-title">VIEWER OFFLINE</p>' +
+          '<p class="case-3d__fallback-hint">Не удалось открыть 3D fullscreen.</p>' +
+        '</div>';
+    });
   }
 
   function closeFs() {
@@ -3438,7 +4045,12 @@
     setTimeout(function () {
       if (fsOverlay && !fsOverlay.classList.contains('is-open')) {
         fsOverlay.hidden = true;
+        if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
+          try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
+          fsThreeViewer = null;
+        }
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+        releaseFsImageZoom();
         restoreFsContext();
         if (prevFocus && typeof prevFocus.focus === 'function') {
           try { prevFocus.focus({ preventScroll: true }); } catch (_) {}
@@ -3504,6 +4116,7 @@
 
     var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced || document.hidden || typeof gsap === 'undefined') {
+      activateFsImageZoom(clone);
       setupFocusTrap();
       return;
     }
@@ -3526,7 +4139,10 @@
       x: 0, y: 0, scaleX: 1, scaleY: 1,
       duration: 0.5, ease: 'expo.inOut',
       clearProps: 'transform,transformOrigin',
-      onComplete: setupFocusTrap
+      onComplete: function () {
+        activateFsImageZoom(clone);
+        setupFocusTrap();
+      }
     });
   }
 
@@ -3539,6 +4155,7 @@
     });
     var clone = fsCurrentEl;
     var thumb = gallery.triggerEl;
+    resetFsImageZoom();
     if (!clone || !thumb || !thumb.isConnected) {
       // fallback: чистый close без FLIP
       fsContext = null;
@@ -3575,6 +4192,7 @@
         fsOverlay.style.opacity = '';
         fsOverlay.hidden = true;
         while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+        releaseFsImageZoom();
         document.documentElement.style.overflow = '';
         updateLenisState();
         restoreFsContext();
@@ -3606,6 +4224,7 @@
     var pages = getBpPages(id);
     if (!pages.length) return;
     ensureFsOverlay();
+    releaseFsImageZoom();
     blueprintFs.id = id;
     blueprintFs.total = pages.length;
     blueprintFs.index = Math.max(0, Math.min(pages.length - 1, pageIdx || 0));
@@ -3713,10 +4332,12 @@
     var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced || document.hidden || typeof gsap === 'undefined') {
       if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
+      activateFsImageZoom(newEl);
       updateGalleryUI(wrapped);
       preloadNeighbors();
       return;
     }
+    activateFsImageZoom(newEl);
     gsap.set(newEl, { opacity: 0 });
     gsap.to(newEl, { opacity: 1, duration: 0.35, ease: 'power2.out' });
     if (oldEl) {
@@ -3783,6 +4404,10 @@
     var focusable = [];
     if (fsPrev && !fsPrev.hidden) focusable.push(fsPrev);
     if (fsNext && !fsNext.hidden) focusable.push(fsNext);
+    if (fsZoomOutBtn && fsZoomBar && !fsZoomBar.hidden && !fsZoomOutBtn.disabled) focusable.push(fsZoomOutBtn);
+    if (fsZoomFitBtn && fsZoomBar && !fsZoomBar.hidden && !fsZoomFitBtn.disabled) focusable.push(fsZoomFitBtn);
+    if (fsZoomActualBtn && fsZoomBar && !fsZoomBar.hidden && !fsZoomActualBtn.disabled) focusable.push(fsZoomActualBtn);
+    if (fsZoomInBtn && fsZoomBar && !fsZoomBar.hidden && !fsZoomInBtn.disabled) focusable.push(fsZoomInBtn);
     focusable.push(fsCloseBtn);
 
     focusTrapHandler = function (e) {
@@ -3806,14 +4431,251 @@
     focusTrapHandler = null;
   }
 
+  function setupFsImageZoom() {
+    fsStage.addEventListener('wheel', handleFsImageWheel, { passive: false });
+    fsStage.addEventListener('pointerdown', handleFsImagePointerDown);
+    fsStage.addEventListener('pointermove', handleFsImagePointerMove);
+    fsStage.addEventListener('pointerup', handleFsImagePointerUp);
+    fsStage.addEventListener('pointercancel', handleFsImagePointerUp);
+    fsStage.addEventListener('dblclick', handleFsImageDoubleClick);
+    window.addEventListener('resize', function () {
+      if (isFsImageZoomActive()) applyFsImageTransform();
+    });
+  }
+
+  function isFsImageZoomActive() {
+    return fsContext === 'gallery' && fsCurrentEl && fsCurrentEl.tagName === 'IMG';
+  }
+
+  function clampFsZoom(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function activateFsImageZoom(img) {
+    if (!img) return;
+    fsImageZoom.scale = 1;
+    fsImageZoom.x = 0;
+    fsImageZoom.y = 0;
+    fsImageZoom.min = 1;
+    fsImageZoom.pointers = {};
+    fsImageZoom.panStart = null;
+    fsImageZoom.pinchStart = null;
+    fsImageZoom.suppressClick = false;
+    fsImageZoom.actual = computeFsActualScale(img);
+    fsImageZoom.max = Math.max(4, Math.min(8, fsImageZoom.actual * 2));
+    if (fsZoomBar) fsZoomBar.hidden = false;
+    if (fsOverlay) fsOverlay.classList.add('is-gallery');
+    applyFsImageTransform();
+  }
+
+  function releaseFsImageZoom() {
+    if (fsCurrentEl && fsCurrentEl.style) {
+      fsCurrentEl.style.transform = '';
+      fsCurrentEl.style.transformOrigin = '';
+    }
+    fsImageZoom.scale = 1;
+    fsImageZoom.x = 0;
+    fsImageZoom.y = 0;
+    fsImageZoom.pointers = {};
+    fsImageZoom.panStart = null;
+    fsImageZoom.pinchStart = null;
+    fsImageZoom.suppressClick = false;
+    if (fsZoomBar) fsZoomBar.hidden = true;
+    if (fsOverlay) fsOverlay.classList.remove('is-gallery', 'is-zoomed', 'is-panning');
+    updateFsZoomButtons();
+  }
+
+  function computeFsActualScale(img) {
+    var rect = img.getBoundingClientRect();
+    var baseW = img.offsetWidth || rect.width || 1;
+    var baseH = img.offsetHeight || rect.height || 1;
+    var naturalW = img.naturalWidth || baseW;
+    var naturalH = img.naturalHeight || baseH;
+    return Math.max(1, Math.min(naturalW / baseW, naturalH / baseH, 6));
+  }
+
+  function applyFsImageTransform() {
+    if (!isFsImageZoomActive()) return;
+    var stageW = fsStage.clientWidth || window.innerWidth;
+    var stageH = fsStage.clientHeight || window.innerHeight;
+    var baseW = fsCurrentEl.offsetWidth || 1;
+    var baseH = fsCurrentEl.offsetHeight || 1;
+    var maxX = Math.max(0, (baseW * fsImageZoom.scale - stageW) / 2);
+    var maxY = Math.max(0, (baseH * fsImageZoom.scale - stageH) / 2);
+    if (fsImageZoom.scale <= 1.001) {
+      fsImageZoom.scale = 1;
+      fsImageZoom.x = 0;
+      fsImageZoom.y = 0;
+    } else {
+      fsImageZoom.x = clampFsZoom(fsImageZoom.x, -maxX, maxX);
+      fsImageZoom.y = clampFsZoom(fsImageZoom.y, -maxY, maxY);
+    }
+    fsCurrentEl.style.transformOrigin = 'center center';
+    fsCurrentEl.style.transform =
+      'translate3d(' + fsImageZoom.x.toFixed(2) + 'px,' + fsImageZoom.y.toFixed(2) + 'px,0) ' +
+      'scale(' + fsImageZoom.scale.toFixed(4) + ')';
+    if (fsOverlay) fsOverlay.classList.toggle('is-zoomed', fsImageZoom.scale > 1.01);
+    updateFsZoomButtons();
+  }
+
+  function updateFsZoomButtons() {
+    if (!fsZoomBar || fsZoomBar.hidden) return;
+    var atFit = fsImageZoom.scale <= 1.01;
+    var atActual = Math.abs(fsImageZoom.scale - fsImageZoom.actual) < 0.03;
+    fsZoomOutBtn.disabled = atFit;
+    fsZoomFitBtn.disabled = atFit && Math.abs(fsImageZoom.x) < 1 && Math.abs(fsImageZoom.y) < 1;
+    fsZoomActualBtn.disabled = atActual;
+    fsZoomInBtn.disabled = fsImageZoom.scale >= fsImageZoom.max - 0.03;
+  }
+
+  function setFsImageScale(nextScale, clientX, clientY) {
+    if (!isFsImageZoomActive()) return;
+    var next = clampFsZoom(nextScale, fsImageZoom.min, fsImageZoom.max);
+    var old = fsImageZoom.scale || 1;
+    var stageRect = fsStage.getBoundingClientRect();
+    var centerX = stageRect.left + stageRect.width / 2;
+    var centerY = stageRect.top + stageRect.height / 2;
+    var relX = (clientX || centerX) - centerX;
+    var relY = (clientY || centerY) - centerY;
+    var localX = (relX - fsImageZoom.x) / old;
+    var localY = (relY - fsImageZoom.y) / old;
+    fsImageZoom.scale = next;
+    fsImageZoom.x = relX - localX * next;
+    fsImageZoom.y = relY - localY * next;
+    applyFsImageTransform();
+  }
+
+  function zoomFsImageBy(factor) {
+    setFsImageScale(fsImageZoom.scale * factor, window.innerWidth / 2, window.innerHeight / 2);
+  }
+
+  function resetFsImageZoom() {
+    if (!isFsImageZoomActive()) return;
+    fsImageZoom.scale = 1;
+    fsImageZoom.x = 0;
+    fsImageZoom.y = 0;
+    applyFsImageTransform();
+  }
+
+  function handleFsImageWheel(e) {
+    if (!isFsImageZoomActive()) return;
+    e.preventDefault();
+    var factor = e.deltaY < 0 ? 1.12 : 0.88;
+    setFsImageScale(fsImageZoom.scale * factor, e.clientX, e.clientY);
+  }
+
+  function handleFsImageDoubleClick(e) {
+    if (!isFsImageZoomActive()) return;
+    if (e.target.closest && e.target.closest('.media-fs__prev, .media-fs__next, .media-fs__close, .media-fs__zoom')) return;
+    e.preventDefault();
+    if (fsImageZoom.scale <= 1.01) setFsImageScale(fsImageZoom.actual, e.clientX, e.clientY);
+    else resetFsImageZoom();
+  }
+
+  function getFsPointers() {
+    return Object.keys(fsImageZoom.pointers).map(function (key) { return fsImageZoom.pointers[key]; });
+  }
+
+  function getPointerDistance(a, b) {
+    var dx = a.x - b.x;
+    var dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function getPointerMidpoint(a, b) {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function handleFsImagePointerDown(e) {
+    if (!isFsImageZoomActive()) return;
+    if (e.target.closest && e.target.closest('.media-fs__prev, .media-fs__next, .media-fs__close, .media-fs__zoom')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    fsImageZoom.pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { fsStage.setPointerCapture(e.pointerId); } catch (_) {}
+    var pointers = getFsPointers();
+    if (pointers.length === 1) {
+      fsImageZoom.panStart = {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        startX: fsImageZoom.x,
+        startY: fsImageZoom.y
+      };
+    } else if (pointers.length === 2) {
+      fsImageZoom.pinchStart = {
+        distance: getPointerDistance(pointers[0], pointers[1]) || 1,
+        midpoint: getPointerMidpoint(pointers[0], pointers[1]),
+        scale: fsImageZoom.scale,
+        x: fsImageZoom.x,
+        y: fsImageZoom.y
+      };
+    }
+    e.preventDefault();
+  }
+
+  function handleFsImagePointerMove(e) {
+    if (!isFsImageZoomActive() || !fsImageZoom.pointers[e.pointerId]) return;
+    fsImageZoom.pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var pointers = getFsPointers();
+    if (pointers.length >= 2 && fsImageZoom.pinchStart) {
+      fsImageZoom.suppressClick = true;
+      var midpoint = getPointerMidpoint(pointers[0], pointers[1]);
+      var ratio = getPointerDistance(pointers[0], pointers[1]) / fsImageZoom.pinchStart.distance;
+      fsImageZoom.scale = clampFsZoom(fsImageZoom.pinchStart.scale * ratio, fsImageZoom.min, fsImageZoom.max);
+      fsImageZoom.x = fsImageZoom.pinchStart.x + (midpoint.x - fsImageZoom.pinchStart.midpoint.x);
+      fsImageZoom.y = fsImageZoom.pinchStart.y + (midpoint.y - fsImageZoom.pinchStart.midpoint.y);
+      applyFsImageTransform();
+      e.preventDefault();
+      return;
+    }
+    if (pointers.length === 1 && fsImageZoom.scale > 1.01 && fsImageZoom.panStart) {
+      if (Math.abs(e.clientX - fsImageZoom.panStart.x) > 4 ||
+          Math.abs(e.clientY - fsImageZoom.panStart.y) > 4) {
+        fsImageZoom.suppressClick = true;
+      }
+      fsImageZoom.x = fsImageZoom.panStart.startX + (e.clientX - fsImageZoom.panStart.x);
+      fsImageZoom.y = fsImageZoom.panStart.startY + (e.clientY - fsImageZoom.panStart.y);
+      if (fsOverlay) fsOverlay.classList.add('is-panning');
+      applyFsImageTransform();
+      e.preventDefault();
+    }
+  }
+
+  function handleFsImagePointerUp(e) {
+    if (fsImageZoom.pointers[e.pointerId]) delete fsImageZoom.pointers[e.pointerId];
+    try { fsStage.releasePointerCapture(e.pointerId); } catch (_) {}
+    var pointers = getFsPointers();
+    if (pointers.length === 1) {
+      fsImageZoom.panStart = {
+        pointerId: null,
+        x: pointers[0].x,
+        y: pointers[0].y,
+        startX: fsImageZoom.x,
+        startY: fsImageZoom.y
+      };
+      fsImageZoom.pinchStart = null;
+    } else {
+      fsImageZoom.panStart = null;
+      fsImageZoom.pinchStart = null;
+      if (fsOverlay) fsOverlay.classList.remove('is-panning');
+    }
+  }
+
   function setupFsSwipe(target) {
     var x0 = null, y0 = null;
     target.addEventListener('touchstart', function (e) {
+      if (fsContext === 'gallery' && fsImageZoom.scale > 1.01) {
+        x0 = y0 = null;
+        return;
+      }
       if (e.touches.length !== 1) return;
       x0 = e.touches[0].clientX;
       y0 = e.touches[0].clientY;
     }, { passive: true });
     target.addEventListener('touchend', function (e) {
+      if (fsContext === 'gallery' && fsImageZoom.scale > 1.01) {
+        x0 = y0 = null; return;
+      }
       if (x0 == null || (fsContext !== 'gallery' && fsContext !== 'blueprint')) {
         x0 = y0 = null; return;
       }
@@ -3876,8 +4738,9 @@
     var btn3d = e.target.closest('.case-3d__fs-btn');
     if (btn3d) {
       e.preventDefault();
-      var mv = document.querySelector('#case-3d-canvas model-viewer');
-      if (mv) openFs(mv, 'model-viewer');
+      if (window.CodexViewer && typeof window.CodexViewer.openFullscreen === 'function') {
+        window.CodexViewer.openFullscreen();
+      }
       return;
     }
     // Blueprints — top-toolbar (открывает текущую страницу) или per-page mini-toolbar.
@@ -3912,6 +4775,11 @@
       navFs(+1);
     }
   });
+
+  window.CodexMediaFullscreen = {
+    openElement: openFs,
+    close: closeFs
+  };
 
 })();
 
