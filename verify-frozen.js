@@ -125,7 +125,7 @@ function runStaticChecks() {
   // (foo.localStorage. / foo.sessionStorage[ ) — комментарии "no localStorage"
   // не попадают, т.к. там нет точки/bracket access после слова.
   const forbidden = /(localStorage|sessionStorage)\s*[.\[]/;
-  const jsFiles = ['main.js', 'animations.js', 'free-assets.js', 'i18n.js', 'i18n-data.js', 'fa-data.js'];
+  const jsFiles = ['main.js', 'animations.js', 'free-assets.js', 'i18n.js', 'i18n-data.js', 'fa-data.js', 'shared-runtime.js'];
   const jsViolations = jsFiles.filter(f => {
     const full = path.join(ROOT, 'js', f);
     if (!fs.existsSync(full)) return false;
@@ -134,7 +134,7 @@ function runStaticChecks() {
   add('static', 'A8-no-localStorage-runtime', jsViolations.length === 0,
       jsViolations.length ? 'violations in: ' + jsViolations.join(', ') : 'all clean');
 
-  const shippedCopyFiles = ['index.html', 'free-assets.html', 'main.js', 'i18n-data.js', 'fa-data.js', 'free-assets.js'];
+  const shippedCopyFiles = ['index.html', 'free-assets.html', 'main.js', 'i18n-data.js', 'fa-data.js', 'free-assets.js', 'shared-runtime.js'];
   const shippedCopyViolations = [];
   const shippedCopyRules = [
     {
@@ -217,7 +217,7 @@ async function testIndex(BASE) {
   const scripts = await page.$$eval('script[src]', els => els.map(e => ({ src: e.getAttribute('src'), defer: e.hasAttribute('defer'), async: e.hasAttribute('async') })));
   add('index', 'SCRIPTS-no-defer', !scripts.some(s => s.defer));
   const order = scripts.map(s => s.src);
-  // A1 — Full chain: gsap → ScrollTrigger → SplitText → i18n-data → i18n → main → animations.
+  // A1 — Full chain: gsap → ScrollTrigger → SplitText → i18n-data → i18n → shared → main → animations.
   // Phase 1+ added i18n-data + i18n; they must sit ПОСЛЕ vendor GSAP-bundle и
   // ПЕРЕД main.js (main.js dereferences window.I18N at boot).
   const idx = (rx) => order.findIndex(s => rx.test(s));
@@ -226,14 +226,21 @@ async function testIndex(BASE) {
   const iSpT  = idx(/SplitText/);
   const iI18nD = idx(/i18n-data\.js$/);
   const iI18n  = idx(/i18n\.js$/);
+  const iShared = idx(/shared-runtime\.js$/);
   const iMain  = idx(/main\.js$/);
   const iAnim  = idx(/animations\.js$/);
   const orderOK =
     iGsap >= 0 && iST > iGsap && iSpT > iST &&
     iI18nD > iSpT && iI18n > iI18nD &&
-    iMain > iI18n && iAnim > iMain;
+    iShared > iI18n && iMain > iShared && iAnim > iMain;
   add('index', 'SCRIPTS-order', orderOK,
-      `gsap=${iGsap} ST=${iST} SpT=${iSpT} i18n-data=${iI18nD} i18n=${iI18n} main=${iMain} anim=${iAnim}`);
+      `gsap=${iGsap} ST=${iST} SpT=${iSpT} i18n-data=${iI18nD} i18n=${iI18n} shared=${iShared} main=${iMain} anim=${iAnim}`);
+  const sharedAPI = await page.evaluate(() => ({
+    obj: typeof window.CodexShared === 'object',
+    loadModelViewerScript: typeof (window.CodexShared && window.CodexShared.loadModelViewerScript) === 'function',
+  }));
+  add('index', 'SHARED-runtime-api', sharedAPI.obj && sharedAPI.loadModelViewerScript,
+      JSON.stringify(sharedAPI));
 
   // BODY THEME
   const theme = await page.getAttribute('body', 'data-theme');
@@ -645,8 +652,8 @@ async function testFreeAssets(BASE) {
   const scripts = await page.$$eval('script[src]', els => els.map(e => ({ src: e.getAttribute('src'), defer: e.hasAttribute('defer') })));
   add('fa', 'SCRIPTS-no-defer', !scripts.some(s => s.defer));
 
-  // A1 — script order на FA (нет Lenis, нет animations.js, есть free-assets.js):
-  // gsap → ScrollTrigger → SplitText → i18n-data → i18n → main → free-assets.
+  // A1 — script order на FA (нет Lenis, есть animations.js и free-assets.js):
+  // gsap → ScrollTrigger → SplitText → i18n-data → i18n → shared → main → animations → free-assets.
   const faOrder = scripts.map(s => s.src);
   const faIdx = (rx) => faOrder.findIndex(s => rx.test(s));
   const f = {
@@ -655,13 +662,22 @@ async function testFreeAssets(BASE) {
     spt:     faIdx(/SplitText/),
     i18nD:   faIdx(/i18n-data\.js$/),
     i18n:    faIdx(/i18n\.js$/),
+    shared:  faIdx(/shared-runtime\.js$/),
     main:    faIdx(/main\.js$/),
+    anim:    faIdx(/animations\.js$/),
     faJs:    faIdx(/free-assets\.js$/),
   };
   const faOrderOK = f.gsap >= 0 && f.st > f.gsap && f.spt > f.st &&
                     f.i18nD > f.spt && f.i18n > f.i18nD &&
-                    f.main > f.i18n && f.faJs > f.main;
+                    f.shared > f.i18n && f.main > f.shared &&
+                    f.anim > f.main && f.faJs > f.anim;
   add('fa', 'SCRIPTS-order', faOrderOK, JSON.stringify(f));
+  const faSharedAPI = await page.evaluate(() => ({
+    obj: typeof window.CodexShared === 'object',
+    loadModelViewerScript: typeof (window.CodexShared && window.CodexShared.loadModelViewerScript) === 'function',
+  }));
+  add('fa', 'SHARED-runtime-api', faSharedAPI.obj && faSharedAPI.loadModelViewerScript,
+      JSON.stringify(faSharedAPI));
 
   // GSAP loaded
   const gsap = await page.evaluate(() => typeof window.gsap);

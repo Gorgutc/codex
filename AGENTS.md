@@ -41,7 +41,7 @@ If old Claude references mention `.claude`, translate that to the Codex plugin p
 ## Current Stack Details
 
 - CSS order: `tokens.css`, `reset.css`, `shared.css`; index also loads `portfolio-core.css` and preloads `portfolio-case.css`; free-assets loads `free-assets.css`.
-- JS order is classic and non-module. Index loads Lenis, GSAP, ScrollTrigger, SplitText, i18n data/runtime, `main.js`, then `animations.js`. Free-assets loads `fa-data.js`, vendor stack, i18n data/runtime, `main.js`, `animations.js`, then `free-assets.js`.
+- JS order is classic and non-module. Index loads Lenis, GSAP, ScrollTrigger, SplitText, i18n data/runtime, `shared-runtime.js`, `main.js`, then `animations.js`. Free-assets loads `fa-data.js`, vendor stack, i18n data/runtime, `shared-runtime.js`, `main.js`, `animations.js`, then `free-assets.js`.
 - GSAP, ScrollTrigger, SplitText, and Lenis are self-hosted in `js/vendor/`.
 - `model-data.js` and `<model-viewer>` are lazy-loaded from app logic.
 

@@ -8,6 +8,7 @@
     "js/i18n.js",
     "js/main.js",
     "js/model-data.js",
+    "js/shared-runtime.js",
     "scripts/**/*.mjs",
     "tests/**/*.mjs"
   ],

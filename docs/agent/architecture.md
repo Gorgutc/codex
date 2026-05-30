@@ -22,13 +22,13 @@ Shared order is `tokens.css`, `reset.css`, `shared.css`.
 
 Scripts are classic and ordered. Do not add `defer` or `type="module"` to shipped page scripts.
 
-Index order: Lenis, GSAP, ScrollTrigger, SplitText, i18n data, i18n runtime, main app, animations.
+Index order: Lenis, GSAP, ScrollTrigger, SplitText, i18n data, i18n runtime, shared runtime, main app, animations.
 
-Free assets order: FA data, vendor libraries, i18n data, i18n runtime, main app, animations, FA app.
+Free assets order: FA data, vendor libraries, i18n data, i18n runtime, shared runtime, main app, animations, FA app.
 
 ## Runtime Coupling
 
-Important globals and events include `window.CARDS_DATA`, `window.FA_DATA`, `window.I18N_DATA`, `window.CodexCase`, `codex:filter`, `codex:toggle`, `codex:case-open`, `codex:viz-change`, `codex:preloader-done`, and `i18n:changed`.
+Important globals and events include `window.CARDS_DATA`, `window.FA_DATA`, `window.I18N_DATA`, `window.CodexShared`, `window.CodexCase`, `codex:filter`, `codex:toggle`, `codex:case-open`, `codex:viz-change`, `codex:preloader-done`, and `i18n:changed`.
 
 The app uses DOM state and URL state: `body[data-theme]`, `body.cards-collapsed`, hash-based case selection, and `?lang=` for language.
 
