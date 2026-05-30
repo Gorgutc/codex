@@ -9,7 +9,7 @@ description: Use for Codex Studio HTML, CSS, or vanilla JS generation, review, r
 
 1. Read `AGENTS.md`, then `docs/agent/architecture.md`, `docs/agent/code_review.md`, and `docs/agent/verification.md`.
 2. For broad work, use the agent contracts in `.codex/agents/`.
-3. Identify whether the change touches shipped code: `index.html`, `free-assets.html`, `verify-frozen.js`, `css/*.css`, or non-vendor `js/*.js`.
+3. Identify whether the change touches shipped code: `index.html`, `free-assets.html`, `verify-frozen.js`, `css/*.css`, non-vendor `js/*.js`, or `js/vendor/codex-three-viewer.js`.
 4. Preserve frozen behavior unless the user explicitly requests an architecture change.
 5. Run `npm run verify` after shipped-code edits.
 

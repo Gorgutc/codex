@@ -74,18 +74,24 @@ const PRESETS = {
 
 const ENVIRONMENT_SIZE = 128;
 const MATERIAL_MODES = ['pbr', 'clay', 'xray'];
+let canUseViewerCache = null;
 
 export function canUseCodexThreeViewer() {
+  if (canUseViewerCache !== null) return canUseViewerCache;
   const canvas = document.createElement('canvas');
   const gl = canvas.getContext('webgl2', {
     alpha: true,
     antialias: true
   });
 
-  if (!gl) return false;
+  if (!gl) {
+    canUseViewerCache = false;
+    return canUseViewerCache;
+  }
   const loseContext = gl.getExtension('WEBGL_lose_context');
   if (loseContext) loseContext.loseContext();
-  return true;
+  canUseViewerCache = true;
+  return canUseViewerCache;
 }
 
 export function createCodexThreeViewer(options) {
@@ -125,6 +131,18 @@ export function createCodexThreeViewer(options) {
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', alt);
 
+  function getHostClearColor() {
+    const fallback = new THREE.Color(0x212121);
+    try {
+      const style = window.getComputedStyle(host);
+      const backgroundColor = style && style.backgroundColor;
+      if (backgroundColor && backgroundColor !== 'transparent' && backgroundColor !== 'rgba(0, 0, 0, 0)') {
+        return new THREE.Color(backgroundColor);
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
     alpha: true,
@@ -134,7 +152,7 @@ export function createCodexThreeViewer(options) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = initialExposure;
-  renderer.setClearColor(0x000000, 0);
+  renderer.setClearColor(getHostClearColor(), 1);
 
   const scene = new THREE.Scene();
   scene.environmentIntensity = 0.78;
@@ -531,6 +549,7 @@ export function createCodexThreeViewer(options) {
 
   applyEnvironment(initialEnvironment);
   resize();
+  renderOnce();
   resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(host);
   controls.addEventListener('start', () => requestRender(90));
@@ -565,6 +584,8 @@ export function createCodexThreeViewer(options) {
       registerOriginalMaterials();
       tuneModelMaterials(PRESETS[initialEnvironment] || PRESETS.studio);
       applyMaterialMode(materialMode);
+      renderer.setClearColor(0x000000, 0);
+      renderOnce();
       ready = true;
       if (options.onReady) options.onReady();
       requestRender(continuous ? 0 : 1);
@@ -617,7 +638,7 @@ export function createCodexThreeViewer(options) {
       controls.update();
       requestRender(1);
     },
-    dispose() {
+    dispose(disposeOptions = {}) {
       if (disposed) return;
       disposed = true;
       window.cancelAnimationFrame(frameId);
@@ -646,7 +667,9 @@ export function createCodexThreeViewer(options) {
         ktx2Loader = null;
       }
       renderer.dispose();
-      try { renderer.forceContextLoss(); } catch (_) {}
+      if (disposeOptions.forceContextLoss === true) {
+        try { renderer.forceContextLoss(); } catch (_) {}
+      }
       canvas.remove();
     }
   };

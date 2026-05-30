@@ -821,6 +821,7 @@
   var currentThreeViewer = null;           // Phase 3 - active self-hosted Three.js viewer island
   var currentThreeSource = null;           // Phase 3 - source used for fullscreen rehydration
   var fsThreeViewer = null;                // Phase 3 - fullscreen Three.js viewer clone
+  var model3dMountToken = 0;               // guards stale async 3D callbacks for the same case
   var gameOnly = false;
 
   // v0.15.5 [П2] — массив выбранных дисциплин (OR-логика). Пусто или ['all'] → все кейсы.
@@ -2175,6 +2176,25 @@
       '</div>';
   }
 
+  function set3DSwitching(on) {
+    if (!case3dCanvas) return;
+    case3dCanvas.classList.toggle('is-switching-3d', !!on);
+  }
+
+  function has3DRenderedSurface() {
+    return !!(case3dCanvas && case3dCanvas.querySelector('canvas.case-3d__three-canvas, model-viewer, .case-3d__fallback'));
+  }
+
+  function clear3DSwitchingAfterPaint(targetId, mountToken) {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (model3dBuiltFor === targetId && currentCaseId === targetId && model3dMountToken === mountToken && case3dCanvas) {
+          set3DSwitching(false);
+        }
+      });
+    });
+  }
+
   /* v0.11.1 — верстка info-панели со статистикой модели */
   function buildInfoHTML(data) {
     var s = (data && data.modelStats) || {};
@@ -2198,7 +2218,9 @@
     );
   }
 
-  function destroy3D() {
+  function destroy3D(options) {
+    options = options || {};
+    if (!options.keepSwitching) set3DSwitching(false);
     // v0.11.4 — явная утилизация предыдущего <model-viewer>: снимаем атрибуты,
     // убиваем tween-ы, удаляем из DOM и обнуляем ссылки, чтобы GC забрал инстанс
     // v0.7.3 — cleanup global listeners для light-dropdown (close on outside / Escape)
@@ -2231,10 +2253,15 @@
     if (!data) return;
 
     // v0.11.4 — утилизируем предыдущий MV, чтобы не копить инстансы
-    destroy3D();
+    var keepSwitchCover = currentViz === '3d' && has3DRenderedSurface();
+    if (keepSwitchCover) set3DSwitching(true);
+    destroy3D({ keepSwitching: keepSwitchCover });
+    var targetId = id;
+    var targetMountToken = ++model3dMountToken;
 
     // Нет модели → fallback сразу
     if (!data.modelSrc) {
+      set3DSwitching(false);
       render3DFallback(
         'MODEL SOON',
         'Интерактивная 3D-модель готовится. Пока смотри 2D-рендеры и технический чертёж.'
@@ -2248,15 +2275,15 @@
       'LOADING 3D',
       'Подгружаем интерактивный вьюер и GLB-модель. Первый запуск занимает несколько секунд.'
     );
+    if (keepSwitchCover) set3DSwitching(true);
     model3dBuiltFor = id;
-    var targetId = id;
 
     loadModelViewerScript().then(function () {
       // v0.5 — после загрузки model-viewer ждём model-data (для CODEX_LOCAL_GLB)
       return loadModelData();
     }).then(function () {
       // за время загрузки скрипта пользователь мог переключить кейс
-      if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
 
       var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       var autoRotateOn = !prefersReduced;
@@ -2322,7 +2349,11 @@
       var initialTarget = null;
       var initialFov = null;
       mv.addEventListener('load', function () {
-        if (case3dCanvas) case3dCanvas.classList.add('is-ready');
+        if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
+        if (case3dCanvas) {
+          case3dCanvas.classList.add('is-ready');
+          clear3DSwitchingAfterPaint(targetId, targetMountToken);
+        }
         // v0.13.3 — shadow DOM model-viewer внутри ставит `.userInput { cursor: grab }`
         //           и `canvas.show { cursor: grab }`. Внешний `html.cursor-fine *` не
         //           проходит shadow boundary. Инжектим стиль в shadowRoot
@@ -2352,6 +2383,8 @@
         } catch (_) { /* no-op */ }
       });
       mv.addEventListener('error', function () {
+        if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
+        set3DSwitching(false);
         render3DFallback(
           'MODEL UNAVAILABLE',
           'Не удалось загрузить GLB. Проверь интернет-соединение или вернись к 2D / Blueprints.'
@@ -2750,6 +2783,8 @@
       case3dCanvas.appendChild(infoPanel);
       currentMv = mv;
     }).catch(function () {
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
+      set3DSwitching(false);
       render3DFallback(
         'VIEWER OFFLINE',
         'Не удалось подгрузить <model-viewer>. Проверь интернет-соединение.'
@@ -2764,9 +2799,14 @@
     var data = options.data || CARDS_DATA[id];
     if (!data) return;
 
-    destroy3D();
+    var keepSwitchCover = currentViz === '3d' && has3DRenderedSurface();
+    if (keepSwitchCover) set3DSwitching(true);
+    destroy3D({ keepSwitching: keepSwitchCover });
+    var targetId = id;
+    var targetMountToken = ++model3dMountToken;
 
     if (!data.modelSrc) {
+      set3DSwitching(false);
       render3DFallback(
         'MODEL SOON',
         'Интерактивная 3D-модель готовится. Пока смотри 2D-рендеры и технический чертеж.'
@@ -2779,11 +2819,11 @@
       'LOADING 3D',
       'Подгружаем интерактивный вьюер и GLB-модель. Первый запуск занимает несколько секунд.'
     );
+    if (keepSwitchCover) set3DSwitching(true);
     model3dBuiltFor = id;
-    var targetId = id;
 
     Promise.all([loadModelData(), loadThreeViewer()]).then(function (result) {
-      if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
 
       var threeRuntime = result[1];
       if (!threeRuntime || !threeRuntime.canUseCodexThreeViewer || !threeRuntime.canUseCodexThreeViewer()) {
@@ -2793,6 +2833,7 @@
 
       var src = resolveModelSource(data);
       if (!src) {
+        set3DSwitching(false);
         render3DFallback('MODEL SOON', 'Интерактивная 3D-модель готовится.');
         return;
       }
@@ -3128,6 +3169,7 @@
 
       case3dCanvas.innerHTML = '';
       case3dCanvas.classList.remove('is-ready');
+      if (keepSwitchCover) set3DSwitching(true);
 
       currentThreeSource = {
         caseId: id,
@@ -3147,13 +3189,15 @@
         environment: currentEnv,
         materialMode: currentMaterial,
         onReady: function () {
-          if (model3dBuiltFor === targetId && currentCaseId === targetId && case3dCanvas) {
+          if (model3dBuiltFor === targetId && currentCaseId === targetId && model3dMountToken === targetMountToken && case3dCanvas) {
             case3dCanvas.classList.add('is-ready');
+            clear3DSwitchingAfterPaint(targetId, targetMountToken);
           }
         },
         onError: function () {
-          if (model3dBuiltFor === targetId && currentCaseId === targetId) {
+          if (model3dBuiltFor === targetId && currentCaseId === targetId && model3dMountToken === targetMountToken) {
             destroy3D();
+            set3DSwitching(false);
             render3DFallback(
               'MODEL UNAVAILABLE',
               'Не удалось загрузить GLB. Проверь интернет-соединение или вернись к 2D / Blueprints.'
@@ -3167,6 +3211,7 @@
       case3dCanvas.appendChild(infoPanel);
     }).catch(function () {
       threeViewerLoading = null;
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
       mountModelViewer3D(options);
     });
   }

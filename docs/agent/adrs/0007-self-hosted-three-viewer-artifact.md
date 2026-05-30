@@ -34,7 +34,9 @@ maps, no first-party page `type="module"` scripts, and no runtime bundler.
 - Respect `prefers-reduced-motion`: no auto-rotation and no nonessential render
   loop work.
 - Dispose renderers, animation loops, controls, geometries, materials, textures,
-  loaders, listeners, and WebGL contexts during `destroy3D`.
+  loaders, and listeners during `destroy3D`. Do not force WebGL context loss
+  during routine case switching; `forceContextLoss` is an explicit escape hatch
+  for exceptional teardown or diagnostics only.
 
 ## Artifact Shape
 

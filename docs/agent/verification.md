@@ -17,6 +17,7 @@ Run after changes to:
 - `verify-frozen.js`
 - `css/*.css`
 - non-vendor `js/*.js`
+- `js/vendor/codex-three-viewer.js`
 - any instruction change that modifies the verification workflow itself
 
 ## What The Suite Covers
