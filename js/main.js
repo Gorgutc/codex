@@ -257,7 +257,7 @@
      CARDS_DATA
   ════════════════════════════════════════ */
   var CARDS_DATA = {
-    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: './assets/models/experimental/dino.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Draco compressed', vertices: 'GLB embedded', materials: 1, textures: '3 embedded', software: 'Drive test asset' }, items: makeItems({
+    'orbital-mk-ii': { role: 'Personal', tools: ['Blender', 'Substance Painter', 'Marmoset'], modelSrc: './assets/models/experimental/dino.glb', modelEnvironment: 'studio', modelExposure: 1.05, modelStats: { triangles: 'Draco compressed', vertices: 'GLB embedded', materials: 1, textures: '3 embedded', software: 'Drive test asset' }, items: makeItems({
       id: 'orbital-mk-ii',
       palette: [
         'linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%)',
@@ -284,7 +284,7 @@
       }
     }) },
 
-    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: './assets/models/experimental/humanoid-2.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Meshopt compressed', vertices: 'GLB embedded', materials: 1, textures: '2 KTX2', software: 'Drive test asset' }, items: makeItems({
+    'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: './assets/models/experimental/humanoid-2.glb', modelEnvironment: 'studio', modelExposure: 1.05, modelStats: { triangles: 'Meshopt compressed', vertices: 'GLB embedded', materials: 1, textures: '2 KTX2', software: 'Drive test asset' }, items: makeItems({
       id: 'vega-shell',
       palette: [
         'linear-gradient(135deg,#1a2030 0%,#252e40 100%)',
@@ -310,7 +310,7 @@
       }
     }) },
 
-    'ironclad-frame': { role: 'R&D', tools: ['Blender', 'CAD import', 'Inkscape'], modelSrc: './assets/models/experimental/car-paint.glb', modelEnvironment: 'citrus', modelExposure: 1.05, modelStats: { triangles: 'Draco compressed', vertices: 'GLB embedded', materials: 1, textures: '3 embedded', software: 'Drive test asset' }, items: makeItems({
+    'ironclad-frame': { role: 'R&D', tools: ['Blender', 'CAD import', 'Inkscape'], modelSrc: './assets/models/experimental/car-paint.glb', modelEnvironment: 'studio', modelExposure: 1.05, modelStats: { triangles: 'Draco compressed', vertices: 'GLB embedded', materials: 1, textures: '3 embedded', software: 'Drive test asset' }, items: makeItems({
       id: 'ironclad-frame',
       palette: [
         'linear-gradient(135deg,#1c2428 0%,#28343a 100%)',
