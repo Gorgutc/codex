@@ -66,6 +66,8 @@ function renderGrid(tag) {
     var thumb = Object.prototype.hasOwnProperty.call(a, 'thumb') ? a.thumb : a.id;
     var model = Object.prototype.hasOwnProperty.call(a, 'model') ? a.model : a.id;
     var titleAttr = escapeAttr(a.title);
+    var previewState = model ? '3d' : (thumb ? 'poster' : 'fallback');
+    var previewStateLabel = model ? '3D' : (thumb ? 'Poster' : 'Fallback');
     var thumbHTML = thumb
       ? '<img src="./assets/cards/' + thumb + '.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="800" height="600">'
       : '';
@@ -84,16 +86,20 @@ function renderGrid(tag) {
       ? '<button class="fa-card__preview-btn" type="button" aria-label="Open preview of ' + titleAttr + '"></button>'
       : '';
     return '<li class="fa-card">'
-      + '<div class="fa-card__thumb" data-label="' + titleAttr + '" style="background:' + a.bg + '">'
+      + '<div class="fa-card__thumb" data-label="' + titleAttr + '" data-preview-state="' + previewState + '" style="background:' + a.bg + '">'
       + thumbHTML
       + modelHTML
       + previewButton
       + '<span class="fa-card__badge">' + a.badge + '</span>'
+      + '<span class="fa-card__state" aria-hidden="true">' + previewStateLabel + '</span>'
       + '</div>'
       + '<div class="fa-card__body">'
       + '<div class="fa-card__meta">'
       + '<span class="fa-card__cat">' + a.cat + '</span>'
+      + '<span class="fa-card__meta-tail">'
       + '<span class="fa-card__license">CC0 — Free</span>'
+      + '<span class="fa-card__hint" aria-hidden="true">↗</span>'
+      + '</span>'
       + '</div>'
       + '<h2 class="fa-card__title">' + a.title + '</h2>'
       + '<p class="fa-card__desc">' + a.desc + '</p>'

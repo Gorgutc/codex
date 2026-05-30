@@ -888,7 +888,10 @@ body::after {
    .work-card (корень, GSAP-цель) → __thumb + __info
 ═══════════════════════════════════ */
 .work-card {
-  background: var(--color-work-card-bg);
+  position: relative;
+  background:
+    linear-gradient(180deg, var(--color-work-card-bg-hover), var(--color-work-card-bg) 46%),
+    var(--color-work-card-bg);
   border: 1px solid var(--color-work-card-border);
   border-radius: var(--radius-card);
   overflow: hidden;
@@ -904,10 +907,25 @@ body::after {
     background   200ms var(--ease-out),
     box-shadow   240ms var(--ease-out);
 }
+.work-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--color-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-out);
+  z-index: 4;
+}
 .work-card:hover {
   border-color: var(--color-work-card-border-hov);
   background: var(--color-work-card-bg-hover);
   box-shadow: var(--shadow-md);
+}
+.work-card:hover::before,
+.work-card--active::before {
+  opacity: 1;
 }
 .work-card:focus-visible {
   outline: 2px solid var(--color-primary);
@@ -943,6 +961,17 @@ body::after {
   align-items: center;
   justify-content: center;
 }
+.work-card__thumb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent 48%, oklch(0 0 0 / 0.42) 100%),
+    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%);
+  opacity: 0.72;
+}
 /* Лейбл плейсхолдера — показывается всегда.
    Когда <img> реально загрузился, он перекрывает текст (z-index и непрозрачный img). */
 .work-card__thumb::after {
@@ -971,7 +1000,7 @@ body::after {
   transition: transform 400ms var(--ease-out);
 }
 .work-card:hover .work-card__thumb img {
-  transform: scale(1.04);
+  transform: scale(1.03);
 }
 
 /* v0.13.4 — clip-path reveal для миниатюр карточек.
@@ -986,11 +1015,16 @@ body::after {
 }
 
 /* Инфо */
-.work-card__info { padding: var(--space-3); }
+.work-card__info {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
 .work-card__meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
   margin-bottom: var(--space-1);
 }
 .work-card__cat {
@@ -1008,18 +1042,47 @@ body::after {
      Это улучшает contrast на work-card в index.html и tag-card на FA. */
   color: var(--color-text-muted);
 }
+.work-card__meta-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.work-card__hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid var(--color-work-card-border);
+  border-radius: var(--radius-tag);
+  color: var(--color-accent-text);
+  line-height: 1;
+  transform: translateY(-0.02rem);
+  transition:
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    background 160ms var(--ease-out);
+}
+.work-card:hover .work-card__hint,
+.work-card--active .work-card__hint {
+  background: var(--color-primary-highlight);
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
 .work-card__title {
   font-family: var(--font-display);
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--color-text);
   line-height: 1.25;
-  margin-bottom: var(--space-1);
+  margin: 0;
 }
 .work-card__desc {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   line-height: 1.55;
+  margin: 0;
 }
 
 /* ═══════════════════════════════════

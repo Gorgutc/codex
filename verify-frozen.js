@@ -302,6 +302,21 @@ async function testIndex(BASE) {
   add('index', 'WORK-cards-ids', idsMatch);
   const gameCount = cards.filter(c => c.game).length;
   add('index', 'WORK-cards-game-assets', gameCount >= 2, `${gameCount} cards`);
+  const sprintBCardAnatomy = await page.evaluate(() => {
+    const workCards = [...document.querySelectorAll('.work-card[data-id]')];
+    return {
+      total: workCards.length,
+      posters: workCards.filter(card => card.querySelector('.work-card__thumb img[width][height][decoding]')).length,
+      hints: workCards.filter(card => card.querySelector('.work-card__hint[aria-hidden="true"]')).length,
+      labels: workCards.filter(card => card.querySelector('.work-card__thumb[data-label]')).length,
+    };
+  });
+  add('index', 'WORK-cards-sprint-b-anatomy',
+      sprintBCardAnatomy.total === 18 &&
+      sprintBCardAnatomy.posters === 18 &&
+      sprintBCardAnatomy.hints === 18 &&
+      sprintBCardAnatomy.labels === 18,
+      `cards=${sprintBCardAnatomy.total}, posters=${sprintBCardAnatomy.posters}, hints=${sprintBCardAnatomy.hints}, labels=${sprintBCardAnatomy.labels}`);
 
   // TAGS
   const tagButtons = await page.$$eval('.tags-dropdown__checkbox[data-filter]', els => els.map(e => e.dataset.filter));
@@ -819,6 +834,28 @@ async function testFreeAssets(BASE) {
       `auto=${mini3D.autoRotate}, camera-controls=${mini3D.cameraControls}`);
   add('fa', 'GRID-mini-3d-local-srcs', mini3D.localSrcs,
       'all preview GLBs load from ./assets/models/free/');
+  const sprintBFAAnatomy = await page.evaluate(() => {
+    const tagCards = [...document.querySelectorAll('.tag-card.work-card')];
+    const assetCards = [...document.querySelectorAll('.fa-card')];
+    return {
+      tags: tagCards.length,
+      tagHints: tagCards.filter(card => card.querySelector('.tag-card__hint[aria-hidden="true"]')).length,
+      tagPosters: tagCards.filter(card => card.querySelector('.tag-card__thumb img[width][height][decoding]')).length,
+      assets: assetCards.length,
+      assetHints: assetCards.filter(card => card.querySelector('.fa-card__hint[aria-hidden="true"]')).length,
+      assetPreviewStates: assetCards.filter(card => card.querySelector('.fa-card__thumb[data-preview-state="3d"]')).length,
+      assetPreviewButtons: assetCards.filter(card => card.querySelector('.fa-card__preview-btn')).length,
+    };
+  });
+  add('fa', 'FA-cards-sprint-b-anatomy',
+      sprintBFAAnatomy.tags === 6 &&
+      sprintBFAAnatomy.tagHints === 6 &&
+      sprintBFAAnatomy.tagPosters === 6 &&
+      sprintBFAAnatomy.assets === 8 &&
+      sprintBFAAnatomy.assetHints === 8 &&
+      sprintBFAAnatomy.assetPreviewStates === 8 &&
+      sprintBFAAnatomy.assetPreviewButtons === 8,
+      `tags=${sprintBFAAnatomy.tags}/${sprintBFAAnatomy.tagHints}/${sprintBFAAnatomy.tagPosters}, assets=${sprintBFAAnatomy.assets}/${sprintBFAAnatomy.assetHints}/${sprintBFAAnatomy.assetPreviewStates}/${sprintBFAAnatomy.assetPreviewButtons}`);
 
   // TAG SWITCH
   await page.click('#tag-product'); await page.waitForTimeout(300);
