@@ -1133,6 +1133,17 @@
   overflow: hidden;
 }
 
+.case-3d__canvas.is-switching-3d::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at top, var(--color-3d-canvas-glow) 0%, transparent 70%),
+    var(--color-3d-canvas-bg);
+}
+
 /* <model-viewer> заполняет контейнер */
 .case-3d__canvas model-viewer {
   display: block;

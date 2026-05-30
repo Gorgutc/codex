@@ -449,6 +449,61 @@ async function testIndex(BASE) {
       studioDefaultEnvState.sources.map(item => `${item.id}: source=${item.source}`).join('; ') +
       `; active=${studioDefaultEnvState.active}, aria=${studioDefaultEnvState.aria}`);
 
+  await page.click('.work-card[data-id="ironclad-frame"]');
+  await page.waitForFunction(() =>
+    document.querySelector('#case-title')?.textContent?.includes('Ironclad Frame') &&
+    document.querySelector('#case-3d-canvas.is-ready canvas.case-3d__three-canvas')
+  );
+  const pagination3D = await page.evaluate(async () => {
+    const host = document.getElementById('case-3d-canvas');
+    const states = [];
+    function readState(label) {
+      const after = host ? window.getComputedStyle(host, '::after') : null;
+      states.push({
+        label,
+        ready: !!host?.classList.contains('is-ready'),
+        switching: !!host?.classList.contains('is-switching-3d'),
+        coverPainted: !!after && after.content !== 'none' && after.display !== 'none' && after.opacity !== '0',
+        children: host ? host.children.length : 0,
+        canvases: document.querySelectorAll('#case-3d-canvas canvas.case-3d__three-canvas').length,
+        fallback: !!document.querySelector('#case-3d-canvas .case-3d__fallback'),
+        active3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false,
+        title: document.querySelector('#case-title')?.textContent || '',
+        counter: document.querySelector('#case-counter')?.textContent || ''
+      });
+    }
+    readState('before');
+    document.getElementById('case-next')?.click();
+    readState('sync');
+    await Promise.resolve();
+    readState('microtask');
+    for (let i = 0; i < 6; i += 1) {
+      await new Promise(resolve => window.requestAnimationFrame(resolve));
+      readState(`raf-${i}`);
+    }
+    return {
+      states,
+      finalTitle: document.querySelector('#case-title')?.textContent || '',
+      finalCounter: document.querySelector('#case-counter')?.textContent || '',
+      finalReady: !!host?.classList.contains('is-ready'),
+      finalCanvases: document.querySelectorAll('#case-3d-canvas canvas.case-3d__three-canvas').length,
+      finalActive3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false
+    };
+  });
+  const transitionFrames = pagination3D.states.filter(state => state.label !== 'before' && !state.ready);
+  const transitionCovered = transitionFrames.length > 0 &&
+    transitionFrames.every(state => state.switching && state.coverPainted && state.active3D && state.children > 0 && state.canvases <= 1);
+  add('index', 'CASE-3d-pagination-transition-cover',
+      pagination3D.finalTitle === 'Corten Series' &&
+      pagination3D.finalCounter === '4 / 18' &&
+      pagination3D.finalReady &&
+      pagination3D.finalCanvases === 1 &&
+      pagination3D.finalActive3D &&
+      transitionCovered,
+      pagination3D.states.map(state =>
+        `${state.label}: ready=${state.ready}, switching=${state.switching}, cover=${state.coverPainted}, children=${state.children}, canvases=${state.canvases}, title=${state.title}`
+      ).join(' | '));
+
   // SHARE BUTTONS
   add('index', 'CASE-share-desktop', !!await page.$('#case-share-desktop'));
   add('index', 'CASE-share-mobile', !!await page.$('#case-share-mobile'));
