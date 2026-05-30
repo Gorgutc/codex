@@ -11,11 +11,7 @@ npx playwright install chromium
 npm run codex:ship
 ```
 
-Expected verification:
-
-```text
-SUMMARY: 96/96 PASS, 0 FAIL
-```
+Expected verification: `npm run codex:ship` exits cleanly, and `npm run verify` reports `0 FAIL`. Do not hard-code the pass total.
 
 If Playwright Chromium fails with `spawn EPERM`, rerun the verification outside the filesystem sandbox.
 

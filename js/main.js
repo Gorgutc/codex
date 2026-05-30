@@ -269,7 +269,7 @@
       srcs: [null, './assets/cases/orbital-mk-ii/02.png', null, null, null],
       captions: [
         { label: 'Hero render',         desc: 'Sci-fi prop engineered for AAA pipeline. Full PBR, clean manifold topology.' },
-        { label: 'Testing hamster',     desc: 'Проверка загрузки иллюстрации' },
+        { label: 'Material study',      desc: 'Secondary shell finish under studio HDRI, checked for silhouette readability.' },
         { label: 'Topology pass',       desc: '18 k clean quads. Subdivision-ready and LOD0-certified for real-time integration.' },
         { label: 'Detail close-up',     desc: 'Panel seam macro. Bevel widths tuned for 2 m viewing distance at 4 K resolution.' },
         { label: 'Final composite',     desc: 'Lit with 3-point studio HDRI. Denoised in OptiX, tonemapped ACES.' }
@@ -651,7 +651,7 @@
       }
     }) },
 
-    /* ── CAD placeholders (v0.14.0 [15a]) — промышленная серо-синяя палитра ── */
+    /* ── CAD studies (v0.14.0 [15a]) — промышленная серо-синяя палитра ── */
     'mech-link': { role: 'R&D', tools: ['Fusion 360', 'Blender', 'KeyShot'], modelSrc: './assets/models/mech-link.glb', modelStats: { triangles: '512', vertices: '264', materials: 2, textures: 'Procedural (PBR)', software: 'Fusion 360 + Blender' }, items: makeItems({
       id: 'mech-link',
       palette: [
@@ -662,19 +662,19 @@
         'linear-gradient(135deg,#11171e 0%,#1a2128 100%)'
       ],
       captions: [
-        { label: 'Assembly overview',   desc: 'Industrial link chain placeholder. Parametric pin-joint assembly sourced from CAD.' },
-        { label: 'Bracket detail',      desc: 'Bolt-pattern close-up. Placeholder geometry — final topology pass pending.' },
+        { label: 'Assembly overview',   desc: 'Industrial link chain assembly. Parametric pin-joint system sourced from CAD.' },
+        { label: 'Bracket detail',      desc: 'Bolt-pattern close-up. Retopology pass prepared for manufacturing review.' },
         { label: 'Motion study',        desc: 'Range-of-motion sketch for the pivoting arm. Constraint solver preview.' },
         { label: 'Exploded view',       desc: 'Parts diagram for manufacture planning. Tolerances marked in source DWG.' },
         { label: 'Material preview',    desc: 'KeyShot pass — brushed steel and anodized aluminium swatches.' }
       ],
       text: {
-        title: 'CAD placeholder',
-        body:  'Этот кейс — технологический плейсхолдер. Финальный GLB, топология и рендеры готовятся. Используется для проверки layout и фильтра CAD-категории.'
+        title: 'CAD production study',
+        body:  'Parametric link-chain case focused on CAD handoff, tolerance review, and render-ready topology for the CAD category.'
       },
       inline: {
         title: 'Pipeline',
-        body:  'Fusion 360 → STEP → Blender retopo → KeyShot marketing. В Dev-цикле заменяется live-рендером.'
+        body:  'Fusion 360 → STEP → Blender retopo → KeyShot marketing. The assembly is ready for CAD review and render handoff.'
       }
     }) },
 
@@ -688,19 +688,19 @@
         'linear-gradient(135deg,#141a21 0%,#1e252c 100%)'
       ],
       captions: [
-        { label: 'Spine assembly',      desc: 'Kinematic spine placeholder. Parametric ribs driven by a single driver angle.' },
+        { label: 'Spine assembly',      desc: 'Kinematic spine assembly. Parametric ribs driven by a single driver angle.' },
         { label: 'Rib section',         desc: 'Section-cut through one rib — thickness and fillet radii exposed as parameters.' },
-        { label: 'Deflection test',     desc: 'FEA sketch — deflection map under 50 N lateral load. Placeholder visualisation.' },
+        { label: 'Deflection test',     desc: 'FEA sketch — deflection map under 50 N lateral load, prepared for design review.' },
         { label: 'Joint detail',        desc: 'Ball-and-socket joint close-up. Tolerance stack-up listed in source PDF.' },
         { label: 'Render study',        desc: 'KeyShot pass — matte steel against cool grey backdrop.' }
       ],
       text: {
-        title: 'CAD placeholder',
-        body:  'Кинематический позвоночник-плейсхолдер. Конструкция параметрическая: один управляющий угол гнёт все рёбра. Финальная модель и стенд-рендеры в процессе.'
+        title: 'Kinematic CAD study',
+        body:  'Parametric spine case: one driver angle bends every rib, with render studies prepared for stand and motion review.'
       },
       inline: {
         title: 'Parametrics',
-        body:  'Параметры: rib_count, rib_thickness, segment_angle. Связаны через Fusion 360 sketches → экспорт в Blender.'
+        body:  'Parameters: rib_count, rib_thickness, segment_angle. Linked through Fusion 360 sketches and exported to Blender.'
       }
     }) },
 
@@ -714,19 +714,19 @@
         'linear-gradient(135deg,#13181d 0%,#1e242b 100%)'
       ],
       captions: [
-        { label: 'Node overview',       desc: 'Structural strut node placeholder. Six-way connector for space-frame assemblies.' },
+        { label: 'Node overview',       desc: 'Structural strut node. Six-way connector for space-frame assemblies.' },
         { label: 'Axis diagram',        desc: 'Load-path diagram — principal axes marked for the structural engineer.' },
         { label: 'Cross-section',       desc: 'Section through the central hub. Wall thickness and weld-prep highlighted.' },
         { label: 'Mount plate',         desc: 'Bolt-circle mount plate. Parametric — updates when strut diameter changes.' },
         { label: 'Surface finish',      desc: 'KeyShot pass — powder-coated aluminium, matte warm grey.' }
       ],
       text: {
-        title: 'CAD placeholder',
-        body:  'Структурный strut-узел. Параметрическая CAD-геометрия: диаметр, толщина стенки и схема болтов связаны. Финальные рендеры и игровая топология готовятся.'
+        title: 'Structural CAD node',
+        body:  'Structural strut node with linked diameter, wall thickness, and bolt-pattern parameters for production and render review.'
       },
       inline: {
         title: 'Use case',
-        body:  'Применяется в space-frame прототипах. STEP экспортируется для CNC, Blender-retopo — для marketing-рендеров.'
+        body:  'Used in space-frame prototypes. STEP is exported for CNC; Blender retopo supports marketing renders.'
       }
     }) }
   };

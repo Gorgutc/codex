@@ -10,7 +10,7 @@ This branch also adds the newer audit/orchestration layer under `.codex/`, `.age
 - Stack: vanilla HTML, CSS, and classic JavaScript.
 - Runtime: no framework, no bundler, no build step, no Tailwind, no React/Vue/Svelte, no cookies, no `localStorage`, no `sessionStorage`.
 - Pages: `index.html` and `free-assets.html`.
-- Verification: `npm run verify`, currently expected to end with `SUMMARY: 96/96 PASS, 0 FAIL`; the durable contract is `0 FAIL`.
+- Verification: `npm run verify`; success means the command exits cleanly and reports `0 FAIL`, without relying on a historical pass total.
 - Publish flow: every task goes to a `codex/*` branch, is pushed to GitHub, and gets a draft PR.
 
 ## Authority

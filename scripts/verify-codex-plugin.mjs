@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
@@ -13,16 +13,60 @@ function readJson(file) {
   return JSON.parse(readFileSync(file, 'utf8'));
 }
 
+function listFilesRecursive(startPath) {
+  if (!existsSync(startPath)) return [];
+  const stat = statSync(startPath);
+  if (stat.isFile()) return [startPath];
+
+  const files = [];
+  for (const entry of readdirSync(startPath, { withFileTypes: true })) {
+    const full = path.join(startPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listFilesRecursive(full));
+    } else if (entry.isFile()) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
 const marketplacePath = path.join(root, '.agents', 'plugins', 'marketplace.json');
 const manifestPath = path.join(pluginRoot, '.codex-plugin', 'plugin.json');
 const skillsRoot = path.join(pluginRoot, 'skills');
 const originalRefs = path.join(skillsRoot, 'codex-studio-rules', 'references', 'claude-original');
+const instructionRoots = [
+  'AGENTS.md',
+  'README.md',
+  'RUN_INSTRUCTIONS.md',
+  'docs',
+  '.codex',
+  '.agents',
+  path.join('plugins', 'codex-studio-codex', 'skills'),
+];
+const instructionExts = new Set(['.md', '.toml', '.js', '.json', '.jsonc', '.yml', '.yaml']);
+const stalePassCountPattern = /\b(?:SUMMARY:\s*)?\d+\/\d+\s+PASS\b/i;
+const activeInstructionFiles = instructionRoots
+  .flatMap((entry) => listFilesRecursive(path.join(root, entry)))
+  .filter((file) => instructionExts.has(path.extname(file)))
+  .filter((file) => !file.includes(`${path.sep}references${path.sep}claude-original${path.sep}`));
+const staleInstructionCounts = activeInstructionFiles
+  .flatMap((file) =>
+    readFileSync(file, 'utf8')
+      .split(/\r?\n/)
+      .map((line, index) => (stalePassCountPattern.test(line) ? `${path.relative(root, file)}:${index + 1}` : null))
+      .filter(Boolean),
+  );
 
 check('marketplace exists', existsSync(marketplacePath), marketplacePath);
 check('plugin manifest exists', existsSync(manifestPath), manifestPath);
 check('skills root exists', existsSync(skillsRoot), skillsRoot);
 check('claude-original references moved', existsSync(originalRefs), originalRefs);
 check('legacy .claude removed from root', !existsSync(path.join(root, '.claude')));
+check(
+  'active instructions avoid stale pass totals',
+  staleInstructionCounts.length === 0,
+  staleInstructionCounts.join(', '),
+);
 
 if (existsSync(marketplacePath)) {
   const marketplace = readJson(marketplacePath);

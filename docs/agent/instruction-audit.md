@@ -2,10 +2,10 @@
 
 ## Current Reality
 
-- Verification baseline is `96/96 PASS, 0 FAIL`; future instructions should require `0 FAIL`, not a historic count.
+- Verification success means `npm run verify` exits cleanly with `0 FAIL`; instructions should not hard-code a historic pass count.
 - Runtime UI is bilingual through `i18n-data.js` and `i18n.js`; Russian text is expected after language switching.
 - GSAP, ScrollTrigger, SplitText, and Lenis are self-hosted in `js/vendor/`.
-- `<model-viewer>` is lazy-loaded by app logic from Google APIs.
+- Portfolio 3D mounts through the self-hosted Three viewer first and keeps lazy `<model-viewer>` as a fallback; free-assets mini previews lazy-load `<model-viewer>` from `free-assets.js`.
 - Preloader and anti-flicker behavior exist in current shipped pages.
 - `font-size: Npx` is controlled by a frozen budget; the rule is no new px font-size, not a blind claim that none exist.
 
