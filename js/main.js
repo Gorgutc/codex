@@ -165,8 +165,12 @@
     }
 
     function startTracking() {
+      var isFreeAssetsPage = !!document.getElementById('fa-grid');
+      var preloadSelector = isFreeAssetsPage
+        ? '.work-card img:not([loading="lazy"]), .work-card img[fetchpriority="high"]'
+        : '.work-card img';
       var imgs = Array.prototype.slice.call(
-        document.querySelectorAll('.work-card img')
+        document.querySelectorAll(preloadSelector)
       ).slice(0, 12);
 
       var total = imgs.length;

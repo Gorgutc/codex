@@ -5,7 +5,7 @@ Use these steps for a fresh Codex thread in `Gorgutc/codex`.
 ## Setup
 
 ```bash
-cd C:\Users\Junior\Documents\GitHub\codex
+cd C:\Users\Maxim\Documents\GitHub\codex
 npm install
 npx playwright install chromium
 npm run codex:ship
@@ -22,14 +22,17 @@ If Playwright Chromium fails with `spawn EPERM`, rerun the verification outside 
 3. Work on a `codex/*` branch.
 4. For changes to `index.html`, `free-assets.html`, `css/`, `js/`, `verify-frozen.js`, metadata, assets, or deploy config, use the repo-local Codex skills and run `npm run codex:ship`.
 5. For broader cleanup, audit, or PR-readiness work, run `npm run quality:fast`; use `npm run quality:deep` when browser/a11y/dead-code checks matter.
-6. Check `DO_NOT_PUSH.md`.
-7. Commit, push, and open a draft PR.
+6. For visual, motion, accessibility, Lighthouse, metadata, or SEO changes, run the relevant focused gates: `npm run test:visual`, `npm run check:a11y`, and `npm run check:lighthouse`.
+7. Check `DO_NOT_PUSH.md`.
+8. Commit, push, and open a draft PR.
 
 ## Quality Commands
 
 ```bash
 npm run quality:fast
 npm run quality:deep
+npm run test:visual
+npm run check:a11y
 npm run check:format
 npm run check:lighthouse
 npm run hooks:install

@@ -98,7 +98,7 @@ function createPreviewThumb(asset, media, reducedMotion) {
     mv.className = 'fa-card__thumb-mv';
     mv.setAttribute('src', './assets/models/free/' + media.model + '.glb');
     mv.setAttribute('alt', asset.title + ' — 3D preview');
-    mv.setAttribute('loading', 'eager');
+    mv.setAttribute('loading', 'lazy');
     mv.setAttribute('reveal', 'auto');
     if (!reducedMotion) {
       mv.setAttribute('auto-rotate', '');
@@ -176,7 +176,9 @@ function createAssetBody(asset) {
 
 function createAssetCard(asset, reducedMotion) {
   var media = resolveAssetMedia(asset);
-  return append(el('li', 'fa-card'),
+  var card = el('li', 'fa-card');
+  if (asset.id) card.id = asset.id;
+  return append(card,
     createPreviewThumb(asset, media, reducedMotion),
     createAssetBody(asset)
   );

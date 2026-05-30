@@ -64,6 +64,7 @@
       openBlueprintFullscreen: 'Open blueprint fullscreen',
       backToPortfolio: 'Back to Portfolio',
       freeAssetsView: 'Free assets',
+      downloadTerms: 'Download terms',
     },
 
     title: {
@@ -202,6 +203,12 @@
       environmentLabel: 'ENVIRONMENT',
       materialMode: 'Material view mode',
       materialLabel: 'MATERIAL',
+    },
+
+    faTrust: {
+      license: 'CC0 commercial use',
+      noAccount: 'No account required',
+      formats: 'Blender, FBX, PBR textures',
     },
 
     faTag: {
@@ -344,6 +351,15 @@
   // Per-page (index / fa). Ключи: title, description, ogTitle, ogDescription,
   // ogSiteName, ogImageAlt, ogLocale, twitterTitle, twitterDescription.
   // Используются через data-i18n-meta="index.title" / "fa.description" и т.п.
+  UI_STRINGS.ru.faTrust = {
+    license: 'CC0 для коммерческого использования',
+    noAccount: 'Без аккаунта',
+    formats: 'Blender, FBX, PBR-текстуры',
+  };
+  UI_STRINGS.ru.aria = Object.assign({}, UI_STRINGS.ru.aria, {
+    downloadTerms: 'Условия скачивания',
+  });
+
   const META_STRINGS_EN = {
     index: {
       title: 'Codex — 3D Design Studio · Hard Surface & Product Visualization',
@@ -358,7 +374,7 @@
     },
     fa: {
       title: 'Free 3D Assets — Codex Studio · Hard Surface, Game-Ready, CC0',
-      description: 'Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0 / CC-BY.',
+      description: 'Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0.',
       ogTitle: 'Free 3D Assets — Codex Studio',
       ogDescription: 'Hard surface, game-ready, and product 3D assets. Free for personal and commercial use.',
       ogSiteName: 'Codex Studio',

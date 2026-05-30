@@ -120,6 +120,37 @@ function runStaticChecks() {
   const threeVendorOK = threeVendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
   add('static', 'A7-three-vendor-files-present', threeVendorOK, threeVendorFiles.join(', '));
 
+  const sitemapPath = path.join(ROOT, 'sitemap.xml');
+  const robotsPath = path.join(ROOT, 'robots.txt');
+  const sitemap = fs.existsSync(sitemapPath) ? fs.readFileSync(sitemapPath, 'utf8') : '';
+  const robots = fs.existsSync(robotsPath) ? fs.readFileSync(robotsPath, 'utf8') : '';
+  add('static', 'F1-sitemap-free-assets-image',
+      /<loc>https:\/\/codex\.promo\/free-assets\.html<\/loc>[\s\S]*<image:loc>https:\/\/codex\.promo\/assets\/img\/og-free-assets\.jpg<\/image:loc>/i.test(sitemap),
+      'free-assets sitemap entry includes OG image');
+  add('static', 'F1-robots-sitemap-pointer',
+      /Sitemap:\s*https:\/\/codex\.promo\/sitemap\.xml/i.test(robots),
+      'robots.txt points to canonical sitemap');
+  const faJsonLdStatic = [...faHTML.matchAll(/<script\s+type=["']application\/ld\+json["']\s*>([\s\S]*?)<\/script>/gi)]
+    .map(match => {
+      try { return JSON.parse(match[1]); }
+      catch (_) { return null; }
+    })
+    .filter(Boolean);
+  const faJsonLdNodes = faJsonLdStatic.flatMap(item => Array.isArray(item['@graph']) ? item['@graph'] : [item]);
+  const faContentUrls = faJsonLdNodes
+    .flatMap(node => {
+      const list = Array.isArray(node.itemListElement) ? node.itemListElement.map(entry => entry && entry.item) : [];
+      return [node].concat(list);
+    })
+    .map(node => node && node.contentUrl)
+    .filter(url => /https:\/\/codex\.promo\/downloads\/[^"']+\.zip$/i.test(String(url || '')));
+  const missingFaDownloads = faContentUrls
+    .map(url => String(url).replace(/^https:\/\/codex\.promo\/downloads\//i, ''))
+    .filter(file => !fs.existsSync(path.join(ROOT, 'downloads', file)));
+  add('static', 'F1-jsonld-contenturl-files',
+      faContentUrls.length >= 2 && missingFaDownloads.length === 0,
+      missingFaDownloads.length ? 'missing=' + missingFaDownloads.join(', ') : `linked=${faContentUrls.length}`);
+
   // A8 — localStorage / sessionStorage НЕ должны использоваться runtime в
   // shipped JS. Frozen rule top-10. Regex ловит method/property access
   // (foo.localStorage. / foo.sessionStorage[ ) — комментарии "no localStorage"
@@ -580,13 +611,11 @@ async function testIndex(BASE) {
 
   /* ───── Stage 4 (D1, D3, D4) ─ a11y + asset hygiene ───────────────────── */
 
-  // D1 — WCAG 2 A/AA via axe-core in WHITELIST mode. Snapshot 2026-05:
-  //   index: 1 violation (aria-required-children, critical, 1 node)
-  // Budget = current count. Любое НОВОЕ violation поднимет actual выше
-  // budget → FAIL. При плановом fix этого aria issue budget уменьшается.
+  // D1 — WCAG 2 A/AA via axe-core. Sprint E tightens the index budget to
+  // zero after the baseline stayed clean.
   const axeIndex = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   const axeIndexCount = axeIndex.violations.length;
-  const AXE_INDEX_BUDGET = 1;
+  const AXE_INDEX_BUDGET = 0;
   add('index', 'D1-axe-wcag-aa', axeIndexCount <= AXE_INDEX_BUDGET,
       `violations=${axeIndexCount} budget=${AXE_INDEX_BUDGET}` +
       (axeIndexCount > 0 ? ' [' + axeIndex.violations.map(v => v.id).join(',') + ']' : ''));
@@ -797,6 +826,49 @@ async function testFreeAssets(BASE) {
   add('fa', 'META-og-complete', m.ogUrl && m.ogType && m.ogSiteName && m.ogImageWidth);
   add('fa', 'META-twitter-complete', m.twitterCard && m.twitterImage);
   add('fa', 'META-jsonLD', m.jsonLD >= 1, `count=${m.jsonLD}`);
+  const faJsonLdDepth = await page.evaluate(() => {
+    const parsed = [...document.querySelectorAll('script[type="application/ld+json"]')]
+      .map(node => {
+        try { return JSON.parse(node.textContent || '{}'); }
+        catch (_) { return null; }
+      })
+      .filter(Boolean);
+    const nodes = parsed.flatMap(item => Array.isArray(item['@graph']) ? item['@graph'] : [item]);
+    const itemList = nodes.find(item =>
+      item &&
+      item['@type'] === 'ItemList' &&
+      /free 3d asset/i.test(String(item.name || ''))
+    );
+    const listItems = itemList && Array.isArray(itemList.itemListElement) ? itemList.itemListElement : [];
+    const models = listItems
+      .map(entry => entry && entry.item)
+      .filter(item => item && item['@type'] === '3DModel');
+    const fragments = listItems
+      .map(entry => String(entry && entry.url || '').match(/#([^#]+)$/))
+      .filter(Boolean)
+      .map(match => decodeURIComponent(match[1]));
+    return {
+      itemList: !!itemList,
+      numberOfItems: Number(itemList && itemList.numberOfItems) || 0,
+      items: listItems.length,
+      models: models.length,
+      allFree: models.every(model => model.isAccessibleForFree === true),
+      allLicensed: models.every(model => /creativecommons\.org\/publicdomain\/zero/i.test(String(model.license || ''))),
+      hasFormats: models.every(model => Array.isArray(model.encodingFormat) && model.encodingFormat.length >= 2),
+      fragments: fragments.length,
+      allFragmentsResolve: fragments.length === listItems.length && fragments.every(id => !!document.getElementById(id)),
+    };
+  });
+  add('fa', 'META-jsonLD-asset-depth',
+      faJsonLdDepth.itemList &&
+      faJsonLdDepth.numberOfItems === 25 &&
+      faJsonLdDepth.items >= 8 &&
+      faJsonLdDepth.models >= 8 &&
+      faJsonLdDepth.allFree &&
+      faJsonLdDepth.allLicensed &&
+      faJsonLdDepth.hasFormats &&
+      faJsonLdDepth.allFragmentsResolve,
+      `items=${faJsonLdDepth.items}, models=${faJsonLdDepth.models}, total=${faJsonLdDepth.numberOfItems}, fragments=${faJsonLdDepth.fragments}`);
   add('fa', 'META-favicon-16', m.favicon16);
   add('fa', 'META-manifest', m.manifest);
   // v0.6 [Z6] — архитектура theme-color приведена к single-tag (как в index.html).
@@ -806,6 +878,18 @@ async function testFreeAssets(BASE) {
   add('fa', 'META-theme-color-single', m.themeColorPresent && m.themeColorCount === 1, `count=${m.themeColorCount}`);
   add('fa', 'META-og-image-absolute', /^https?:/.test(m.ogImage), `value=${m.ogImage.slice(-40)}`);
   add('fa', 'META-og-image-fa-specific', /og-free-assets\.jpg$/.test(m.ogImage));
+
+  const faTrust = await page.evaluate(() => {
+    const items = [...document.querySelectorAll('.fa-trust__item')];
+    return {
+      items: items.length,
+      keyed: items.filter(item => item.querySelector('[data-i18n^="faTrust."]')).length,
+      terms: items.map(item => item.textContent.trim()).join(' | '),
+    };
+  });
+  add('fa', 'FA-trust-signals',
+      faTrust.items >= 3 && faTrust.keyed >= 3 && /CC0/i.test(faTrust.terms) && /No account/i.test(faTrust.terms),
+      `items=${faTrust.items}, keyed=${faTrust.keyed}`);
 
   // B2 — no inline <style> in head
   const inlineStyleSize = await page.evaluate(() => Array.from(document.querySelectorAll('head style')).reduce((s, e) => s + e.textContent.length, 0));

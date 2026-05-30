@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Close the remaining original industrial editorial refresh scope after merged Sprints A-C by delivering Sprint D visual/governance gates, Sprint E performance/accessibility/motion tightening, and Sprint F free-assets SEO depth.
+**Goal:** Close the remaining original industrial editorial refresh scope after merged Sprints A-D by delivering the remaining Sprint E performance/accessibility/motion tightening and Sprint F free-assets SEO depth.
 
 **Architecture:** Preserve the current static vanilla HTML/CSS/classic JavaScript runtime. Add quality gates and focused runtime/content improvements around existing files instead of introducing a framework, bundler, routing layer, storage, first-party modules, import maps, or static Three/model-viewer scripts. Treat `verify-frozen.js` and `AGENTS.md` as active contracts.
 
@@ -13,12 +13,14 @@
 ## Current Baseline
 
 - `main` is synced with `origin/main`.
-- PR #27, PR #28, and PR #29 are merged.
-- Current `main` head: `84f2880 Merge pull request #29 from Gorgutc/codex/industrial-editorial-refresh-sprint-c`.
-- Sprint A-C completed:
+- PR #27, PR #28, PR #29, and PR #30 are merged.
+- Current `main` head when Sprint E/F work started: `a35cf4c Merge pull request #30 from Gorgutc/codex/industrial-editorial-refresh-sprint-d`.
+- Current implementation branch: `codex/industrial-editorial-refresh-sprint-e-f`.
+- Sprint A-D completed:
   - Sprint A: initial industrial/editorial foundation.
   - Sprint B: card redesign and free-assets visual parity.
   - Sprint C: shared runtime cleanup with `js/shared-runtime.js`.
+  - Sprint D: local visual regression baselines and governance gates.
 
 ## Global Constraints For All Remaining Sprints
 
@@ -51,6 +53,8 @@
 ---
 
 ## Sprint D: Visual + Governance Quality Gates
+
+Status: completed in PR #30 and merged into `main`. Keep this section as the implementation record and safety-rail reference for Sprint E/F.
 
 **Branch:** `codex/industrial-editorial-refresh-sprint-d`
 
@@ -380,7 +384,7 @@ git push -u origin codex/industrial-editorial-refresh-sprint-d
 
 ## Sprint E: Performance, Accessibility, Motion Tightening
 
-**Branch:** `codex/industrial-editorial-refresh-sprint-e`
+**Branch:** `codex/industrial-editorial-refresh-sprint-e`, or combined branch `codex/industrial-editorial-refresh-sprint-e-f` when Sprint E and F are implemented together.
 
 **Goal:** Reduce runtime friction and tighten budgets after Sprint D gives reliable visual/governance safety nets.
 
@@ -528,7 +532,7 @@ npm.cmd run codex:ship
 
 ## Sprint F: Free-Assets Growth And SEO Depth
 
-**Branch:** `codex/industrial-editorial-refresh-sprint-f`
+**Branch:** `codex/industrial-editorial-refresh-sprint-f`, or combined branch `codex/industrial-editorial-refresh-sprint-e-f` when Sprint E and F are implemented together.
 
 **Goal:** Make free-assets a stronger acquisition surface with richer metadata, trust signals, and static SEO depth without adding routing/build infrastructure.
 
@@ -680,15 +684,14 @@ npm.cmd run codex:ship
 
 ## Recommended Execution Order
 
-1. Sprint D first, because it creates safety rails for visual, governance, and CI decisions.
-2. Sprint E second, because performance/motion/a11y changes are safer with Sprint D visual baselines.
-3. Sprint F third, because SEO/content depth should build on stable card quality and preview contracts.
+1. Sprint D is complete and provides the visual/governance safety rails.
+2. Sprint E and Sprint F may be delivered together on `codex/industrial-editorial-refresh-sprint-e-f` if changes remain scoped and all final gates pass.
+3. Do not start any asset-page expansion or routing/build work without a separate approved plan.
 
 ## Cross-Sprint Completion Checklist
 
-- [ ] Sprint D PR merged to `main`.
-- [ ] Sprint E PR merged to `main`.
-- [ ] Sprint F PR merged to `main`.
+- [x] Sprint D PR merged to `main`.
+- [ ] Sprint E/F PR merged to `main`.
 - [ ] `main` is synced locally after each merge.
 - [ ] Final `npm.cmd run verify` reports `0 FAIL` on `main`.
 - [ ] Final `npm.cmd run quality:deep` passes on `main`.

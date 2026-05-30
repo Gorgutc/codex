@@ -20,7 +20,7 @@ npm run quality:deep
 
 Adds Knip, JSCPD, Playwright smoke tests, and Pa11y accessibility checks. Playwright axe owns the color-contrast gate; Pa11y ignores `color-contrast` because Puppeteer reports false positives on the animated transparent surfaces, and stays strict (`0` budget) for the remaining axe errors.
 
-`test:browser` is intentionally smoke-only and runs `tests/quality/site-smoke.spec.mjs`. Visual baselines are a separate gate.
+`test:browser` is intentionally smoke-only and runs `tests/quality/site-smoke.spec.mjs`, including the free-assets preloader smoke that protects lazy tag previews from blocking page readiness. Visual baselines are a separate gate.
 
 ## Governance And Visual Gates
 

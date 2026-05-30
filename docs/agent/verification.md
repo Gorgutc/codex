@@ -21,7 +21,7 @@ Run after changes to:
 
 ## What The Suite Covers
 
-The current suite covers static file checks, script order, metadata, i18n, card IDs, tag filters, case UI, 3D boundaries, theme toggle, axe budgets, image attributes, font-display, console errors, and mobile language controls.
+The current suite covers static file checks, script order, metadata, free-assets JSON-LD depth, sitemap/robots pointers, i18n, card IDs, tag filters, case UI, 3D boundaries, theme toggle, axe budgets, image attributes, font-display, console errors, and mobile language controls.
 
 ## Related Gates
 
