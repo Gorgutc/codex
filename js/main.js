@@ -806,7 +806,6 @@
   var currentViz    = '2d';                // '2d' | '3d' | 'blueprints'
   var blueprintBuiltFor = null;            // кэш последнего rendered blueprint
   var model3dBuiltFor   = null;            // v0.11 — кэш последнего 3D-кейса
-  var modelViewerLoading = null;           // v0.11 — Promise загрузки <model-viewer>-скрипта
   var currentMv           = null;          // v0.11.4 — активный <model-viewer> (для cleanup)
   var currentMvReset      = null;          // v0.11.4 — функция reset camera текущего MV (вызываем при возврате в 3D)
   var currentLightDdDocClick = null;       // v0.7.3 — global click listener для close-on-outside (cleanup в destroy3D)
@@ -2107,7 +2106,6 @@
      v0.5 — model-data.js теперь тоже lazy-loaded (issue #1: snizhayet LCP с 9.9s до ~2-3s).
             Скрипт инжектится при первом 3D-клике, не на page load.
   ══════════════════════════════════ */
-  var MODEL_VIEWER_SRC = 'https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
   var MODEL_DATA_SRC = './js/model-data.js';
   var THREE_VIEWER_SRC = './vendor/codex-three-viewer.js';
 
@@ -2137,21 +2135,10 @@
   }
 
   function loadModelViewerScript() {
-    if (modelViewerLoading) return modelViewerLoading;
-    modelViewerLoading = new Promise(function (resolve, reject) {
-      // уже зарегистрирован?
-      if (window.customElements && window.customElements.get('model-viewer')) {
-        resolve();
-        return;
-      }
-      var s = document.createElement('script');
-      s.type = 'module';
-      s.src = MODEL_VIEWER_SRC;
-      s.onload = function () { resolve(); };
-      s.onerror = function () { reject(new Error('model-viewer load failed')); };
-      document.head.appendChild(s);
-    });
-    return modelViewerLoading;
+    if (window.CodexShared && typeof window.CodexShared.loadModelViewerScript === 'function') {
+      return window.CodexShared.loadModelViewerScript();
+    }
+    return Promise.reject(new Error('CodexShared model-viewer loader missing'));
   }
 
   function loadThreeViewer() {
@@ -2763,8 +2750,6 @@
         'VIEWER OFFLINE',
         'Не удалось подгрузить <model-viewer>. Проверь интернет-соединение.'
       );
-      // сброс Promise — дадим ещё одну попытку при следующем клике
-      modelViewerLoading = null;
     });
   }
 

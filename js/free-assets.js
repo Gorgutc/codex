@@ -50,11 +50,136 @@ function dlIcon() {
     + '</svg>';
 }
 
-function escapeAttr(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;');
+function el(tag, className, text) {
+  var node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function append(parent) {
+  for (var i = 1; i < arguments.length; i++) {
+    if (arguments[i]) parent.appendChild(arguments[i]);
+  }
+  return parent;
+}
+
+function resolveAssetMedia(asset) {
+  var thumb = Object.prototype.hasOwnProperty.call(asset, 'thumb') ? asset.thumb : asset.id;
+  var model = Object.prototype.hasOwnProperty.call(asset, 'model') ? asset.model : asset.id;
+  return {
+    thumb: thumb,
+    model: model,
+    previewState: model ? '3d' : (thumb ? 'poster' : 'fallback'),
+    previewStateLabel: model ? '3D' : (thumb ? 'Poster' : 'Fallback'),
+  };
+}
+
+function createPreviewThumb(asset, media, reducedMotion) {
+  var thumb = el('div', 'fa-card__thumb');
+  thumb.dataset.label = asset.title;
+  thumb.dataset.previewState = media.previewState;
+  thumb.style.background = asset.bg;
+
+  if (media.thumb) {
+    var img = el('img');
+    img.src = './assets/cards/' + media.thumb + '.svg';
+    img.alt = '';
+    img.setAttribute('aria-hidden', 'true');
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.width = 800;
+    img.height = 600;
+    thumb.appendChild(img);
+  }
+
+  if (media.model) {
+    var mv = document.createElement('model-viewer');
+    mv.className = 'fa-card__thumb-mv';
+    mv.setAttribute('src', './assets/models/free/' + media.model + '.glb');
+    mv.setAttribute('alt', asset.title + ' — 3D preview');
+    mv.setAttribute('loading', 'eager');
+    mv.setAttribute('reveal', 'auto');
+    if (!reducedMotion) {
+      mv.setAttribute('auto-rotate', '');
+      mv.setAttribute('auto-rotate-delay', '0');
+      mv.setAttribute('rotation-per-second', '20deg');
+    }
+    mv.setAttribute('shadow-intensity', '0');
+    mv.setAttribute('exposure', '1.0');
+    mv.setAttribute('environment-image', 'neutral');
+    mv.setAttribute('interaction-prompt', 'none');
+    mv.addEventListener('load', function() {
+      mv.classList.add('is-ready');
+      thumb.classList.add('is-model-ready');
+    });
+    mv.addEventListener('error', function() {
+      mv.classList.add('fa-card__thumb-mv--failed');
+    });
+    thumb.appendChild(mv);
+  }
+
+  if (media.thumb || media.model) {
+    var previewButton = el('button', 'fa-card__preview-btn');
+    previewButton.type = 'button';
+    previewButton.setAttribute('aria-label', 'Open preview of ' + asset.title);
+    previewButton.addEventListener('click', function() {
+      openAssetPreview(thumb, previewButton);
+    });
+    thumb.appendChild(previewButton);
+  }
+
+  thumb.appendChild(el('span', 'fa-card__badge', asset.badge));
+  var state = el('span', 'fa-card__state', media.previewStateLabel);
+  state.setAttribute('aria-hidden', 'true');
+  thumb.appendChild(state);
+
+  return thumb;
+}
+
+function createAssetBody(asset) {
+  var meta = append(el('div', 'fa-card__meta'),
+    el('span', 'fa-card__cat', asset.cat),
+    append(el('span', 'fa-card__meta-tail'),
+      el('span', 'fa-card__license', 'CC0 — Free'),
+      el('span', 'fa-card__hint', '↗')
+    )
+  );
+  var hint = meta.querySelector('.fa-card__hint');
+  if (hint) hint.setAttribute('aria-hidden', 'true');
+
+  var contents = el('div', 'fa-card__contents');
+  contents.appendChild(el('p', 'fa-card__contents-label', 'Archive includes'));
+  var list = el('ul', 'fa-card__contents-list');
+  (asset.contents || []).forEach(function(item) {
+    list.appendChild(el('li', 'fa-card__contents-item', item));
+  });
+  contents.appendChild(list);
+
+  var download = el('button', 'fa-card__download');
+  download.type = 'button';
+  download.dataset.file = asset.file;
+  download.dataset.title = asset.title;
+  download.dataset.size = asset.size;
+  download.setAttribute('aria-label', 'Download ' + asset.title);
+  download.innerHTML = dlIcon() + 'Download — ' + asset.size;
+  download.addEventListener('click', handleDownload);
+
+  return append(el('div', 'fa-card__body'),
+    meta,
+    el('h2', 'fa-card__title', asset.title),
+    el('p', 'fa-card__desc', asset.desc),
+    contents,
+    download
+  );
+}
+
+function createAssetCard(asset, reducedMotion) {
+  var media = resolveAssetMedia(asset);
+  return append(el('li', 'fa-card'),
+    createPreviewThumb(asset, media, reducedMotion),
+    createAssetBody(asset)
+  );
 }
 
 function renderGrid(tag) {
@@ -62,90 +187,18 @@ function renderGrid(tag) {
   if (!grid) return;
   var assets = FA_DATA[tag] || [];
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  grid.innerHTML = assets.map(function(a) {
-    var thumb = Object.prototype.hasOwnProperty.call(a, 'thumb') ? a.thumb : a.id;
-    var model = Object.prototype.hasOwnProperty.call(a, 'model') ? a.model : a.id;
-    var titleAttr = escapeAttr(a.title);
-    var previewState = model ? '3d' : (thumb ? 'poster' : 'fallback');
-    var previewStateLabel = model ? '3D' : (thumb ? 'Poster' : 'Fallback');
-    var thumbHTML = thumb
-      ? '<img src="./assets/cards/' + thumb + '.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="800" height="600">'
-      : '';
-    var rotateAttrs = reducedMotion ? '' : ' auto-rotate auto-rotate-delay="0" rotation-per-second="20deg"';
-    var modelHTML = model
-      ? '<model-viewer class="fa-card__thumb-mv"'
-        + ' src="./assets/models/free/' + model + '.glb"'
-        + ' alt="' + titleAttr + ' — 3D preview"'
-        + ' loading="eager" reveal="auto"'
-        + rotateAttrs
-        + ' shadow-intensity="0" exposure="1.0" environment-image="neutral"'
-        + ' interaction-prompt="none"'
-        + '></model-viewer>'
-      : '';
-    var previewButton = thumbHTML || modelHTML
-      ? '<button class="fa-card__preview-btn" type="button" aria-label="Open preview of ' + titleAttr + '"></button>'
-      : '';
-    return '<li class="fa-card">'
-      + '<div class="fa-card__thumb" data-label="' + titleAttr + '" data-preview-state="' + previewState + '" style="background:' + a.bg + '">'
-      + thumbHTML
-      + modelHTML
-      + previewButton
-      + '<span class="fa-card__badge">' + a.badge + '</span>'
-      + '<span class="fa-card__state" aria-hidden="true">' + previewStateLabel + '</span>'
-      + '</div>'
-      + '<div class="fa-card__body">'
-      + '<div class="fa-card__meta">'
-      + '<span class="fa-card__cat">' + a.cat + '</span>'
-      + '<span class="fa-card__meta-tail">'
-      + '<span class="fa-card__license">CC0 — Free</span>'
-      + '<span class="fa-card__hint" aria-hidden="true">↗</span>'
-      + '</span>'
-      + '</div>'
-      + '<h2 class="fa-card__title">' + a.title + '</h2>'
-      + '<p class="fa-card__desc">' + a.desc + '</p>'
-      + '<div class="fa-card__contents">'
-      + '<p class="fa-card__contents-label">Archive includes</p>'
-      + '<ul class="fa-card__contents-list">'
-      + a.contents.map(function(c) { return '<li class="fa-card__contents-item">' + c + '</li>'; }).join('')
-      + '</ul>'
-      + '</div>'
-      + '<button class="fa-card__download" type="button"'
-      + ' data-file="' + a.file + '" data-title="' + a.title + '" data-size="' + a.size + '"'
-      + ' aria-label="Download ' + a.title + '">'
-      + dlIcon()
-      + 'Download — ' + a.size
-      + '</button>'
-      + '</div>'
-      + '</li>';
-  }).join('');
+  var fragment = document.createDocumentFragment();
 
-  grid.querySelectorAll('.fa-card__download').forEach(function(btn) {
-    btn.addEventListener('click', handleDownload);
+  assets.forEach(function(asset) {
+    fragment.appendChild(createAssetCard(asset, reducedMotion));
   });
-
-  grid.querySelectorAll('.fa-card__preview-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var thumb = btn.closest && btn.closest('.fa-card__thumb');
-      openAssetPreview(thumb, btn);
-    });
-  });
-
-  grid.querySelectorAll('.fa-card__thumb-mv').forEach(function(mv) {
-    mv.addEventListener('load', function() {
-      mv.classList.add('is-ready');
-      var thumbEl = mv.closest && mv.closest('.fa-card__thumb');
-      if (thumbEl) thumbEl.classList.add('is-model-ready');
-    });
-    mv.addEventListener('error', function() {
-      mv.classList.add('fa-card__thumb-mv--failed');
-    });
-  });
+  grid.replaceChildren(fragment);
 
   // Entrance animation
   // v0.9.3 — заменили forEach + gsap.fromTo с individual delay на один
   // gsap.fromTo со stagger. GSAP batchит scheduling и читает getBoundingClientRect
   // один раз, а не на каждую карту → меньше forced reflow.
-  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!reducedMotion) {
     gsap.fromTo(grid.querySelectorAll('.fa-card'),
       { opacity: 0, y: 14 },
       { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out', stagger: 0.045 }
@@ -325,26 +378,15 @@ function rebindGameSwitch() {
 /* ─── MINI MODEL PREVIEWS — lazy-load one viewer runtime ──────────────────
    Free-assets cards intentionally show small rotating models. The runtime is
    still loaded lazily: only when the first preview approaches the viewport. */
-var modelViewerLoading = null;
 function loadModelViewerScript() {
-  if (modelViewerLoading) return modelViewerLoading;
-  modelViewerLoading = new Promise(function(resolve) {
-    if (window.customElements && window.customElements.get('model-viewer')) {
-      resolve();
-      return;
-    }
-    var s = document.createElement('script');
-    s.type = 'module';
-    s.src = 'https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
-    s.onload = function() { resolve(); };
-    s.onerror = function() {
-      console.warn('[FA] model-viewer load failed — cards keep SVG fallback');
-      modelViewerLoading = null;
-      resolve();
-    };
-    document.head.appendChild(s);
+  if (!window.CodexShared || typeof window.CodexShared.loadModelViewerScript !== 'function') {
+    console.warn('[FA] shared model-viewer loader missing — cards keep SVG fallback');
+    return Promise.resolve();
+  }
+  return window.CodexShared.loadModelViewerScript().catch(function(err) {
+    console.warn('[FA] model-viewer load failed — cards keep SVG fallback', err);
+    return null;
   });
-  return modelViewerLoading;
 }
 
 var modelViewerObserver = null;
