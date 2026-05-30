@@ -112,9 +112,12 @@
 
 /* ── ASSET CARD ── */
 .fa-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--color-work-card-bg);
+  background:
+    linear-gradient(180deg, var(--color-work-card-bg-hover), var(--color-work-card-bg) 46%),
+    var(--color-work-card-bg);
   border: 1px solid var(--color-work-card-border);
   border-radius: var(--radius-card);
   overflow: hidden;
@@ -123,11 +126,23 @@
     background 200ms var(--ease-out),
     box-shadow 240ms var(--ease-out);
 }
+.fa-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--color-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-out);
+  z-index: 5;
+}
 .fa-card:hover {
   border-color: var(--color-work-card-border-hov);
   background: var(--color-work-card-bg-hover);
   box-shadow: var(--shadow-md);
 }
+.fa-card:hover::before { opacity: 1; }
 /* Thumb */
 .fa-card__thumb {
   width: 100%;
@@ -139,6 +154,17 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+.fa-card__thumb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent 46%, oklch(0 0 0 / 0.44) 100%),
+    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%);
+  opacity: 0.72;
 }
 .fa-card__preview-btn {
   position: absolute;
@@ -174,7 +200,7 @@
   transition: opacity 220ms var(--ease-out), transform 400ms var(--ease-out);
 }
 .fa-card__thumb.is-model-ready img { opacity: 0; transform: none; }
-.fa-card:hover .fa-card__thumb img { transform: scale(1.04); }
+.fa-card:hover .fa-card__thumb img { transform: scale(1.03); }
 .fa-card:hover .fa-card__thumb.is-model-ready img { transform: none; }
 
 /* Mini 3D preview. The card remains a clean auto-rotating model surface; SVG
@@ -301,6 +327,27 @@
   letter-spacing: 0.12em; text-transform: uppercase; line-height: 1;
   pointer-events: none;
 }
+.fa-card__state {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+  pointer-events: none;
+}
 /* Body */
 .fa-card__body {
   padding: var(--space-3);
@@ -320,11 +367,38 @@
   font-size: var(--text-xs);
   color: var(--color-text-faint); letter-spacing: 0.04em;
 }
+.fa-card__meta-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.fa-card__hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid var(--color-work-card-border);
+  border-radius: var(--radius-tag);
+  color: var(--color-accent-text);
+  line-height: 1;
+  transform: translateY(-0.02rem);
+  transition:
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    background 160ms var(--ease-out);
+}
+.fa-card:hover .fa-card__hint {
+  background: var(--color-primary-highlight);
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
 .fa-card__title {
   font-family: var(--font-display);
   font-size: var(--text-base); font-weight: 600;
   color: var(--color-text); line-height: 1.25;
-  margin-bottom: var(--space-1);
+  margin: 0 0 var(--space-1);
 }
 .fa-card__desc {
   font-size: var(--text-xs); color: var(--color-text-muted);
@@ -413,7 +487,10 @@
 
 /* ── SIDEBAR TAG CARDS — identical visual to .work-card ── */
 .tag-card {
-  background: var(--color-work-card-bg);
+  position: relative;
+  background:
+    linear-gradient(180deg, var(--color-work-card-bg-hover), var(--color-work-card-bg) 46%),
+    var(--color-work-card-bg);
   border: 1px solid var(--color-work-card-border);
   border-radius: var(--radius-card);
   overflow: hidden;
@@ -423,10 +500,25 @@
     background 200ms var(--ease-out),
     box-shadow 240ms var(--ease-out);
 }
+.tag-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--color-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-out);
+  z-index: 5;
+}
 .tag-card:hover {
   border-color: var(--color-work-card-border-hov);
   background: var(--color-work-card-bg-hover);
   box-shadow: var(--shadow-md);
+}
+.tag-card:hover::before,
+.tag-card--active::before {
+  opacity: 1;
 }
 .tag-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .tag-card--active {
@@ -450,6 +542,17 @@
   position: relative;
   display: flex; align-items: center; justify-content: center;
 }
+.tag-card__thumb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent 48%, oklch(0 0 0 / 0.42) 100%),
+    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%);
+  opacity: 0.72;
+}
 .tag-card__thumb::after {
   content: attr(data-label);
   font-family: var(--font-display);
@@ -466,7 +569,7 @@
   object-fit: cover; z-index: 2;
   transition: transform 400ms var(--ease-out);
 }
-.tag-card:hover .tag-card__thumb img { transform: scale(1.04); }
+.tag-card:hover .tag-card__thumb img { transform: scale(1.03); }
 /* Count badge — mirrors .work-card__badge */
 .tag-card__count-badge {
   position: absolute;
@@ -490,10 +593,15 @@
               border-color 160ms var(--ease-out);
 }
 /* Info */
-.tag-card__info { padding: var(--space-3); }
+.tag-card__info {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
 .tag-card__meta {
   display: flex; align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
   margin-bottom: var(--space-1);
 }
 .tag-card__cat {
@@ -507,13 +615,19 @@
      Если визуал не понравится — вернуть --color-text-faint в этом селекторе. */
   font-size: var(--text-xs); color: var(--color-text-muted); letter-spacing: 0.06em;
 }
+.tag-card__meta-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
 .tag-card__title {
   font-family: var(--font-display);
   font-size: var(--text-base); font-weight: 600;
-  color: var(--color-text); line-height: 1.25; margin-bottom: var(--space-1);
+  color: var(--color-text); line-height: 1.25; margin: 0;
 }
 .tag-card__desc {
-  font-size: var(--text-xs); color: var(--color-text-muted); line-height: 1.55;
+  font-size: var(--text-xs); color: var(--color-text-muted); line-height: 1.55; margin: 0;
 }
 
 /* ── Responsive ── */
