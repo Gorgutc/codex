@@ -821,6 +821,7 @@
   var currentThreeViewer = null;           // Phase 3 - active self-hosted Three.js viewer island
   var currentThreeSource = null;           // Phase 3 - source used for fullscreen rehydration
   var fsThreeViewer = null;                // Phase 3 - fullscreen Three.js viewer clone
+  var model3dMountToken = 0;               // guards stale async 3D callbacks for the same case
   var gameOnly = false;
 
   // v0.15.5 [П2] — массив выбранных дисциплин (OR-логика). Пусто или ['all'] → все кейсы.
@@ -2184,6 +2185,16 @@
     return !!(case3dCanvas && case3dCanvas.querySelector('canvas.case-3d__three-canvas, model-viewer, .case-3d__fallback'));
   }
 
+  function clear3DSwitchingAfterPaint(targetId, mountToken) {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (model3dBuiltFor === targetId && currentCaseId === targetId && model3dMountToken === mountToken && case3dCanvas) {
+          set3DSwitching(false);
+        }
+      });
+    });
+  }
+
   /* v0.11.1 — верстка info-панели со статистикой модели */
   function buildInfoHTML(data) {
     var s = (data && data.modelStats) || {};
@@ -2245,6 +2256,8 @@
     var keepSwitchCover = currentViz === '3d' && has3DRenderedSurface();
     if (keepSwitchCover) set3DSwitching(true);
     destroy3D({ keepSwitching: keepSwitchCover });
+    var targetId = id;
+    var targetMountToken = ++model3dMountToken;
 
     // Нет модели → fallback сразу
     if (!data.modelSrc) {
@@ -2264,14 +2277,13 @@
     );
     if (keepSwitchCover) set3DSwitching(true);
     model3dBuiltFor = id;
-    var targetId = id;
 
     loadModelViewerScript().then(function () {
       // v0.5 — после загрузки model-viewer ждём model-data (для CODEX_LOCAL_GLB)
       return loadModelData();
     }).then(function () {
       // за время загрузки скрипта пользователь мог переключить кейс
-      if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
 
       var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       var autoRotateOn = !prefersReduced;
@@ -2337,10 +2349,10 @@
       var initialTarget = null;
       var initialFov = null;
       mv.addEventListener('load', function () {
-        if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+        if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
         if (case3dCanvas) {
           case3dCanvas.classList.add('is-ready');
-          set3DSwitching(false);
+          clear3DSwitchingAfterPaint(targetId, targetMountToken);
         }
         // v0.13.3 — shadow DOM model-viewer внутри ставит `.userInput { cursor: grab }`
         //           и `canvas.show { cursor: grab }`. Внешний `html.cursor-fine *` не
@@ -2371,7 +2383,7 @@
         } catch (_) { /* no-op */ }
       });
       mv.addEventListener('error', function () {
-        if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+        if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
         set3DSwitching(false);
         render3DFallback(
           'MODEL UNAVAILABLE',
@@ -2771,7 +2783,7 @@
       case3dCanvas.appendChild(infoPanel);
       currentMv = mv;
     }).catch(function () {
-      if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
       set3DSwitching(false);
       render3DFallback(
         'VIEWER OFFLINE',
@@ -2790,6 +2802,8 @@
     var keepSwitchCover = currentViz === '3d' && has3DRenderedSurface();
     if (keepSwitchCover) set3DSwitching(true);
     destroy3D({ keepSwitching: keepSwitchCover });
+    var targetId = id;
+    var targetMountToken = ++model3dMountToken;
 
     if (!data.modelSrc) {
       set3DSwitching(false);
@@ -2807,10 +2821,9 @@
     );
     if (keepSwitchCover) set3DSwitching(true);
     model3dBuiltFor = id;
-    var targetId = id;
 
     Promise.all([loadModelData(), loadThreeViewer()]).then(function (result) {
-      if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
 
       var threeRuntime = result[1];
       if (!threeRuntime || !threeRuntime.canUseCodexThreeViewer || !threeRuntime.canUseCodexThreeViewer()) {
@@ -3176,13 +3189,13 @@
         environment: currentEnv,
         materialMode: currentMaterial,
         onReady: function () {
-          if (model3dBuiltFor === targetId && currentCaseId === targetId && case3dCanvas) {
+          if (model3dBuiltFor === targetId && currentCaseId === targetId && model3dMountToken === targetMountToken && case3dCanvas) {
             case3dCanvas.classList.add('is-ready');
-            set3DSwitching(false);
+            clear3DSwitchingAfterPaint(targetId, targetMountToken);
           }
         },
         onError: function () {
-          if (model3dBuiltFor === targetId && currentCaseId === targetId) {
+          if (model3dBuiltFor === targetId && currentCaseId === targetId && model3dMountToken === targetMountToken) {
             destroy3D();
             set3DSwitching(false);
             render3DFallback(
@@ -3198,7 +3211,7 @@
       case3dCanvas.appendChild(infoPanel);
     }).catch(function () {
       threeViewerLoading = null;
-      if (model3dBuiltFor !== targetId || currentCaseId !== targetId) return;
+      if (model3dBuiltFor !== targetId || currentCaseId !== targetId || model3dMountToken !== targetMountToken) return;
       mountModelViewer3D(options);
     });
   }

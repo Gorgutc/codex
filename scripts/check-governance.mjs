@@ -151,6 +151,7 @@ const shippedRuntimeFiles = [
   'js/i18n-data.js',
   'js/fa-data.js',
   'js/shared-runtime.js',
+  'js/vendor/codex-three-viewer.js',
 ];
 const storageViolations = shippedRuntimeFiles.filter((rel) => /(localStorage|sessionStorage)\s*(?:\.|\[)/.test(read(rel)));
 check('runtime: no browser storage access', storageViolations.length === 0, storageViolations.join(', '));

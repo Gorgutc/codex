@@ -74,18 +74,24 @@ const PRESETS = {
 
 const ENVIRONMENT_SIZE = 128;
 const MATERIAL_MODES = ['pbr', 'clay', 'xray'];
+let canUseViewerCache = null;
 
 export function canUseCodexThreeViewer() {
+  if (canUseViewerCache !== null) return canUseViewerCache;
   const canvas = document.createElement('canvas');
   const gl = canvas.getContext('webgl2', {
     alpha: true,
     antialias: true
   });
 
-  if (!gl) return false;
+  if (!gl) {
+    canUseViewerCache = false;
+    return canUseViewerCache;
+  }
   const loseContext = gl.getExtension('WEBGL_lose_context');
   if (loseContext) loseContext.loseContext();
-  return true;
+  canUseViewerCache = true;
+  return canUseViewerCache;
 }
 
 export function createCodexThreeViewer(options) {
@@ -661,7 +667,7 @@ export function createCodexThreeViewer(options) {
         ktx2Loader = null;
       }
       renderer.dispose();
-      if (disposeOptions.forceContextLoss !== false) {
+      if (disposeOptions.forceContextLoss === true) {
         try { renderer.forceContextLoss(); } catch (_) {}
       }
       canvas.remove();

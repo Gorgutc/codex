@@ -19,6 +19,7 @@ process.stdin.on("end", () => {
   const shipped = [
     /(?:^|[\\/\s"])(index\.html|free-assets\.html|verify-frozen\.js)(?:$|[\\/\s"])/,
     /(?:^|[\\/\s"])css[\\/][^\\/\s"]+\.css(?:$|[\\/\s"])/,
+    /(?:^|[\\/\s"])js[\\/]vendor[\\/]codex-three-viewer\.js(?:$|[\\/\s"])/,
     /(?:^|[\\/\s"])js[\\/](?!vendor[\\/]|model-data\.js)[^\\/\s"]+\.js(?:$|[\\/\s"])/
   ].some(rx => rx.test(source));
 

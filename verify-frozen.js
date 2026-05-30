@@ -156,7 +156,16 @@ function runStaticChecks() {
   // (foo.localStorage. / foo.sessionStorage[ ) — комментарии "no localStorage"
   // не попадают, т.к. там нет точки/bracket access после слова.
   const forbidden = /(localStorage|sessionStorage)\s*[.\[]/;
-  const jsFiles = ['main.js', 'animations.js', 'free-assets.js', 'i18n.js', 'i18n-data.js', 'fa-data.js', 'shared-runtime.js'];
+  const jsFiles = [
+    'main.js',
+    'animations.js',
+    'free-assets.js',
+    'i18n.js',
+    'i18n-data.js',
+    'fa-data.js',
+    'shared-runtime.js',
+    'vendor/codex-three-viewer.js'
+  ];
   const jsViolations = jsFiles.filter(f => {
     const full = path.join(ROOT, 'js', f);
     if (!fs.existsSync(full)) return false;
@@ -242,6 +251,74 @@ async function testIndex(BASE) {
   const consoleErrors = [];
   page.on('pageerror', e => consoleErrors.push(String(e)));
   page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  await page.addInitScript(() => {
+    const lifecycle = {
+      nextCanvasId: 1,
+      getContext: [],
+      loseContextCalls: [],
+      lostEvents: [],
+      restoredEvents: []
+    };
+    window.__codexWebglLifecycle = lifecycle;
+
+    const originalGetContext = window.HTMLCanvasElement.prototype.getContext;
+    window.HTMLCanvasElement.prototype.getContext = function (type) {
+      const isWebgl = typeof type === 'string' && /webgl/i.test(type);
+      if (isWebgl && !this.__codexWebglId) {
+        this.__codexWebglId = lifecycle.nextCanvasId++;
+        const canvas = this;
+        canvas.addEventListener('webglcontextlost', event => {
+          lifecycle.lostEvents.push({
+            t: performance.now(),
+            id: canvas.__codexWebglId,
+            className: canvas.className || '',
+            defaultPrevented: event.defaultPrevented
+          });
+        });
+        canvas.addEventListener('webglcontextrestored', () => {
+          lifecycle.restoredEvents.push({
+            t: performance.now(),
+            id: canvas.__codexWebglId,
+            className: canvas.className || ''
+          });
+        });
+      }
+
+      const context = originalGetContext.apply(this, arguments);
+      if (isWebgl) {
+        lifecycle.getContext.push({
+          t: performance.now(),
+          id: this.__codexWebglId || null,
+          type,
+          ok: !!context,
+          className: this.className || ''
+        });
+      }
+
+      if (context && isWebgl && !context.__codexWrappedGetExtension) {
+        const originalGetExtension = context.getExtension.bind(context);
+        context.getExtension = function (name) {
+          const extension = originalGetExtension(name);
+          if (name === 'WEBGL_lose_context' && extension && !extension.__codexWrappedLoseContext) {
+            const originalLoseContext = extension.loseContext.bind(extension);
+            extension.loseContext = function () {
+              lifecycle.loseContextCalls.push({
+                t: performance.now(),
+                id: context.canvas && context.canvas.__codexWebglId,
+                className: (context.canvas && context.canvas.className) || ''
+              });
+              return originalLoseContext();
+            };
+            extension.__codexWrappedLoseContext = true;
+          }
+          return extension;
+        };
+        context.__codexWrappedGetExtension = true;
+      }
+
+      return context;
+    };
+  });
   await page.goto(`${BASE}/index.html`, { waitUntil: 'networkidle', timeout: 30000 });
 
   // SCRIPTS
@@ -454,12 +531,19 @@ async function testIndex(BASE) {
     document.querySelector('#case-title')?.textContent?.includes('Ironclad Frame') &&
     document.querySelector('#case-3d-canvas.is-ready canvas.case-3d__three-canvas')
   );
-  const pagination3D = await page.evaluate(async () => {
+  const pagination3DSwitchCount = 9;
+  const pagination3D = await page.evaluate(async switchCount => {
     const host = document.getElementById('case-3d-canvas');
     const states = [];
+    const baseline = {
+      getContext: window.__codexWebglLifecycle?.getContext.length || 0,
+      loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
+      lostEvents: window.__codexWebglLifecycle?.lostEvents.length || 0,
+      restoredEvents: window.__codexWebglLifecycle?.restoredEvents.length || 0
+    };
     function readState(label) {
       const after = host ? window.getComputedStyle(host, '::after') : null;
-      states.push({
+      const state = {
         label,
         ready: !!host?.classList.contains('is-ready'),
         switching: !!host?.classList.contains('is-switching-3d'),
@@ -470,39 +554,95 @@ async function testIndex(BASE) {
         active3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false,
         title: document.querySelector('#case-title')?.textContent || '',
         counter: document.querySelector('#case-counter')?.textContent || ''
-      });
+      };
+      states.push(state);
+      return state;
     }
-    readState('before');
-    document.getElementById('case-next')?.click();
-    readState('sync');
-    await Promise.resolve();
-    readState('microtask');
-    for (let i = 0; i < 6; i += 1) {
-      await new Promise(resolve => window.requestAnimationFrame(resolve));
-      readState(`raf-${i}`);
+    for (let step = 0; step < switchCount; step += 1) {
+      readState(`step-${step}-before`);
+      document.getElementById('case-next')?.click();
+      readState(`step-${step}-sync`);
+      await Promise.resolve();
+      readState(`step-${step}-microtask`);
+      let readyFrames = 0;
+      for (let frame = 0; frame < 120; frame += 1) {
+        await new Promise(resolve => window.requestAnimationFrame(resolve));
+        const state = readState(`step-${step}-raf-${frame}`);
+        if (state.ready) readyFrames += 1;
+        if (readyFrames >= 2) break;
+      }
+      readState(`step-${step}-ready`);
     }
+    await new Promise(resolve => window.setTimeout(resolve, 450));
+    const afterLifecycle = {
+      getContext: window.__codexWebglLifecycle?.getContext.length || 0,
+      loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
+      lostEvents: window.__codexWebglLifecycle?.lostEvents.length || 0,
+      restoredEvents: window.__codexWebglLifecycle?.restoredEvents.length || 0,
+      loseDetails: window.__codexWebglLifecycle?.loseContextCalls.slice(baseline.loseContextCalls) || [],
+      lostDetails: window.__codexWebglLifecycle?.lostEvents.slice(baseline.lostEvents) || [],
+      restoredDetails: window.__codexWebglLifecycle?.restoredEvents.slice(baseline.restoredEvents) || []
+    };
+    const finalCover = host ? window.getComputedStyle(host, '::after') : null;
     return {
       states,
       finalTitle: document.querySelector('#case-title')?.textContent || '',
       finalCounter: document.querySelector('#case-counter')?.textContent || '',
       finalReady: !!host?.classList.contains('is-ready'),
+      finalSwitching: !!host?.classList.contains('is-switching-3d'),
+      finalCoverPainted: !!finalCover && finalCover.content !== 'none' &&
+        finalCover.display !== 'none' && finalCover.opacity !== '0',
       finalCanvases: document.querySelectorAll('#case-3d-canvas canvas.case-3d__three-canvas').length,
-      finalActive3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false
+      finalActive3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false,
+      lifecycle: {
+        baseline,
+        after: afterLifecycle,
+        delta: {
+          getContext: afterLifecycle.getContext - baseline.getContext,
+          loseContextCalls: afterLifecycle.loseContextCalls - baseline.loseContextCalls,
+          lostEvents: afterLifecycle.lostEvents - baseline.lostEvents,
+          restoredEvents: afterLifecycle.restoredEvents - baseline.restoredEvents
+        }
+      }
     };
-  });
-  const transitionFrames = pagination3D.states.filter(state => state.label !== 'before' && !state.ready);
+  }, pagination3DSwitchCount);
+  const transitionFrames = pagination3D.states.filter(state => !state.label.endsWith('-before') && !state.ready);
   const transitionCovered = transitionFrames.length > 0 &&
     transitionFrames.every(state => state.switching && state.coverPainted && state.active3D && state.children > 0 && state.canvases <= 1);
+  const postReadyChecks = Array.from({ length: pagination3DSwitchCount }, (_, step) => {
+    const readyRafFrames = pagination3D.states
+      .filter(state => state.label.startsWith(`step-${step}-raf-`) && state.ready)
+      .slice(0, 2);
+    return {
+      step,
+      frames: readyRafFrames.length,
+      covered: readyRafFrames.filter(state => state.switching && state.coverPainted).length,
+      pass: readyRafFrames.length === 2 &&
+        readyRafFrames.every(state => state.switching && state.coverPainted)
+    };
+  });
+  const postReadyCovered = postReadyChecks.every(item => item.pass);
   add('index', 'CASE-3d-pagination-transition-cover',
-      pagination3D.finalTitle === 'Corten Series' &&
-      pagination3D.finalCounter === '4 / 18' &&
+      pagination3D.finalTitle === 'Arc Motion' &&
+      pagination3D.finalCounter === '12 / 18' &&
       pagination3D.finalReady &&
+      !pagination3D.finalSwitching &&
+      !pagination3D.finalCoverPainted &&
       pagination3D.finalCanvases === 1 &&
       pagination3D.finalActive3D &&
-      transitionCovered,
-      pagination3D.states.map(state =>
-        `${state.label}: ready=${state.ready}, switching=${state.switching}, cover=${state.coverPainted}, children=${state.children}, canvases=${state.canvases}, title=${state.title}`
-      ).join(' | '));
+      transitionCovered &&
+      postReadyCovered &&
+      pagination3D.lifecycle.delta.getContext === pagination3DSwitchCount &&
+      pagination3D.lifecycle.delta.loseContextCalls === 0 &&
+      pagination3D.lifecycle.delta.lostEvents === 0 &&
+      pagination3D.lifecycle.delta.restoredEvents === 0,
+      `title=${pagination3D.finalTitle}, counter=${pagination3D.finalCounter}, ` +
+      `finalSwitching=${pagination3D.finalSwitching}, finalCover=${pagination3D.finalCoverPainted}, ` +
+      `transitionFrames=${transitionFrames.length}, postReady=${JSON.stringify(postReadyChecks)}, ` +
+      `lifecycle=${JSON.stringify(pagination3D.lifecycle.delta)}, ` +
+      `lose=${JSON.stringify(pagination3D.lifecycle.after.loseDetails)}, ` +
+      `lost=${JSON.stringify(pagination3D.lifecycle.after.lostDetails)}, ` +
+      `restored=${JSON.stringify(pagination3D.lifecycle.after.restoredDetails)}`);
 
   // SHARE BUTTONS
   add('index', 'CASE-share-desktop', !!await page.$('#case-share-desktop'));
