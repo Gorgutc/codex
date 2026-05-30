@@ -3,7 +3,7 @@
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://codex.promo/</loc>
-    <lastmod>2026-04-19</lastmod>
+    <lastmod>2026-05-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
     <image:image>
@@ -13,8 +13,12 @@
   </url>
   <url>
     <loc>https://codex.promo/free-assets.html</loc>
-    <lastmod>2026-05-15</lastmod>
+    <lastmod>2026-05-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://codex.promo/assets/img/og-free-assets.jpg</image:loc>
+      <image:title>Codex Studio — Free 3D assets catalog</image:title>
+    </image:image>
   </url>
 </urlset>
