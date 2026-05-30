@@ -1,8 +1,8 @@
-/* verify-frozen.js · Codex Studio v0.4 GOLDEN regression
+/* verify-frozen.js · Codex Studio GOLDEN regression
  * ─────────────────────────────────────────────────────────────────────────
  * Покрывает обе страницы:
- *   • index.html  — основной портфолио (37 тестов)
- *   • free-assets.html — каталог ассетов (28 тестов)
+ *   • index.html — основной портфолио
+ *   • free-assets.html — каталог ассетов
  *
  * Запуск (без отдельного http-server — поднимает свой Node http внутри):
  *   cd <project-root>
@@ -13,10 +13,10 @@
  *
  * Зависимости: только `playwright` (npm i playwright).
  *
- * v0.4 changes:
- *   - покрытие free-assets.html (B1-B6, M1-M5, AX1, N4)
- *   - расширенные META checks (canonical, OG, Twitter, JSON-LD, manifest)
- *   - встроенный http-server для self-contained запуска
+ * Notes:
+ *   - success is a clean exit with `0 FAIL`
+ *   - do not treat any historical pass total as a contract
+ *   - the embedded http server keeps the command self-contained
  * ───────────────────────────────────────────────────────────────────────── */
 const http = require('http');
 const fs = require('fs');
@@ -201,7 +201,7 @@ function runStaticChecks() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   INDEX.HTML — расширенный регрешен (37 тестов)
+   INDEX.HTML — расширенный регрешен
 ═══════════════════════════════════════════════════════════════════════ */
 async function testIndex(BASE) {
   console.log(`\n=== index.html · Desktop 1440×900 ===`);
@@ -636,7 +636,7 @@ async function testIndex(BASE) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   FREE-ASSETS.HTML — регрешен (28 тестов)
+   FREE-ASSETS.HTML — регрешен
 ═══════════════════════════════════════════════════════════════════════ */
 async function testFreeAssets(BASE) {
   console.log(`\n=== free-assets.html · Desktop 1440×900 ===`);
@@ -967,7 +967,7 @@ async function testMobileViewport(BASE) {
   }
 
   console.log('\n══════════════════════════════════════════════════════════════════');
-  console.log('  Codex Studio v0.4 GOLDEN regression');
+  console.log('  Codex Studio GOLDEN regression');
   console.log('══════════════════════════════════════════════════════════════════');
 
   let fatalError = null;

@@ -5,7 +5,7 @@
 - Static site: `index.html` and `free-assets.html`.
 - Vanilla HTML, CSS, classic JavaScript.
 - Self-hosted GSAP, ScrollTrigger, SplitText, Lenis.
-- Lazy `<model-viewer>` and lazy `model-data.js`.
+- Portfolio 3D uses the lazy self-hosted Three viewer first, lazy `model-data.js`, and lazy `<model-viewer>` fallback through `shared-runtime.js`; free-assets mini previews lazy-load the same `<model-viewer>` runtime near the grid.
 - Fontshare external font CSS.
 
 ## Dev Tooling

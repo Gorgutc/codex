@@ -107,8 +107,8 @@
 <a class="skip-to-content" href="#main" data-i18n="skipToContent">Skip to content</a>
 
 <!-- v0.17.0 — PRELOADER (shared markup with index.html). Initializes via
-     preloader IIFE in js/main.js. Without [data-gallery] / work-card images
-     on FA, total === 0 → preloader exits in ~200ms hold (intended fast path). -->
+     preloader IIFE in js/main.js and tracks visible work-card images before
+     releasing the page. -->
 <div class="preloader" id="preloader" role="status" aria-live="polite" data-i18n-attr="aria-label:aria.preloaderLoading" aria-label="Loading">
   <div class="preloader__readout" aria-hidden="true">
     <span data-i18n="preloader.studio">CODEX_STUDIO</span>

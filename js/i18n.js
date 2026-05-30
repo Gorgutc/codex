@@ -3,7 +3,7 @@
 
    Зависимости: window.I18N_DATA (i18n-data.js загружается ПЕРЕД этим файлом).
    Подключение: gsap → ScrollTrigger → SplitText → i18n-data.js → i18n.js →
-   main.js → animations.js.
+   shared-runtime.js → main.js → animations.js.
 
    Persistence: URL ?lang=ru|en. NO localStorage / sessionStorage / cookies.
 
