@@ -31,7 +31,7 @@ const MIME = {
   '.html':'text/html', '.js':'text/javascript', '.css':'text/css',
   '.svg':'image/svg+xml', '.json':'application/json', '.glb':'model/gltf-binary',
   '.jpg':'image/jpeg', '.png':'image/png', '.ico':'image/x-icon',
-  '.mp4':'video/mp4', '.webp':'image/webp', '.zip':'application/zip',
+  '.mp4':'video/mp4', '.webm':'video/webm', '.webp':'image/webp', '.zip':'application/zip',
   '.txt':'text/plain', '.xml':'application/xml', '.md':'text/markdown',
   '.webmanifest':'application/manifest+json', '.wasm':'application/wasm',
   '.hdr':'image/vnd.radiance', '.exr':'image/x-exr', '.ktx2':'image/ktx2'
@@ -460,9 +460,111 @@ async function testIndex(BASE) {
   add('index', 'CASE-progress', caseStatus.progressBar);
   add('index', 'CASE-nav', caseStatus.hasNav);
 
+  const motionContract = await page.evaluate(() => {
+    const data = window.CARDS_DATA && window.CARDS_DATA['orbital-mk-ii'];
+    const blocks = data && data.items && Array.isArray(data.items.motionBlocks)
+      ? data.items.motionBlocks
+      : [];
+    const dom = [...document.querySelectorAll('.case-motion')].map(el => ({
+      source: el.getAttribute('data-motion-source') || '',
+      playback: el.getAttribute('data-motion-playback') || '',
+      layout: el.getAttribute('data-motion-layout') || '',
+      hasVideo: !!el.querySelector('video.case-motion__video'),
+      hasVimeoShell: !!el.querySelector('.case-motion__vimeo'),
+      hasIframe: !!el.querySelector('iframe[src*="player.vimeo.com"]'),
+      vimeoRole: el.querySelector('.case-motion__vimeo')?.getAttribute('role') || '',
+      hasControl: !!el.querySelector('.case-motion__control')
+    }));
+    return {
+      dataCount: blocks.length,
+      dataShape: blocks.map(b => ({
+        source: b && b.source,
+        playback: b && b.playback,
+        layout: b && b.layout,
+        src: b && b.src,
+        label: b && b.label
+      })),
+      dom
+    };
+  });
+  const expectedMotion = [
+    { source: 'local', playback: 'ambient', layout: 'wide' },
+    { source: 'vimeo', playback: 'controlled', layout: 'wide' },
+    { source: 'local', playback: 'controlled', layout: 'half' },
+    { source: 'vimeo', playback: 'ambient', layout: 'half' }
+  ];
+  const motionShapeOk =
+    motionContract.dataCount === 4 &&
+    motionContract.dom.length === 4 &&
+    expectedMotion.every((expected, idx) => {
+      const dataBlock = motionContract.dataShape[idx] || {};
+      const domBlock = motionContract.dom[idx] || {};
+      return dataBlock.source === expected.source &&
+        dataBlock.playback === expected.playback &&
+        dataBlock.layout === expected.layout &&
+        domBlock.source === expected.source &&
+        domBlock.playback === expected.playback &&
+        domBlock.layout === expected.layout;
+    });
+  const localMotionAssets = motionContract.dataShape
+    .filter(block => block.source === 'local')
+    .map(block => block.src || '')
+    .map(src => ({
+      src,
+      exists: src.startsWith('./assets/') &&
+        fs.existsSync(path.join(ROOT, ...src.replace(/^\.\//, '').split('/')))
+    }));
+  const localMotionAssetsOk =
+    localMotionAssets.length === 2 &&
+    localMotionAssets.every(asset => asset.exists && /\.(mp4|webm)$/i.test(asset.src));
+  add('index', 'CASE-motion-blocks-contract', motionShapeOk,
+      JSON.stringify(motionContract));
+  add('index', 'CASE-motion-local-assets-exist', localMotionAssetsOk,
+      JSON.stringify(localMotionAssets));
+  const motionPlaybackOk =
+    motionContract.dom[0]?.hasVideo === true &&
+    motionContract.dom[0]?.hasControl === false &&
+    motionContract.dom[1]?.hasVimeoShell === true &&
+    motionContract.dom[1]?.hasIframe === false &&
+    motionContract.dom[1]?.hasControl === true &&
+    motionContract.dom[2]?.hasVideo === true &&
+    motionContract.dom[2]?.hasControl === true &&
+    motionContract.dom[3]?.hasVimeoShell === true &&
+    motionContract.dom[3]?.hasIframe === false &&
+    motionContract.dom[1]?.vimeoRole === '' &&
+    motionContract.dom[3]?.vimeoRole === '' &&
+    motionContract.dom[3]?.hasControl === false;
+  add('index', 'CASE-motion-playback-controls', motionPlaybackOk,
+      JSON.stringify(motionContract.dom));
+
   // BLUEPRINT
   await page.click('.case-tab[data-viz="blueprints"]'); await page.waitForTimeout(400);
+  const stoppedMotionLazy = await page.evaluate(() => ({
+    localSrcs: [...document.querySelectorAll('.case-motion video')].map(video => video.getAttribute('src') || ''),
+    iframeCount: document.querySelectorAll('.case-motion iframe[src*="player.vimeo.com"]').length
+  }));
+  add('index', 'CASE-motion-stop-keeps-lazy-media',
+      stoppedMotionLazy.iframeCount === 0 && stoppedMotionLazy.localSrcs.every(src => src === ''),
+      JSON.stringify(stoppedMotionLazy));
   add('index', 'CASE-blueprint-svg', !!await page.$('.case-blueprints svg'));
+  await page.click('.case-tab[data-viz="2d"]'); await page.waitForTimeout(250);
+  const motionSingleHandler = await page.evaluate(() => {
+    const card = document.querySelector('.case-motion[data-motion-playback="controlled"]');
+    const btn = card && card.querySelector('[data-motion-toggle]');
+    if (!card || !btn) return { ok: false };
+    const before = card.getAttribute('data-motion-playing');
+    btn.click();
+    return {
+      ok: before === 'true' &&
+        card.getAttribute('data-motion-playing') === 'false' &&
+        btn.getAttribute('aria-pressed') === 'false',
+      before,
+      after: card.getAttribute('data-motion-playing'),
+      pressed: btn.getAttribute('aria-pressed')
+    };
+  });
+  add('index', 'CASE-motion-control-single-handler', motionSingleHandler.ok,
+      JSON.stringify(motionSingleHandler));
 
   // 3D
   const before3DResources = await page.evaluate(() => performance.getEntriesByType('resource')
@@ -736,12 +838,16 @@ async function testIndex(BASE) {
     const cl = window.I18N_DATA && window.I18N_DATA.CASE_LOCALES;
     if (!cl || !cl.en || !cl.ru) return { ok: false, reason: 'no en/ru' };
     const keys = Object.keys(cl.ru);
+    const orbitalMotion = cl.ru['orbital-mk-ii'] && cl.ru['orbital-mk-ii'].motionBlocks;
     const ok = keys.length === expected.length &&
-               expected.every(id => cl.ru[id] && cl.ru[id].role && Array.isArray(cl.ru[id].captions));
-    return { ok, count: keys.length };
+               expected.every(id => cl.ru[id] && cl.ru[id].role && Array.isArray(cl.ru[id].captions)) &&
+               Array.isArray(orbitalMotion) &&
+               orbitalMotion.length === 4 &&
+               orbitalMotion.every(block => block && block.label && block.desc);
+    return { ok, count: keys.length, orbitalMotionCount: Array.isArray(orbitalMotion) ? orbitalMotion.length : 0 };
   }, EXPECTED_IDS);
   add('index', 'B4-CASE_LOCALES-18-ru', caseLocaleShape.ok,
-      `ru.length=${caseLocaleShape.count} (expected 18, with role+captions)`);
+      `ru.length=${caseLocaleShape.count} (expected 18, with role+captions), orbitalMotion=${caseLocaleShape.orbitalMotionCount}`);
 
   // B6 — Full EN ⇄ RU round-trip on lang-toggle. Verifies <html lang>,
   // currentLang AND that we restore EN cleanly (no stuck state).

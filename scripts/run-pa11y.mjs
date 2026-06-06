@@ -25,6 +25,8 @@ const MIME = {
   '.js': 'text/javascript',
   '.json': 'application/json',
   '.md': 'text/markdown',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.txt': 'text/plain',

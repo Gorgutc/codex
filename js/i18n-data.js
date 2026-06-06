@@ -179,6 +179,13 @@
       ofWord: 'of',
     },
 
+    motion: {
+      play: 'PLAY',
+      pause: 'PAUSE',
+      playAria: 'Play motion loop',
+      pauseAria: 'Pause motion loop',
+    },
+
     // Phase 4b — blueprint per-page aria + nav buttons. Используется
     // I18N.tFmt('aria.bp.exportPage', { n: pageIdx+1 }) etc.
     bp: {
@@ -323,6 +330,12 @@
   UI_STRINGS.ru.btn = Object.assign({}, UI_STRINGS.ru.btn, {
     copyLink: 'СКОПИРОВАТЬ',
   });
+  UI_STRINGS.ru.motion = {
+    play: 'PLAY',
+    pause: 'PAUSE',
+    playAria: 'Запустить зацикленное видео',
+    pauseAria: 'Остановить зацикленное видео',
+  };
 
   // Phase 4b — blueprint per-page + 3D viewer RU.
   UI_STRINGS.ru.bp = {
@@ -459,6 +472,7 @@
   // Покрывает поля внутри CARDS_DATA (main.js):
   //   - role         — тип проекта ('Personal' / 'R&D' / 'Client').
   //   - captions[5]  — 5 галерейных слайдов × { label, desc }.
+  //   - motionBlocks — опциональные fixed video/animation blocks × { label, desc }.
   //   - text         — главный текстовый блок { title, body }.
   //   - inline       — врезка { title, body }.
   //
@@ -483,7 +497,13 @@
         { label: 'Final composite', desc: 'Lit with 3-point studio HDRI. Denoised in OptiX, tonemapped ACES.' }
       ],
       text:   { title: 'Pipeline fit',    body: 'Delivered as a game-ready asset with LOD0–LOD2 and a separate cinematic mesh for marketing renders. Naming and pivot conventions follow Unreal Engine 5 standards.' },
-      inline: { title: 'Texture budget',  body: 'Single 4 K texture set for hero, separate 2 K sets per LOD stage. Roughness authored in 16-bit to preserve micro-detail.' }
+      inline: { title: 'Texture budget',  body: 'Single 4 K texture set for hero, separate 2 K sets per LOD stage. Roughness authored in 16-bit to preserve micro-detail.' },
+      motionBlocks: [
+        { label: 'Seamless shell loop', desc: 'A silent in-case motion plate for the orbital shell idle cycle. Built to accept final local media without renderer changes.' },
+        { label: 'Assembly motion study', desc: 'A Vimeo-backed motion slot for client review cuts, with the same case-native play and pause control as local media.' },
+        { label: 'Detail loop control', desc: 'A compact local motion block for panel and material passes. The control state is owned by the case UI, not native browser chrome.' },
+        { label: 'Ambient service loop', desc: 'A silent Vimeo loop slot for externally hosted animation previews, lazy-loaded only when the motion block is approached.' }
+      ]
     },
     'vega-shell': {
       role: 'Personal',
@@ -702,7 +722,13 @@
         { label: 'Финальный composite', desc: 'Свет: 3-точечный studio HDRI. Denoise через OptiX, тонмап ACES.' }
       ],
       text:   { title: 'Pipeline fit',      body: 'Доставлен как game-ready ассет: LOD0–LOD2 плюс отдельный cinematic-меш для маркетинговых рендеров. Naming и pivot-конвенции — под Unreal Engine 5.' },
-      inline: { title: 'Texture budget',    body: 'Один 4K-сет для hero, отдельные 2K-сеты на каждый LOD. Roughness авторен в 16-bit — сохраняет микро-детализацию.' }
+      inline: { title: 'Texture budget',    body: 'Один 4K-сет для hero, отдельные 2K-сеты на каждый LOD. Roughness авторен в 16-bit — сохраняет микро-детализацию.' },
+      motionBlocks: [
+        { label: 'Бесшовный loop корпуса', desc: 'Тихая motion-плашка внутри кейса для idle-цикла orbital shell. Финальный локальный media-файл можно подставить без изменений renderer.' },
+        { label: 'Исследование сборки', desc: 'Vimeo-слот для клиентских review-версий, с тем же case-native play/pause control, что у локального media.' },
+        { label: 'Контроль detail-loop', desc: 'Компактный локальный motion-блок для panel и material passes. Состоянием управляет UI кейса, не native browser chrome.' },
+        { label: 'Фоновый service-loop', desc: 'Тихий Vimeo loop для externally hosted animation previews, lazy-loaded только при приближении motion-блока.' }
+      ]
     },
     'vega-shell': {
       role: 'Личный проект',

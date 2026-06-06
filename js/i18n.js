@@ -220,6 +220,7 @@
   // Структура CARDS_DATA[id].items (см. makeItems() в main.js):
   //   {
   //     media:  [{ label, desc, src, bg, format, ... } × 5],
+  //     motionBlocks: [{ label, desc, source, layout, playback, ... }] | null,
   //     text:   { title, body } | null,
   //     inline: { title, body } | null
   //   }
@@ -259,6 +260,14 @@
       }
       if (it.text && bi.text)     { it.text.title   = bi.text.title;   it.text.body   = bi.text.body; }
       if (it.inline && bi.inline) { it.inline.title = bi.inline.title; it.inline.body = bi.inline.body; }
+      if (Array.isArray(it.motionBlocks) && Array.isArray(bi.motionBlocks)) {
+        it.motionBlocks.forEach((m, i) => {
+          const bm = bi.motionBlocks[i];
+          if (!bm) return;
+          m.label = bm.label;
+          m.desc  = bm.desc;
+        });
+      }
     });
 
     // 2) Overlay для нового языка. Для DEFAULT_LANG шаг 1 уже дал EN — выходим.
@@ -287,6 +296,13 @@
       if (tr.inline && it.inline) {
         if (typeof tr.inline.title === 'string') it.inline.title = tr.inline.title;
         if (typeof tr.inline.body  === 'string') it.inline.body  = tr.inline.body;
+      }
+      if (Array.isArray(tr.motionBlocks) && Array.isArray(it.motionBlocks)) {
+        tr.motionBlocks.forEach((block, i) => {
+          if (!it.motionBlocks[i] || !block) return;
+          if (typeof block.label === 'string') it.motionBlocks[i].label = block.label;
+          if (typeof block.desc  === 'string') it.motionBlocks[i].desc  = block.desc;
+        });
       }
     });
   }
