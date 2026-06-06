@@ -28,6 +28,6 @@ Former Claude hook behavior is now explicit:
 
 - SessionStart context -> `AGENTS.md`.
 - UserPromptSubmit nudge -> `AGENTS.md` workflow rules.
-- PostToolUse verify -> `npm run codex:ship`.
+- PostToolUse verify hook -> `npm run verify`; run `npm run codex:ship` explicitly before commit/push/PR.
 
 For the original Claude command text, see `../codex-studio-rules/references/claude-original/commands/ship.md`.

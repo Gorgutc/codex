@@ -23,8 +23,8 @@ function selectTag(tag, opts) {
     if (isActive) c.setAttribute('aria-current', 'page');
     else c.removeAttribute('aria-current');
   });
-  renderGrid(tag);
   updateHeader(tag);
+  renderGrid(tag);
   // Mobile: collapse sidebar to show grid only on explicit user click, not initial load
   if (!noCollapse && window.innerWidth < 768) {
     document.body.classList.add('cards-collapsed');
@@ -96,7 +96,7 @@ function createPreviewThumb(asset, media, reducedMotion) {
   if (media.model) {
     var mv = document.createElement('model-viewer');
     mv.className = 'fa-card__thumb-mv';
-    mv.setAttribute('src', './assets/models/free/' + media.model + '.glb');
+    mv.dataset.codexPreviewSrc = './assets/models/free/' + media.model + '.glb';
     mv.setAttribute('alt', asset.title + ' — 3D preview');
     mv.setAttribute('loading', 'lazy');
     mv.setAttribute('reveal', 'auto');
@@ -195,6 +195,7 @@ function renderGrid(tag) {
     fragment.appendChild(createAssetCard(asset, reducedMotion));
   });
   grid.replaceChildren(fragment);
+  applyGameFilter();
 
   // Entrance animation
   // v0.9.3 — заменили forEach + gsap.fromTo с individual delay на один
@@ -227,6 +228,9 @@ function buildFullscreenModelSource(mv) {
   ].forEach(function(name) {
     if (mv.hasAttribute(name)) proxy.setAttribute(name, mv.getAttribute(name));
   });
+  if (!proxy.hasAttribute('src') && mv.dataset.codexPreviewSrc) {
+    proxy.setAttribute('src', mv.dataset.codexPreviewSrc);
+  }
   proxy.setAttribute('loading', 'eager');
   proxy.setAttribute('reveal', 'auto');
   proxy.setAttribute('camera-controls', '');
@@ -259,6 +263,7 @@ function openAssetPreview(thumb, triggerEl) {
     openFallbackPreview(thumb, triggerEl);
     return;
   }
+  enableModelPreview(mv);
   loadModelViewerScript()
     .then(function() {
       if (!window.customElements || !window.customElements.get('model-viewer')) {
@@ -343,6 +348,29 @@ function bindTagCards() {
    ниже остаётся как защита-страховка на случай будущих регрессий — снимает
    любые legacy listeners, идемпотентен.
    ─────────────────────────────────────────────────────────────────────────── */
+function applyGameFilter() {
+  var gs = document.getElementById('game-switch');
+  var on = !!(gs && gs.checked);
+  if (gs) gs.setAttribute('aria-checked', on ? 'true' : 'false');
+
+  var grid = document.getElementById('fa-grid');
+  if (!grid) return;
+  var cards = grid.querySelectorAll('.fa-card');
+  var visible = 0;
+  cards.forEach(function(card) {
+    var badge = card.querySelector('.fa-card__badge');
+    var isGame = badge && /game\s*asset/i.test(badge.textContent || '');
+    var show = !on || isGame;
+    card.hidden = !show;
+    if (show) visible++;
+  });
+
+  var cntEl = document.getElementById('fa-view-count');
+  if (cntEl) {
+    cntEl.textContent = visible + ' asset' + (visible !== 1 ? 's' : '') + (on ? ' (game-only)' : '');
+  }
+}
+
 function rebindGameSwitch() {
   var gs = document.getElementById('game-switch');
   if (!gs) return;
@@ -354,27 +382,7 @@ function rebindGameSwitch() {
   // Восстановим визуально все tag-cards (если main.js успел кого-то скрыть до clone).
   document.querySelectorAll('.tag-card').forEach(function(c) { c.hidden = false; });
 
-  clone.addEventListener('change', function() {
-    var on = clone.checked;
-    clone.setAttribute('aria-checked', on ? 'true' : 'false');
-    // Фильтруем текущий grid: показываем только карточки с badge='Game Asset'.
-    var grid = document.getElementById('fa-grid');
-    if (!grid) return;
-    var cards = grid.querySelectorAll('.fa-card');
-    var visible = 0;
-    cards.forEach(function(card) {
-      var badge = card.querySelector('.fa-card__badge');
-      var isGame = badge && /game\s*asset/i.test(badge.textContent || '');
-      var show = !on || isGame;
-      card.hidden = !show;
-      if (show) visible++;
-    });
-    // Обновим счётчик в header
-    var cntEl = document.getElementById('fa-view-count');
-    if (cntEl) {
-      cntEl.textContent = visible + ' asset' + (visible !== 1 ? 's' : '') + (on ? ' (game-only)' : '');
-    }
-  });
+  clone.addEventListener('change', applyGameFilter);
 }
 
 /* ─── MINI MODEL PREVIEWS — lazy-load one viewer runtime ──────────────────
@@ -392,56 +400,61 @@ function loadModelViewerScript() {
 }
 
 var modelViewerObserver = null;
-function ensureModelViewerObserver() {
-  if (window.customElements && window.customElements.get('model-viewer')) return null;
-  if (modelViewerObserver) return modelViewerObserver;
-  if (typeof IntersectionObserver === 'undefined') {
-    loadModelViewerScript();
-    return null;
+var modelViewerLoadScheduled = false;
+
+function enableModelPreview(mv) {
+  if (!mv || mv.dataset.codexPreviewEnabled === 'true') return;
+  mv.dataset.codexPreviewEnabled = 'true';
+  if (mv.dataset.codexPreviewSrc && !mv.getAttribute('src')) {
+    mv.setAttribute('src', mv.dataset.codexPreviewSrc);
   }
-  modelViewerObserver = new IntersectionObserver(function(entries) {
-    for (var i = 0; i < entries.length; i++) {
-      if (entries[i].isIntersecting) {
-        loadModelViewerScript();
-        modelViewerObserver.disconnect();
-        modelViewerObserver = null;
-        return;
+}
+
+function scheduleModelViewerLoad() {
+  if (modelViewerLoadScheduled) return;
+  modelViewerLoadScheduled = true;
+  var run = function() { loadModelViewerScript(); };
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(run, { timeout: 1600 });
+    return;
+  }
+  window.setTimeout(run, 240);
+}
+
+function ensureModelViewerObserver() {
+  if (modelViewerObserver) return modelViewerObserver;
+  if (typeof IntersectionObserver === 'undefined') return null;
+  var scroll = document.getElementById('fa-scroll');
+  var root = scroll && scroll.getClientRects && scroll.getClientRects().length ? scroll : null;
+  modelViewerObserver = new IntersectionObserver(function(entries, observer) {
+    entries.forEach(function(entry) {
+      if (!entry.isIntersecting) return;
+      enableModelPreview(entry.target);
+      observer.unobserve(entry.target);
+      if (!window.customElements || !window.customElements.get('model-viewer')) {
+        scheduleModelViewerLoad();
       }
-    }
-  }, { rootMargin: '200px' });
+    });
+  }, { root: root, rootMargin: '120px 0px' });
   return modelViewerObserver;
 }
 
 function observeModelViewers() {
-  var obs = ensureModelViewerObserver();
   var previews = Array.prototype.slice.call(document.querySelectorAll('.fa-card__thumb-mv'));
-  if (!obs || !previews.length) return;
+  if (!previews.length) return;
+  if (modelViewerObserver) {
+    modelViewerObserver.disconnect();
+    modelViewerObserver = null;
+  }
+  var obs = ensureModelViewerObserver();
+  if (!obs) {
+    previews.forEach(enableModelPreview);
+    scheduleModelViewerLoad();
+    return;
+  }
   previews.forEach(function(mv) {
     obs.observe(mv);
   });
-  requestAnimationFrame(function() {
-    for (var i = 0; i < previews.length; i++) {
-      if (isModelViewerNearView(previews[i])) {
-        loadModelViewerScript();
-        if (modelViewerObserver) {
-          modelViewerObserver.disconnect();
-          modelViewerObserver = null;
-        }
-        break;
-      }
-    }
-  });
-}
-
-function isModelViewerNearView(mv) {
-  if (!mv || !mv.getClientRects || !mv.getClientRects().length) return false;
-  var rect = mv.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return false;
-  var scroll = document.getElementById('fa-scroll');
-  var root = scroll && scroll.getClientRects && scroll.getClientRects().length
-    ? scroll.getBoundingClientRect()
-    : { top: 0, bottom: window.innerHeight || document.documentElement.clientHeight };
-  return rect.bottom >= root.top - 200 && rect.top <= root.bottom + 200;
 }
 
 /* ─── INIT ─── */

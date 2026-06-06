@@ -968,8 +968,15 @@ body::after {
   z-index: 3;
   pointer-events: none;
   background:
-    linear-gradient(180deg, transparent 48%, oklch(0 0 0 / 0.42) 100%),
-    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%);
+    linear-gradient(180deg, transparent 42%, oklch(0 0 0 / 0.48) 100%),
+    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%),
+    repeating-linear-gradient(
+      135deg,
+      transparent 0,
+      transparent 31px,
+      color-mix(in srgb, var(--color-primary) 14%, transparent) 32px,
+      transparent 33px
+    );
   opacity: 0.72;
 }
 /* Лейбл плейсхолдера — показывается всегда.
@@ -989,6 +996,9 @@ body::after {
   justify-content: center;
   z-index: 1;
   pointer-events: none;
+  opacity: 0.78;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--color-bg) 72%, transparent);
+  transform: translateY(0.18rem);
 }
 .work-card__thumb img {
   position: absolute;
@@ -1760,6 +1770,13 @@ html.cursor-fine [contenteditable="true"] {
 .site-footer__contact {
   pointer-events: auto;
   color: var(--color-text);
+}
+
+@media (max-width: 767px) {
+  .cards-scroll {
+    scroll-padding-bottom: calc(124px + var(--space-6));
+    padding-bottom: calc(124px + var(--space-6));
+  }
 }
 
 /* Collapsed (desktop rail) — скрываем весь футер, как и всё содержимое sidebar

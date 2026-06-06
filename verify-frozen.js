@@ -25,7 +25,6 @@ const { chromium } = require('playwright');
 const { AxeBuilder } = require('@axe-core/playwright');
 
 const ROOT = process.env.SITE_ROOT || __dirname;
-const PORT = parseInt(process.env.PORT || '5555', 10);
 const EXTERNAL_BASE = process.env.BASE; // если задан — не поднимаем свой сервер
 
 const MIME = {
@@ -62,7 +61,6 @@ const EXPECTED_IDS = [
   'mech-link','flex-spine','cad-strut',
 ];
 const EXPECTED_TAGS = ['all','hard-surface','product','organic','prototyping','animations','cad'];
-const EXPECTED_FA_TAGS = ['hard-surface','product','game','organic','animation','cad'];
 
 const results = [];
 const add = (suite, name, pass, detail = '') => {
@@ -155,7 +153,7 @@ function runStaticChecks() {
   // shipped JS. Frozen rule top-10. Regex ловит method/property access
   // (foo.localStorage. / foo.sessionStorage[ ) — комментарии "no localStorage"
   // не попадают, т.к. там нет точки/bracket access после слова.
-  const forbidden = /(localStorage|sessionStorage)\s*[.\[]/;
+  const forbidden = /(localStorage|sessionStorage)\s*[.[]/;
   const jsFiles = [
     'main.js',
     'animations.js',
@@ -203,20 +201,20 @@ function runStaticChecks() {
 
   // C1 — `font-size: Npx` budget per CSS file (Stage 3 whitelist mode).
   // Frozen rule говорит "px для font-size запрещено — rem / clamp() only",
-  // но репо имеет 25 pre-existing occurrences (главным образом в
+  // но репо имеет pre-existing occurrences (главным образом в
   // portfolio-case.css на крупных сложных typografic-зонах case-view).
   // Чинить — отдельный CSS refactor. Тест в whitelist-mode: actual count
   // per file не должен превышать current budget. Новые добавления → FAIL.
   //
   // Snapshot 2026-05 (i18n PR head):
-  //   shared.css         → 3 occurrences
+  //   shared.css         → 2 occurrences
   //   portfolio-case.css → 22 occurrences
   //   tokens / reset / portfolio-core / free-assets → 0
   //
   // При планомерной rem-conversion этот budget уменьшается; обновлять
   // прямо в PR который удаляет px-rules. Никогда не увеличивать.
   const PX_FONT_SIZE_BUDGET = {
-    'shared.css': 3,
+    'shared.css': 2,
     'portfolio-case.css': 22,
     'tokens.css': 0,
     'reset.css': 0,
@@ -237,7 +235,7 @@ function runStaticChecks() {
     }
   });
   add('static', 'C1-no-new-px-font-size', pxBudgetOK,
-      pxBudgetOK ? 'all CSS within budget (3+22+0×4 = 25 grandfathered)' : pxViolations.join('; '));
+      pxBudgetOK ? 'all CSS within current per-file budget' : pxViolations.join('; '));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1120,7 +1118,9 @@ async function testFreeAssets(BASE) {
       noPreview: cards.filter(card => !card.querySelector('.fa-card__thumb-mv')).length,
       autoRotate: previews.filter(mv => mv.hasAttribute('auto-rotate')).length,
       cameraControls: previews.filter(mv => mv.hasAttribute('camera-controls')).length,
-      localSrcs: previews.every(mv => /^\.\/assets\/models\/free\/.+\.glb$/.test(mv.getAttribute('src') || '')),
+      localSrcs: previews.every(mv => /^\.\/assets\/models\/free\/.+\.glb$/.test(mv.getAttribute('src') || mv.dataset.codexPreviewSrc || '')),
+      deferredSources: previews.filter(mv => mv.dataset.codexPreviewSrc && !mv.getAttribute('src')).length,
+      enabledSources: previews.filter(mv => mv.dataset.codexPreviewEnabled === 'true').length,
     };
   });
   add('fa', 'GRID-mini-3d-previews', mini3D.previews === 8 && mini3D.noPreview === 0,
@@ -1128,7 +1128,7 @@ async function testFreeAssets(BASE) {
   add('fa', 'GRID-mini-3d-auto-rotate-only', mini3D.autoRotate === mini3D.previews && mini3D.cameraControls === 0,
       `auto=${mini3D.autoRotate}, camera-controls=${mini3D.cameraControls}`);
   add('fa', 'GRID-mini-3d-local-srcs', mini3D.localSrcs,
-      'all preview GLBs load from ./assets/models/free/');
+      `all preview GLBs load from ./assets/models/free/ (enabled=${mini3D.enabledSources}, deferred=${mini3D.deferredSources})`);
   const sprintBFAAnatomy = await page.evaluate(() => {
     const tagCards = [...document.querySelectorAll('.tag-card.work-card')];
     const assetCards = [...document.querySelectorAll('.fa-card')];
@@ -1165,10 +1165,37 @@ async function testFreeAssets(BASE) {
   const bodyFilter = await page.evaluate(() => document.body.classList.contains('filter-game'));
   add('fa', 'N4-game-keeps-tag-cards', afterTags === beforeTags, `before=${beforeTags}, after=${afterTags}`);
   add('fa', 'N4-game-no-body-filter-class', !bodyFilter);
+  await page.click('#tag-product'); await page.waitForTimeout(300);
+  const gameAfterTagSwitch = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.fa-card')];
+    const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
+    return {
+      total: cards.length,
+      visible: visible.length,
+      countText: document.getElementById('fa-view-count')?.textContent || ''
+    };
+  });
+  add('fa', 'N4-game-persists-after-tag-switch',
+      gameAfterTagSwitch.total === 5 && gameAfterTagSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterTagSwitch.countText),
+      `product total=${gameAfterTagSwitch.total}, visible=${gameAfterTagSwitch.visible}, count="${gameAfterTagSwitch.countText}"`);
+  await page.click('#lang-toggle'); await page.waitForTimeout(300);
+  const gameAfterLangSwitch = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.fa-card')];
+    const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
+    return {
+      total: cards.length,
+      visible: visible.length,
+      countText: document.getElementById('fa-view-count')?.textContent || ''
+    };
+  });
+  add('fa', 'N4-game-persists-after-lang-switch',
+      gameAfterLangSwitch.total === 5 && gameAfterLangSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterLangSwitch.countText),
+      `product total=${gameAfterLangSwitch.total}, visible=${gameAfterLangSwitch.visible}, count="${gameAfterLangSwitch.countText}"`);
+  await page.click('#lang-toggle'); await page.waitForTimeout(200);
   await page.click('.game-switch__track'); await page.waitForTimeout(200);
 
   // M3 — single fetch per click (downloadAsset)
-  // Этот тест требует acceptDownloads — пропустим в основном regression, тестируется в downloads-test
+  // Этот тест требует acceptDownloads; основной browser smoke покрывает coherent download fallback contract.
 
   // THEME TOGGLE
   await page.click('#theme-toggle'); await page.waitForTimeout(200);
