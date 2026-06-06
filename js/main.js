@@ -1462,7 +1462,7 @@
         try {
           var baseUrl = window.location.pathname + window.location.search;
           history.replaceState(null, '', baseUrl + desiredHash);
-        } catch (e) { /* file:// или строгий sandbox — игнорируем */ }
+        } catch (_) { /* file:// или строгий sandbox — игнорируем */ }
       }
     }
 
@@ -2107,7 +2107,7 @@
   }
 
   /* ══════════════════════════════════
-     v0.11 — build3D(id) — ленивая загрузка <model-viewer>
+     v0.11 — build3D(id) — self-hosted Three-first viewer + lazy <model-viewer> fallback
      v0.5 — model-data.js теперь тоже lazy-loaded (issue #1: snizhayet LCP с 9.9s до ~2-3s).
             Скрипт инжектится при первом 3D-клике, не на page load.
   ══════════════════════════════════ */
@@ -2119,7 +2119,7 @@
   var threeViewerLoading = null;
   function loadModelData() {
     if (modelDataLoading) return modelDataLoading;
-    modelDataLoading = new Promise(function (resolve, reject) {
+    modelDataLoading = new Promise(function (resolve) {
       // если уже загружен (повторный openCase 3D) — резолвим сразу
       if (window.CODEX_LOCAL_GLB) {
         resolve();
@@ -3250,7 +3250,7 @@
 
   /* ══════════════════════════════════
      v0.10 — Tab switching (2D ↔ Blueprints)
-     v0.11 — + 3D режим (Google <model-viewer>)
+     v0.11 — + 3D режим (Three-first, lazy <model-viewer> fallback)
   ══════════════════════════════════ */
   function setViz(mode) {
     if (mode !== '2d' && mode !== '3d' && mode !== 'blueprints') return;
@@ -3373,7 +3373,7 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 0);
   }
   function bpFileSuffix(id, pageIdx, total) {
-    var safe = String(id).replace(/[^a-z0-9\-]+/gi, '-').toLowerCase();
+    var safe = String(id).replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
     return total > 1 ? (safe + '-p' + (pageIdx + 1)) : safe;
   }
   function exportBpPage(pageIdx) {
@@ -3754,7 +3754,7 @@
           if (!done) { done = true; fallbackCopy(url); showCopied(); }
         });
         return;
-      } catch (e) { /* fall through */ }
+      } catch (_) { /* fall through */ }
     }
     fallbackCopy(url);
     showCopied();
@@ -3773,7 +3773,7 @@
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-    } catch (e) { /* ручного редактора не активируем, тихо игнорируем */ }
+    } catch (_) { /* ручного редактора не активируем, тихо игнорируем */ }
   }
 
   var shareDesktop = document.getElementById('case-share-desktop');
@@ -4915,7 +4915,7 @@
 
   /* Магнитные селекторы — уже существующие интерактивные элементы.
      v0.13.1 — две группы силы магнита:
-       .work-card — 0.07 (было 0.35, -80%) — карточки большие и сильно ездили
+      .work-card — 0.052 (было 0.35, -85.1%) — карточки большие и сильно ездили
        остальные — 0.18 (было 0.35, -≈50%) — кнопки/теги достаточно
        отзывчивые по-прежнему, но мягче. */
   // v0.14.1 [3] — добавлен .top-pill--contact (кнопка Contact Telegram).
@@ -5000,7 +5000,7 @@
     var cy = rect.top  + rect.height / 2;
     var dx = e.clientX - cx;
     var dy = e.clientY - cy;
-    var pull = getPullFor(el);  // 0.07 для карточек, 0.18 для прочего
+    var pull = getPullFor(el);  // 0.052 для карточек, 0.18 для прочего
     gsap.to(el, {
       x: dx * pull,
       y: dy * pull,

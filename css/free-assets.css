@@ -193,8 +193,15 @@
   z-index: 3;
   pointer-events: none;
   background:
-    linear-gradient(180deg, transparent 46%, oklch(0 0 0 / 0.44) 100%),
-    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%);
+    linear-gradient(180deg, transparent 42%, oklch(0 0 0 / 0.48) 100%),
+    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%),
+    repeating-linear-gradient(
+      135deg,
+      transparent 0,
+      transparent 31px,
+      color-mix(in srgb, var(--color-primary) 14%, transparent) 32px,
+      transparent 33px
+    );
   opacity: 0.72;
 }
 .fa-card__preview-btn {
@@ -222,6 +229,18 @@
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   z-index: 1; pointer-events: none;
+  opacity: 0.78;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--color-bg) 72%, transparent);
+  transform: translateY(0.18rem);
+}
+.fa-card__thumb[data-preview-state="3d"]::after {
+  content: attr(data-label) " / preview";
+}
+.fa-card__thumb[data-preview-state="poster"]::after {
+  content: attr(data-label) " / poster";
+}
+.fa-card__thumb[data-preview-state="fallback"]::after {
+  content: attr(data-label) " / pending";
 }
 .fa-card__thumb.is-model-ready::after { opacity: 0; }
 .fa-card__thumb img {
@@ -251,6 +270,9 @@
   --progress-bar-color: transparent;
   --progress-bar-height: 0;
   --progress-mask: transparent;
+}
+.fa-card__thumb-mv:not([data-codex-preview-enabled="true"]) {
+  visibility: hidden;
 }
 .fa-card__thumb-mv.is-ready { opacity: 1; }
 .fa-card__thumb-mv--failed { display: none; }
@@ -580,8 +602,15 @@
   z-index: 3;
   pointer-events: none;
   background:
-    linear-gradient(180deg, transparent 48%, oklch(0 0 0 / 0.42) 100%),
-    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%);
+    linear-gradient(180deg, transparent 42%, oklch(0 0 0 / 0.48) 100%),
+    linear-gradient(135deg, var(--color-primary-highlight), transparent 58%),
+    repeating-linear-gradient(
+      135deg,
+      transparent 0,
+      transparent 31px,
+      color-mix(in srgb, var(--color-primary) 14%, transparent) 32px,
+      transparent 33px
+    );
   opacity: 0.72;
 }
 .tag-card__thumb::after {
@@ -593,6 +622,9 @@
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   z-index: 1; pointer-events: none;
+  opacity: 0.78;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--color-bg) 72%, transparent);
+  transform: translateY(0.18rem);
 }
 .tag-card__thumb img {
   position: absolute; inset: 0;

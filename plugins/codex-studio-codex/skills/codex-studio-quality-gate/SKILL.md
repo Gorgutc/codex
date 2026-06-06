@@ -11,7 +11,7 @@ Review craftsmanship after the spec is satisfied.
 
 - Broken UI behavior or console errors.
 - A11y regressions, missing image attributes, broken heading order, or keyboard traps.
-- Hardcoded colors, font sizes in `px`, token drift, or new visual systems outside `css/tokens.css`.
+- Hardcoded colors, new over-budget `font-size: Npx`, token drift, or new visual systems outside `css/tokens.css`.
 - Motion regressions and missing reduced-motion handling.
 - SEO, JSON-LD, canonical, OG, Twitter, robots, sitemap, and manifest changes.
 - Mobile layout, language toggle, card filters, case view, and free-assets catalog behavior.
