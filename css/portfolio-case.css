@@ -547,6 +547,100 @@
   max-height: none;
 }
 
+.case-row--motion-wide {
+  flex-direction: column;
+  gap: 0;
+}
+.case-row--motion-halves > .case-motion--half {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.case-motion__media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: clamp(420px, 58vh, 960px);
+}
+.case-motion--half .case-motion__media {
+  max-height: none;
+}
+.case-motion__video {
+  z-index: 3;
+}
+.case-motion__poster,
+.case-motion__vimeo,
+.case-motion__iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.case-motion__poster {
+  z-index: 2;
+  background-position: center;
+  background-size: cover;
+  pointer-events: none;
+}
+.case-motion__vimeo {
+  z-index: 3;
+  background: transparent;
+}
+.case-motion__iframe {
+  border: 0;
+  background: transparent;
+}
+.case-motion__control {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-tag);
+  background: color-mix(in srgb, var(--color-surface-2) 78%, transparent);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  transition:
+    background 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+.case-motion__control:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .case-motion__control:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-highlight);
+  }
+}
+.case-motion__control:active {
+  transform: scale(0.96);
+}
+.case-motion__control-dot {
+  width: 0.58em;
+  height: 0.58em;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+}
+.case-motion[data-motion-playing="false"] .case-motion__control-dot {
+  background: transparent;
+  box-shadow: 0 0 0 1px currentColor inset;
+}
+
 /* TEXT BLOCK (full-width) — на всю ширину блока кейса, с border-top/bottom.
    Идёт в начале каждого кейса — intro тон. */
 .case-item--text {
@@ -708,7 +802,8 @@
    Закрытое состояние только при no-preference, reduced видит сразу. */
 @media (prefers-reduced-motion: no-preference) {
   .case-item__media img.is-clip-reveal-case,
-  .case-item__media video.is-clip-reveal-case {
+  .case-item__media video.is-clip-reveal-case,
+  .case-motion__poster.is-clip-reveal-case {
     clip-path: inset(0 100% 0 0);
   }
 }

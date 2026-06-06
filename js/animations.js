@@ -336,7 +336,7 @@ if (typeof SplitText !== 'undefined') {
        onComplete — clearProps + снятие класса, картинка чистая, hover на
        case-item не ломается (у case-item__img нет hover-scale, но
        защита на будущее). */
-    var media = caseScroll.querySelectorAll('.case-item__media img, .case-item__media video');
+    var media = caseScroll.querySelectorAll('.case-item__media img, .case-item__media video, .case-motion__poster');
     media.forEach(function (el) { el.classList.add('is-clip-reveal-case'); });
     media.forEach(function (el) {
       gsap.to(el, {

@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════
    MAIN JS — Codex Studio (v0.7.0)
    ─────────────────────────────────────────────────────────────────────
-   - CARDS_DATA: каждый кейс содержит 5 медиа-блоков + 1 текст-блок.
+   - CARDS_DATA: каждый кейс содержит 5 базовых медиа-блоков + текст; отдельные
+     кейсы могут добавлять fixed motionBlocks после shuffled gallery.
      Базовая раскладка: 1 wide, 2 tall, 1 wide, 1 tall, 1 text.
      buildItems(id) детерминированно перемешивает этот массив через
      seeded shuffle (Mulberry32) — порядок уникален для каждого кейса,
@@ -223,13 +224,13 @@
      Файлы иллюстраций лежат в ./assets/cases/<id>/01..05.svg.
      Замени файлы с тем же именем — и картинки обновятся.
 
-     Для видео-блока: добавь item { type: 'video', format: 'wide'|'tall',
-       src: '...mp4', poster: '...jpg', enabled: true/false, label, desc }
+     Для fixed motion-секции: добавь cfg.motionBlocks[] с source local|vimeo,
+       layout wide|half, playback ambient|controlled, poster, label, desc.
   ══════════════════════════════════════════════════════════════════ */
 
   /* ────────────────────────────────
      Утилита-генератор 6-блочной схемы для каждого кейса.
-     cfg = { id, bg1, bg2, palette: [5 bg-градиентов], captions: [5×{label,desc}], text: {title, body} }
+     cfg = { id, palette: [5 bg], captions: [5×{label,desc}], text, inline, motionBlocks? }
   ──────────────────────────────── */
   function makeItems(cfg) {
     // v0.8 — возвращаем { media: [5], text, inline }.
@@ -253,7 +254,8 @@
     return {
       media:  media,
       text:   cfg.text   || null,
-      inline: cfg.inline || null
+      inline: cfg.inline || null,
+      motionBlocks: cfg.motionBlocks || null
     };
   }
 
@@ -285,7 +287,47 @@
       inline: {
         title: 'Texture budget',
         body:  'Single 4 K texture set for hero, separate 2 K sets per LOD stage. Roughness authored in 16-bit to preserve micro-detail.'
-      }
+      },
+      motionBlocks: [
+        {
+          source: 'local',
+          layout: 'wide',
+          playback: 'ambient',
+          src: './assets/cases/orbital-mk-ii/orbital-shell-idle.webm',
+          poster: './assets/cases/orbital-mk-ii/01.svg',
+          label: 'Seamless shell loop',
+          desc: 'A silent in-case motion plate for the orbital shell idle cycle. Built to accept final local media without renderer changes.'
+        },
+        {
+          source: 'vimeo',
+          layout: 'wide',
+          playback: 'controlled',
+          vimeoId: '76979871',
+          poster: './assets/cases/orbital-mk-ii/04.svg',
+          title: 'Orbital Mk.II assembly loop',
+          label: 'Assembly motion study',
+          desc: 'A Vimeo-backed motion slot for client review cuts, with the same case-native play and pause control as local media.'
+        },
+        {
+          source: 'local',
+          layout: 'half',
+          playback: 'controlled',
+          src: './assets/cases/orbital-mk-ii/orbital-detail-loop.webm',
+          poster: './assets/cases/orbital-mk-ii/02.png',
+          label: 'Detail loop control',
+          desc: 'A compact local motion block for panel and material passes. The control state is owned by the case UI, not native browser chrome.'
+        },
+        {
+          source: 'vimeo',
+          layout: 'half',
+          playback: 'ambient',
+          vimeoId: '76979871',
+          poster: './assets/cases/orbital-mk-ii/05.svg',
+          title: 'Orbital Mk.II ambient loop',
+          label: 'Ambient service loop',
+          desc: 'A silent Vimeo loop slot for externally hosted animation previews, lazy-loaded only when the motion block is approached.'
+        }
+      ]
     }) },
 
     'vega-shell': { role: 'Personal', tools: ['Blender', 'ZBrush', 'Substance Painter'], modelSrc: './assets/models/experimental/humanoid-2.glb', modelEnvironment: 'studio', modelExposure: 1.05, modelStats: { triangles: 'Meshopt compressed', vertices: 'GLB embedded', materials: 1, textures: '2 KTX2', software: 'Drive test asset' }, items: makeItems({
@@ -739,6 +781,9 @@
   // и дальше использует local `CARDS_DATA` (тот же объект), i18n.js пишет
   // через window.CARDS_DATA[id].* — обе ссылки указывают на одну структуру.
   window.CARDS_DATA = CARDS_DATA;
+  if (window.I18N && typeof window.I18N.applyLang === 'function' && typeof window.I18N.getLang === 'function') {
+    window.I18N.applyLang(window.I18N.getLang());
+  }
 
   /* ══════════════════════════════════════════════════════════════════
      Seeded shuffle (Mulberry32) — детерминированный порядок на каждый кейс.
@@ -815,6 +860,7 @@
   var currentLightDdDocClick = null;       // v0.7.3 — global click listener для close-on-outside (cleanup в destroy3D)
   var currentLightDdDocKey   = null;       // v0.7.3 — global keydown listener для Escape (cleanup в destroy3D)
   var pendingScrollReset = false;          // v0.10.2 — отложенный сброс scrollTop на 0
+  var caseMotionObserver = null;           // lazy local/Vimeo motion blocks inside 2D case view
   // v0.8.2: currentCategory удалён — переменная только писалась внутри
   // applyFilters и сразу же шла в evt.detail. Поле detail.category
   // оставлено для обратной совместимости публичного API codex:filter.
@@ -1059,6 +1105,54 @@
      (через seeded shuffle).
   ══════════════════════════════════ */
   /* HTML одного media-item (wide / tall) — общий рендер */
+  function escapeHTML(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  function safeCaseAssetPath(value) {
+    var raw = String(value || '').trim();
+    return /^\.\/assets\/[a-z0-9._~/-]+$/i.test(raw) ? raw : '';
+  }
+  function safeVimeoId(value) {
+    var raw = String(value || '').trim();
+    return /^[0-9]+$/.test(raw) ? raw : '';
+  }
+  function safeVimeoHash(value) {
+    var raw = String(value || '').trim();
+    return /^[a-z0-9]+$/i.test(raw) ? raw : '';
+  }
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function motionText(key, fallback) {
+    var i18n = window.I18N;
+    var value = i18n && typeof i18n.t === 'function' ? i18n.t('motion.' + key) : '';
+    return value && value !== ('motion.' + key) ? value : fallback;
+  }
+  function vimeoEmbedSrc(item, autoplay) {
+    var id = safeVimeoId(item.vimeoId);
+    if (!id) return '';
+    var params = [
+      'dnt=1',
+      'muted=1',
+      'loop=1',
+      'autopause=0',
+      'playsinline=1',
+      'title=0',
+      'byline=0',
+      'portrait=0'
+    ];
+    var hash = safeVimeoHash(item.vimeoHash);
+    if (hash) params.push('h=' + encodeURIComponent(hash));
+    if (autoplay) params.push('autoplay=1');
+    if (item.playback !== 'controlled') params.push('background=1');
+    return 'https://player.vimeo.com/video/' + id + '?' + params.join('&');
+  }
+
   function mediaItemHTML(item) {
     var isVideo = item.type === 'video';
     var format  = item.format === 'tall' ? 'tall' : 'wide';
@@ -1094,6 +1188,197 @@
     h +=   '</div>';
     h += '</article>';
     return h;
+  }
+
+  function motionControlHTML(isPlaying) {
+    var label = isPlaying ? motionText('pause', 'PAUSE') : motionText('play', 'PLAY');
+    var aria = isPlaying ? motionText('pauseAria', 'Pause motion loop') : motionText('playAria', 'Play motion loop');
+    return '<button type="button" class="case-motion__control" data-motion-toggle aria-pressed="' + (isPlaying ? 'true' : 'false') + '" aria-label="' + escapeHTML(aria) + '">' +
+      '<span class="case-motion__control-dot" aria-hidden="true"></span>' +
+      '<span class="case-motion__control-label">' + escapeHTML(label) + '</span>' +
+    '</button>';
+  }
+
+  function motionItemHTML(item) {
+    var source = item.source === 'vimeo' ? 'vimeo' : 'local';
+    var layout = item.layout === 'half' ? 'half' : 'wide';
+    var playback = item.playback === 'controlled' ? 'controlled' : 'ambient';
+    var controlled = playback === 'controlled';
+    var autoPlay = !prefersReducedMotion();
+    var poster = safeCaseAssetPath(item.poster);
+    var label = escapeHTML(item.label || '');
+    var desc = escapeHTML(item.desc || '');
+    var title = escapeHTML(item.title || item.label || 'Orbital motion preview');
+    var h = '<article class="case-item case-motion case-motion--' + layout + '" data-motion-source="' + source + '" data-motion-playback="' + playback + '" data-motion-layout="' + layout + '" data-motion-autoplay="' + (autoPlay ? 'true' : 'false') + '">';
+    h += '<div class="case-item__media case-motion__media">';
+    if (poster) {
+      h += '<div class="case-motion__poster" style="background-image:url(&quot;' + escapeHTML(poster) + '&quot;)" aria-hidden="true"></div>';
+    }
+    if (source === 'local') {
+      var src = safeCaseAssetPath(item.src);
+      h += '<video class="case-motion__video case-item__video" muted loop playsinline preload="none" ';
+      if (autoPlay) h += 'autoplay ';
+      if (poster) h += 'poster="' + escapeHTML(poster) + '" ';
+      if (src) h += 'data-motion-src="' + escapeHTML(src) + '" ';
+      h += 'aria-label="' + title + '"></video>';
+    } else {
+      var embedSrc = vimeoEmbedSrc({ vimeoId: item.vimeoId, vimeoHash: item.vimeoHash, playback: playback }, autoPlay);
+      h += '<div class="case-motion__vimeo" data-vimeo-src="' + escapeHTML(embedSrc) + '" data-vimeo-title="' + title + '"></div>';
+    }
+    if (controlled) h += motionControlHTML(autoPlay);
+    h += '<span class="case-item__placeholder" aria-hidden="true">' + label + '</span>';
+    h += '</div>';
+    h += '<div class="case-item__caption">';
+    h += '<p class="case-item__caption-label">' + label + '</p>';
+    h += '<p class="case-item__caption-desc">' + desc + '</p>';
+    h += '</div>';
+    h += '</article>';
+    return h;
+  }
+
+  function rowMotionWide(item) {
+    return '<div class="case-row case-row--motion case-row--motion-wide">' + motionItemHTML(item) + '</div>';
+  }
+  function rowMotionHalves(items) {
+    var h = '<div class="case-row case-row--motion case-row--motion-halves">';
+    items.forEach(function (item) { h += motionItemHTML(item); });
+    h += '</div>';
+    return h;
+  }
+  function motionRowsHTML(blocks) {
+    if (!Array.isArray(blocks) || !blocks.length) return '';
+    var html = '';
+    var halves = [];
+    function flushHalves() {
+      if (!halves.length) return;
+      html += rowMotionHalves(halves);
+      halves = [];
+    }
+    blocks.filter(function (block) { return block && block.enabled !== false; }).forEach(function (block) {
+      if (block.layout === 'half') {
+        halves.push(block);
+        if (halves.length === 2) flushHalves();
+      } else {
+        flushHalves();
+        html += rowMotionWide(block);
+      }
+    });
+    flushHalves();
+    return html;
+  }
+
+  function setMotionControlState(btn, playing) {
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    btn.setAttribute('aria-label', playing ? motionText('pauseAria', 'Pause motion loop') : motionText('playAria', 'Play motion loop'));
+    var label = btn.querySelector('.case-motion__control-label');
+    if (label) label.textContent = playing ? motionText('pause', 'PAUSE') : motionText('play', 'PLAY');
+  }
+  function ensureLocalMotionVideo(card) {
+    var video = card && card.querySelector('video.case-motion__video');
+    if (!video) return null;
+    if (!video.getAttribute('src')) {
+      var src = video.getAttribute('data-motion-src');
+      if (src) {
+        video.setAttribute('src', src);
+        try { video.load(); } catch (_) { /* no-op */ }
+      }
+    }
+    return video;
+  }
+  function ensureVimeoMotionFrame(card) {
+    var shell = card && card.querySelector('.case-motion__vimeo');
+    if (!shell) return null;
+    var existing = shell.querySelector('iframe');
+    if (existing) return existing;
+    var src = shell.getAttribute('data-vimeo-src') || '';
+    if (!/^https:\/\/player\.vimeo\.com\/video\/[0-9]+\?/.test(src)) return null;
+    if (!/[?&]autoplay=1(?:&|$)/.test(src)) src += '&autoplay=1';
+    var iframe = document.createElement('iframe');
+    iframe.className = 'case-motion__iframe';
+    iframe.title = shell.getAttribute('data-vimeo-title') || 'Orbital motion preview';
+    iframe.loading = 'lazy';
+    iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+    iframe.allowFullscreen = true;
+    iframe.tabIndex = -1;
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+    iframe.src = src;
+    shell.appendChild(iframe);
+    return iframe;
+  }
+  function unloadVimeoMotionFrame(card) {
+    var iframe = card && card.querySelector('.case-motion__vimeo iframe');
+    if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+  }
+  function setMotionPlaying(card, playing) {
+    if (!card) return;
+    var source = card.getAttribute('data-motion-source');
+    if (source === 'local') {
+      var video = playing ? ensureLocalMotionVideo(card) : card.querySelector('video.case-motion__video');
+      if (video) {
+        if (playing) {
+          var playPromise = video.play && video.play();
+          if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(function () {});
+        } else {
+          try { video.pause(); } catch (_) { /* no-op */ }
+        }
+      }
+    } else if (source === 'vimeo') {
+      if (playing) ensureVimeoMotionFrame(card);
+      else unloadVimeoMotionFrame(card);
+    }
+    var btn = card.querySelector('[data-motion-toggle]');
+    if (btn) setMotionControlState(btn, playing);
+    card.setAttribute('data-motion-playing', playing ? 'true' : 'false');
+  }
+  function initCaseMotionBlocks() {
+    if (caseMotionObserver && typeof caseMotionObserver.disconnect === 'function') {
+      caseMotionObserver.disconnect();
+    }
+    caseMotionObserver = null;
+    var cards = Array.prototype.slice.call(caseTrack ? caseTrack.querySelectorAll('.case-motion') : []);
+    if (!cards.length) return;
+    var reduced = prefersReducedMotion();
+
+    cards.forEach(function (card) {
+      var shouldAuto = !reduced && card.getAttribute('data-motion-autoplay') === 'true';
+      card.setAttribute('data-motion-playing', shouldAuto ? 'true' : 'false');
+      var btn = card.querySelector('[data-motion-toggle]');
+      if (btn) {
+        setMotionControlState(btn, shouldAuto);
+        if (btn.getAttribute('data-motion-bound') !== 'true') {
+          btn.setAttribute('data-motion-bound', 'true');
+          btn.addEventListener('click', function () {
+            var next = card.getAttribute('data-motion-playing') !== 'true';
+            setMotionPlaying(card, next);
+          });
+        }
+      }
+    });
+
+    if (reduced) return;
+    if ('IntersectionObserver' in window) {
+      caseMotionObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          setMotionPlaying(entry.target, true);
+          caseMotionObserver.unobserve(entry.target);
+        });
+      }, { root: caseScroll || null, rootMargin: '280px 0px', threshold: 0.01 });
+      cards.forEach(function (card) { caseMotionObserver.observe(card); });
+    } else {
+      cards.forEach(function (card) { setMotionPlaying(card, true); });
+    }
+  }
+  function stopCaseMotionBlocks() {
+    if (caseMotionObserver && typeof caseMotionObserver.disconnect === 'function') {
+      caseMotionObserver.disconnect();
+    }
+    caseMotionObserver = null;
+    Array.prototype.slice.call(caseTrack ? caseTrack.querySelectorAll('.case-motion') : []).forEach(function (card) {
+      setMotionPlaying(card, false);
+    });
   }
 
   /* Full-width text block (intro) — v0.9: eyebrow + meta (role / year / tools)
@@ -1263,8 +1548,10 @@
       else if (row.kind === 'tall-2') html += rowTall2(row.a, row.b);
       else if (row.kind === 'tall-text') html += rowTallText(row.a, items.inline);
     });
+    html += motionRowsHTML(items.motionBlocks);
 
     caseTrack.innerHTML = html;
+    initCaseMotionBlocks();
   }
 
   /* ══════════════════════════════════
@@ -3265,6 +3552,7 @@
       if (caseBlueprints) caseBlueprints.hidden = true;
       if (case3d)         case3d.hidden         = true;
       if (caseScroll)     caseScroll.hidden     = false;
+      initCaseMotionBlocks();
       // v0.10.2 — если кейс менялся пока был Blueprints/3D — сбрасываем позицию теперь
       if (pendingScrollReset && caseScroll) {
         caseScroll.scrollTop = 0;
@@ -3272,6 +3560,7 @@
         pendingScrollReset = false;
       }
     } else if (mode === 'blueprints') {
+      stopCaseMotionBlocks();
       if (caseScroll)     caseScroll.hidden     = true;
       if (case3d)         case3d.hidden         = true;
       if (caseBlueprints) caseBlueprints.hidden = false;
@@ -3279,6 +3568,7 @@
         renderBlueprints(currentCaseId);
       }
     } else { // '3d'
+      stopCaseMotionBlocks();
       if (caseScroll)     caseScroll.hidden     = true;
       if (caseBlueprints) caseBlueprints.hidden = true;
       if (case3d)         case3d.hidden         = false;
