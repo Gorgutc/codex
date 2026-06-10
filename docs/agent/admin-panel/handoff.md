@@ -20,7 +20,7 @@
 | 0 | Окружение, ТЗ, ресерч, handoff | готово (PR #36, draft) |
 | A | Двойная обвязка Claude + Codex (зеркало `.claude`, sync-гейт) | готово (ветка `codex/admin-ia-dual-harness`, draft PR) |
 | B | Извлечение контента в `content/*.json` + генератор + golden-тест | готово (ветка `codex/admin-ib-content-layer`, draft PR) |
-| C | CI-конвейер публикации (GitHub Action) + sync-гейт | не начата |
+| C | CI-конвейер публикации (GitHub Action) + sync-гейт | готово (ветка `codex/admin-ic-publish-pipeline`, draft PR) |
 | D | Админка MVP: вход GitHub OAuth, тексты RU/EN, мета | не начата |
 | E | Медиа: фото, видео (`.webm`/Vimeo), GLB, OG | не начата |
 | F | Порядок блоков (drag-and-drop), вкл/выкл кейсов и категорий | не начата |
@@ -176,3 +176,54 @@ parity, content:check, golden 2/2, verify-frozen 128/128); `test:visual`
 Следующий шаг: итерация C — `.github/workflows/content-publish.yml`
 (регенерация + verify + commit-back при правке `content/**`, авто-revert при
 FAIL, защита от петли) + JSON-schema валидация `content/`.
+
+### 2026-06-10 — Сессия 1, продолжение: итерация C (конвейер публикации)
+
+Сделано (ветка `codex/admin-ic-publish-pipeline`, поверх итерации B):
+
+- `.github/workflows/content-publish.yml`: push в `main` по `content/**` →
+  `npm ci` + chromium → регенерация → `npm run verify` (0 FAIL) →
+  пересъёмка golden-фикстур → bot-коммит
+  `chore(content): regenerate ... [content-publish]` с js/html/фикстурами.
+  При падении генератора ИЛИ verify — авто-revert контент-коммитов
+  (диапазон от последнего bot-якоря `[content-publish*]`, только коммиты,
+  трогающие `content/`; newest-first, merge через `-m 1`) с маркером
+  `[content-publish-revert]`. Защита от петли: paths-фильтр + guard по
+  автору-боту + push через GITHUB_TOKEN не триггерит workflows.
+  Rebase fail-fast (никакого mid-rebase состояния), concurrency
+  сериализован, actions запинены на SHA.
+- `validateContent()` в генераторе (оба режима): уникальность/биекция id и
+  `cardOrder`, обязательные поля, EN+RU паритет, существование медиа-файлов,
+  enum для `imgLoading`/`imgFetchPriority`, фильтры с key+label,
+  free-assets поля, traversal-guard (все пути строго внутрь `./assets/`,
+  без `..`/`\`/абсолютных) — все нарушения списком, exit 1.
+- Негативный самотест `tests/quality/content-validate.test.mjs`
+  (`npm run test:content-validate`, включён в `quality:deep`).
+- EOL-устойчивость `--check`/`--write` (CRLF-checkout не даёт ложных диффов
+  и churn; проверено симуляцией CRLF).
+- `docs/agent/verification.md`: новые гейты задокументированы.
+
+Верификация: `codex:ship` зелёный (verify-frozen 128/128), `quality:fast`,
+`test:golden` 2/2, `test:content-validate`, prettier по новым файлам.
+Adversarial-ревью: блокеров нет; 3 major исправлены (burst-push revert,
+rebase fail-fast, пробелы валидатора), плюс автопересъёмка golden в CI и
+пин actions на SHA.
+
+Контракт конвейера для итерации D (админка):
+
+- Админка коммитит в `main` ТОЛЬКО `content/**`; рантайм эти JSON не читает,
+  сайт меняется после bot-коммита (Netlify деплоит итог, ~2–3 мин).
+- Пути медиа — строго `./assets/...`, иначе валидатор завернёт и CI
+  откатит коммит. Админке стоит гонять те же правила до коммита:
+  `CONTENT_DIR=<черновик> node scripts/generate-content.mjs --check`.
+- Golden-фикстуры пересоберёт CI; вручную `capture-content-golden.mjs`
+  гонять только при намеренном обновлении эталона.
+- Известные ниши (приемлемо): CRLF внутри строки контента невидим для
+  `--check` только в HTML-регионе; `tests/**/*.mjs` не покрыты eslint
+  (конвенция репо); смоук free-assets preloader (`quality:deep`) флачит
+  по таймингу на этой машине и на чистом дереве.
+
+Следующий шаг: итерация D — админка MVP (`admin/`, GitHub OAuth через
+Netlify Function, тексты RU/EN, мета; см. tz.md и 12 UX-принципов в
+research.md). Владелец должен будет создать GitHub OAuth App (инструкцию
+дать в журнале итерации D).

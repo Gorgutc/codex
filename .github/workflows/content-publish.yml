@@ -1,0 +1,187 @@
+# Content publish pipeline (iteration C).
+#
+# The admin panel (iteration D) commits edits under content/** straight to
+# main. Runtime never reads content/*.json, so such a commit does not change
+# the rendered site by itself. This workflow regenerates the shipped files
+# (js/cards-data.js, js/fa-data.js, js/i18n-data.js, the index.html GEN
+# region), verifies the result, and either commits the regenerated files back
+# to main (Netlify then deploys the final state) or reverts the triggering
+# commits so main never carries content the site cannot render.
+#
+# test:golden is intentionally NOT run here: golden fixtures pin the CURRENT
+# content, so after a legitimate content edit they are expected to differ.
+name: content-publish
+
+on:
+  push:
+    branches: [main]
+    paths: ['content/**']
+
+# Serialize runs: a second content push waits for the previous publish or
+# revert to finish instead of racing it.
+concurrency:
+  group: content-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the revert path walks the pushed commit range and the
+      # publish path pushes from this clone.
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      # Loop guard, defense in depth. The regen commit touches only js/html,
+      # so the content/** paths filter already prevents retriggering; the
+      # revert commit DOES touch content/**, and this guard stops that run.
+      - name: Skip own bot commits
+        id: guard
+        run: |
+          author="$(git log -1 --pretty=%an)"
+          subject="$(git log -1 --pretty=%s)"
+          skip=false
+          if [ "$author" = "github-actions[bot]" ]; then skip=true; fi
+          case "$subject" in *'[content-publish'*) skip=true ;; esac
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          if [ "$skip" = "true" ]; then echo "Head commit comes from this workflow - nothing to do."; fi
+
+      - name: Set up Node
+        if: steps.guard.outputs.skip != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.guard.outputs.skip != 'true'
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        if: steps.guard.outputs.skip != 'true'
+        run: npx playwright install --with-deps chromium
+
+      # continue-on-error so a validation failure (generator exits 1) lands in
+      # the revert path below instead of leaving broken content on main.
+      - name: Regenerate site from content
+        if: steps.guard.outputs.skip != 'true'
+        id: regen
+        continue-on-error: true
+        run: node scripts/generate-content.mjs --write
+
+      - name: Detect generated diff
+        if: steps.guard.outputs.skip != 'true' && steps.regen.outcome == 'success'
+        id: diff
+        run: |
+          if [ -n "$(git status --porcelain -- js/cards-data.js js/fa-data.js js/i18n-data.js index.html)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Generated targets already match content/ - nothing to publish."
+          fi
+
+      - name: Verify regenerated site
+        if: steps.guard.outputs.skip != 'true' && steps.diff.outputs.changed == 'true'
+        id: verify
+        continue-on-error: true
+        run: npm run verify
+
+      # Golden fixtures pin the published content, so recapture them from the
+      # regenerated site before committing: local `npm run test:golden` (part
+      # of codex:ship) then stays green after every published content change.
+      # The capture script boots its own static server and uses the Chromium
+      # installed above; it is deterministic (?lang=en, reduced motion, all
+      # external requests aborted, no timestamps).
+      - name: Recapture golden fixtures
+        if: steps.guard.outputs.skip != 'true' && steps.diff.outputs.changed == 'true' && steps.verify.outcome == 'success'
+        run: node scripts/capture-content-golden.mjs
+
+      - name: Commit and push regenerated files
+        if: steps.guard.outputs.skip != 'true' && steps.diff.outputs.changed == 'true' && steps.verify.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/cards-data.js js/fa-data.js js/i18n-data.js index.html tests/quality/fixtures/
+          git commit -m "chore(content): regenerate site from content/ [content-publish]"
+          # If main moved while we were verifying, replay our single regen
+          # commit on top of it. Fail fast on any rebase problem: never leave
+          # mid-rebase state behind, just retry the whole regeneration.
+          if ! git pull --rebase origin main; then
+            git rebase --abort || true
+            echo "::error::main moved concurrently and rebasing the regen commit onto it failed. Nothing was pushed; re-run this workflow to retry the regeneration against the new main."
+            exit 1
+          fi
+          git push origin HEAD:main
+
+      # Verify (or the generator itself) failed: undo the triggering commits.
+      # Production stayed consistent the whole time - the content-only push
+      # never affected the rendered site - so reverting restores the invariant
+      # "repository = deployed site" without touching production.
+      - name: Revert triggering commits on failure
+        if: steps.regen.outcome == 'failure' || steps.verify.outcome == 'failure'
+        id: revert
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Drop the failed regeneration output before reverting.
+          git checkout -- .
+          # Burst pushes: the concurrency queue keeps only the LATEST pending
+          # run, so an intermediate bad push may never get an event of its
+          # own and would escape a BEFORE..AFTER revert. Anchor instead on the
+          # last commit this workflow made — a regen ([content-publish]) or a
+          # revert ([content-publish-revert]) — and revert every commit since
+          # that touches content/. The pathspec filter guarantees unrelated
+          # human commits (js/css/docs/...) are never reverted. Only when no
+          # anchor exists yet (no bot commit in history) fall back to the
+          # pushed BEFORE..AFTER range, equally filtered to content/.
+          LAST_GOOD="$(git log --first-parent --grep='\[content-publish' --format=%H -n 1)"
+          if [ -n "$LAST_GOOD" ]; then
+            shas="$(git rev-list --first-parent "$LAST_GOOD..HEAD" -- content/)"
+          elif [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            # After a force push BEFORE may not exist in this clone; revert
+            # only the head commit (the best safe approximation of the push).
+            shas="$AFTER"
+          else
+            shas="$(git rev-list --first-parent "$BEFORE..$AFTER" -- content/)"
+          fi
+          if [ -z "$shas" ]; then
+            echo "::error::Found no content/ commits to revert; refusing to guess. Revert the offending content commits manually."
+            exit 1
+          fi
+          # rev-list emits newest-first, which is the right revert order.
+          # --first-parent keeps one entry per push; a merge commit is
+          # reverted with -m 1, undoing the whole merged branch in one step.
+          for sha in $shas; do
+            if git rev-parse -q --verify "$sha^2" >/dev/null; then
+              git revert --no-commit -m 1 "$sha"
+            else
+              git revert --no-commit "$sha"
+            fi
+          done
+          git commit -m "revert(content): roll back content push after failed publish [content-publish-revert]"
+          # Same fail-fast as the publish path: no mid-rebase state may
+          # persist if main moved while we were reverting.
+          if ! git pull --rebase origin main; then
+            git rebase --abort || true
+            echo "::error::main moved concurrently and rebasing the revert commit onto it failed. Nothing was pushed; re-run this workflow to retry the revert against the new main."
+            exit 1
+          fi
+          git push origin HEAD:main
+
+      - name: Report failure
+        if: always() && (steps.regen.outcome == 'failure' || steps.verify.outcome == 'failure')
+        run: |
+          if [ "${{ steps.revert.outcome }}" = "success" ]; then
+            echo "::error::Content publish failed: regenerate/verify did not pass. The triggering content commits were reverted on main ([content-publish-revert]). The rendered site was never affected because runtime does not read content/*.json."
+          else
+            echo "::error::Content publish failed AND the automatic revert did not complete. main still contains the unpublished content commits (the rendered site is unaffected); revert them manually."
+          fi
+          exit 1
