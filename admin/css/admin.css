@@ -202,6 +202,14 @@ code {
   background: var(--a-warn);
 }
 
+.media-warning {
+  color: var(--a-warn);
+  font-size: 0.75rem;
+  line-height: 1.25;
+  max-width: 19rem;
+  text-align: right;
+}
+
 .topbar__user {
   display: flex;
   align-items: center;
@@ -488,11 +496,6 @@ textarea[disabled] {
   border-color: var(--a-warn);
 }
 
-.badge--soon {
-  color: var(--a-faint);
-  border-style: dashed;
-}
-
 /* Выключатель кейса — задел итерации F, пока заблокирован */
 .switch {
   position: relative;
@@ -580,20 +583,152 @@ textarea[disabled] {
   position: relative;
 }
 
-.media-slot img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: var(--a-radius);
-  border: 1px dashed var(--a-border);
-  opacity: 0.75;
-}
-
 .media-slot figcaption {
   font-size: 0.71875rem;
   color: var(--a-faint);
   margin-top: 0.25rem;
   text-align: center;
+}
+
+/* ── Drop-зоны медиа (итерация E, принцип 6 research.md) ───────────── */
+
+.drop-zone {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: var(--a-radius);
+  border: 1px dashed var(--a-border);
+  background: var(--a-bg);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* Единственный tab-stop слота — невидимый file-input внутри зоны
+   (сама зона tabindex="-1"), поэтому видимый фокус — через :focus-within. */
+.drop-zone:focus-within {
+  outline: 2px solid var(--a-primary);
+  outline-offset: 2px;
+}
+
+.drop-zone--over {
+  border-color: var(--a-primary);
+  background: var(--a-primary-soft);
+}
+
+.drop-zone__preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.drop-zone__preview--video {
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+}
+
+.drop-zone__file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 4.5rem;
+  padding: 0.75rem;
+  font-family: var(--a-mono);
+  font-size: 0.78125rem;
+  color: var(--a-muted);
+  word-break: break-all;
+}
+
+.drop-zone__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  text-align: center;
+  background: rgba(33, 33, 33, 0.72);
+  color: var(--a-text);
+  font-size: 0.75rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.drop-zone:hover .drop-zone__overlay,
+.drop-zone--over .drop-zone__overlay,
+.drop-zone:focus-within .drop-zone__overlay {
+  opacity: 1;
+}
+
+.drop-zone__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.drop-zone__badge {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  z-index: 2;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  background: var(--a-warn);
+  color: #1d1d1d;
+}
+
+.drop-zone-field {
+  margin-bottom: 1rem;
+}
+
+.drop-zone-field > .drop-zone {
+  max-width: 22rem;
+}
+
+.drop-zone-field .hint {
+  margin: 0.35rem 0 0;
+}
+
+.drop-zone-path {
+  margin: 0.3rem 0 0;
+  font-size: 0.71875rem;
+  color: var(--a-faint);
+  word-break: break-all;
+}
+
+.vimeo-confirm {
+  margin: 0.3rem 0 0;
+  font-size: 0.78125rem;
+  color: var(--a-success);
+}
+
+.vimeo-confirm--bad {
+  color: var(--a-error);
+}
+
+.model-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.model-stats label,
+.drop-zone-field > label {
+  display: block;
+  font-size: 0.71875rem;
+  color: var(--a-faint);
+  margin-bottom: 0.2rem;
+  font-family: var(--a-mono);
 }
 
 .motion-block {
@@ -798,7 +933,8 @@ textarea[disabled] {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .case-row__meta .badge--soon {
-    display: none;
+  .media-warning {
+    max-width: 100%;
+    text-align: left;
   }
 }

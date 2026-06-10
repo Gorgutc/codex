@@ -1,16 +1,31 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   state.js — черновики и валидация админ-панели (итерация D).
+   state.js — черновики и валидация админ-панели (итерации D–E).
 
    Модель: на каждый редактируемый файл content/*.json держим
      { base: свежий JSON с GitHub, sha, draft: редактируемая копия }.
    Черновик автосохраняется (debounce) в sessionStorage и переживает
    перезагрузку вкладки; «грязность» = draft отличается от base.
 
+   Медиа (итерация E): загруженные файлы живут ТОЛЬКО в памяти
+   (mediaEdits: путь файла → dot-путь поля → { bytes, objectURL, новый
+   путь ассета }) и НЕ переживают перезагрузку — UI предупреждает.
+   Каждый загруженный файл получает cache-bust-имя
+   {base}-{hash8}.{ext} (hash8 = первые 8 hex-символов SHA-256
+   содержимого), потому что netlify.toml раздаёт /assets/* с
+   immutable-кэшем на год: перезапись по старому пути оставила бы
+   постоянным посетителям старую картинку. Заменённые файлы НЕ удаляются:
+   коммит админки деплоится на прод сразу, а страницы, ссылающиеся на
+   старый файл, пересоберёт только bot-коммит конвейера минутами позже —
+   удаление открыло бы окно 404. Файлы накапливаются (git history хранит
+   их в любом случае); чистка осиротевших ассетов — отдельная
+   maintenance-задача на будущее.
+
    Валидация зеркалит правила validateContent() из
-   scripts/generate-content.mjs для полей, которые редактирует MVP:
-   непустые EN+RU тексты карточки/кейса/подписей/motion-блоков и непустые
-   значения всех ключей meta.json / i18n-ui.json. Сообщения — русские,
-   привязаны к полям через field-идентификаторы (см. ui.js data-field).
+   scripts/generate-content.mjs для полей, которые редактирует админка:
+   непустые EN+RU тексты, источники motion-блоков (local → .webm-файл,
+   vimeo → цифровой ID), пути медиа строго «./assets/...», OG-изображения.
+   Сообщения — русские, привязаны к полям через field-идентификаторы
+   (см. ui.js data-field).
 
    API: window.AdminState. Подключается ПОСЛЕ api.js, ПЕРЕД ui.js.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -20,9 +35,59 @@
   const DRAFTS_KEY = 'codexAdminDrafts';
   const files = new Map(); // path → { base, sha, draft }
   let orphanDrafts = {}; // черновики из sessionStorage для ещё не загруженных файлов
+  const mediaEdits = new Map(); // path → Map(dotPath → media-запись, см. stageMedia)
   const listeners = [];
   let persistTimer = 0;
   let catalogPromise = null;
+
+  const KB = 1024;
+  const MB = 1024 * KB;
+
+  // Правила загрузки по типу слота: допустимые расширения/MIME, мягкий
+  // порог (предупреждение) и жёсткий лимит (блокировка). Лимит видео
+  // держит запас до предела base64-blob у GitHub Git Data API.
+  const MEDIA_RULES = {
+    image: {
+      exts: ['svg', 'png', 'jpg', 'jpeg', 'webp'],
+      mimes: ['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp'],
+      accept: '.svg,.png,.jpg,.jpeg,.webp',
+      formatLabel: 'SVG, PNG, JPG или WebP',
+      warnBytes: 200 * KB,
+      warnText: 'тяжелее 200 КБ — карточки сайта будут грузиться медленнее',
+      blockBytes: 2 * MB,
+      blockText: 'изображения тяжелее 2 МБ не публикуем'
+    },
+    ogImage: {
+      exts: ['jpg', 'jpeg', 'png', 'webp'],
+      mimes: ['image/jpeg', 'image/png', 'image/webp'],
+      accept: '.jpg,.jpeg,.png,.webp',
+      formatLabel: 'JPG, PNG или WebP',
+      warnBytes: 200 * KB,
+      warnText: 'тяжелее 200 КБ — превью в соцсетях будет грузиться медленнее',
+      blockBytes: 2 * MB,
+      blockText: 'OG-изображения тяжелее 2 МБ не публикуем'
+    },
+    video: {
+      exts: ['webm'],
+      mimes: ['video/webm'],
+      accept: '.webm',
+      formatLabel: 'WebM',
+      warnBytes: 20 * MB,
+      warnText: 'тяжелее 20 МБ — рекомендуем Vimeo для тяжёлых роликов',
+      blockBytes: 40 * MB,
+      blockText: 'ролики тяжелее 40 МБ не публикуем — загрузите на Vimeo'
+    },
+    model: {
+      exts: ['glb'],
+      mimes: ['model/gltf-binary', 'application/octet-stream'],
+      accept: '.glb',
+      formatLabel: 'GLB',
+      warnBytes: 15 * MB,
+      warnText: 'тяжелее 15 МБ — 3D-viewer будет грузиться медленнее',
+      blockBytes: 50 * MB,
+      blockText: 'модели тяжелее 50 МБ не публикуем'
+    }
+  };
 
   /* ── утилиты ─────────────────────────────────────────────────────── */
 
@@ -144,10 +209,15 @@
     notify();
   }
 
+  function hasMediaEdits(path) {
+    const edits = mediaEdits.get(path);
+    return Boolean(edits && edits.size > 0);
+  }
+
   function changedPaths() {
     const out = [];
     files.forEach((entry, path) => {
-      if (!deepEqual(entry.draft, entry.base)) out.push(path);
+      if (!deepEqual(entry.draft, entry.base) || hasMediaEdits(path)) out.push(path);
     });
     for (const path of Object.keys(orphanDrafts)) {
       if (out.indexOf(path) === -1) out.push(path);
@@ -162,7 +232,7 @@
 
   function hasDraft(path) {
     const entry = files.get(path);
-    if (entry) return !deepEqual(entry.draft, entry.base);
+    if (entry) return !deepEqual(entry.draft, entry.base) || hasMediaEdits(path);
     return orphanDrafts[path] !== undefined;
   }
 
@@ -173,6 +243,176 @@
     for (const path of pending) await ensureFile(path);
   }
 
+  /* ── медиа (итерация E): загрузка файлов в память до публикации ──── */
+
+  function getMediaRule(kind) {
+    return MEDIA_RULES[kind];
+  }
+
+  // «02.png» → «02», «orbital-mk-ii-1a2b3c4d.svg» → «orbital-mk-ii»:
+  // базовое имя без расширения и без предыдущего hash-суффикса, в slug-форме.
+  function mediaBaseName(assetPath) {
+    const file = String(assetPath).split('/').pop() || 'file';
+    const base = file
+      .replace(/\.[a-z0-9]+$/i, '')
+      .replace(/-[0-9a-f]{8}$/i, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return base || 'file';
+  }
+
+  function mediaDirName(assetPath) {
+    const parts = String(assetPath).split('/');
+    parts.pop();
+    return parts.join('/');
+  }
+
+  async function hashBytes(bytes) {
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const view = new Uint8Array(digest);
+    let hex = '';
+    for (let i = 0; i < 4; i += 1) hex += view[i].toString(16).padStart(2, '0');
+    return hex;
+  }
+
+  function formatBytes(size) {
+    if (size >= MB) return (size / MB).toFixed(1).replace('.', ',') + ' МБ';
+    return Math.max(1, Math.round(size / KB)) + ' КБ';
+  }
+
+  // Проверка файла до чтения: расширение, MIME (если браузер его дал)
+  // и жёсткий лимит размера. Бросает Error с русским сообщением.
+  function assertUploadAllowed(rule, file) {
+    const extMatch = /\.([a-z0-9]+)$/i.exec(file.name || '');
+    const ext = extMatch ? extMatch[1].toLowerCase() : '';
+    if (rule.exts.indexOf(ext) === -1) {
+      throw new Error(
+        'Файл «' + (file.name || '?') + '» не подходит: нужен формат ' + rule.formatLabel + '.'
+      );
+    }
+    if (file.type && rule.mimes.indexOf(file.type) === -1) {
+      throw new Error('Тип файла ' + file.type + ' не подходит: нужен формат ' + rule.formatLabel + '.');
+    }
+    if (file.size > rule.blockBytes) {
+      throw new Error('Файл слишком большой (' + formatBytes(file.size) + '): ' + rule.blockText + '.');
+    }
+    return ext;
+  }
+
+  // Постановка файла в очередь публикации.
+  //   filePath/dotPath — куда в content-JSON записать новый путь;
+  //   kind             — ключ MEDIA_RULES;
+  //   namingPath       — путь-«назначение» слота: его папка и базовое имя
+  //                      дают каноничное имя нового файла;
+  //   currentPath      — текущий файл на GitHub (кандидат на удаление)
+  //                      или null, если у слота файла ещё не было.
+  // Возвращает { assetPath, objectURL, size, warning|null, unchanged }.
+  async function stageMedia(filePath, dotPath, kind, namingPath, currentPath, file) {
+    const rule = MEDIA_RULES[kind];
+    const ext = assertUploadAllowed(rule, file);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const hash8 = await hashBytes(bytes);
+
+    let edits = mediaEdits.get(filePath);
+    if (!edits) {
+      edits = new Map();
+      mediaEdits.set(filePath, edits);
+    }
+    const previous = edits.get(dotPath) || null;
+    const originalPath = previous ? previous.originalPath : currentPath || null;
+    const baseFrom = previous ? previous.namingPath : namingPath;
+    const assetPath = mediaDirName(baseFrom) + '/' + mediaBaseName(baseFrom) + '-' + hash8 + '.' + ext;
+
+    if (assetPath === originalPath) {
+      // Загружен файл, байты которого уже опубликованы под этим именем.
+      if (previous) {
+        URL.revokeObjectURL(previous.objectURL);
+        edits.delete(dotPath);
+        notify();
+      }
+      return { assetPath, objectURL: null, size: file.size, warning: null, unchanged: true };
+    }
+
+    if (previous) URL.revokeObjectURL(previous.objectURL);
+    const objectURL = URL.createObjectURL(new Blob([bytes], { type: file.type || '' }));
+    edits.set(dotPath, {
+      value: assetPath,
+      originalPath,
+      namingPath: baseFrom,
+      uploadPath: assetPath.replace(/^\.\//, ''),
+      bytes,
+      size: file.size,
+      objectURL
+    });
+    notify();
+    return {
+      assetPath,
+      objectURL,
+      size: file.size,
+      warning: file.size > rule.warnBytes ? 'Файл ' + formatBytes(file.size) + ' — ' + rule.warnText + '.' : null,
+      unchanged: false
+    };
+  }
+
+  function getMediaEdit(filePath, dotPath) {
+    const edits = mediaEdits.get(filePath);
+    return (edits && edits.get(dotPath)) || null;
+  }
+
+  // Значение поля с учётом pending-медиа поверх черновика.
+  function getEffectiveValue(filePath, dotPath) {
+    const record = getMediaEdit(filePath, dotPath);
+    return record ? record.value : getValue(filePath, dotPath);
+  }
+
+  function mediaPendingCount() {
+    let count = 0;
+    mediaEdits.forEach((edits) => {
+      count += edits.size;
+    });
+    return count;
+  }
+
+  // Запись значения по dot-пути с созданием недостающих контейнеров.
+  // Особый случай «srcs»: валидатор требует массив ровно из 5 элементов,
+  // поэтому отсутствующий srcs создаётся как [null×5].
+  function setDeep(target, dotPath, value) {
+    const keys = String(dotPath).split('.');
+    let node = target;
+    for (let i = 0; i < keys.length - 1; i += 1) {
+      const key = keys[i];
+      if (node[key] === null || node[key] === undefined) {
+        if (key === 'srcs') node[key] = [null, null, null, null, null];
+        else node[key] = /^\d+$/.test(keys[i + 1]) ? [] : {};
+      }
+      node = node[key];
+    }
+    node[keys[keys.length - 1]] = value;
+  }
+
+  // Черновик с наложенными pending-медиа — то, что реально уйдёт в коммит.
+  function effectiveDraft(path) {
+    const entry = files.get(path);
+    const draft = entry ? entry.draft : orphanDrafts[path];
+    if (draft === undefined) return undefined;
+    if (!hasMediaEdits(path)) return draft;
+    const out = deepClone(draft);
+    mediaEdits.get(path).forEach((record, dotPath) => {
+      setDeep(out, dotPath, record.value);
+    });
+    return out;
+  }
+
+  /* ── Vimeo: ID или любой URL ролика → строка цифр ────────────────── */
+
+  function parseVimeoId(input) {
+    const raw = String(input || '').trim();
+    if (/^\d+$/.test(raw)) return raw;
+    const match = raw.match(/^(?:https?:\/\/)?(?:www\.)?(?:player\.)?vimeo\.com\/(?:[a-z][\w-]*\/)*?(\d+)(?:[/?#].*)?$/i);
+    return match ? match[1] : '';
+  }
+
   /* ── валидация (зеркало validateContent для редактируемых полей) ─── */
 
   function pushPairErrors(errors, path, dotBase, pair, label) {
@@ -180,6 +420,16 @@
     const ru = pair && typeof pair === 'object' ? pair.ru : undefined;
     if (!isFilled(en)) errors.push({ path, field: dotBase + '.en', message: label + ': EN-текст не может быть пустым' });
     if (!isFilled(ru)) errors.push({ path, field: dotBase + '.ru', message: label + ': RU-текст не может быть пустым' });
+  }
+
+  // Зеркало traversal-guard валидатора: путь медиа строго внутрь ./assets/.
+  function isAssetPath(value) {
+    return (
+      isFilled(value) &&
+      value.indexOf('./assets/') === 0 &&
+      value.indexOf('\\') === -1 &&
+      value.split('/').indexOf('..') === -1
+    );
   }
 
   function validateCaseDraft(errors, path, draft) {
@@ -211,9 +461,69 @@
     if (Array.isArray(cs.motionBlocks)) {
       cs.motionBlocks.forEach((block, i) => {
         const where = 'Motion-блок ' + (i + 1);
-        pushPairErrors(errors, path, 'case.motionBlocks.' + i + '.label', block && block.label, where + ' — подпись');
-        pushPairErrors(errors, path, 'case.motionBlocks.' + i + '.desc', block && block.desc, where + ' — описание');
+        const dotBase = 'case.motionBlocks.' + i;
+        pushPairErrors(errors, path, dotBase + '.label', block && block.label, where + ' — подпись');
+        pushPairErrors(errors, path, dotBase + '.desc', block && block.desc, where + ' — описание');
+        if (!block || typeof block !== 'object') return;
+        // Итерация E: зеркало validateMotionBlock из generate-content.mjs.
+        if (block.source === 'vimeo') {
+          if (typeof block.vimeoId !== 'string' || !/^\d+$/.test(block.vimeoId)) {
+            errors.push({
+              path,
+              field: dotBase + '.vimeoId',
+              message: where + ': Vimeo ID должен состоять только из цифр — вставьте ссылку на ролик или его ID'
+            });
+          }
+        } else if (block.source === 'local') {
+          if (!isAssetPath(block.src) || !/\.webm$/i.test(block.src)) {
+            errors.push({
+              path,
+              field: dotBase + '.src',
+              message: where + ': нужен локальный .webm-файл — загрузите ролик'
+            });
+          }
+        } else {
+          errors.push({
+            path,
+            field: dotBase + '.source',
+            message: where + ': источник должен быть «local» (файл .webm) или «vimeo»'
+          });
+        }
+        if ('poster' in block && !isAssetPath(block.poster)) {
+          errors.push({ path, field: dotBase + '.poster', message: where + ': постер должен лежать внутри ./assets/' });
+        }
       });
+    }
+
+    // Итерация E: медиа-пути кейса (миниатюра, слоты, 3D-модель).
+    if (!isAssetPath(card.thumb)) {
+      errors.push({ path, field: 'card.thumb', message: 'Миниатюра карточки: путь должен лежать внутри ./assets/' });
+    }
+    if (!isAssetPath(cs.modelSrc) || !/\.glb$/i.test(cs.modelSrc)) {
+      errors.push({ path, field: 'case.modelSrc', message: '3D-модель: нужен .glb-файл внутри ./assets/' });
+    }
+    if (Array.isArray(cs.srcs)) {
+      cs.srcs.forEach((src, i) => {
+        if (src !== null && src !== undefined && !isAssetPath(src)) {
+          errors.push({
+            path,
+            field: 'case.srcs.' + i,
+            message: 'Слот ' + (i + 1) + ': путь изображения должен лежать внутри ./assets/'
+          });
+        }
+      });
+    }
+    if (cs.modelStats !== null && typeof cs.modelStats === 'object' && !Array.isArray(cs.modelStats)) {
+      for (const key of Object.keys(cs.modelStats)) {
+        const value = cs.modelStats[key];
+        if (!isFilled(typeof value === 'number' ? String(value) : value)) {
+          errors.push({
+            path,
+            field: 'case.modelStats.' + key,
+            message: 'Статистика модели: «' + key + '» не может быть пустым'
+          });
+        }
+      }
     }
   }
 
@@ -241,17 +551,29 @@
       validateCaseDraft(errors, path, draft);
     } else if (path === 'content/meta.json') {
       for (const lang of ['en', 'ru']) validateLeafStrings(errors, path, draft[lang], lang, 'Мета-теги');
+      // Итерация E: зеркало validateMetaImages из generate-content.mjs.
+      const images = draft.ogImages || {};
+      for (const page of ['index', 'fa']) {
+        if (!isAssetPath(images[page]) || !/\.(jpg|jpeg|png|webp)$/i.test(images[page])) {
+          errors.push({
+            path,
+            field: 'ogImages.' + page,
+            message: 'OG-изображение: нужен JPG, PNG или WebP внутри ./assets/'
+          });
+        }
+      }
     } else if (path === 'content/i18n-ui.json') {
       for (const lang of ['en', 'ru']) validateLeafStrings(errors, path, draft[lang], lang, 'Тексты интерфейса');
     }
     return errors;
   }
 
+  // Валидируется эффективный черновик (с pending-медиа) — то, что реально
+  // уйдёт в коммит.
   function validateAll() {
     const errors = [];
     for (const path of changedPaths()) {
-      const entry = files.get(path);
-      const draft = entry ? entry.draft : orphanDrafts[path];
+      const draft = effectiveDraft(path);
       if (draft) errors.push.apply(errors, validateDraft(path, draft));
     }
     return errors;
@@ -278,11 +600,24 @@
     }
   }
 
-  function buildCommitFiles() {
-    return changedPaths().map((path) => {
-      const entry = files.get(path);
-      return { path, content: serializeDraft(entry.draft) };
+  // Полный план коммита: текстовые JSON (эффективные черновики) плюс
+  // бинарные загрузки. Заменённые файлы НЕ удаляются: admin-коммит
+  // деплоится на прод сразу, а ссылающиеся страницы пересоберёт только
+  // bot-коммит конвейера минутами позже — удаление открыло бы окно 404
+  // (чистка осиротевших ассетов — будущая maintenance-задача).
+  // Бинарные файлы дедуплицируются по пути: два слота с одинаковыми байтами
+  // и назначением дают одно cache-bust-имя, а git-tree не терпит дублей path.
+  function buildPublishPlan() {
+    const planFiles = changedPaths().map((path) => ({ path, content: serializeDraft(effectiveDraft(path)) }));
+
+    const binariesByPath = new Map();
+    mediaEdits.forEach((edits) => {
+      edits.forEach((record) => {
+        binariesByPath.set(record.uploadPath, { path: record.uploadPath, bytes: record.bytes });
+      });
     });
+
+    return { files: planFiles, binaries: Array.from(binariesByPath.values()) };
   }
 
   function describeChange(path) {
@@ -305,11 +640,19 @@
     return 'обновление: ' + parts.join(', ');
   }
 
-  // После успешного коммита черновики становятся новой базой.
+  // После успешного коммита черновики (с наложенными медиа) становятся
+  // новой базой, pending-медиа считаются доставленными.
   function markPublished() {
-    files.forEach((entry) => {
+    files.forEach((entry, path) => {
+      entry.draft = effectiveDraft(path);
       entry.base = deepClone(entry.draft);
     });
+    mediaEdits.forEach((edits) => {
+      edits.forEach((record) => {
+        URL.revokeObjectURL(record.objectURL);
+      });
+    });
+    mediaEdits.clear();
     orphanDrafts = {};
     clearTimeout(persistTimer);
     persistNow();
@@ -334,10 +677,17 @@
     hasDraft,
     validateAll,
     publishPrecheck,
-    buildCommitFiles,
+    buildPublishPlan,
     describeChange,
     defaultCommitDescription,
     markPublished,
-    onChange
+    onChange,
+    // итерация E: медиа
+    getMediaRule,
+    stageMedia,
+    getMediaEdit,
+    getEffectiveValue,
+    mediaPendingCount,
+    parseVimeoId
   };
 })();
