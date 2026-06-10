@@ -11,3 +11,5 @@ The project had a mature `.claude` setup, but Codex needs a shorter native boots
 ## Consequences
 
 Legacy `.claude` files remain source material until the user approves archival. New work should update the Codex-native layer first.
+
+Amended by ADR 0008: `.claude` was later restored as a generated dual-harness mirror.

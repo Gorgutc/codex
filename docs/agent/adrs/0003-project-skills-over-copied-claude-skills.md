@@ -11,3 +11,5 @@ Legacy skill files are useful but verbose and contain drift. Codex skills work b
 ## Consequences
 
 Long background moves to `docs/agent`. Skills point to docs and focus on workflow.
+
+Amended by ADR 0008: the lean skills are now also mirrored into `.claude/skills/` for Claude Code.

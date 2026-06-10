@@ -1,0 +1,3 @@
+display_name: Codex Studio Run 5-Second
+short_description: Rendered first-impression visual QA.
+default_prompt: Use this skill when a Codex Studio screenshot or local URL needs a 5-second verdict.

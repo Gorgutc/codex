@@ -1,0 +1,3 @@
+display_name: Codex Studio Ship
+short_description: Pre-PR ship workflow for Codex Studio.
+default_prompt: Use this skill before committing, pushing, or opening a PR for Codex Studio.

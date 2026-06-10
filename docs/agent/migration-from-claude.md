@@ -2,6 +2,11 @@
 
 The repo historically used `.claude/` for Claude Code agents, hooks, slash commands, and skills.
 
+Update (ADR 0008): the repo now runs a dual harness. `.claude/` is active again
+as a GENERATED mirror of the Codex canon (`npm run sync:harness`), not as a
+hand-maintained configuration layer. The notes below describe the original
+one-way migration and remain accurate for the archived legacy material.
+
 ## What Carries Forward
 
 - `verify-frozen.js` is the source of truth.
