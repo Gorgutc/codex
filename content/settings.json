@@ -1,0 +1,52 @@
+{
+  "filters": [
+    {
+      "key": "all",
+      "label": "All"
+    },
+    {
+      "key": "hard-surface",
+      "label": "Hard Surface"
+    },
+    {
+      "key": "product",
+      "label": "Product"
+    },
+    {
+      "key": "organic",
+      "label": "Organic"
+    },
+    {
+      "key": "prototyping",
+      "label": "Prototyping"
+    },
+    {
+      "key": "animations",
+      "label": "Animations"
+    },
+    {
+      "key": "cad",
+      "label": "CAD"
+    }
+  ],
+  "cardOrder": [
+    "orbital-mk-ii",
+    "vega-shell",
+    "ironclad-frame",
+    "corten-series",
+    "lumen-one",
+    "flux-capsule",
+    "nightshard",
+    "recon-drone",
+    "apex-frame",
+    "core-rig",
+    "helix-reveal",
+    "arc-motion",
+    "nyx-panther",
+    "drift-koi",
+    "glint-owl",
+    "mech-link",
+    "flex-spine",
+    "cad-strut"
+  ]
+}

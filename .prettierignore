@@ -9,3 +9,4 @@ test-results/
 .jscpd-report/
 plugins/**/references/claude-original/
 .claude/
+*.html

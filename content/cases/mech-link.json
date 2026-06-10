@@ -1,0 +1,126 @@
+{
+  "id": "mech-link",
+  "enabled": true,
+  "category": "cad",
+  "year": "2025",
+  "gameAsset": false,
+  "cadPlaceholder": true,
+  "card": {
+    "htmlComment": "16 — CAD study (v0.14.0 [15a]) — data-cad-placeholder=\"true\" для будущей замены",
+    "thumb": "./assets/cards/mech-link.svg",
+    "thumbLabel": "Mech Link",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Mech Link",
+      "ru": "Mech Link"
+    },
+    "desc": {
+      "en": "Industrial CAD linkage. Parametric pins, exploded tolerances, production handoff view.",
+      "ru": "Промышленная CAD-сборка. Параметрические шарниры, exploded-view и PBR-презентация."
+    },
+    "alt": {
+      "en": "Mech Link — CAD linkage assembly",
+      "ru": "Mech Link — CAD-сборка"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "R&D",
+      "ru": "R&D"
+    },
+    "tools": [
+      "Fusion 360",
+      "Blender",
+      "KeyShot"
+    ],
+    "modelSrc": "./assets/models/mech-link.glb",
+    "modelStats": {
+      "triangles": "512",
+      "vertices": "264",
+      "materials": 2,
+      "textures": "Procedural (PBR)",
+      "software": "Fusion 360 + Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1d232a 0%,#2a3138 100%)",
+      "linear-gradient(135deg,#1a2027 0%,#262d34 100%)",
+      "linear-gradient(135deg,#171d24 0%,#222930 100%)",
+      "linear-gradient(135deg,#141a21 0%,#1e252c 100%)",
+      "linear-gradient(135deg,#11171e 0%,#1a2128 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Assembly overview",
+          "ru": "Обзор сборки"
+        },
+        "desc": {
+          "en": "Industrial link chain assembly. Parametric pin-joint system sourced from CAD.",
+          "ru": "Промышленная link-цепь. Параметрическая pin-joint сборка из CAD."
+        }
+      },
+      {
+        "label": {
+          "en": "Bracket detail",
+          "ru": "Деталь кронштейна"
+        },
+        "desc": {
+          "en": "Bolt-pattern close-up. Retopology pass prepared for manufacturing review.",
+          "ru": "Крупный план bolt-pattern. Retopology-пасс подготовлен для manufacturing-review."
+        }
+      },
+      {
+        "label": {
+          "en": "Motion study",
+          "ru": "Motion study"
+        },
+        "desc": {
+          "en": "Range-of-motion sketch for the pivoting arm. Constraint solver preview.",
+          "ru": "Скетч range-of-motion для pivoting-arm. Preview constraint-solver."
+        }
+      },
+      {
+        "label": {
+          "en": "Exploded view",
+          "ru": "Exploded view"
+        },
+        "desc": {
+          "en": "Parts diagram for manufacture planning. Tolerances marked in source DWG.",
+          "ru": "Диаграмма деталей под производственное планирование. Допуски размечены в исходном DWG."
+        }
+      },
+      {
+        "label": {
+          "en": "Material preview",
+          "ru": "Material preview"
+        },
+        "desc": {
+          "en": "KeyShot pass — brushed steel and anodized aluminium swatches.",
+          "ru": "KeyShot-пасс — brushed steel и anodized aluminium-сэмплы."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "CAD production study",
+        "ru": "CAD production study"
+      },
+      "body": {
+        "en": "Parametric link-chain case focused on CAD handoff, tolerance review, and render-ready topology for the CAD category.",
+        "ru": "Параметрический link-chain кейс для CAD-handoff, проверки допусков и render-ready топологии в CAD-категории."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Pipeline",
+        "ru": "Pipeline"
+      },
+      "body": {
+        "en": "Fusion 360 → STEP → Blender retopo → KeyShot marketing. The assembly is ready for CAD review and render handoff.",
+        "ru": "Fusion 360 → STEP → Blender retopo → KeyShot marketing. Сборка готова для CAD-review и render handoff."
+      }
+    }
+  }
+}

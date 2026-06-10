@@ -1,0 +1,126 @@
+{
+  "id": "glint-owl",
+  "enabled": true,
+  "category": "organic",
+  "year": "2025",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "15 — Organic",
+    "thumb": "./assets/cards/glint-owl.svg",
+    "thumbLabel": "Glint Owl",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Glint Owl",
+      "ru": "Glint Owl"
+    },
+    "desc": {
+      "en": "Stylized bird character. Feather grooming with procedural asymmetry.",
+      "ru": "Стилизованный птичий персонаж. Грум пера с процедурной асимметрией."
+    },
+    "alt": {
+      "en": "Glint Owl — stylized bird character",
+      "ru": "Glint Owl — стилизованный птичий персонаж"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "Personal",
+      "ru": "Личный проект"
+    },
+    "tools": [
+      "ZBrush",
+      "Blender",
+      "Houdini groom"
+    ],
+    "modelSrc": "./assets/models/glint-owl.glb",
+    "modelStats": {
+      "triangles": "496",
+      "vertices": "266",
+      "materials": 3,
+      "textures": "Procedural (PBR)",
+      "software": "ZBrush + Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1a1a22 0%,#262632 100%)",
+      "linear-gradient(135deg,#16161e 0%,#20202c 100%)",
+      "linear-gradient(135deg,#12121a 0%,#1a1a26 100%)",
+      "linear-gradient(135deg,#0e0e16 0%,#161620 100%)",
+      "linear-gradient(135deg,#0a0a12 0%,#12121c 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Portrait render",
+          "ru": "Портрет"
+        },
+        "desc": {
+          "en": "Stylized bird character. Feather grooming with procedural asymmetry and wind drift.",
+          "ru": "Стилизованный птичий персонаж. Грум пера с процедурной асимметрией и wind drift."
+        }
+      },
+      {
+        "label": {
+          "en": "Wing spread",
+          "ru": "Размах крыла"
+        },
+        "desc": {
+          "en": "Fully posed flight wing with hand-placed primaries and secondaries on a bone chain.",
+          "ru": "Полностью спозированное крыло — первичные и вторичные перья расставлены вручную на bone chain."
+        }
+      },
+      {
+        "label": {
+          "en": "Feather cards",
+          "ru": "Feather cards"
+        },
+        "desc": {
+          "en": "Texture sheet of 40 individual feather cards used by the groom and LOD feather planes.",
+          "ru": "Texture-sheet из 40 индивидуальных feather-карт — для грума и LOD feather planes."
+        }
+      },
+      {
+        "label": {
+          "en": "Beak & talon",
+          "ru": "Клюв и когти"
+        },
+        "desc": {
+          "en": "Hero keratin shader — glossy micro-surface, warm subsurface — applied to beak and talons.",
+          "ru": "Hero keratin-шейдер — глянцевая микро-поверхность, тёплый subsurface — на клюве и когтях."
+        }
+      },
+      {
+        "label": {
+          "en": "Silhouette lineup",
+          "ru": "Силуэты"
+        },
+        "desc": {
+          "en": "Eight pose silhouettes used to lock mood before the final groom pass was started.",
+          "ru": "Восемь pose-силуэтов — лочили настрой до старта финального грум-пасса."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Groom system",
+        "ru": "Groom-система"
+      },
+      "body": {
+        "en": "The entire plumage is driven by one groom modifier with density, length and clumping masks. Editing the mask updates every feather at once — no hand-placing individual strands.",
+        "ru": "Всё оперение управляется одним groom-модификатором с масками плотности, длины и клампинга. Правишь маску — обновляется каждое перо разом, без ручной расстановки."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Feather layers",
+        "ru": "Слои перьев"
+      },
+      "body": {
+        "en": "Body feathers groomed per zone: head, chest, primaries. Alpha-cards for silhouette, shell geometry for flight feathers.",
+        "ru": "Перья тела грумлены по зонам: голова, грудь, primaries. Alpha-карты — на силуэт, shell-геометрия — на маховые перья."
+      }
+    }
+  }
+}

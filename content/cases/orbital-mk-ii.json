@@ -1,0 +1,199 @@
+{
+  "id": "orbital-mk-ii",
+  "enabled": true,
+  "category": "hard-surface",
+  "year": "2025",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "1",
+    "thumb": "./assets/cards/orbital-mk-ii.svg",
+    "thumbLabel": "Orbital Mk.II",
+    "imgLoading": "eager",
+    "imgFetchPriority": "high",
+    "badge": null,
+    "title": {
+      "en": "Orbital Mk.II",
+      "ru": "Orbital Mk.II"
+    },
+    "desc": {
+      "en": "Sci-fi prop engineered for AAA pipeline. Full PBR, clean topology.",
+      "ru": "Sci-fi-проп для AAA-пайплайна. Полный PBR, чистая топология."
+    },
+    "alt": {
+      "en": "Orbital Mk.II — sci-fi hard surface prop",
+      "ru": "Orbital Mk.II — sci-fi-проп hard surface"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "Personal",
+      "ru": "Личный проект"
+    },
+    "tools": [
+      "Blender",
+      "Substance Painter",
+      "Marmoset"
+    ],
+    "modelSrc": "./assets/models/experimental/dino.glb",
+    "modelEnvironment": "studio",
+    "modelExposure": 1.05,
+    "modelStats": {
+      "triangles": "Draco compressed",
+      "vertices": "GLB embedded",
+      "materials": 1,
+      "textures": "3 embedded",
+      "software": "Drive test asset"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1e2d3d 0%,#2a3a4a 100%)",
+      "linear-gradient(135deg,#1a2535 0%,#22303f 100%)",
+      "linear-gradient(135deg,#152030 0%,#1e2c3c 100%)",
+      "linear-gradient(135deg,#112030 0%,#1a2c3c 100%)",
+      "linear-gradient(135deg,#0e1a28 0%,#182636 100%)"
+    ],
+    "srcs": [
+      null,
+      "./assets/cases/orbital-mk-ii/02.png",
+      null,
+      null,
+      null
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Hero render",
+          "ru": "Hero-рендер"
+        },
+        "desc": {
+          "en": "Sci-fi prop engineered for AAA pipeline. Full PBR, clean manifold topology.",
+          "ru": "Sci-fi-проп для AAA-пайплайна. Полный PBR, чистая manifold-топология."
+        }
+      },
+      {
+        "label": {
+          "en": "Material study",
+          "ru": "Материал"
+        },
+        "desc": {
+          "en": "Secondary shell finish under studio HDRI, checked for silhouette readability.",
+          "ru": "Второй вариант покрытия под studio HDRI, проверен на читаемость силуэта."
+        }
+      },
+      {
+        "label": {
+          "en": "Topology pass",
+          "ru": "Топология"
+        },
+        "desc": {
+          "en": "18 k clean quads. Subdivision-ready and LOD0-certified for real-time integration.",
+          "ru": "18k чистых quads. Subdivision-ready и LOD0-сертифицирован под real-time."
+        }
+      },
+      {
+        "label": {
+          "en": "Detail close-up",
+          "ru": "Крупный план"
+        },
+        "desc": {
+          "en": "Panel seam macro. Bevel widths tuned for 2 m viewing distance at 4 K resolution.",
+          "ru": "Макро шва панели. Bevel-радиусы рассчитаны под 2 м просмотра в 4K."
+        }
+      },
+      {
+        "label": {
+          "en": "Final composite",
+          "ru": "Финальный composite"
+        },
+        "desc": {
+          "en": "Lit with 3-point studio HDRI. Denoised in OptiX, tonemapped ACES.",
+          "ru": "Свет: 3-точечный studio HDRI. Denoise через OptiX, тонмап ACES."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Pipeline fit",
+        "ru": "Pipeline fit"
+      },
+      "body": {
+        "en": "Delivered as a game-ready asset with LOD0–LOD2 and a separate cinematic mesh for marketing renders. Naming and pivot conventions follow Unreal Engine 5 standards.",
+        "ru": "Доставлен как game-ready ассет: LOD0–LOD2 плюс отдельный cinematic-меш для маркетинговых рендеров. Naming и pivot-конвенции — под Unreal Engine 5."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Texture budget",
+        "ru": "Texture budget"
+      },
+      "body": {
+        "en": "Single 4 K texture set for hero, separate 2 K sets per LOD stage. Roughness authored in 16-bit to preserve micro-detail.",
+        "ru": "Один 4K-сет для hero, отдельные 2K-сеты на каждый LOD. Roughness авторен в 16-bit — сохраняет микро-детализацию."
+      }
+    },
+    "motionBlocks": [
+      {
+        "source": "local",
+        "layout": "wide",
+        "playback": "ambient",
+        "src": "./assets/cases/orbital-mk-ii/orbital-shell-idle.webm",
+        "poster": "./assets/cases/orbital-mk-ii/01.svg",
+        "label": {
+          "en": "Seamless shell loop",
+          "ru": "Бесшовный loop корпуса"
+        },
+        "desc": {
+          "en": "A silent in-case motion plate for the orbital shell idle cycle. Built to accept final local media without renderer changes.",
+          "ru": "Тихая motion-плашка внутри кейса для idle-цикла orbital shell. Финальный локальный media-файл можно подставить без изменений renderer."
+        }
+      },
+      {
+        "source": "vimeo",
+        "layout": "wide",
+        "playback": "controlled",
+        "vimeoId": "76979871",
+        "poster": "./assets/cases/orbital-mk-ii/04.svg",
+        "title": "Orbital Mk.II assembly loop",
+        "label": {
+          "en": "Assembly motion study",
+          "ru": "Исследование сборки"
+        },
+        "desc": {
+          "en": "A Vimeo-backed motion slot for client review cuts, with the same case-native play and pause control as local media.",
+          "ru": "Vimeo-слот для клиентских review-версий, с тем же case-native play/pause control, что у локального media."
+        }
+      },
+      {
+        "source": "local",
+        "layout": "half",
+        "playback": "controlled",
+        "src": "./assets/cases/orbital-mk-ii/orbital-detail-loop.webm",
+        "poster": "./assets/cases/orbital-mk-ii/02.png",
+        "label": {
+          "en": "Detail loop control",
+          "ru": "Контроль detail-loop"
+        },
+        "desc": {
+          "en": "A compact local motion block for panel and material passes. The control state is owned by the case UI, not native browser chrome.",
+          "ru": "Компактный локальный motion-блок для panel и material passes. Состоянием управляет UI кейса, не native browser chrome."
+        }
+      },
+      {
+        "source": "vimeo",
+        "layout": "half",
+        "playback": "ambient",
+        "vimeoId": "76979871",
+        "poster": "./assets/cases/orbital-mk-ii/05.svg",
+        "title": "Orbital Mk.II ambient loop",
+        "label": {
+          "en": "Ambient service loop",
+          "ru": "Фоновый service-loop"
+        },
+        "desc": {
+          "en": "A silent Vimeo loop slot for externally hosted animation previews, lazy-loaded only when the motion block is approached.",
+          "ru": "Тихий Vimeo loop для externally hosted animation previews, lazy-loaded только при приближении motion-блока."
+        }
+      }
+    ]
+  }
+}

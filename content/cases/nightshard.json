@@ -1,0 +1,126 @@
+{
+  "id": "nightshard",
+  "enabled": true,
+  "category": "hard-surface",
+  "year": "2025",
+  "gameAsset": true,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "7 — Nightshard. Hard Surface + Game Asset badge",
+    "thumb": "./assets/cards/nightshard.svg",
+    "thumbLabel": "Nightshard",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": "Game",
+    "title": {
+      "en": "Nightshard",
+      "ru": "Nightshard"
+    },
+    "desc": {
+      "en": "Hero weapon asset. 4K PBR textures, optimised for real-time.",
+      "ru": "Hero-оружие. 4K PBR-текстуры, оптимизация под real-time."
+    },
+    "alt": {
+      "en": "Nightshard — hero weapon asset, game-ready",
+      "ru": "Nightshard — hero-оружие, game-ready"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "Personal",
+      "ru": "Личный проект"
+    },
+    "tools": [
+      "Blender",
+      "Substance Painter",
+      "UE5"
+    ],
+    "modelSrc": "./assets/models/nightshard.glb",
+    "modelStats": {
+      "triangles": "15,488",
+      "vertices": "8,000",
+      "materials": 1,
+      "textures": "5 × 4 K",
+      "software": "Blender + Substance"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1a1a2a 0%,#252535 100%)",
+      "linear-gradient(135deg,#161624 0%,#202030 100%)",
+      "linear-gradient(135deg,#121220 0%,#1c1c2c 100%)",
+      "linear-gradient(135deg,#0e0e1c 0%,#181828 100%)",
+      "linear-gradient(135deg,#0a0a18 0%,#161626 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Final asset",
+          "ru": "Финальный ассет"
+        },
+        "desc": {
+          "en": "Hero weapon for a third-person action title. 4K PBR textures, optimised for real-time.",
+          "ru": "Hero-оружие под TPS-action. 4K PBR-текстуры, оптимизация под real-time."
+        }
+      },
+      {
+        "label": {
+          "en": "Texture sheets",
+          "ru": "Texture sheets"
+        },
+        "desc": {
+          "en": "Albedo, roughness, metalness, normal and AO maps. Baked from 8M-poly high source.",
+          "ru": "Albedo, roughness, metalness, normal и AO. Запечены с 8M-poly high-source."
+        }
+      },
+      {
+        "label": {
+          "en": "Polycount view",
+          "ru": "Polycount"
+        },
+        "desc": {
+          "en": "Game-ready mesh at 12 k triangles — within budget for character-attachment LOD0.",
+          "ru": "Game-ready меш на 12k tris — в бюджете под character-attachment LOD0."
+        }
+      },
+      {
+        "label": {
+          "en": "In-engine test",
+          "ru": "In-engine тест"
+        },
+        "desc": {
+          "en": "Live capture inside Unreal Engine 5 using Nanite-disabled preview with Lumen.",
+          "ru": "Live-capture в Unreal Engine 5: Nanite-disabled preview с Lumen."
+        }
+      },
+      {
+        "label": {
+          "en": "Blade macro",
+          "ru": "Макро клинка"
+        },
+        "desc": {
+          "en": "Edge chip detail pass. Anisotropic reflection matches reference from real forged steel.",
+          "ru": "Пасс детализации сколов на кромке. Anisotropic reflection совпадает с reference кованой стали."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Ready for gameplay",
+        "ru": "Готов к gameplay"
+      },
+      "body": {
+        "en": "Socket points, collision primitives and a simple Blueprint-compatible animation rig are included in the deliverable. Ready to be imported and attached to a character skeleton on arrival.",
+        "ru": "В поставке: socket-points, collision-примитивы и простой Blueprint-совместимый animation rig. Готов к импорту и attach к скелету персонажа из коробки."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Refraction",
+        "ru": "Преломление"
+      },
+      "body": {
+        "en": "Index of refraction tuned to 1.52 for lead crystal. Dispersion faked with a three-channel UV offset in post.",
+        "ru": "IOR 1.52 под lead crystal. Dispersion имитирован через 3-канальный UV-offset в посте."
+      }
+    }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "id": "apex-frame",
+  "enabled": true,
+  "category": "prototyping",
+  "year": "2024",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "9",
+    "thumb": "./assets/cards/apex-frame.svg",
+    "thumbLabel": "Apex Frame",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Apex Frame",
+      "ru": "Apex Frame"
+    },
+    "desc": {
+      "en": "Mechanical component breakdown for engineering client. Mfg-reference accuracy.",
+      "ru": "Разборка механического узла для инженерного заказчика. Точность по заводскому чертежу."
+    },
+    "alt": {
+      "en": "Apex Frame — mechanical component breakdown",
+      "ru": "Apex Frame — механический узел в разборе"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "Client",
+      "ru": "Клиент"
+    },
+    "tools": [
+      "Blender",
+      "CAD export",
+      "Inkscape"
+    ],
+    "modelSrc": "./assets/models/apex-frame.glb",
+    "modelStats": {
+      "triangles": "12,200",
+      "vertices": "6,300",
+      "materials": 4,
+      "textures": "4 × 2 K",
+      "software": "ZBrush + Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#202428 0%,#2c3034 100%)",
+      "linear-gradient(135deg,#1c2024 0%,#282c30 100%)",
+      "linear-gradient(135deg,#181c20 0%,#24282c 100%)",
+      "linear-gradient(135deg,#14181c 0%,#202428 100%)",
+      "linear-gradient(135deg,#101418 0%,#1c2024 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Assembly render",
+          "ru": "Сборка"
+        },
+        "desc": {
+          "en": "Mechanical component breakdown for engineering client. Manufacturing-reference accuracy.",
+          "ru": "Разборка механического узла для инженерного заказчика. Точность по заводскому чертежу."
+        }
+      },
+      {
+        "label": {
+          "en": "Component detail",
+          "ru": "Деталь узла"
+        },
+        "desc": {
+          "en": "Tolerance callouts overlaid on photorealistic render for internal design review.",
+          "ru": "Tolerance-callouts наложены на фотореалистичный рендер — для внутреннего design review."
+        }
+      },
+      {
+        "label": {
+          "en": "Engineering ref",
+          "ru": "Инженерный reference"
+        },
+        "desc": {
+          "en": "Annotated PDF and STEP export handed off directly to manufacturing partner.",
+          "ru": "Аннотированный PDF и STEP-экспорт переданы напрямую производственному партнёру."
+        }
+      },
+      {
+        "label": {
+          "en": "Stress overlay",
+          "ru": "Stress-оверлей"
+        },
+        "desc": {
+          "en": "FEA colour map composited onto mesh render for pitch deck to investors.",
+          "ru": "FEA color-map скомпозирована на mesh-рендер — под pitch-deck для инвесторов."
+        }
+      },
+      {
+        "label": {
+          "en": "Prototype photo",
+          "ru": "Фото прототипа"
+        },
+        "desc": {
+          "en": "Side-by-side of render and machined prototype. Geometry lines up within tolerance.",
+          "ru": "Side-by-side рендера и обработанного прототипа. Геометрия совпадает в пределах допуска."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Engineering-grade",
+        "ru": "Engineering-grade"
+      },
+      "body": {
+        "en": "Files were exported at full 1:1 scale with real-world units baked in. All holes, threads and fillets match the STEP source that went to the CNC shop — nothing is \"eyeballed\".",
+        "ru": "Файлы экспортированы в полном масштабе 1:1 с реальными единицами. Все отверстия, резьбы и фаски совпадают с STEP-исходником, ушедшим на CNC-станок — без \"на глаз\"."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Impact geo",
+        "ru": "Impact geo"
+      },
+      "body": {
+        "en": "Deformable plate zones pre-sculpted in 5 stages. Blend shapes drive runtime damage without additional draw calls.",
+        "ru": "Деформируемые зоны пластин предзалеплены в 5 стадий. Blend shapes гонят runtime damage без дополнительных draw calls."
+      }
+    }
+  }
+}

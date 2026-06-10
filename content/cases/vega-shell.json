@@ -1,0 +1,128 @@
+{
+  "id": "vega-shell",
+  "enabled": true,
+  "category": "hard-surface",
+  "year": "2025",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "2",
+    "thumb": "./assets/cards/vega-shell.svg",
+    "thumbLabel": "Vega Shell",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Vega Shell",
+      "ru": "Vega Shell"
+    },
+    "desc": {
+      "en": "Modular exo-armor system. 47 individual parts, LOD-ready.",
+      "ru": "Модульный экзо-доспех. 47 отдельных деталей, LOD-ready."
+    },
+    "alt": {
+      "en": "Vega Shell — modular exo-armor system",
+      "ru": "Vega Shell — модульный экзо-доспех"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "Personal",
+      "ru": "Личный проект"
+    },
+    "tools": [
+      "Blender",
+      "ZBrush",
+      "Substance Painter"
+    ],
+    "modelSrc": "./assets/models/experimental/humanoid-2.glb",
+    "modelEnvironment": "studio",
+    "modelExposure": 1.05,
+    "modelStats": {
+      "triangles": "Meshopt compressed",
+      "vertices": "GLB embedded",
+      "materials": 1,
+      "textures": "2 KTX2",
+      "software": "Drive test asset"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1a2030 0%,#252e40 100%)",
+      "linear-gradient(135deg,#161c2e 0%,#20283c 100%)",
+      "linear-gradient(135deg,#111828 0%,#1a2234 100%)",
+      "linear-gradient(135deg,#0d1422 0%,#161e2e 100%)",
+      "linear-gradient(135deg,#0b1220 0%,#141c2a 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "System overview",
+          "ru": "Обзор системы"
+        },
+        "desc": {
+          "en": "Modular exo-armor built from 47 individual pieces. Each segment detaches for LOD and rigging.",
+          "ru": "Модульный экзо-доспех из 47 отдельных деталей. Каждый сегмент отсоединяется под LOD и риг."
+        }
+      },
+      {
+        "label": {
+          "en": "Component breakdown",
+          "ru": "Разборка компонентов"
+        },
+        "desc": {
+          "en": "Parting logic derived from real manufacturing constraints. No floating geo, clean hard-edges.",
+          "ru": "Логика парт-сетки выведена из реальных производственных констрейнтов. Без плавающей геометрии, чистые hard-edges."
+        }
+      },
+      {
+        "label": {
+          "en": "LOD passes",
+          "ru": "LOD-пассы"
+        },
+        "desc": {
+          "en": "LOD0–LOD2 prepared at 100 %, 40 % and 12 % poly budgets for runtime mesh streaming.",
+          "ru": "LOD0–LOD2 подготовлены под 100%, 40% и 12% поли-бюджета для runtime mesh streaming."
+        }
+      },
+      {
+        "label": {
+          "en": "Shoulder plate",
+          "ru": "Наплечник"
+        },
+        "desc": {
+          "en": "Ball-joint attachment with limit constraints baked into naming. Ready for IK retarget.",
+          "ru": "Шарнирное крепление с лимитами, прописанными в naming. Готов к IK-retarget."
+        }
+      },
+      {
+        "label": {
+          "en": "Paint variant",
+          "ru": "Вариант покраски"
+        },
+        "desc": {
+          "en": "Three material presets — factory clean, field-worn, arctic camo — via ID-mask layering.",
+          "ru": "Три материальных пресета — factory clean, field-worn, arctic camo — через ID-маски."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Why modularity",
+        "ru": "Зачем модульность"
+      },
+      "body": {
+        "en": "Each of the 47 parts can be hot-swapped at runtime to support player customisation. Every seam has been modelled as a mechanical connection rather than a floating surface decal.",
+        "ru": "Каждая из 47 деталей может hot-swap-иться в рантайме — игроку доступна кастомизация. Каждый шов — это механическое сочленение, а не декаль на поверхности."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Rigging ready",
+        "ru": "Rigging ready"
+      },
+      "body": {
+        "en": "Each segment carries a hidden socket bone. Joint orientation follows FBX conventions for seamless Maya/Blender export.",
+        "ru": "У каждого сегмента — скрытый socket-bone. Ориентация суставов — по FBX-конвенциям, чтобы Maya/Blender ели без переделки."
+      }
+    }
+  }
+}

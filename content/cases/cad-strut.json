@@ -1,0 +1,133 @@
+{
+  "id": "cad-strut",
+  "enabled": true,
+  "category": "cad",
+  "year": "2025",
+  "gameAsset": false,
+  "cadPlaceholder": true,
+  "card": {
+    "htmlComment": "18 — CAD study",
+    "thumb": "./assets/cards/cad-strut.svg",
+    "thumbLabel": "CAD Strut",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "CAD Strut",
+      "ru": "CAD Strut"
+    },
+    "desc": {
+      "en": "Structural strut node. CAD-first geometry with bolt-pattern variants and PBR finish study.",
+      "ru": "Структурный strut-узел. CAD-first геометрия, bolt-pattern варианты и PBR-отделка."
+    },
+    "alt": {
+      "en": "CAD Strut — structural node assembly",
+      "ru": "CAD Strut — структурный узел, CAD"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "R&D",
+      "ru": "R&D"
+    },
+    "tools": [
+      "Fusion 360",
+      "Blender",
+      "KeyShot"
+    ],
+    "modelSrc": "./assets/models/cad-strut.glb",
+    "modelStats": {
+      "triangles": "480",
+      "vertices": "248",
+      "materials": 2,
+      "textures": "Procedural (PBR)",
+      "software": "Fusion 360 + Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1f2429 0%,#2b3138 100%)",
+      "linear-gradient(135deg,#1c2126 0%,#282e35 100%)",
+      "linear-gradient(135deg,#191e23 0%,#252b32 100%)",
+      "linear-gradient(135deg,#161b20 0%,#21272e 100%)",
+      "linear-gradient(135deg,#13181d 0%,#1e242b 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Node overview",
+          "ru": "Обзор узла"
+        },
+        "desc": {
+          "en": "Structural strut node. Six-way connector for space-frame assemblies.",
+          "ru": "Структурный strut-узел. Six-way коннектор под space-frame сборки."
+        }
+      },
+      {
+        "label": {
+          "en": "Axis diagram",
+          "ru": "Диаграмма осей"
+        },
+        "desc": {
+          "en": "Load-path diagram — principal axes marked for the structural engineer.",
+          "ru": "Load-path диаграмма — главные оси размечены для конструктора."
+        }
+      },
+      {
+        "label": {
+          "en": "Cross-section",
+          "ru": "Cross-section"
+        },
+        "desc": {
+          "en": "Section through the central hub. Wall thickness and weld-prep highlighted.",
+          "ru": "Сечение через центральный hub. Толщина стенок и weld-prep подсвечены."
+        }
+      },
+      {
+        "label": {
+          "en": "Mount plate",
+          "ru": "Mount-плита"
+        },
+        "desc": {
+          "en": "Bolt-circle mount plate. Parametric — updates when strut diameter changes.",
+          "ru": "Bolt-circle mount-плита. Параметрическая — обновляется при смене диаметра strut."
+        }
+      },
+      {
+        "label": {
+          "en": "Surface finish",
+          "ru": "Поверхностная отделка"
+        },
+        "desc": {
+          "en": "KeyShot pass — powder-coated aluminium, matte warm grey.",
+          "ru": "KeyShot-пасс — powder-coated aluminium, matte warm grey."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Structural CAD node",
+        "ru": "Structural CAD node"
+      },
+      "body": {
+        "en": "Structural strut node with linked diameter, wall thickness, and bolt-pattern parameters for production and render review.",
+        "ru": "Структурный strut-узел: диаметр, толщина стенки и bolt-pattern связаны параметрами для production и render review."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Use case",
+        "ru": "Use case"
+      },
+      "body": {
+        "en": "Used in space-frame prototypes. STEP is exported for CNC; Blender retopo supports marketing renders.",
+        "ru": "Применяется в space-frame прототипах. STEP экспортируется для CNC, Blender-retopo — для marketing-рендеров."
+      }
+    }
+  },
+  "i18nOverrides": {
+    "caseEn": {
+      "inline": {
+        "body": "Used in space-frame prototypes. STEP is exported for CNC; Blender retopo for marketing renders."
+      }
+    }
+  }
+}

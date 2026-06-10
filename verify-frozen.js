@@ -160,6 +160,7 @@ function runStaticChecks() {
     'free-assets.js',
     'i18n.js',
     'i18n-data.js',
+    'cards-data.js',
     'fa-data.js',
     'shared-runtime.js',
     'vendor/codex-three-viewer.js'
@@ -172,7 +173,7 @@ function runStaticChecks() {
   add('static', 'A8-no-localStorage-runtime', jsViolations.length === 0,
       jsViolations.length ? 'violations in: ' + jsViolations.join(', ') : 'all clean');
 
-  const shippedCopyFiles = ['index.html', 'free-assets.html', 'main.js', 'i18n-data.js', 'fa-data.js', 'free-assets.js', 'shared-runtime.js'];
+  const shippedCopyFiles = ['index.html', 'free-assets.html', 'main.js', 'i18n-data.js', 'cards-data.js', 'fa-data.js', 'free-assets.js', 'shared-runtime.js'];
   const shippedCopyViolations = [];
   const shippedCopyRules = [
     {
@@ -323,9 +324,11 @@ async function testIndex(BASE) {
   const scripts = await page.$$eval('script[src]', els => els.map(e => ({ src: e.getAttribute('src'), defer: e.hasAttribute('defer'), async: e.hasAttribute('async') })));
   add('index', 'SCRIPTS-no-defer', !scripts.some(s => s.defer));
   const order = scripts.map(s => s.src);
-  // A1 — Full chain: gsap → ScrollTrigger → SplitText → i18n-data → i18n → shared → main → animations.
+  // A1 — Full chain: gsap → ScrollTrigger → SplitText → i18n-data → i18n → shared → cards-data → main → animations.
   // Phase 1+ added i18n-data + i18n; they must sit ПОСЛЕ vendor GSAP-bundle и
   // ПЕРЕД main.js (main.js dereferences window.I18N at boot).
+  // Iteration B added cards-data.js (generated content) между shared и main:
+  // main.js читает window.CARDS_DATA синхронно при инициализации.
   const idx = (rx) => order.findIndex(s => rx.test(s));
   const iGsap = idx(/gsap\.min\.js/);
   const iST   = idx(/ScrollTrigger/);
@@ -333,14 +336,15 @@ async function testIndex(BASE) {
   const iI18nD = idx(/i18n-data\.js$/);
   const iI18n  = idx(/i18n\.js$/);
   const iShared = idx(/shared-runtime\.js$/);
+  const iCards = idx(/cards-data\.js$/);
   const iMain  = idx(/main\.js$/);
   const iAnim  = idx(/animations\.js$/);
   const orderOK =
     iGsap >= 0 && iST > iGsap && iSpT > iST &&
     iI18nD > iSpT && iI18n > iI18nD &&
-    iShared > iI18n && iMain > iShared && iAnim > iMain;
+    iShared > iI18n && iCards > iShared && iMain > iCards && iAnim > iMain;
   add('index', 'SCRIPTS-order', orderOK,
-      `gsap=${iGsap} ST=${iST} SpT=${iSpT} i18n-data=${iI18nD} i18n=${iI18n} shared=${iShared} main=${iMain} anim=${iAnim}`);
+      `gsap=${iGsap} ST=${iST} SpT=${iSpT} i18n-data=${iI18nD} i18n=${iI18n} shared=${iShared} cards-data=${iCards} main=${iMain} anim=${iAnim}`);
   const sharedAPI = await page.evaluate(() => ({
     obj: typeof window.CodexShared === 'object',
     loadModelViewerScript: typeof (window.CodexShared && window.CodexShared.loadModelViewerScript) === 'function',

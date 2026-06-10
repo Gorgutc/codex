@@ -1,0 +1,126 @@
+{
+  "id": "recon-drone",
+  "enabled": true,
+  "category": "hard-surface",
+  "year": "2024",
+  "gameAsset": true,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "8 — Recon Drone. Hard Surface + Game Asset badge",
+    "thumb": "./assets/cards/recon-drone.svg",
+    "thumbLabel": "Recon Drone",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": "Game",
+    "title": {
+      "en": "Recon Drone",
+      "ru": "Recon Drone"
+    },
+    "desc": {
+      "en": "Tactical UAV prop. Game-ready, LOD0–LOD2, UE5-compatible.",
+      "ru": "Тактический UAV-проп. Game-ready, LOD0–LOD2, под UE5."
+    },
+    "alt": {
+      "en": "Recon Drone — tactical UAV prop",
+      "ru": "Recon Drone — тактический UAV-проп"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "Personal",
+      "ru": "Личный проект"
+    },
+    "tools": [
+      "Blender",
+      "Substance Painter",
+      "UE5"
+    ],
+    "modelSrc": "./assets/models/recon-drone.glb",
+    "modelStats": {
+      "triangles": "496",
+      "vertices": "266",
+      "materials": 3,
+      "textures": "Procedural (PBR)",
+      "software": "Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1c2030 0%,#28303e 100%)",
+      "linear-gradient(135deg,#181c2a 0%,#242c38 100%)",
+      "linear-gradient(135deg,#141828 0%,#202834 100%)",
+      "linear-gradient(135deg,#101424 0%,#1c2430 100%)",
+      "linear-gradient(135deg,#0c1020 0%,#181e2c 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Completed model",
+          "ru": "Готовая модель"
+        },
+        "desc": {
+          "en": "Tactical UAV prop. Game-ready tri count with full LOD0–LOD2 chain for UE5.",
+          "ru": "Тактический UAV-проп. Game-ready tri-count, полная цепочка LOD0–LOD2 под UE5."
+        }
+      },
+      {
+        "label": {
+          "en": "Exploded view",
+          "ru": "Exploded view"
+        },
+        "desc": {
+          "en": "Separated components rendered with distance-based transparency. Used in pitch deck.",
+          "ru": "Разнесённые компоненты, distance-based transparency. Использован в pitch-deck."
+        }
+      },
+      {
+        "label": {
+          "en": "LOD comparison",
+          "ru": "Сравнение LOD"
+        },
+        "desc": {
+          "en": "Side-by-side LOD0 (14 k), LOD1 (5.6 k) and LOD2 (1.8 k) with silhouette preservation.",
+          "ru": "Side-by-side LOD0 (14k), LOD1 (5.6k), LOD2 (1.8k) — силуэт сохранён."
+        }
+      },
+      {
+        "label": {
+          "en": "Rotor animation",
+          "ru": "Анимация роторов"
+        },
+        "desc": {
+          "en": "Dual-blade rotor cycle baked into mesh. 120 fps loop for seamless idle state.",
+          "ru": "Цикл двойного винта запечён в меш. 120 fps луп под seamless idle."
+        }
+      },
+      {
+        "label": {
+          "en": "Decal library",
+          "ru": "Decal-библиотека"
+        },
+        "desc": {
+          "en": "Set of 12 modular decals (serials, hazard tape, unit IDs) for squad personalisation.",
+          "ru": "Набор из 12 модульных деколей (серийники, hazard tape, ID юнита) под кастомизацию отрядов."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Engine-side integration",
+        "ru": "Интеграция в движок"
+      },
+      "body": {
+        "en": "The drone ships with an Unreal-ready Blueprint actor, socket points for the antenna and gimbal, and a material parameter collection for easy colourway swaps without duplicating assets.",
+        "ru": "Дрон поставляется с Unreal-ready Blueprint-актером, socket-points под антенну и gimbal, и material parameter collection — colorway-свопы без дублирования ассетов."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Modularity",
+        "ru": "Модульность"
+      },
+      "body": {
+        "en": "Payload bay accepts 6 swappable modules. Each snaps via a shared 3-pin connector — no per-module rigging required.",
+        "ru": "Payload-отсек принимает 6 swappable-модулей. Каждый снапится через общий 3-pin коннектор — отдельный риг под каждый модуль не нужен."
+      }
+    }
+  }
+}

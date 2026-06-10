@@ -2,6 +2,7 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "js/animations.js",
+    "js/cards-data.js",
     "js/fa-data.js",
     "js/free-assets.js",
     "js/i18n-data.js",

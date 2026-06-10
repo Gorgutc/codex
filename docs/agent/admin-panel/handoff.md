@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | 0 | Окружение, ТЗ, ресерч, handoff | готово (PR #36, draft) |
 | A | Двойная обвязка Claude + Codex (зеркало `.claude`, sync-гейт) | готово (ветка `codex/admin-ia-dual-harness`, draft PR) |
-| B | Извлечение контента в `content/*.json` + генератор + golden-тест | не начата |
+| B | Извлечение контента в `content/*.json` + генератор + golden-тест | готово (ветка `codex/admin-ib-content-layer`, draft PR) |
 | C | CI-конвейер публикации (GitHub Action) + sync-гейт | не начата |
 | D | Админка MVP: вход GitHub OAuth, тексты RU/EN, мета | не начата |
 | E | Медиа: фото, видео (`.webm`/Vimeo), GLB, OG | не начата |
@@ -125,3 +125,54 @@
 Следующий шаг: итерация B — извлечение контента в `content/*.json`, генератор
 и golden-тест (см. tz.md). Перед стартом прочитать `js/main.js` (CARDS_DATA,
 makeItems, buildItems) целиком.
+
+### 2026-06-10 — Сессия 1, продолжение: итерация B (слой данных контента)
+
+Сделано (ветка `codex/admin-ib-content-layer`, поверх итерации A):
+
+- `content/` — редактируемый слой: `settings.json` (фильтры, `cardOrder`),
+  `cases/{id}.json` ×18 (card EN+RU, case: role/tools/model*/palette/srcs/
+  captions/text/inline/motionBlocks, всё EN+RU), `free-assets.json`,
+  `i18n-ui.json`, `meta.json`.
+- `scripts/generate-content.mjs` (`content:generate` / `content:check`):
+  детерминированно генерирует `js/cards-data.js` (новый, между
+  `shared-runtime.js` и `main.js` в index.html; логика `makeItems` перенесена
+  в генератор), `js/fa-data.js`, `js/i18n-data.js` (по шаблону
+  `scripts/templates/i18n-data.tpl.js`), регион index.html между маркерами
+  `<!-- CODEX:GEN cards-grid BEGIN/END -->` (байт-в-байт).
+- `js/main.js` минус ~570 строк данных; `buildItems`/seeded shuffle не тронуты.
+- Golden-фикстуры `tests/quality/fixtures/` + спек
+  `tests/quality/content-golden.spec.mjs` (`npm run test:golden`):
+  runtime CARDS_DATA/FA_DATA/i18n/grid innerHTML deep-equal до и после.
+  Adversarial-ревью дополнительно доказало побайтную идентичность данных
+  старого и нового рантайма через vm-исполнение старого main.js.
+- `verify-frozen.js`: cards-data.js добавлен в script order и A8/A9-сканы
+  (строго аддитивно). `knip.json`: cards-data.js как entry.
+- По ревью: `content:check` включён в `quality:fast`, `content:check` +
+  `test:golden` — в `codex:ship`; HTML-экранирование в генераторе грида
+  (под будущий пользовательский ввод из админки); защита от `$&`-паттернов
+  в подстановке шаблона; удалены мёртвые поля (`order` в кейсах,
+  `faCategoryOrder`); `*.html` в `.prettierignore` (чтобы `format:all`
+  не воевал с генератором).
+
+Верификация: `codex:ship` полный зелёный (plugin 35/35, governance 0 fail,
+parity, content:check, golden 2/2, verify-frozen 128/128); `test:visual`
+без диффов; `quality:fast` зелёный.
+
+Заметки для следующих итераций:
+
+- `enabled:false` в кейсах уже поддержан генератором (задел под итерацию F).
+- `i18nOverrides.caseEn` у `cad-strut`/`flex-spine` консервирует историческое
+  расхождение EN-текстов CARDS_DATA и CASE_LOCALES.en — владелец может
+  унифицировать через админку.
+- `scripts/capture-content-golden.mjs` перезаписывает golden-фикстуры —
+  запускать ТОЛЬКО при намеренном обновлении эталона (в npm-скрипты не зашит).
+- free-assets.html не грузит cards-data.js: там `window.CARDS_DATA` пуст;
+  все консумеры в main.js имеют guard — поведение страницы не изменилось.
+- Тех-долг (не блокирует): нет `.gitattributes` с `eol=lf` — на чужой машине
+  с `autocrlf=true` возможны ложные диффы; решить в итерации C вместе с CI.
+- В `.prettierrc.json` остался мёртвый override для `*.html` — безвреден.
+
+Следующий шаг: итерация C — `.github/workflows/content-publish.yml`
+(регенерация + verify + commit-back при правке `content/**`, авто-revert при
+FAIL, защита от петли) + JSON-schema валидация `content/`.
