@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   state.js — черновики и валидация админ-панели (итерации D–E).
+   state.js — черновики и валидация админ-панели (итерации D–F).
 
    Модель: на каждый редактируемый файл content/*.json держим
      { base: свежий JSON с GitHub, sha, draft: редактируемая копия }.
@@ -198,6 +198,22 @@
     return node;
   }
 
+  // Итерация F: значение черновика БЕЗ загрузки файла с GitHub — смотрит
+  // загруженный draft, затем orphan-черновик из sessionStorage. undefined,
+  // если черновика нет (список кейсов накладывает черновики поверх каталога).
+  function peekDraftValue(path, dotPath) {
+    let node;
+    const entry = files.get(path);
+    if (entry) node = entry.draft;
+    else if (orphanDrafts[path] !== undefined) node = orphanDrafts[path];
+    else return undefined;
+    for (const key of String(dotPath).split('.')) {
+      if (node === null || node === undefined) return undefined;
+      node = node[key];
+    }
+    return node;
+  }
+
   function setValue(path, dotPath, value) {
     const entry = files.get(path);
     if (!entry) return;
@@ -358,6 +374,21 @@
   function getMediaEdit(filePath, dotPath) {
     const edits = mediaEdits.get(filePath);
     return (edits && edits.get(dotPath)) || null;
+  }
+
+  // Итерация F: при перестановке элементов массива (слоты иллюстраций,
+  // motion-блоки) pending-медиа должны переехать вместе со своим слотом —
+  // иначе загруженный файл лёг бы в чужую позицию. renameFn(dotPath) →
+  // новый dot-путь (или тот же).
+  function remapMediaEdits(filePath, renameFn) {
+    const edits = mediaEdits.get(filePath);
+    if (!edits || edits.size === 0) return;
+    const next = new Map();
+    edits.forEach((record, dotPath) => {
+      next.set(renameFn(dotPath), record);
+    });
+    mediaEdits.set(filePath, next);
+    notify();
   }
 
   // Значение поля с учётом pending-медиа поверх черновика.
@@ -549,6 +580,38 @@
     const errors = [];
     if (path.indexOf('content/cases/') === 0) {
       validateCaseDraft(errors, path, draft);
+      // Итерация F: зеркало strict-boolean-проверки enabled из
+      // generate-content.mjs (как у filters.enabled).
+      if ('enabled' in draft && typeof draft.enabled !== 'boolean') {
+        errors.push({
+          path,
+          field: 'enabled',
+          message: 'Видимость кейса: значение «enabled» повреждено — переключите тогл видимости заново'
+        });
+      }
+      // Итерация F: зеркало enum-проверки layoutMode из generate-content.mjs.
+      if ('layoutMode' in draft && draft.layoutMode !== 'seeded' && draft.layoutMode !== 'manual') {
+        errors.push({
+          path,
+          field: 'layoutMode',
+          message: 'Порядок блоков: режим должен быть «seeded» (автоматический) или «manual» (ручной)'
+        });
+      }
+    } else if (path === 'content/settings.json') {
+      // Итерация F: зеркало правил settings из generate-content.mjs.
+      if (!Array.isArray(draft.cardOrder) || draft.cardOrder.length === 0 || !draft.cardOrder.every(isFilled)) {
+        errors.push({ path, field: 'cardOrder', message: 'Порядок карточек повреждён — обновите страницу' });
+      }
+      const filters = Array.isArray(draft.filters) ? draft.filters : [];
+      filters.forEach((filter, i) => {
+        if (filter && filter.key === 'all' && filter.enabled === false) {
+          errors.push({
+            path,
+            field: 'filters.' + i + '.enabled',
+            message: 'Фильтр «All» нельзя выключить — это сброс фильтрации в гриде'
+          });
+        }
+      });
     } else if (path === 'content/meta.json') {
       for (const lang of ['en', 'ru']) validateLeafStrings(errors, path, draft[lang], lang, 'Мета-теги');
       // Итерация E: зеркало validateMetaImages из generate-content.mjs.
@@ -623,6 +686,7 @@
   function describeChange(path) {
     if (path === 'content/meta.json') return 'Мета-теги';
     if (path === 'content/i18n-ui.json') return 'Тексты интерфейса';
+    if (path === 'content/settings.json') return 'Порядок карточек и категории';
     const entry = files.get(path);
     const match = path.match(/^content\/cases\/(.+)\.json$/);
     const id = match ? match[1] : path;
@@ -634,6 +698,7 @@
     const parts = changedPaths().map((path) => {
       if (path === 'content/meta.json') return 'мета-теги';
       if (path === 'content/i18n-ui.json') return 'тексты интерфейса';
+      if (path === 'content/settings.json') return 'порядок и категории';
       const match = path.match(/^content\/cases\/(.+)\.json$/);
       return match ? 'кейс ' + match[1] : path;
     });
@@ -671,7 +736,9 @@
     ensureAllDrafts,
     getEntry,
     getValue,
+    peekDraftValue,
     setValue,
+    remapMediaEdits,
     changedPaths,
     isDirty,
     hasDraft,

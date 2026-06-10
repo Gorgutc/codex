@@ -16,10 +16,18 @@
  *   js/i18n-data.js            — dictionaries injected into
  *                                scripts/templates/i18n-data.tpl.js
  *   index.html                 — the cards grid between
- *                                <!-- CODEX:GEN cards-grid BEGIN/END --> markers
+ *                                <!-- CODEX:GEN cards-grid BEGIN/END --> markers,
+ *                                the filter checkboxes between
+ *                                <!-- CODEX:GEN filters BEGIN/END --> markers
  *                                and the owner-editable head meta between
  *                                <!-- CODEX:GEN head-meta BEGIN/END --> markers
  *   free-assets.html           — the head-meta GEN region (same markers)
+ *
+ * Visibility (iteration F): a case with enabled:false, and every case of a
+ * filter with enabled:false in settings.json, is dropped from the grid,
+ * cards-data and the locale dictionaries. A disabled filter also disappears
+ * from the filters GEN region. The 'all' filter cannot be disabled and at
+ * least one case must stay visible overall.
  *
  * Both modes first run validateContent() over the content layer and exit 1
  * with the full violation list if anything is broken (unique ids, cardOrder
@@ -29,7 +37,10 @@
  *   node scripts/generate-content.mjs --write   # write targets to disk
  *   node scripts/generate-content.mjs --check   # exit 1 if any target differs
  *
- * Env: CONTENT_DIR — override the content directory (negative self-test).
+ * Env: CONTENT_DIR     — override the content directory (negative self-test);
+ *      CONTENT_OUT_DIR — write targets into this directory instead of the
+ *                        repo root (tests only; templates are still read
+ *                        from the repo root).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,6 +50,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // CONTENT_DIR may be overridden (tests/quality/content-validate.test.mjs points
 // --check at a deliberately broken copy of the content layer).
 const CONTENT_DIR = process.env.CONTENT_DIR ? path.resolve(process.env.CONTENT_DIR) : path.join(ROOT, 'content');
+// CONTENT_OUT_DIR (tests only): redirect the generated targets to a temp
+// directory so node tests can inspect the output of an alternate content
+// layer without touching the working tree.
+const OUT_DIR = process.env.CONTENT_OUT_DIR ? path.resolve(process.env.CONTENT_OUT_DIR) : ROOT;
 const ASSETS_DIR = path.join(ROOT, 'assets');
 const TEMPLATE_PATH = path.join(ROOT, 'scripts', 'templates', 'i18n-data.tpl.js');
 
@@ -46,6 +61,8 @@ const GRID_BEGIN = '<!-- CODEX:GEN cards-grid BEGIN -->';
 const GRID_END = '<!-- CODEX:GEN cards-grid END -->';
 const HEAD_BEGIN = '<!-- CODEX:GEN head-meta BEGIN -->';
 const HEAD_END = '<!-- CODEX:GEN head-meta END -->';
+const FILTERS_BEGIN = '<!-- CODEX:GEN filters BEGIN -->';
+const FILTERS_END = '<!-- CODEX:GEN filters END -->';
 
 /* ── content loading ─────────────────────────────────────────────────────── */
 
@@ -73,8 +90,17 @@ function loadContent() {
   return { settings, cases, caseEntries, freeAssets, uiStrings, metaStrings };
 }
 
-function enabledCases(content) {
-  return content.cases.filter((c) => c.enabled !== false);
+function enabledFilters(content) {
+  const filters = Array.isArray(content.settings.filters) ? content.settings.filters : [];
+  return filters.filter((f) => f && f.enabled !== false);
+}
+
+// Visible = the case itself is enabled AND its category filter is enabled
+// (iteration F: disabling a whole category drops all its cases from the
+// grid, cards-data and the locale dictionaries).
+function visibleCases(content) {
+  const enabledKeys = new Set(enabledFilters(content).map((f) => f.key));
+  return content.cases.filter((c) => c.enabled !== false && enabledKeys.has(c.category));
 }
 
 /* ── content validation (runs before generation in --write AND --check) ──── */
@@ -167,6 +193,17 @@ function validateCase(violations, entry, filterKeys) {
     violations.push(`${where}: category "${c.category}" must be a settings.json filter key other than "all"`);
   }
   if (!isNonEmptyString(c.year)) violations.push(`${where}: "year" must be a non-empty string`);
+  // enabled (iteration F): optional strict boolean — mirrors the filters
+  // "enabled" rule; a truthy string would silently flip visibility logic.
+  if ('enabled' in c && typeof c.enabled !== 'boolean') {
+    violations.push(`${where}: "enabled" must be a boolean (got ${JSON.stringify(c.enabled)})`);
+  }
+  // layoutMode (iteration F): 'seeded' (default, deterministic shuffle in
+  // js/main.js buildItems) or 'manual' (authored media order, flag travels
+  // through js/cards-data.js).
+  if ('layoutMode' in c && c.layoutMode !== 'seeded' && c.layoutMode !== 'manual') {
+    violations.push(`${where}: layoutMode must be "seeded" or "manual" (got ${JSON.stringify(c.layoutMode)})`);
+  }
 
   const card = c.card || {};
   for (const field of ['title', 'desc', 'alt']) {
@@ -362,6 +399,16 @@ function validateContent(content) {
         `content/settings.json: filters[${i}] ("${filter.key}") needs a non-empty string "label" (got ${JSON.stringify(filter.label)})`
       );
     }
+    // enabled (iteration F): optional boolean; the 'all' pseudo-filter is the
+    // grid's reset state and can never be disabled.
+    if ('enabled' in filter && typeof filter.enabled !== 'boolean') {
+      violations.push(
+        `content/settings.json: filters[${i}] ("${filter.key}") "enabled" must be a boolean (got ${JSON.stringify(filter.enabled)})`
+      );
+    }
+    if (filter.key === 'all' && filter.enabled === false) {
+      violations.push(`content/settings.json: the "all" filter cannot be disabled`);
+    }
   });
   const filterKeys = new Set(filters.map((f) => f && f.key));
 
@@ -389,6 +436,14 @@ function validateContent(content) {
   }
 
   for (const entry of caseEntries) validateCase(violations, entry, filterKeys);
+
+  // Iteration F guard: an empty grid would break the shipped pages (and
+  // verify-frozen) — at least one enabled case in an enabled category.
+  if (visibleCases(content).length === 0) {
+    violations.push(
+      'content: at least one case must stay visible (an enabled case in an enabled category) — the grid cannot be empty'
+    );
+  }
 
   checkLocaleParity(violations, 'content/i18n-ui.json', uiStrings);
   checkLocaleParity(violations, 'content/meta.json', metaStrings);
@@ -483,6 +538,10 @@ function buildCaseEntry(c) {
     tools: cs.tools,
     modelSrc: cs.modelSrc
   };
+  // layoutMode travels into the runtime payload only when 'manual':
+  // js/main.js buildItems() treats an absent flag as 'seeded', so the
+  // generated file stays byte-identical while every case is seeded.
+  if (c.layoutMode === 'manual') entry.layoutMode = 'manual';
   if ('modelEnvironment' in cs) entry.modelEnvironment = cs.modelEnvironment;
   if ('modelExposure' in cs) entry.modelExposure = cs.modelExposure;
   entry.modelStats = cs.modelStats;
@@ -497,7 +556,7 @@ function buildCaseEntry(c) {
 
 function buildCardsDataJs(content) {
   const data = {};
-  for (const c of enabledCases(content)) data[c.id] = buildCaseEntry(c);
+  for (const c of visibleCases(content)) data[c.id] = buildCaseEntry(c);
   return (
     `/* ═══════════════════════════════════════════════════════════════════════
    cards-data.js — AUTO-GENERATED by scripts/generate-content.mjs. Do not
@@ -562,7 +621,7 @@ var FA_DATA = ` +
 function buildCardsLocales(content) {
   const en = {};
   const ru = {};
-  for (const c of enabledCases(content)) {
+  for (const c of visibleCases(content)) {
     const enCandidate = { title: c.card.title.en, desc: c.card.desc.en, alt: c.card.alt.en };
     const overrides = c.i18nOverrides && c.i18nOverrides.cardsEn;
     en[c.id] = applySparse(enCandidate, overrides);
@@ -574,7 +633,7 @@ function buildCardsLocales(content) {
 function buildCaseLocales(content) {
   const en = {};
   const ru = {};
-  for (const c of enabledCases(content)) {
+  for (const c of visibleCases(content)) {
     const cs = c.case;
     const enCandidate = {
       role: cs.role.en,
@@ -683,9 +742,36 @@ function buildCardHtml(c, catLabel) {
 
 function buildGridRegion(content) {
   const labels = Object.fromEntries(content.settings.filters.map((f) => [f.key, f.label]));
-  return enabledCases(content)
+  return visibleCases(content)
     .map((c) => buildCardHtml(c, labels[c.category]))
     .join('\n\n');
+}
+
+/* ── filters GEN region (iteration F, byte-identical templating) ──────────── */
+
+// data-i18n key of a filter: 'hard-surface' → 'filter.hardSurface' (matches
+// the historical hand-written keys in content/i18n-ui.json).
+function filterI18nKey(key) {
+  return 'filter.' + String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
+}
+
+// The checkbox row of the tags dropdown: only enabled filters are emitted.
+// Line layout reproduces the pre-iteration-F bytes exactly, so the first
+// generation is a no-op; values come from content/settings.json.
+function buildFiltersRegion(content) {
+  return enabledFilters(content)
+    .map((filter) => {
+      const key = escapeHtmlAttr(filter.key);
+      const i18n = escapeHtmlAttr(filterI18nKey(filter.key));
+      const label = filter.label;
+      return [
+        '          <label class="tags-dropdown__option" role="option">',
+        `            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="${key}" data-i18n-attr="aria-label:${i18n}" aria-label="${escapeHtmlAttr(label)}">`,
+        `            <span class="tags-dropdown__label" data-i18n="${i18n}">${escapeHtmlText(label)}</span>`,
+        '          </label>'
+      ].join('\n');
+    })
+    .join('\n');
 }
 
 function replaceRegion(html, filePath, begin, end, region) {
@@ -779,6 +865,7 @@ function buildTargets(content) {
   const indexEol = detectEol(indexRaw);
   let indexNext = indexRaw.replace(/\r\n/g, '\n');
   indexNext = replaceRegion(indexNext, 'index.html', HEAD_BEGIN, HEAD_END, buildHeadMetaRegion(content, 'index'));
+  indexNext = replaceRegion(indexNext, 'index.html', FILTERS_BEGIN, FILTERS_END, buildFiltersRegion(content));
   indexNext = replaceRegion(indexNext, 'index.html', GRID_BEGIN, GRID_END, buildGridRegion(content));
 
   const faRaw = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
@@ -819,7 +906,7 @@ function main() {
   let diffs = 0;
 
   for (const target of targets) {
-    const fullPath = path.join(ROOT, target.rel);
+    const fullPath = path.join(OUT_DIR, target.rel);
     // EOL robustness: with git core.autocrlf=true a fresh checkout puts CRLF
     // in the working tree while the generator emits LF. Normalize BOTH sides
     // before comparing so --check passes and --write does not churn.
@@ -835,6 +922,7 @@ function main() {
     } else if (same) {
       console.log(`[SKIP] ${target.rel} (already up to date)`);
     } else {
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, target.eol === '\n' ? target.next : target.next.replace(/\n/g, target.eol), 'utf8');
       console.log(`[GEN]  ${target.rel}`);
     }

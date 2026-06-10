@@ -54,24 +54,76 @@ function startServer() {
   });
 }
 
-const EXPECTED_IDS = [
-  'orbital-mk-ii','vega-shell','ironclad-frame','corten-series','lumen-one',
-  'flux-capsule','nightshard','recon-drone','apex-frame','core-rig',
-  'helix-reveal','arc-motion','nyx-panther','drift-koi','glint-owl',
-  'mech-link','flex-spine','cad-strut',
-];
-const EXPECTED_TAGS = ['all','hard-surface','product','organic','prototyping','animations','cad'];
+/* Итерация F: ВСЕ ожидания по составу грида (id-кейсы, фильтры, счётчики)
+ * выводятся из content/ — владелец легитимно выключает кейсы/категории и
+ * меняет порядок через админку, а verify в CI бежит по регенерированному
+ * состоянию. Захардкоженный список ронял бы конвейер при любой легитимной
+ * публикации. Строгость проверок прежняя — меняется только ИСТОЧНИК
+ * ожиданий (контракт DOM-vs-content остаётся точным).
+ */
+function readContentJson(...segments) {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, 'content', ...segments), 'utf8'));
+}
+const CONTENT_SETTINGS = readContentJson('settings.json');
+const CONTENT_CASES = new Map(
+  CONTENT_SETTINGS.cardOrder.map(id => [id, readContentJson('cases', id + '.json')]));
+const ENABLED_FILTERS = CONTENT_SETTINGS.filters.filter(f => f && f.enabled !== false);
+const ENABLED_FILTER_KEYS = new Set(ENABLED_FILTERS.map(f => f.key));
+// Видимые кейсы = enabled-кейсы включённых категорий, в порядке cardOrder
+// (ровно та же выборка, что в scripts/generate-content.mjs visibleCases).
+const EXPECTED_IDS = CONTENT_SETTINGS.cardOrder.filter(id => {
+  const data = CONTENT_CASES.get(id);
+  return !!data && data.enabled !== false && ENABLED_FILTER_KEYS.has(data.category);
+});
+const EXPECTED_TAGS = ENABLED_FILTERS.map(f => f.key);
+// Производные для interaction-тестов (final review итерации F):
+//   • FILTER_TEST_KEY — первая включённая категория (кроме 'all') с ≥1
+//     видимым кейсом: клик-тест фильтра не хардкодит 'product'.
+//   • EXPECTED_GAME_IDS — видимые кейсы с gameAsset:true (поле кейса в
+//     content/cases/*.json): game-проверки сверяют точный состав, а не floor.
+// Пустые множества — легитимное состояние контента: проверки не падают,
+// а громко помечаются «skipped» (PASS с явным detail).
+const FILTER_TEST_KEY = ENABLED_FILTERS
+  .map(f => f.key)
+  .find(key => key !== 'all' && EXPECTED_IDS.some(id => CONTENT_CASES.get(id).category === key)) || null;
+const EXPECTED_GAME_IDS = EXPECTED_IDS.filter(id => CONTENT_CASES.get(id).gameAsset === true);
+const cardTitleOf = id => {
+  const data = CONTENT_CASES.get(id);
+  return (data && data.card && data.card.title && data.card.title.en) || '';
+};
 
-// Итерация E: ожидания motion-контракта orbital-mk-ii выводятся из
-// content-слоя, а не хардкода — владелец легитимно переключает source
-// local↔vimeo через админку, и захардкоженный порядок ронял бы конвейер
-// (revert публикации). Структурная строгость DOM-vs-data сохраняется,
-// меняется только ИСТОЧНИК ожиданий.
-const ORBITAL_CONTENT = JSON.parse(
-  fs.readFileSync(path.join(ROOT, 'content', 'cases', 'orbital-mk-ii.json'), 'utf8'));
-const ORBITAL_MOTION = ORBITAL_CONTENT.case && Array.isArray(ORBITAL_CONTENT.case.motionBlocks)
-  ? ORBITAL_CONTENT.case.motionBlocks
+// Итерация E (обобщено в F): ожидания motion-контракта выводятся из
+// content-слоя — первый видимый кейс с motion-блоками (сейчас orbital-mk-ii).
+// Владелец легитимно переключает source local↔vimeo через админку, и
+// захардкоженный порядок ронял бы конвейер (revert публикации).
+const MOTION_CASE_ID = EXPECTED_IDS.find(id => {
+  const data = CONTENT_CASES.get(id);
+  return data.case && Array.isArray(data.case.motionBlocks) && data.case.motionBlocks.length > 0;
+}) || EXPECTED_IDS[0];
+const MOTION_CASE_CONTENT = CONTENT_CASES.get(MOTION_CASE_ID) || {};
+const MOTION_BLOCKS = MOTION_CASE_CONTENT.case && Array.isArray(MOTION_CASE_CONTENT.case.motionBlocks)
+  ? MOTION_CASE_CONTENT.case.motionBlocks
   : [];
+// Ноль motion-блоков (ни у одного видимого кейса их нет) — легитимное
+// состояние: motion-проверки сравнивают «пусто с пустым» (DOM тоже обязан
+// быть пуст), но КАЖДАЯ из них громко помечается этим detail, а не
+// проходит молча-вакуумно.
+const HAS_MOTION = MOTION_BLOCKS.length > 0;
+const MOTION_SKIP_DETAIL = 'skipped: no visible motion case';
+
+// free-assets: счётчики каталога тоже из content/ (free-assets.json).
+const CONTENT_FREE_ASSETS = readContentJson('free-assets.json');
+const FA_ITEM_COUNT = CONTENT_FREE_ASSETS.categories.reduce((sum, cat) => sum + cat.items.length, 0);
+const faCategoryItems = key => {
+  const category = CONTENT_FREE_ASSETS.categories.find(cat => cat.key === key);
+  return category ? category.items : [];
+};
+const FA_CATEGORY_COUNT = CONTENT_FREE_ASSETS.categories.length;
+const FA_DEFAULT_TAG_ITEMS = faCategoryItems('hard-surface');
+// Mini-3D preview есть у всех ассетов категории, кроме model:null
+// (см. js/free-assets.js resolveAssetMedia).
+const FA_DEFAULT_PREVIEWS = FA_DEFAULT_TAG_ITEMS.filter(item => !('model' in item) || item.model !== null).length;
+const FA_PRODUCT_COUNT = faCategoryItems('product').length;
 
 const results = [];
 const add = (suite, name, pass, detail = '') => {
@@ -430,13 +482,23 @@ async function testIndex(BASE) {
   add('index', 'CURSOR-elements', cursor.cursorExists && cursor.dotExists);
   add('index', 'CURSOR-native-hidden', cursor.bodyCursor === 'none');
 
-  // CARDS
+  // CARDS — количество и состав из content/ (EXPECTED_IDS, итерация F).
   const cards = await page.$$eval('.work-card', els => els.map(e => ({ id: e.dataset.id, cat: e.dataset.category, game: e.dataset.gameAsset === 'true' })));
-  add('index', 'WORK-cards-18', cards.length === 18, `found ${cards.length}`);
-  const idsMatch = EXPECTED_IDS.every(id => cards.some(c => c.id === id));
-  add('index', 'WORK-cards-ids', idsMatch);
-  const gameCount = cards.filter(c => c.game).length;
-  add('index', 'WORK-cards-game-assets', gameCount >= 2, `${gameCount} cards`);
+  add('index', 'WORK-cards-count', cards.length === EXPECTED_IDS.length,
+      `found ${cards.length}, expected(content) ${EXPECTED_IDS.length}`);
+  // Порядок карточек — редактируемая фича (cardOrder в админке), поэтому
+  // сверяем полную упорядоченную последовательность, а не множество id.
+  const domIdSequence = cards.map(c => c.id).join(',');
+  add('index', 'WORK-cards-ids', domIdSequence === EXPECTED_IDS.join(','),
+      `dom=[${domIdSequence}], expected(content)=[${EXPECTED_IDS.join(',')}]`);
+  // Game-ассеты: точный состав из content (EXPECTED_GAME_IDS), не floor ≥2.
+  const domGameIds = cards.filter(c => c.game).map(c => c.id);
+  const gameIdsMatch = domGameIds.length === EXPECTED_GAME_IDS.length &&
+    EXPECTED_GAME_IDS.every(id => domGameIds.includes(id));
+  add('index', 'WORK-cards-game-assets', gameIdsMatch,
+      EXPECTED_GAME_IDS.length === 0
+        ? 'skipped: no visible game cases' + (gameIdsMatch ? '' : `; dom=[${domGameIds.join(',')}]`)
+        : `dom=[${domGameIds.join(',')}], expected(content)=[${EXPECTED_GAME_IDS.join(',')}]`);
   const sprintBCardAnatomy = await page.evaluate(() => {
     const workCards = [...document.querySelectorAll('.work-card[data-id]')];
     return {
@@ -447,32 +509,50 @@ async function testIndex(BASE) {
     };
   });
   add('index', 'WORK-cards-sprint-b-anatomy',
-      sprintBCardAnatomy.total === 18 &&
-      sprintBCardAnatomy.posters === 18 &&
-      sprintBCardAnatomy.hints === 18 &&
-      sprintBCardAnatomy.labels === 18,
-      `cards=${sprintBCardAnatomy.total}, posters=${sprintBCardAnatomy.posters}, hints=${sprintBCardAnatomy.hints}, labels=${sprintBCardAnatomy.labels}`);
+      sprintBCardAnatomy.total === EXPECTED_IDS.length &&
+      sprintBCardAnatomy.posters === EXPECTED_IDS.length &&
+      sprintBCardAnatomy.hints === EXPECTED_IDS.length &&
+      sprintBCardAnatomy.labels === EXPECTED_IDS.length,
+      `cards=${sprintBCardAnatomy.total}, posters=${sprintBCardAnatomy.posters}, hints=${sprintBCardAnatomy.hints}, labels=${sprintBCardAnatomy.labels}, expected(content)=${EXPECTED_IDS.length}`);
 
-  // TAGS
+  // TAGS — точное соответствие включённым фильтрам из content/ (итерация F:
+  // выключенная категория обязана исчезнуть из dropdown, лишних кнопок нет).
   const tagButtons = await page.$$eval('.tags-dropdown__checkbox[data-filter]', els => els.map(e => e.dataset.filter));
-  add('index', 'TAGS-buttons', EXPECTED_TAGS.every(t => tagButtons.includes(t)));
+  add('index', 'TAGS-buttons',
+      tagButtons.length === EXPECTED_TAGS.length && EXPECTED_TAGS.every(t => tagButtons.includes(t)),
+      `dom=[${tagButtons.join(',')}], expected(content)=[${EXPECTED_TAGS.join(',')}]`);
 
-  // FILTER PRODUCT
-  await page.click('#tags-dropdown-trigger'); await page.waitForTimeout(150);
-  await page.click('.tags-dropdown__checkbox[data-filter="product"]'); await page.waitForTimeout(300);
-  const visibleAfter = await page.$$eval('.work-card', els => els.filter(e => { const cs = getComputedStyle(e); return cs.display !== 'none' && !e.hasAttribute('hidden'); }).map(e => e.dataset.category));
-  add('index', 'TAGS-filter-product', visibleAfter.length > 0 && visibleAfter.every(c => c === 'product'));
-  await page.click('.tags-dropdown__checkbox[data-filter="product"]'); await page.waitForTimeout(200);
-  await page.mouse.click(10, 10); await page.waitForTimeout(150);
+  // FILTER — категория клик-теста выводится из content (FILTER_TEST_KEY,
+  // раньше — хардкод 'product'). Если ни одна включённая категория не имеет
+  // видимых кейсов — проверка громко помечается skipped, а не падает.
+  if (FILTER_TEST_KEY) {
+    await page.click('#tags-dropdown-trigger'); await page.waitForTimeout(150);
+    await page.click(`.tags-dropdown__checkbox[data-filter="${FILTER_TEST_KEY}"]`); await page.waitForTimeout(300);
+    const visibleAfter = await page.$$eval('.work-card', els => els.filter(e => { const cs = getComputedStyle(e); return cs.display !== 'none' && !e.hasAttribute('hidden'); }).map(e => e.dataset.category));
+    add('index', 'TAGS-filter-category', visibleAfter.length > 0 && visibleAfter.every(c => c === FILTER_TEST_KEY),
+        `filter=${FILTER_TEST_KEY}, visible=${visibleAfter.length}`);
+    await page.click(`.tags-dropdown__checkbox[data-filter="${FILTER_TEST_KEY}"]`); await page.waitForTimeout(200);
+    await page.mouse.click(10, 10); await page.waitForTimeout(150);
+  } else {
+    add('index', 'TAGS-filter-category', true, 'skipped: no filterable category with visible cases');
+  }
 
-  // GAME SWITCH
-  await page.click('.game-switch__track'); await page.waitForTimeout(300);
-  const gameVisible = await page.$$eval('.work-card', els => els.filter(e => !e.hidden && getComputedStyle(e).display !== 'none').map(e => e.dataset.gameAsset === 'true'));
-  add('index', 'GAME-switch-filters', gameVisible.length > 0 && gameVisible.every(Boolean));
-  await page.click('.game-switch__track'); await page.waitForTimeout(200);
+  // GAME SWITCH — ожидаемый состав из content (EXPECTED_GAME_IDS); при нуле
+  // видимых game-кейсов клик показал бы пустой грид — skipped, а не FAIL.
+  if (EXPECTED_GAME_IDS.length === 0) {
+    add('index', 'GAME-switch-filters', true, 'skipped: no visible game cases');
+  } else {
+    await page.click('.game-switch__track'); await page.waitForTimeout(300);
+    const gameVisibleIds = await page.$$eval('.work-card', els => els.filter(e => !e.hidden && getComputedStyle(e).display !== 'none').map(e => e.dataset.id));
+    add('index', 'GAME-switch-filters',
+        gameVisibleIds.length === EXPECTED_GAME_IDS.length &&
+        EXPECTED_GAME_IDS.every(id => gameVisibleIds.includes(id)),
+        `visible=[${gameVisibleIds.join(',')}], expected(content)=[${EXPECTED_GAME_IDS.join(',')}]`);
+    await page.click('.game-switch__track'); await page.waitForTimeout(200);
+  }
 
-  // OPEN CASE
-  await page.click('.work-card'); await page.waitForTimeout(500);
+  // OPEN CASE — кейс с motion-блоками из content/ (MOTION_CASE_ID).
+  await page.click(`.work-card[data-id="${MOTION_CASE_ID}"]`); await page.waitForTimeout(500);
   const caseStatus = await page.evaluate(() => ({
     tabs: [...document.querySelectorAll('.case-tab')].map(t => t.dataset.viz),
     progressBar: !!document.querySelector('.case-progress__bar'),
@@ -482,8 +562,8 @@ async function testIndex(BASE) {
   add('index', 'CASE-progress', caseStatus.progressBar);
   add('index', 'CASE-nav', caseStatus.hasNav);
 
-  const motionContract = await page.evaluate(() => {
-    const data = window.CARDS_DATA && window.CARDS_DATA['orbital-mk-ii'];
+  const motionContract = await page.evaluate(motionCaseId => {
+    const data = window.CARDS_DATA && window.CARDS_DATA[motionCaseId];
     const blocks = data && data.items && Array.isArray(data.items.motionBlocks)
       ? data.items.motionBlocks
       : [];
@@ -508,16 +588,17 @@ async function testIndex(BASE) {
       })),
       dom
     };
-  });
-  // Ожидаемый контракт — из content/cases/orbital-mk-ii.json (см. ORBITAL_MOTION
-  // у шапки файла): source/playback/layout каждого блока, по порядку.
-  const expectedMotion = ORBITAL_MOTION.map(block => ({
+  }, MOTION_CASE_ID);
+  // Ожидаемый контракт — из content/cases/<MOTION_CASE_ID>.json (см.
+  // MOTION_BLOCKS у шапки файла): source/playback/layout каждого блока, по порядку.
+  const expectedMotion = MOTION_BLOCKS.map(block => ({
     source: block && block.source,
     playback: block && block.playback,
     layout: block && block.layout
   }));
+  // При HAS_MOTION=false сравнение «пусто с пустым» легитимно (DOM обязан
+  // быть пуст), но строка проверки громко помечается MOTION_SKIP_DETAIL.
   const motionShapeOk =
-    expectedMotion.length > 0 &&
     motionContract.dataCount === expectedMotion.length &&
     motionContract.dom.length === expectedMotion.length &&
     expectedMotion.every((expected, idx) => {
@@ -531,7 +612,7 @@ async function testIndex(BASE) {
         domBlock.layout === expected.layout;
     });
   // Локальные ассеты: список тоже из content (блоки с source 'local').
-  const expectedLocalAssets = ORBITAL_MOTION
+  const expectedLocalAssets = MOTION_BLOCKS
     .filter(block => block && block.source === 'local')
     .map(block => block.src || '')
     .map(src => ({
@@ -547,9 +628,13 @@ async function testIndex(BASE) {
     runtimeLocalSrcs.every((src, idx) => src === expectedLocalAssets[idx].src) &&
     expectedLocalAssets.every(asset => asset.exists && /\.(mp4|webm)$/i.test(asset.src));
   add('index', 'CASE-motion-blocks-contract', motionShapeOk,
-      `expected(content)=${JSON.stringify(expectedMotion)}; actual=${JSON.stringify(motionContract)}`);
+      HAS_MOTION
+        ? `expected(content)=${JSON.stringify(expectedMotion)}; actual=${JSON.stringify(motionContract)}`
+        : MOTION_SKIP_DETAIL);
   add('index', 'CASE-motion-local-assets-exist', localMotionAssetsOk,
-      `expected(content)=${JSON.stringify(expectedLocalAssets)}; runtime=${JSON.stringify(runtimeLocalSrcs)}`);
+      HAS_MOTION
+        ? `expected(content)=${JSON.stringify(expectedLocalAssets)}; runtime=${JSON.stringify(runtimeLocalSrcs)}`
+        : MOTION_SKIP_DETAIL);
   // DOM-анатомия по типу блока (та же строгость, что и раньше, но
   // привязанная к source/playback из content, а не к индексам 0–3):
   //   local      → <video>, без vimeo-shell;
@@ -565,7 +650,7 @@ async function testIndex(BASE) {
       return sourceOk && domBlock.hasControl === (expected.playback === 'controlled');
     });
   add('index', 'CASE-motion-playback-controls', motionPlaybackOk,
-      JSON.stringify(motionContract.dom));
+      HAS_MOTION ? JSON.stringify(motionContract.dom) : MOTION_SKIP_DETAIL);
 
   // BLUEPRINT
   await page.click('.case-tab[data-viz="blueprints"]'); await page.waitForTimeout(400);
@@ -575,13 +660,16 @@ async function testIndex(BASE) {
   }));
   add('index', 'CASE-motion-stop-keeps-lazy-media',
       stoppedMotionLazy.iframeCount === 0 && stoppedMotionLazy.localSrcs.every(src => src === ''),
-      JSON.stringify(stoppedMotionLazy));
+      HAS_MOTION ? JSON.stringify(stoppedMotionLazy) : MOTION_SKIP_DETAIL);
   add('index', 'CASE-blueprint-svg', !!await page.$('.case-blueprints svg'));
   await page.click('.case-tab[data-viz="2d"]'); await page.waitForTimeout(250);
   // Кнопка play/pause существует только у controlled-блоков; их наличие —
   // тоже факт content-слоя, а не контракта рендерера.
-  let motionSingleHandler = { ok: true, skipped: 'no controlled motion blocks in content' };
-  if (ORBITAL_MOTION.some(block => block && block.playback === 'controlled')) {
+  let motionSingleHandler = {
+    ok: true,
+    skipped: HAS_MOTION ? 'skipped: no controlled motion blocks in content' : MOTION_SKIP_DETAIL
+  };
+  if (MOTION_BLOCKS.some(block => block && block.playback === 'controlled')) {
     motionSingleHandler = await page.evaluate(() => {
       const card = document.querySelector('.case-motion[data-motion-playback="controlled"]');
       const btn = card && card.querySelector('[data-motion-toggle]');
@@ -599,7 +687,7 @@ async function testIndex(BASE) {
     });
   }
   add('index', 'CASE-motion-control-single-handler', motionSingleHandler.ok,
-      JSON.stringify(motionSingleHandler));
+      motionSingleHandler.skipped || JSON.stringify(motionSingleHandler));
 
   // 3D
   const before3DResources = await page.evaluate(() => performance.getEntriesByType('resource')
@@ -642,7 +730,13 @@ async function testIndex(BASE) {
       c3d.resources.some(n => /model-data\.js/i.test(n)),
       c3d.resources.join(', '));
 
-  const studioDefaultEnvIds = ['orbital-mk-ii', 'vega-shell', 'ironclad-frame'];
+  // Итерация F: список studio-кейсов из content/ (раньше — хардкод трёх id).
+  // Контракт прежний: у каждого такого кейса runtime-CARDS_DATA говорит
+  // 'studio', а у открытого studio-кейса env-кнопка по умолчанию = studio.
+  const studioDefaultEnvIds = EXPECTED_IDS.filter(id => {
+    const data = CONTENT_CASES.get(id);
+    return data.case && data.case.modelEnvironment === 'studio';
+  });
   const studioDefaultEnvState = await page.evaluate(ids => {
     const active = document.querySelector('.case-3d__env-group [data-env].is-on');
     return {
@@ -654,130 +748,152 @@ async function testIndex(BASE) {
       aria: active ? active.getAttribute('aria-pressed') : ''
     };
   }, studioDefaultEnvIds);
+  // Пустой список (все studio-кейсы скрыты владельцем) — контракт вакуумно
+  // выполнен, но строка проверки громко помечается skipped; иначе строгость
+  // прежняя.
+  const openCaseIsStudio = studioDefaultEnvIds.includes(MOTION_CASE_ID);
   add('index', 'CASE-3d-studio-default-envs',
-      studioDefaultEnvState.sources.every(item => item.source === 'studio') &&
-      studioDefaultEnvState.active === 'studio' &&
-      studioDefaultEnvState.aria === 'true',
-      studioDefaultEnvState.sources.map(item => `${item.id}: source=${item.source}`).join('; ') +
-      `; active=${studioDefaultEnvState.active}, aria=${studioDefaultEnvState.aria}`);
+      studioDefaultEnvIds.length === 0 ||
+      (studioDefaultEnvState.sources.every(item => item.source === 'studio') &&
+       (!openCaseIsStudio || (studioDefaultEnvState.active === 'studio' && studioDefaultEnvState.aria === 'true'))),
+      studioDefaultEnvIds.length === 0
+        ? 'skipped: no visible studio cases'
+        : studioDefaultEnvState.sources.map(item => `${item.id}: source=${item.source}`).join('; ') +
+          `; active=${studioDefaultEnvState.active}, aria=${studioDefaultEnvState.aria}, openCaseIsStudio=${openCaseIsStudio}`);
 
-  await page.click('.work-card[data-id="ironclad-frame"]');
-  await page.waitForFunction(() =>
-    document.querySelector('#case-title')?.textContent?.includes('Ironclad Frame') &&
-    document.querySelector('#case-3d-canvas.is-ready canvas.case-3d__three-canvas')
-  );
-  const pagination3DSwitchCount = 9;
-  const pagination3D = await page.evaluate(async switchCount => {
-    const host = document.getElementById('case-3d-canvas');
-    const states = [];
-    const baseline = {
-      getContext: window.__codexWebglLifecycle?.getContext.length || 0,
-      loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
-      lostEvents: window.__codexWebglLifecycle?.lostEvents.length || 0,
-      restoredEvents: window.__codexWebglLifecycle?.restoredEvents.length || 0
-    };
-    function readState(label) {
-      const after = host ? window.getComputedStyle(host, '::after') : null;
-      const state = {
-        label,
-        ready: !!host?.classList.contains('is-ready'),
-        switching: !!host?.classList.contains('is-switching-3d'),
-        coverPainted: !!after && after.content !== 'none' && after.display !== 'none' && after.opacity !== '0',
-        children: host ? host.children.length : 0,
-        canvases: document.querySelectorAll('#case-3d-canvas canvas.case-3d__three-canvas').length,
-        fallback: !!document.querySelector('#case-3d-canvas .case-3d__fallback'),
-        active3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false,
-        title: document.querySelector('#case-title')?.textContent || '',
-        counter: document.querySelector('#case-counter')?.textContent || ''
+  // Итерация F: стартовый кейс пагинации и ожидаемый финал выводятся из
+  // content/ (третья карточка cardOrder; раньше — хардкод ironclad-frame,
+  // 'Arc Motion' и '12 / 18'). Механика проверки не изменилась.
+  // Final review итерации F: при единственном видимом кейсе у кнопок
+  // next/prev нет цели — переходный контракт 3D-пагинации (вместе с
+  // навигационными ассертами) громко помечается skipped, а не падает.
+  if (EXPECTED_IDS.length < 2) {
+    add('index', 'CASE-3d-pagination-transition-cover', true, 'skipped: fewer than 2 visible cases');
+  } else {
+    const paginationStartIdx = Math.min(2, EXPECTED_IDS.length - 1);
+    const paginationStartId = EXPECTED_IDS[paginationStartIdx];
+    await page.click(`.work-card[data-id="${paginationStartId}"]`);
+    await page.waitForFunction(startTitle =>
+      document.querySelector('#case-title')?.textContent?.includes(startTitle) &&
+      document.querySelector('#case-3d-canvas.is-ready canvas.case-3d__three-canvas'),
+    cardTitleOf(paginationStartId));
+    const pagination3DSwitchCount = 9;
+    const paginationFinalIdx = (paginationStartIdx + pagination3DSwitchCount) % EXPECTED_IDS.length;
+    const paginationFinalTitle = cardTitleOf(EXPECTED_IDS[paginationFinalIdx]);
+    const paginationFinalCounter = `${paginationFinalIdx + 1} / ${EXPECTED_IDS.length}`;
+    const pagination3D = await page.evaluate(async switchCount => {
+      const host = document.getElementById('case-3d-canvas');
+      const states = [];
+      const baseline = {
+        getContext: window.__codexWebglLifecycle?.getContext.length || 0,
+        loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
+        lostEvents: window.__codexWebglLifecycle?.lostEvents.length || 0,
+        restoredEvents: window.__codexWebglLifecycle?.restoredEvents.length || 0
       };
-      states.push(state);
-      return state;
-    }
-    for (let step = 0; step < switchCount; step += 1) {
-      readState(`step-${step}-before`);
-      document.getElementById('case-next')?.click();
-      readState(`step-${step}-sync`);
-      await Promise.resolve();
-      readState(`step-${step}-microtask`);
-      let readyFrames = 0;
-      for (let frame = 0; frame < 120; frame += 1) {
-        await new Promise(resolve => window.requestAnimationFrame(resolve));
-        const state = readState(`step-${step}-raf-${frame}`);
-        if (state.ready) readyFrames += 1;
-        if (readyFrames >= 2) break;
+      function readState(label) {
+        const after = host ? window.getComputedStyle(host, '::after') : null;
+        const state = {
+          label,
+          ready: !!host?.classList.contains('is-ready'),
+          switching: !!host?.classList.contains('is-switching-3d'),
+          coverPainted: !!after && after.content !== 'none' && after.display !== 'none' && after.opacity !== '0',
+          children: host ? host.children.length : 0,
+          canvases: document.querySelectorAll('#case-3d-canvas canvas.case-3d__three-canvas').length,
+          fallback: !!document.querySelector('#case-3d-canvas .case-3d__fallback'),
+          active3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false,
+          title: document.querySelector('#case-title')?.textContent || '',
+          counter: document.querySelector('#case-counter')?.textContent || ''
+        };
+        states.push(state);
+        return state;
       }
-      readState(`step-${step}-ready`);
-    }
-    await new Promise(resolve => window.setTimeout(resolve, 450));
-    const afterLifecycle = {
-      getContext: window.__codexWebglLifecycle?.getContext.length || 0,
-      loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
-      lostEvents: window.__codexWebglLifecycle?.lostEvents.length || 0,
-      restoredEvents: window.__codexWebglLifecycle?.restoredEvents.length || 0,
-      loseDetails: window.__codexWebglLifecycle?.loseContextCalls.slice(baseline.loseContextCalls) || [],
-      lostDetails: window.__codexWebglLifecycle?.lostEvents.slice(baseline.lostEvents) || [],
-      restoredDetails: window.__codexWebglLifecycle?.restoredEvents.slice(baseline.restoredEvents) || []
-    };
-    const finalCover = host ? window.getComputedStyle(host, '::after') : null;
-    return {
-      states,
-      finalTitle: document.querySelector('#case-title')?.textContent || '',
-      finalCounter: document.querySelector('#case-counter')?.textContent || '',
-      finalReady: !!host?.classList.contains('is-ready'),
-      finalSwitching: !!host?.classList.contains('is-switching-3d'),
-      finalCoverPainted: !!finalCover && finalCover.content !== 'none' &&
-        finalCover.display !== 'none' && finalCover.opacity !== '0',
-      finalCanvases: document.querySelectorAll('#case-3d-canvas canvas.case-3d__three-canvas').length,
-      finalActive3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false,
-      lifecycle: {
-        baseline,
-        after: afterLifecycle,
-        delta: {
-          getContext: afterLifecycle.getContext - baseline.getContext,
-          loseContextCalls: afterLifecycle.loseContextCalls - baseline.loseContextCalls,
-          lostEvents: afterLifecycle.lostEvents - baseline.lostEvents,
-          restoredEvents: afterLifecycle.restoredEvents - baseline.restoredEvents
+      for (let step = 0; step < switchCount; step += 1) {
+        readState(`step-${step}-before`);
+        document.getElementById('case-next')?.click();
+        readState(`step-${step}-sync`);
+        await Promise.resolve();
+        readState(`step-${step}-microtask`);
+        let readyFrames = 0;
+        for (let frame = 0; frame < 120; frame += 1) {
+          await new Promise(resolve => window.requestAnimationFrame(resolve));
+          const state = readState(`step-${step}-raf-${frame}`);
+          if (state.ready) readyFrames += 1;
+          if (readyFrames >= 2) break;
         }
+        readState(`step-${step}-ready`);
       }
-    };
-  }, pagination3DSwitchCount);
-  const transitionFrames = pagination3D.states.filter(state => !state.label.endsWith('-before') && !state.ready);
-  const transitionCovered = transitionFrames.length > 0 &&
-    transitionFrames.every(state => state.switching && state.coverPainted && state.active3D && state.children > 0 && state.canvases <= 1);
-  const postReadyChecks = Array.from({ length: pagination3DSwitchCount }, (_, step) => {
-    const readyRafFrames = pagination3D.states
-      .filter(state => state.label.startsWith(`step-${step}-raf-`) && state.ready)
-      .slice(0, 2);
-    return {
-      step,
-      frames: readyRafFrames.length,
-      covered: readyRafFrames.filter(state => state.switching && state.coverPainted).length,
-      pass: readyRafFrames.length === 2 &&
-        readyRafFrames.every(state => state.switching && state.coverPainted)
-    };
-  });
-  const postReadyCovered = postReadyChecks.every(item => item.pass);
-  add('index', 'CASE-3d-pagination-transition-cover',
-      pagination3D.finalTitle === 'Arc Motion' &&
-      pagination3D.finalCounter === '12 / 18' &&
-      pagination3D.finalReady &&
-      !pagination3D.finalSwitching &&
-      !pagination3D.finalCoverPainted &&
-      pagination3D.finalCanvases === 1 &&
-      pagination3D.finalActive3D &&
-      transitionCovered &&
-      postReadyCovered &&
-      pagination3D.lifecycle.delta.getContext === pagination3DSwitchCount &&
-      pagination3D.lifecycle.delta.loseContextCalls === 0 &&
-      pagination3D.lifecycle.delta.lostEvents === 0 &&
-      pagination3D.lifecycle.delta.restoredEvents === 0,
-      `title=${pagination3D.finalTitle}, counter=${pagination3D.finalCounter}, ` +
-      `finalSwitching=${pagination3D.finalSwitching}, finalCover=${pagination3D.finalCoverPainted}, ` +
-      `transitionFrames=${transitionFrames.length}, postReady=${JSON.stringify(postReadyChecks)}, ` +
-      `lifecycle=${JSON.stringify(pagination3D.lifecycle.delta)}, ` +
-      `lose=${JSON.stringify(pagination3D.lifecycle.after.loseDetails)}, ` +
-      `lost=${JSON.stringify(pagination3D.lifecycle.after.lostDetails)}, ` +
-      `restored=${JSON.stringify(pagination3D.lifecycle.after.restoredDetails)}`);
+      await new Promise(resolve => window.setTimeout(resolve, 450));
+      const afterLifecycle = {
+        getContext: window.__codexWebglLifecycle?.getContext.length || 0,
+        loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
+        lostEvents: window.__codexWebglLifecycle?.lostEvents.length || 0,
+        restoredEvents: window.__codexWebglLifecycle?.restoredEvents.length || 0,
+        loseDetails: window.__codexWebglLifecycle?.loseContextCalls.slice(baseline.loseContextCalls) || [],
+        lostDetails: window.__codexWebglLifecycle?.lostEvents.slice(baseline.lostEvents) || [],
+        restoredDetails: window.__codexWebglLifecycle?.restoredEvents.slice(baseline.restoredEvents) || []
+      };
+      const finalCover = host ? window.getComputedStyle(host, '::after') : null;
+      return {
+        states,
+        finalTitle: document.querySelector('#case-title')?.textContent || '',
+        finalCounter: document.querySelector('#case-counter')?.textContent || '',
+        finalReady: !!host?.classList.contains('is-ready'),
+        finalSwitching: !!host?.classList.contains('is-switching-3d'),
+        finalCoverPainted: !!finalCover && finalCover.content !== 'none' &&
+          finalCover.display !== 'none' && finalCover.opacity !== '0',
+        finalCanvases: document.querySelectorAll('#case-3d-canvas canvas.case-3d__three-canvas').length,
+        finalActive3D: document.querySelector('.case-tab[data-viz="3d"]')?.classList.contains('case-tab--active') || false,
+        lifecycle: {
+          baseline,
+          after: afterLifecycle,
+          delta: {
+            getContext: afterLifecycle.getContext - baseline.getContext,
+            loseContextCalls: afterLifecycle.loseContextCalls - baseline.loseContextCalls,
+            lostEvents: afterLifecycle.lostEvents - baseline.lostEvents,
+            restoredEvents: afterLifecycle.restoredEvents - baseline.restoredEvents
+          }
+        }
+      };
+    }, pagination3DSwitchCount);
+    const transitionFrames = pagination3D.states.filter(state => !state.label.endsWith('-before') && !state.ready);
+    const transitionCovered = transitionFrames.length > 0 &&
+      transitionFrames.every(state => state.switching && state.coverPainted && state.active3D && state.children > 0 && state.canvases <= 1);
+    const postReadyChecks = Array.from({ length: pagination3DSwitchCount }, (_, step) => {
+      const readyRafFrames = pagination3D.states
+        .filter(state => state.label.startsWith(`step-${step}-raf-`) && state.ready)
+        .slice(0, 2);
+      return {
+        step,
+        frames: readyRafFrames.length,
+        covered: readyRafFrames.filter(state => state.switching && state.coverPainted).length,
+        pass: readyRafFrames.length === 2 &&
+          readyRafFrames.every(state => state.switching && state.coverPainted)
+      };
+    });
+    const postReadyCovered = postReadyChecks.every(item => item.pass);
+    add('index', 'CASE-3d-pagination-transition-cover',
+        pagination3D.finalTitle === paginationFinalTitle &&
+        pagination3D.finalCounter === paginationFinalCounter &&
+        pagination3D.finalReady &&
+        !pagination3D.finalSwitching &&
+        !pagination3D.finalCoverPainted &&
+        pagination3D.finalCanvases === 1 &&
+        pagination3D.finalActive3D &&
+        transitionCovered &&
+        postReadyCovered &&
+        pagination3D.lifecycle.delta.getContext === pagination3DSwitchCount &&
+        pagination3D.lifecycle.delta.loseContextCalls === 0 &&
+        pagination3D.lifecycle.delta.lostEvents === 0 &&
+        pagination3D.lifecycle.delta.restoredEvents === 0,
+        `title=${pagination3D.finalTitle} (expected(content) ${paginationFinalTitle}), ` +
+        `counter=${pagination3D.finalCounter} (expected(content) ${paginationFinalCounter}), ` +
+        `finalSwitching=${pagination3D.finalSwitching}, finalCover=${pagination3D.finalCoverPainted}, ` +
+        `transitionFrames=${transitionFrames.length}, postReady=${JSON.stringify(postReadyChecks)}, ` +
+        `lifecycle=${JSON.stringify(pagination3D.lifecycle.delta)}, ` +
+        `lose=${JSON.stringify(pagination3D.lifecycle.after.loseDetails)}, ` +
+        `lost=${JSON.stringify(pagination3D.lifecycle.after.lostDetails)}, ` +
+        `restored=${JSON.stringify(pagination3D.lifecycle.after.restoredDetails)}`);
+  }
 
   // SHARE BUTTONS
   add('index', 'CASE-share-desktop', !!await page.$('#case-share-desktop'));
@@ -857,7 +973,7 @@ async function testIndex(BASE) {
   add('index', 'B2-UI_STRINGS-namespaces', uiShape.ok,
       uiShape.ok ? 'all 15 namespaces × en+ru' : JSON.stringify(uiShape));
 
-  // B3 — CARDS_LOCALES.ru has 18 keys matching EXPECTED_IDS.
+  // B3 — CARDS_LOCALES.ru keys match EXPECTED_IDS (количество — из content/).
   const cardsLocaleShape = await page.evaluate((expected) => {
     const cl = window.I18N_DATA && window.I18N_DATA.CARDS_LOCALES;
     if (!cl || !cl.en || !cl.ru) return { ok: false, reason: 'no en/ru' };
@@ -865,25 +981,29 @@ async function testIndex(BASE) {
     const ok = keys.length === expected.length && expected.every(id => cl.ru[id] && cl.ru[id].title);
     return { ok, count: keys.length };
   }, EXPECTED_IDS);
-  add('index', 'B3-CARDS_LOCALES-18-ru', cardsLocaleShape.ok,
-      `ru.length=${cardsLocaleShape.count} (expected 18)`);
+  add('index', 'B3-CARDS_LOCALES-ru', cardsLocaleShape.ok,
+      `ru.length=${cardsLocaleShape.count} (expected(content) ${EXPECTED_IDS.length})`);
 
-  // B4 — CASE_LOCALES.ru has 18 keys matching EXPECTED_IDS. Количество
-  // motion-блоков orbital — из content (ORBITAL_MOTION), не хардкод.
-  const caseLocaleShape = await page.evaluate(({ expected, motionCount }) => {
+  // B4 — CASE_LOCALES.ru keys match EXPECTED_IDS. Кейс и количество
+  // motion-блоков — из content (MOTION_CASE_ID / MOTION_BLOCKS), не хардкод.
+  const caseLocaleShape = await page.evaluate(({ expected, motionId, motionCount }) => {
     const cl = window.I18N_DATA && window.I18N_DATA.CASE_LOCALES;
     if (!cl || !cl.en || !cl.ru) return { ok: false, reason: 'no en/ru' };
     const keys = Object.keys(cl.ru);
-    const orbitalMotion = cl.ru['orbital-mk-ii'] && cl.ru['orbital-mk-ii'].motionBlocks;
+    const motionLocales = cl.ru[motionId] && cl.ru[motionId].motionBlocks;
+    const motionOk = motionCount === 0
+      ? motionLocales === undefined
+      : Array.isArray(motionLocales) &&
+        motionLocales.length === motionCount &&
+        motionLocales.every(block => block && block.label && block.desc);
     const ok = keys.length === expected.length &&
                expected.every(id => cl.ru[id] && cl.ru[id].role && Array.isArray(cl.ru[id].captions)) &&
-               Array.isArray(orbitalMotion) &&
-               orbitalMotion.length === motionCount &&
-               orbitalMotion.every(block => block && block.label && block.desc);
-    return { ok, count: keys.length, orbitalMotionCount: Array.isArray(orbitalMotion) ? orbitalMotion.length : 0 };
-  }, { expected: EXPECTED_IDS, motionCount: ORBITAL_MOTION.length });
-  add('index', 'B4-CASE_LOCALES-18-ru', caseLocaleShape.ok,
-      `ru.length=${caseLocaleShape.count} (expected 18, with role+captions), orbitalMotion=${caseLocaleShape.orbitalMotionCount} (expected ${ORBITAL_MOTION.length})`);
+               motionOk;
+    return { ok, count: keys.length, motionLocaleCount: Array.isArray(motionLocales) ? motionLocales.length : 0 };
+  }, { expected: EXPECTED_IDS, motionId: MOTION_CASE_ID, motionCount: MOTION_BLOCKS.length });
+  add('index', 'B4-CASE_LOCALES-ru', caseLocaleShape.ok,
+      `ru.length=${caseLocaleShape.count} (expected(content) ${EXPECTED_IDS.length}, with role+captions), ` +
+      `motion=${caseLocaleShape.motionLocaleCount} (expected(content) ${MOTION_BLOCKS.length})`);
 
   // B6 — Full EN ⇄ RU round-trip on lang-toggle. Verifies <html lang>,
   // currentLang AND that we restore EN cleanly (no stuck state).
@@ -1080,17 +1200,18 @@ async function testFreeAssets(BASE) {
   add('fa', 'B1-data-i18n-attr-floor', faI18nAttrCount >= 70,
       `count=${faI18nAttrCount} (floor 70)`);
 
-  // B5 — FA_LOCALES.ru has 25 keys (8 hard-surface + 5 product + 4 game +
-  // 3 organic + 2 animation + 3 cad = 25). Каждая запись хотя бы { desc }.
-  const faLocaleShape = await page.evaluate(() => {
+  // B5 — FA_LOCALES.ru: количество записей = сумма items по категориям
+  // content/free-assets.json (итерация F: счётчик из content, не хардкод).
+  // Каждая запись хотя бы { desc }.
+  const faLocaleShape = await page.evaluate((expectedCount) => {
     const fa = window.I18N_DATA && window.I18N_DATA.FA_LOCALES;
     if (!fa || !fa.en || !fa.ru) return { ok: false, reason: 'no en/ru' };
     const keys = Object.keys(fa.ru);
     const allHaveDesc = keys.every(k => fa.ru[k] && typeof fa.ru[k].desc === 'string');
-    return { ok: keys.length === 25 && allHaveDesc, count: keys.length };
-  });
-  add('fa', 'B5-FA_LOCALES-25-ru', faLocaleShape.ok,
-      `ru.length=${faLocaleShape.count} (expected 25)`);
+    return { ok: keys.length === expectedCount && allHaveDesc, count: keys.length };
+  }, FA_ITEM_COUNT);
+  add('fa', 'B5-FA_LOCALES-ru', faLocaleShape.ok,
+      `ru.length=${faLocaleShape.count} (expected(content) ${FA_ITEM_COUNT})`);
 
   // B10 — skip-to-content link present (a11y, Phase 1 addition).
   const faSkipLink = await page.evaluate(() =>
@@ -1196,7 +1317,7 @@ async function testFreeAssets(BASE) {
   });
   add('fa', 'META-jsonLD-asset-depth',
       faJsonLdDepth.itemList &&
-      faJsonLdDepth.numberOfItems === 25 &&
+      faJsonLdDepth.numberOfItems === FA_ITEM_COUNT &&
       faJsonLdDepth.items >= 8 &&
       faJsonLdDepth.models >= 8 &&
       faJsonLdDepth.allFree &&
@@ -1271,8 +1392,11 @@ async function testFreeAssets(BASE) {
       enabledSources: previews.filter(mv => mv.dataset.codexPreviewEnabled === 'true').length,
     };
   });
-  add('fa', 'GRID-mini-3d-previews', mini3D.previews === 8 && mini3D.noPreview === 0,
-      `previews=${mini3D.previews}, fallback-only=${mini3D.noPreview}`);
+  // Итерация F: счётчики дефолтного тега (hard-surface) — из content/.
+  add('fa', 'GRID-mini-3d-previews',
+      mini3D.previews === FA_DEFAULT_PREVIEWS &&
+      mini3D.noPreview === FA_DEFAULT_TAG_ITEMS.length - FA_DEFAULT_PREVIEWS,
+      `previews=${mini3D.previews} (expected(content) ${FA_DEFAULT_PREVIEWS}), fallback-only=${mini3D.noPreview}`);
   add('fa', 'GRID-mini-3d-auto-rotate-only', mini3D.autoRotate === mini3D.previews && mini3D.cameraControls === 0,
       `auto=${mini3D.autoRotate}, camera-controls=${mini3D.cameraControls}`);
   add('fa', 'GRID-mini-3d-local-srcs', mini3D.localSrcs,
@@ -1290,20 +1414,24 @@ async function testFreeAssets(BASE) {
       assetPreviewButtons: assetCards.filter(card => card.querySelector('.fa-card__preview-btn')).length,
     };
   });
+  // Итерация F: счётчики из content/free-assets.json (категории = tag-карточки,
+  // дефолтный тег hard-surface = видимые ассеты). Строгость прежняя.
   add('fa', 'FA-cards-sprint-b-anatomy',
-      sprintBFAAnatomy.tags === 6 &&
-      sprintBFAAnatomy.tagHints === 6 &&
-      sprintBFAAnatomy.tagPosters === 6 &&
-      sprintBFAAnatomy.assets === 8 &&
-      sprintBFAAnatomy.assetHints === 8 &&
-      sprintBFAAnatomy.assetPreviewStates === 8 &&
-      sprintBFAAnatomy.assetPreviewButtons === 8,
-      `tags=${sprintBFAAnatomy.tags}/${sprintBFAAnatomy.tagHints}/${sprintBFAAnatomy.tagPosters}, assets=${sprintBFAAnatomy.assets}/${sprintBFAAnatomy.assetHints}/${sprintBFAAnatomy.assetPreviewStates}/${sprintBFAAnatomy.assetPreviewButtons}`);
+      sprintBFAAnatomy.tags === FA_CATEGORY_COUNT &&
+      sprintBFAAnatomy.tagHints === FA_CATEGORY_COUNT &&
+      sprintBFAAnatomy.tagPosters === FA_CATEGORY_COUNT &&
+      sprintBFAAnatomy.assets === FA_DEFAULT_TAG_ITEMS.length &&
+      sprintBFAAnatomy.assetHints === FA_DEFAULT_TAG_ITEMS.length &&
+      sprintBFAAnatomy.assetPreviewStates === FA_DEFAULT_TAG_ITEMS.length &&
+      sprintBFAAnatomy.assetPreviewButtons === FA_DEFAULT_TAG_ITEMS.length,
+      `tags=${sprintBFAAnatomy.tags}/${sprintBFAAnatomy.tagHints}/${sprintBFAAnatomy.tagPosters} (expected(content) ${FA_CATEGORY_COUNT}), ` +
+      `assets=${sprintBFAAnatomy.assets}/${sprintBFAAnatomy.assetHints}/${sprintBFAAnatomy.assetPreviewStates}/${sprintBFAAnatomy.assetPreviewButtons} (expected(content) ${FA_DEFAULT_TAG_ITEMS.length})`);
 
-  // TAG SWITCH
+  // TAG SWITCH — счётчик категории product из content/free-assets.json.
   await page.click('#tag-product'); await page.waitForTimeout(300);
   const productCount = await page.$$eval('.fa-card', els => els.length);
-  add('fa', 'TAG-product-switch', productCount === 5, `expected 5, got ${productCount}`);
+  add('fa', 'TAG-product-switch', productCount === FA_PRODUCT_COUNT,
+      `expected(content) ${FA_PRODUCT_COUNT}, got ${productCount}`);
   await page.click('#tag-hard-surface'); await page.waitForTimeout(300);
 
   // N4 — game-switch keeps tag-cards visible, filters grid
@@ -1324,8 +1452,8 @@ async function testFreeAssets(BASE) {
     };
   });
   add('fa', 'N4-game-persists-after-tag-switch',
-      gameAfterTagSwitch.total === 5 && gameAfterTagSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterTagSwitch.countText),
-      `product total=${gameAfterTagSwitch.total}, visible=${gameAfterTagSwitch.visible}, count="${gameAfterTagSwitch.countText}"`);
+      gameAfterTagSwitch.total === FA_PRODUCT_COUNT && gameAfterTagSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterTagSwitch.countText),
+      `product total=${gameAfterTagSwitch.total} (expected(content) ${FA_PRODUCT_COUNT}), visible=${gameAfterTagSwitch.visible}, count="${gameAfterTagSwitch.countText}"`);
   await page.click('#lang-toggle'); await page.waitForTimeout(300);
   const gameAfterLangSwitch = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('.fa-card')];
@@ -1337,8 +1465,8 @@ async function testFreeAssets(BASE) {
     };
   });
   add('fa', 'N4-game-persists-after-lang-switch',
-      gameAfterLangSwitch.total === 5 && gameAfterLangSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterLangSwitch.countText),
-      `product total=${gameAfterLangSwitch.total}, visible=${gameAfterLangSwitch.visible}, count="${gameAfterLangSwitch.countText}"`);
+      gameAfterLangSwitch.total === FA_PRODUCT_COUNT && gameAfterLangSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterLangSwitch.countText),
+      `product total=${gameAfterLangSwitch.total} (expected(content) ${FA_PRODUCT_COUNT}), visible=${gameAfterLangSwitch.visible}, count="${gameAfterLangSwitch.countText}"`);
   await page.click('#lang-toggle'); await page.waitForTimeout(200);
   await page.click('.game-switch__track'); await page.waitForTimeout(200);
 

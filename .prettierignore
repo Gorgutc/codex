@@ -2,6 +2,7 @@ node_modules/
 assets/
 downloads/
 js/vendor/
+admin/js/vendor/
 package-lock.json
 playwright-report/
 test-results/

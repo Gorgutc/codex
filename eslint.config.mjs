@@ -77,6 +77,7 @@ export default [
     ignores: [
       'node_modules/**',
       'js/vendor/**',
+      'admin/js/vendor/**',
       'assets/**',
       'downloads/**',
       'playwright-report/**',

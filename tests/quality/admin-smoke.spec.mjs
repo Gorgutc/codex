@@ -143,9 +143,10 @@ test('вход по PAT: список из 18 кейсов из реальног
 
   await expect(page.locator('.topbar__login')).toHaveText('owner-test');
   await expect(page.locator('.case-row')).toHaveCount(18);
-  // слоты будущих итераций видимы, но заблокированы
-  await expect(page.locator('.case-row__drag').first()).toHaveAttribute('title', /итерация F/);
-  await expect(page.locator('.case-row .switch input').first()).toBeDisabled();
+  // итерация F: ручка перестановки и активный выключатель в каждой строке
+  await expect(page.locator('.case-row .reorder-handle').first()).toBeVisible();
+  await expect(page.locator('.case-row .switch input').first()).toBeEnabled();
+  await expect(page.locator('.case-row .switch input').first()).toBeChecked();
 
   await page.fill('#case-search', 'orbital');
   await expect(page.locator('.case-row')).toHaveCount(1);

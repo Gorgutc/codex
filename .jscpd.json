@@ -7,6 +7,7 @@
   "ignore": [
     "node_modules/**",
     "js/vendor/**",
+    "admin/js/vendor/**",
     "assets/**",
     "downloads/**",
     "plugins/**/references/claude-original/**",

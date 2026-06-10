@@ -1,26 +1,41 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   ui.js — представления и маршрутизация админ-панели (итерации D–E).
+   ui.js — представления и маршрутизация админ-панели (итерации D–F).
 
    Экраны (hash-роутер, «одна задача — один экран»):
      #/login (без токена)  — вход: GitHub OAuth или PAT;
-     #/cases               — список кейсов с поиском;
+     #/cases               — список кейсов: поиск, drag-перестановка
+                             карточек (cardOrder) и выключатели кейсов;
      #/case/<id>           — редактор кейса: тексты RU/EN + медиа
-                             (миниатюра, слоты, motion-блоки, GLB-модель);
+                             (миниатюра, слоты, motion-блоки, GLB-модель) +
+                             порядок блоков (layoutMode seeded/manual);
+     #/categories          — категории: вкл/выкл фильтров сайта;
      #/meta                — мета-теги + OG-изображения (content/meta.json);
      #/ui                  — тексты интерфейса (content/i18n-ui.json).
 
    Медиа (итерация E): drop-зона поверх текущего изображения (принцип 6
    research.md), превью pending-файлов через object-URL, предупреждение
-   «не переживут перезагрузку» в шапке. Слоты итерации F (drag-handle,
-   выключатели, layout/playback motion-блоков) видимы, но заблокированы.
+   «не переживут перезагрузку» в шапке.
 
-   Зависимости: window.AdminAPI (api.js), window.AdminState (state.js).
+   Перестановка (итерация F, принцип 4 research.md): drag-handle ⠿ через
+   self-hosted SortableJS (admin/js/vendor/sortable.min.js, v1.15.7, MIT)
+   плюс клавиатурные кнопки «вверх/вниз» как a11y-фоллбек — работают и без
+   SortableJS. Видимость (принцип 5): выключенный кейс сразу затемняется
+   и получает бейдж «скрыто»; кейсы выключенной категории — бейдж
+   «категория скрыта».
+
+   Зависимости: window.AdminAPI (api.js), window.AdminState (state.js),
+   window.Sortable (vendor, опционален).
    ═══════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
   const API = window.AdminAPI;
   const State = window.AdminState;
+
+  const SETTINGS_PATH = 'content/settings.json';
+  // Формат слота фиксирован позицией в раскладке сайта (MEDIA_FORMATS
+  // генератора): 1 и 4 — широкие, 2/3/5 — высокие.
+  const SLOT_FORMATS = ['широкий', 'высокий', 'высокий', 'широкий', 'высокий'];
 
   const els = {
     topbar: document.getElementById('topbar'),
@@ -115,6 +130,96 @@
     setTimeout(() => {
       node.remove();
     }, ttl);
+  }
+
+  /* ── перестановка (итерация F, принцип 4 research.md) ────────────── */
+
+  // Перестановка элемента массива: from → to, остальные сдвигаются.
+  function movedArray(arr, from, to) {
+    const next = arr.slice();
+    const item = next.splice(from, 1)[0];
+    next.splice(to, 0, item);
+    return next;
+  }
+
+  // Старый индекс → новый после movedArray (для переезда pending-медиа).
+  function movedIndex(i, from, to) {
+    if (i === from) return to;
+    if (from < to) return i > from && i <= to ? i - 1 : i;
+    return i >= to && i < from ? i + 1 : i;
+  }
+
+  // Ручка ⠿ (крупная зона захвата для SortableJS) + кнопки «вверх/вниз»
+  // как клавиатурный a11y-фоллбек. opts: { label, index, count,
+  // focusKey, onMove(from, to, focusKey) }.
+  function reorderControls(opts) {
+    const bar = el('span', { className: 'reorder-bar' });
+    bar.appendChild(
+      el('span', {
+        className: 'reorder-handle',
+        title: 'Перетащите, чтобы изменить порядок',
+        'aria-hidden': 'true',
+        text: '⠿'
+      })
+    );
+    const up = el('button', {
+      type: 'button',
+      className: 'reorder-btn',
+      'data-reorder': opts.focusKey + '::up',
+      'aria-label': opts.label + ' — переместить вверх',
+      title: 'Вверх',
+      text: '↑'
+    });
+    if (opts.index === 0) up.disabled = true;
+    up.addEventListener('click', () => opts.onMove(opts.index, opts.index - 1, opts.focusKey + '::up'));
+    const down = el('button', {
+      type: 'button',
+      className: 'reorder-btn',
+      'data-reorder': opts.focusKey + '::down',
+      'aria-label': opts.label + ' — переместить вниз',
+      title: 'Вниз',
+      text: '↓'
+    });
+    if (opts.index === opts.count - 1) down.disabled = true;
+    down.addEventListener('click', () => opts.onMove(opts.index, opts.index + 1, opts.focusKey + '::down'));
+    bar.appendChild(up);
+    bar.appendChild(down);
+    return bar;
+  }
+
+  // SortableJS поверх списка (плейсхолдер места вставки — .reorder-ghost).
+  // Без vendor-файла остаётся клавиатурный фоллбек reorderControls.
+  function makeSortable(listEl, draggable, onMove) {
+    if (typeof window.Sortable === 'undefined') return;
+    window.Sortable.create(listEl, {
+      animation: 150,
+      handle: '.reorder-handle',
+      draggable,
+      ghostClass: 'reorder-ghost',
+      onEnd: (evt) => {
+        if (evt.oldIndex === undefined || evt.newIndex === undefined || evt.oldIndex === evt.newIndex) return;
+        onMove(evt.oldIndex, evt.newIndex, null);
+      }
+    });
+  }
+
+  // Восстановление фокуса на той же кнопке после перерисовки списка.
+  // У крайней позиции прежняя кнопка может стать disabled — тогда фокус
+  // переезжает на парную (up↔down), а не падает на body.
+  function focusReorder(focusKey) {
+    if (!focusKey) return;
+    const find = (key) => document.querySelector('[data-reorder="' + key.replace(/"/g, '\\"') + '"]');
+    const node = find(focusKey);
+    if (node && !node.disabled) {
+      node.focus();
+      return;
+    }
+    let pairedKey = null;
+    if (focusKey.slice(-4) === '::up') pairedKey = focusKey.slice(0, -4) + '::down';
+    else if (focusKey.slice(-6) === '::down') pairedKey = focusKey.slice(0, -6) + '::up';
+    if (!pairedKey) return;
+    const paired = find(pairedKey);
+    if (paired && !paired.disabled) paired.focus();
   }
 
   /* ── поля RU/EN (всегда две колонки, не табы) ────────────────────── */
@@ -276,6 +381,7 @@
   function hashForPath(path) {
     if (path === 'content/meta.json') return '#/meta';
     if (path === 'content/i18n-ui.json') return '#/ui';
+    if (path === 'content/settings.json') return '#/cases';
     const match = path.match(/^content\/cases\/(.+)\.json$/);
     return match ? '#/case/' + encodeURIComponent(match[1]) : '#/cases';
   }
@@ -423,47 +529,47 @@
     );
   }
 
-  /* ── список кейсов ───────────────────────────────────────────────── */
+  /* ── список кейсов (итерация F: порядок + видимость) ─────────────── */
 
-  function caseRow(item, labels) {
-    const data = item.data;
-    const path = 'content/cases/' + item.id + '.json';
-    return el('li', { className: 'case-row' }, [
-      el('span', {
-        className: 'case-row__drag',
-        title: 'Перестановка кейсов — скоро (итерация F)',
-        'aria-hidden': 'true',
-        text: '⠿'
-      }),
-      el('a', { className: 'case-row__link', href: '#/case/' + encodeURIComponent(item.id) }, [
-        el('img', { className: 'case-row__thumb', src: toAdminAssetPath(data.card.thumb), alt: '', loading: 'lazy' }),
-        el('div', {}, [
-          el('p', { className: 'case-row__title', text: data.card.title.en }),
-          el('span', { className: 'case-row__id', text: item.id })
-        ])
-      ]),
-      el('div', { className: 'case-row__meta' }, [
-        State.hasDraft(path) ? el('span', { className: 'badge badge--draft', text: 'черновик' }) : null,
-        el('span', { text: labels[data.category] || data.category }),
-        el('span', { text: data.year }),
-        el('span', { className: 'switch switch--disabled', title: 'Включение и выключение кейса — скоро (итерация F)' }, [
-          el('input', {
-            type: 'checkbox',
-            checked: true,
-            disabled: true,
-            'aria-label': 'Кейс включён (управление появится в итерации F)'
-          }),
-          el('span', { className: 'switch__track', 'aria-hidden': 'true' })
-        ])
-      ])
-    ]);
+  function casePathOf(id) {
+    return 'content/cases/' + id + '.json';
   }
 
   async function renderCases() {
     els.app.replaceChildren(el('p', { className: 'empty-note', text: 'Загрузка списка кейсов…' }));
-    const catalog = await State.loadCatalog();
+    // Свежий settings.json с GitHub — источник порядка и категорий
+    // (черновик накладывается в AdminState поверх).
+    const [catalog] = await Promise.all([State.loadCatalog(), State.ensureFile(SETTINGS_PATH)]);
+    const byId = new Map(catalog.cases.map((item) => [item.id, item]));
+
     const labels = {};
-    for (const filter of catalog.settings.filters) labels[filter.key] = filter.label;
+    function draftFilters() {
+      return State.getValue(SETTINGS_PATH, 'filters') || [];
+    }
+    for (const filter of draftFilters()) labels[filter.key] = filter.label;
+
+    function order() {
+      return (State.getValue(SETTINGS_PATH, 'cardOrder') || []).slice();
+    }
+    function categoryEnabled(key) {
+      const filter = draftFilters().find((f) => f && f.key === key);
+      return !filter || filter.enabled !== false;
+    }
+    // enabled кейса с учётом черновика (в т.ч. восстановленного из
+    // sessionStorage) поверх каталога.
+    function caseEnabled(id) {
+      const drafted = State.peekDraftValue(casePathOf(id), 'enabled');
+      if (drafted !== undefined) return drafted !== false;
+      const item = byId.get(id);
+      return !item || item.data.enabled !== false;
+    }
+    function isVisible(id) {
+      const item = byId.get(id);
+      return caseEnabled(id) && (!item || categoryEnabled(item.data.category));
+    }
+    function visibleCount() {
+      return order().filter(isVisible).length;
+    }
 
     const search = el('input', {
       className: 'input cases__search',
@@ -472,12 +578,106 @@
       placeholder: 'Поиск: название, категория, id'
     });
     const list = el('ul', { className: 'case-list', id: 'case-list' });
+    const hint = el('p', {
+      className: 'hint',
+      id: 'case-list-hint',
+      text:
+        'Порядок карточек на сайте: перетащите строку за ⠿ или используйте кнопки ↑/↓. ' +
+        'Выключатель справа скрывает кейс с сайта (файлы не удаляются).'
+    });
+
+    function moveCase(from, to, focusKey) {
+      const current = order();
+      if (from === to || to < 0 || to >= current.length) return;
+      State.setValue(SETTINGS_PATH, 'cardOrder', movedArray(current, from, to));
+      toast('Порядок сохранён в черновик', 'info');
+      renderRows();
+      focusReorder(focusKey);
+    }
+
+    async function toggleCase(id, next, input) {
+      if (!next && isVisible(id) && visibleCount() <= 1) {
+        toast('Нельзя скрыть последний видимый кейс — сетка работ на сайте останется пустой.', 'error');
+        input.checked = true;
+        return;
+      }
+      input.disabled = true;
+      try {
+        await State.ensureFile(casePathOf(id));
+        State.setValue(casePathOf(id), 'enabled', next);
+        renderRows();
+      } catch (error) {
+        toast('Не удалось загрузить кейс с GitHub: ' + (error.message || error), 'error');
+        input.checked = !next;
+        input.disabled = false;
+      }
+    }
+
+    function caseRow(item, index, count, reorderEnabled) {
+      const data = item.data;
+      const path = casePathOf(item.id);
+      const enabledFlag = caseEnabled(item.id);
+      const catEnabled = categoryEnabled(data.category);
+
+      const toggleInput = el('input', {
+        type: 'checkbox',
+        'data-case-toggle': item.id,
+        'aria-label': enabledFlag ? 'Кейс «' + data.card.title.en + '» включён' : 'Кейс «' + data.card.title.en + '» скрыт'
+      });
+      toggleInput.checked = enabledFlag;
+      toggleInput.addEventListener('change', () => toggleCase(item.id, toggleInput.checked, toggleInput));
+
+      return el(
+        'li',
+        {
+          className: 'case-row' + (!enabledFlag || !catEnabled ? ' case-row--off' : ''),
+          'data-case-id': item.id
+        },
+        [
+          reorderEnabled
+            ? reorderControls({
+                label: 'Кейс «' + data.card.title.en + '»',
+                index,
+                count,
+                focusKey: 'case::' + item.id,
+                onMove: moveCase
+              })
+            : null,
+          el('a', { className: 'case-row__link', href: '#/case/' + encodeURIComponent(item.id) }, [
+            el('img', { className: 'case-row__thumb', src: toAdminAssetPath(data.card.thumb), alt: '', loading: 'lazy' }),
+            el('div', {}, [
+              el('p', { className: 'case-row__title', text: data.card.title.en }),
+              el('span', { className: 'case-row__id', text: item.id })
+            ])
+          ]),
+          el('div', { className: 'case-row__meta' }, [
+            State.hasDraft(path) ? el('span', { className: 'badge badge--draft', text: 'черновик' }) : null,
+            !enabledFlag ? el('span', { className: 'badge badge--off', text: 'скрыто' }) : null,
+            !catEnabled ? el('span', { className: 'badge badge--off', text: 'категория скрыта' }) : null,
+            el('span', { text: labels[data.category] || data.category }),
+            el('span', { text: data.year }),
+            el('label', { className: 'switch', title: enabledFlag ? 'Скрыть кейс с сайта' : 'Показать кейс на сайте' }, [
+              toggleInput,
+              el('span', { className: 'switch__track', 'aria-hidden': 'true' })
+            ])
+          ])
+        ]
+      );
+    }
 
     function renderRows() {
       const query = search.value.trim().toLowerCase();
+      const reorderEnabled = query === '';
+      hint.textContent = reorderEnabled
+        ? 'Порядок карточек на сайте: перетащите строку за ⠿ или используйте кнопки ↑/↓. ' +
+          'Выключатель справа скрывает кейс с сайта (файлы не удаляются).'
+        : 'Во время поиска перестановка отключена — очистите поле, чтобы менять порядок.';
       list.replaceChildren();
+      const ids = order();
       let shown = 0;
-      for (const item of catalog.cases) {
+      ids.forEach((id, index) => {
+        const item = byId.get(id);
+        if (!item) return;
         const hay = (
           item.id +
           ' ' +
@@ -489,15 +689,20 @@
           ' ' +
           item.data.year
         ).toLowerCase();
-        if (query && hay.indexOf(query) === -1) continue;
+        if (query && hay.indexOf(query) === -1) return;
         shown += 1;
-        list.appendChild(caseRow(item, labels));
-      }
+        list.appendChild(caseRow(item, index, ids.length, reorderEnabled));
+      });
       if (shown === 0) list.appendChild(el('li', { className: 'empty-note', text: 'Ничего не найдено' }));
     }
 
     search.addEventListener('input', renderRows);
     renderRows();
+    makeSortable(list, '.case-row', (from, to) => {
+      // Drag активен только без поискового фильтра (handle скрыт при поиске),
+      // поэтому индексы Sortable совпадают с индексами cardOrder.
+      moveCase(from, to, null);
+    });
 
     els.app.replaceChildren(
       el('section', { className: 'cases' }, [
@@ -506,6 +711,105 @@
           el('span', { className: 'view-head__hint', text: 'всего: ' + catalog.cases.length }),
           search
         ]),
+        hint,
+        list
+      ])
+    );
+  }
+
+  /* ── категории (итерация F: вкл/выкл фильтров сайта) ─────────────── */
+
+  async function renderCategories() {
+    els.app.replaceChildren(el('p', { className: 'empty-note', text: 'Загружаем настройки с GitHub…' }));
+    const [catalog] = await Promise.all([State.loadCatalog(), State.ensureFile(SETTINGS_PATH)]);
+
+    const casesByCategory = {};
+    for (const item of catalog.cases) {
+      casesByCategory[item.data.category] = (casesByCategory[item.data.category] || []).concat(item.id);
+    }
+
+    function draftFilters() {
+      return State.getValue(SETTINGS_PATH, 'filters') || [];
+    }
+    function categoryEnabled(key) {
+      const filter = draftFilters().find((f) => f && f.key === key);
+      return !filter || filter.enabled !== false;
+    }
+    function caseEnabled(id) {
+      const drafted = State.peekDraftValue(casePathOf(id), 'enabled');
+      if (drafted !== undefined) return drafted !== false;
+      const item = catalog.cases.find((c) => c.id === id);
+      return !item || item.data.enabled !== false;
+    }
+    // Сколько кейсов останется видимыми, если выключить категорию key.
+    function visibleCountWithout(key) {
+      let count = 0;
+      for (const item of catalog.cases) {
+        if (item.data.category === key) continue;
+        if (caseEnabled(item.id) && categoryEnabled(item.data.category)) count += 1;
+      }
+      return count;
+    }
+
+    const list = el('ul', { className: 'category-list', id: 'category-list' });
+
+    function toggleCategory(index, next, input) {
+      const filter = draftFilters()[index];
+      if (!next && visibleCountWithout(filter.key) === 0) {
+        toast('Нельзя выключить категорию «' + filter.label + '» — на сайте не останется ни одного видимого кейса.', 'error');
+        input.checked = true;
+        return;
+      }
+      State.setValue(SETTINGS_PATH, 'filters.' + index + '.enabled', next);
+      renderRows();
+    }
+
+    function renderRows() {
+      list.replaceChildren();
+      draftFilters().forEach((filter, index) => {
+        if (!filter || filter.key === 'all') return; // «All» — сброс фильтра, не выключается
+        const enabled = filter.enabled !== false;
+        const ids = casesByCategory[filter.key] || [];
+        const toggleInput = el('input', {
+          type: 'checkbox',
+          'data-category-toggle': filter.key,
+          'aria-label': enabled ? 'Категория «' + filter.label + '» включена' : 'Категория «' + filter.label + '» скрыта'
+        });
+        toggleInput.checked = enabled;
+        toggleInput.addEventListener('change', () => toggleCategory(index, toggleInput.checked, toggleInput));
+        list.appendChild(
+          el('li', { className: 'category-row' + (enabled ? '' : ' category-row--off'), 'data-category-row': filter.key }, [
+            el('div', { className: 'category-row__info' }, [
+              el('p', { className: 'category-row__label', text: filter.label }),
+              el('span', { className: 'category-row__id', text: filter.key + ' · кейсов: ' + ids.length })
+            ]),
+            el('div', { className: 'case-row__meta' }, [
+              !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
+              el('label', {
+                className: 'switch',
+                title: enabled ? 'Скрыть категорию и все её кейсы с сайта' : 'Показать категорию на сайте'
+              }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })])
+            ])
+          ])
+        );
+      });
+    }
+
+    renderRows();
+
+    els.app.replaceChildren(
+      el('section', {}, [
+        el('div', { className: 'view-head' }, [
+          el('h1', { text: 'Категории' }),
+          el('span', { className: 'view-head__hint', text: 'фильтры сайта · content/settings.json' })
+        ]),
+        el('p', {
+          className: 'hint',
+          text:
+            'Выключенная категория исчезает из фильтров на сайте, а все её кейсы скрываются из сетки. ' +
+            'Файлы кейсов не удаляются — категорию можно включить обратно в любой момент. ' +
+            'Фильтр «All» выключить нельзя.'
+        }),
         list
       ])
     );
@@ -587,8 +891,8 @@
 
       const tech = el('div', { className: 'motion-block__tech' }, [
         el('div', {}, [el('label', { text: 'source' }), sourceSelect]),
-        readOnlyTech('layout', block.layout || '', 'Редактирование layout — решение в итерации F'),
-        readOnlyTech('playback', block.playback || '', 'Редактирование playback — решение в итерации F')
+        readOnlyTech('layout', block.layout || '', 'Управляется раскладкой сайта — не редактируется'),
+        readOnlyTech('playback', block.playback || '', 'Управляется раскладкой сайта — не редактируется')
       ]);
       if (block.title) {
         tech.appendChild(readOnlyTech('title', block.title, 'Технический заголовок Vimeo-плеера'));
@@ -647,6 +951,53 @@
     const draft = entry.draft;
     const sections = [];
 
+    // Итерация F: режим порядка блоков. Перерисовка редактора после
+    // перестановок/переключения режима (черновик — источник истины).
+    const manualLayout = State.getValue(path, 'layoutMode') === 'manual';
+    function rerender(focusKey) {
+      const y = window.scrollY;
+      renderCaseEditor(id).then(() => {
+        window.scrollTo(0, y);
+        focusReorder(focusKey);
+      });
+    }
+
+    // Перестановка слота иллюстраций: src/фон/подпись переезжают вместе.
+    // Дефолтный src зависит от ПОЗИЦИИ (./assets/cases/<id>/0N.svg), поэтому
+    // перед перестановкой эффективные src фиксируются явными путями.
+    function moveMediaSlot(from, to, focusKey) {
+      if (from === to || to < 0 || to > 4) return;
+      const cs = State.getValue(path, 'case') || {};
+      const srcs = [];
+      for (let i = 0; i < 5; i += 1) {
+        const current = Array.isArray(cs.srcs) ? cs.srcs[i] : null;
+        srcs.push(current || './assets/cases/' + id + '/0' + (i + 1) + '.svg');
+      }
+      State.setValue(path, 'case.srcs', movedArray(srcs, from, to));
+      State.setValue(path, 'case.palette', movedArray(cs.palette, from, to));
+      State.setValue(path, 'case.captions', movedArray(cs.captions, from, to));
+      State.remapMediaEdits(path, (dot) => {
+        const match = dot.match(/^case\.srcs\.(\d+)$/);
+        if (!match) return dot;
+        return 'case.srcs.' + movedIndex(Number(match[1]), from, to);
+      });
+      toast('Порядок сохранён в черновик', 'info');
+      rerender(focusKey);
+    }
+
+    function moveMotionBlock(from, to, focusKey) {
+      const blocks = State.getValue(path, 'case.motionBlocks') || [];
+      if (from === to || to < 0 || to >= blocks.length) return;
+      State.setValue(path, 'case.motionBlocks', movedArray(blocks, from, to));
+      State.remapMediaEdits(path, (dot) => {
+        const match = dot.match(/^case\.motionBlocks\.(\d+)\.(.+)$/);
+        if (!match) return dot;
+        return 'case.motionBlocks.' + movedIndex(Number(match[1]), from, to) + '.' + match[2];
+      });
+      toast('Порядок сохранён в черновик', 'info');
+      rerender(focusKey);
+    }
+
     sections.push(
       el('section', { className: 'editor-section' }, [
         el('h2', { text: 'Карточка в списке работ' }),
@@ -690,12 +1041,72 @@
       ])
     );
 
-    const mediaStrip = el('div', { className: 'media-strip' });
+    // Итерация F: режим порядка блоков (seeded — автоматическая раскладка,
+    // manual — авторский порядок списков ниже).
+    const layoutSection = el('section', { className: 'editor-section', id: 'layout-section' }, [
+      el('h2', { text: 'Порядок блоков' })
+    ]);
+    if (!manualLayout) {
+      layoutSection.appendChild(
+        el('p', {
+          className: 'hint',
+          text:
+            'Порядок подбирается автоматически (фиксированная раскладка по id). ' +
+            'Включите ручной порядок, чтобы расставить блоки самим.'
+        })
+      );
+      const manualBtn = el('button', { type: 'button', className: 'btn', id: 'layout-manual-btn' }, [
+        'Включить ручной порядок'
+      ]);
+      manualBtn.addEventListener('click', () => {
+        State.setValue(path, 'layoutMode', 'manual');
+        toast(
+          'Ручной порядок включён. Стартовый порядок — авторский порядок файлов кейса: ' +
+            'он может отличаться от того, что показывала автоматическая раскладка.',
+          'info'
+        );
+        rerender();
+      });
+      layoutSection.appendChild(manualBtn);
+    } else {
+      layoutSection.appendChild(
+        el('p', {
+          className: 'hint',
+          text:
+            'Ручной порядок включён: иллюстрации и motion-блоки идут в порядке списков ниже. ' +
+            'Стартовый порядок — авторский порядок файлов кейса; он может отличаться от того, ' +
+            'что показывала автоматическая раскладка. Широкие и высокие блоки сайт ' +
+            'по-прежнему расставляет по своей сетке. Ряды при этом идут как два высоких ряда, ' +
+            'затем два широких подряд — правило чередования автоматической раскладки не применяется.'
+        })
+      );
+      const seededBtn = el('button', { type: 'button', className: 'btn btn--ghost', id: 'layout-seeded-btn' }, [
+        'Вернуть автоматический порядок'
+      ]);
+      seededBtn.addEventListener('click', () => {
+        State.setValue(path, 'layoutMode', 'seeded');
+        toast('Автоматический порядок возвращён — раскладка снова подбирается по id кейса.', 'info');
+        rerender();
+      });
+      layoutSection.appendChild(seededBtn);
+    }
+    sections.push(layoutSection);
+
+    const mediaStrip = el('div', { className: 'media-strip', id: 'media-strip' });
     for (let i = 0; i < 5; i += 1) {
       const defaultSrc = './assets/cases/' + id + '/0' + (i + 1) + '.svg';
       const effectiveSrc = (draft.case.srcs && draft.case.srcs[i]) || defaultSrc;
       mediaStrip.appendChild(
         el('figure', { className: 'media-slot' }, [
+          manualLayout
+            ? reorderControls({
+                label: 'Слот ' + (i + 1),
+                index: i,
+                count: 5,
+                focusKey: 'slot::' + i,
+                onMove: moveMediaSlot
+              })
+            : null,
           dropZone({
             filePath: path,
             dotPath: 'case.srcs.' + i,
@@ -704,17 +1115,22 @@
             currentPath: effectiveSrc,
             preview: 'image'
           }),
-          el('figcaption', { text: 'Слот ' + (i + 1) })
+          el('figcaption', { text: 'Слот ' + (i + 1) + ' · ' + SLOT_FORMATS[i] })
         ])
       );
     }
+    if (manualLayout) makeSortable(mediaStrip, '.media-slot', moveMediaSlot);
     sections.push(
       el('section', { className: 'editor-section' }, [
         el('h2', { text: 'Иллюстрации кейса' }),
         mediaStrip,
         el('p', {
           className: 'hint',
-          text: 'SVG, PNG, JPG или WebP · до 200 КБ на изображение. Подписи к слотам редактируются ниже.'
+          text:
+            'SVG, PNG, JPG или WebP · до 200 КБ на изображение. Подписи к слотам редактируются ниже.' +
+            (manualLayout
+              ? ' При перестановке слотов подпись и фон переезжают вместе с изображением; формат слота (широкий/высокий) задаётся позицией.'
+              : '')
         })
       ])
     );
@@ -803,22 +1219,41 @@
     sections.push(modelSection);
 
     if (Array.isArray(draft.case.motionBlocks) && draft.case.motionBlocks.length > 0) {
-      const motionSection = el('section', { className: 'editor-section' }, [el('h2', { text: 'Motion-блоки' })]);
-      draft.case.motionBlocks.forEach((_block, i) => {
-        motionSection.appendChild(motionBlockEditor(path, id, i));
+      const motionCount = draft.case.motionBlocks.length;
+      const motionList = el('div', { id: 'motion-list' });
+      draft.case.motionBlocks.forEach((block, i) => {
+        const wrap = el('div', { className: 'motion-block-wrap' });
+        if (manualLayout) {
+          wrap.appendChild(
+            el('div', { className: 'motion-block-head' }, [
+              reorderControls({
+                label: 'Motion-блок ' + (i + 1),
+                index: i,
+                count: motionCount,
+                focusKey: 'motion::' + i,
+                onMove: moveMotionBlock
+              }),
+              el('span', {
+                className: 'motion-block-head__title',
+                text: 'Блок ' + (i + 1) + (block.label && block.label.en ? ' · ' + block.label.en : '')
+              })
+            ])
+          );
+        }
+        wrap.appendChild(motionBlockEditor(path, id, i));
+        motionList.appendChild(wrap);
       });
-      motionSection.appendChild(
+      if (manualLayout) makeSortable(motionList, '.motion-block-wrap', moveMotionBlock);
+      const motionSection = el('section', { className: 'editor-section' }, [
+        el('h2', { text: 'Motion-блоки' }),
+        motionList,
         el('p', {
           className: 'hint',
-          text: 'Поля layout и playback заблокированы — решение об их редактировании примет итерация F.'
+          text: 'Поля layout и playback управляются раскладкой сайта и не редактируются.'
         })
-      );
+      ]);
       sections.push(motionSection);
     }
-
-    sections.push(
-      el('p', { className: 'hint', text: 'Перестановка блоков кейса местами появится в итерации F.' })
-    );
 
     els.app.replaceChildren(
       el('section', {}, [
@@ -1025,6 +1460,7 @@
     const parts = hash.replace(/^#\/?/, '').split('/');
     try {
       if (parts[0] === 'case' && parts[1]) await renderCaseEditor(decodeURIComponent(parts[1]));
+      else if (parts[0] === 'categories') await renderCategories();
       else if (parts[0] === 'meta') await renderMetaEditor();
       else if (parts[0] === 'ui') await renderUiEditor();
       else await renderCases();
