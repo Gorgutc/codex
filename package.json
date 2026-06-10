@@ -26,7 +26,7 @@
     "check:audit": "npm audit --omit=dev --audit-level=high",
     "check:a11y": "node scripts/run-pa11y.mjs",
     "check:lighthouse": "node scripts/run-lhci.mjs",
-    "test:admin": "playwright test tests/quality/admin-smoke.spec.mjs tests/quality/admin-media.spec.mjs tests/quality/admin-order-visibility.spec.mjs",
+    "test:admin": "playwright test tests/quality/admin-smoke.spec.mjs tests/quality/admin-media.spec.mjs tests/quality/admin-order-visibility.spec.mjs tests/quality/admin-preview.spec.mjs",
     "test:browser": "playwright test tests/quality/site-smoke.spec.mjs",
     "test:visual": "playwright test tests/quality/visual-regression.spec.mjs",
     "test:visual:update": "playwright test tests/quality/visual-regression.spec.mjs --update-snapshots",

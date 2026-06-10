@@ -111,6 +111,13 @@ const MOTION_BLOCKS = MOTION_CASE_CONTENT.case && Array.isArray(MOTION_CASE_CONT
 const HAS_MOTION = MOTION_BLOCKS.length > 0;
 const MOTION_SKIP_DETAIL = 'skipped: no visible motion case';
 
+// Итерация G: OG-изображения обеих страниц владелец заменяет через админку
+// (cache-bust-имя), а sitemap.xml/JSON-LD генерируются из content/meta.json —
+// ожидаемые image-URL выводятся из контента, а не пинятся литералами.
+const CONTENT_META = readContentJson('meta.json');
+const ogImageUrl = page =>
+  'https://codex.promo/' + String((CONTENT_META.ogImages || {})[page] || '').replace(/^\.\//, '');
+
 // free-assets: счётчики каталога тоже из content/ (free-assets.json).
 const CONTENT_FREE_ASSETS = readContentJson('free-assets.json');
 const FA_ITEM_COUNT = CONTENT_FREE_ASSETS.categories.reduce((sum, cat) => sum + cat.items.length, 0);
@@ -185,9 +192,20 @@ function runStaticChecks() {
   const robotsPath = path.join(ROOT, 'robots.txt');
   const sitemap = fs.existsSync(sitemapPath) ? fs.readFileSync(sitemapPath, 'utf8') : '';
   const robots = fs.existsSync(robotsPath) ? fs.readFileSync(robotsPath, 'utf8') : '';
+  // Итерация G: sitemap.xml генерируется из content/meta.json — ожидаемые
+  // image:loc выводятся из ogImages (точное равенство, включая будущие
+  // cache-bust-имена после замены OG-картинок через админку).
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // (?:(?!</url>)[\s\S])*? — image:loc обязан лежать в ТОМ ЖЕ <url>-блоке,
+  // что и его <loc>, а не где-то дальше по файлу.
+  const sitemapImageRe = (loc, img) =>
+    new RegExp('<loc>' + escRe(loc) + '</loc>(?:(?!</url>)[\\s\\S])*?<image:loc>' + escRe(img) + '</image:loc>');
+  add('static', 'F1-sitemap-index-image',
+      sitemapImageRe('https://codex.promo/', ogImageUrl('index')).test(sitemap),
+      'index sitemap entry includes OG image from content');
   add('static', 'F1-sitemap-free-assets-image',
-      /<loc>https:\/\/codex\.promo\/free-assets\.html<\/loc>[\s\S]*<image:loc>https:\/\/codex\.promo\/assets\/img\/og-free-assets\.jpg<\/image:loc>/i.test(sitemap),
-      'free-assets sitemap entry includes OG image');
+      sitemapImageRe('https://codex.promo/free-assets.html', ogImageUrl('fa')).test(sitemap),
+      'free-assets sitemap entry includes OG image from content');
   add('static', 'F1-robots-sitemap-pointer',
       /Sitemap:\s*https:\/\/codex\.promo\/sitemap\.xml/i.test(robots),
       'robots.txt points to canonical sitemap');
@@ -211,6 +229,27 @@ function runStaticChecks() {
   add('static', 'F1-jsonld-contenturl-files',
       faContentUrls.length >= 2 && missingFaDownloads.length === 0,
       missingFaDownloads.length ? 'missing=' + missingFaDownloads.join(', ') : `linked=${faContentUrls.length}`);
+
+  // Итерация G: featured-ItemList главной генерируется из content/meta.json
+  // (featuredWorks ∩ видимые кейсы) — скрытый кейс не должен оставлять
+  // SEO-призрака. Ожидаемая последовательность выводится из контента.
+  const idxJsonLdStatic = [...indexHTML.matchAll(/<script\s+type=["']application\/ld\+json["']\s*>([\s\S]*?)<\/script>/gi)]
+    .map(match => {
+      try { return JSON.parse(match[1]); }
+      catch (_) { return null; }
+    })
+    .filter(Boolean);
+  const idxItemList = idxJsonLdStatic.find(node => node && node['@type'] === 'ItemList');
+  const idxListedUrls = idxItemList && Array.isArray(idxItemList.itemListElement)
+    ? idxItemList.itemListElement.map(entry => String(entry && entry.item && entry.item.url || ''))
+    : [];
+  const expectedFeatured = ((CONTENT_META.structuredData || {}).featuredWorks || [])
+    .map(f => f.id)
+    .filter(id => EXPECTED_IDS.includes(id))
+    .map(id => `https://codex.promo/#${id}`);
+  add('static', 'F1-jsonld-featured-visible',
+      !!idxItemList && idxListedUrls.join('|') === expectedFeatured.join('|'),
+      `listed=${idxListedUrls.length}, expected(content)=${expectedFeatured.length}`);
 
   // A8 — localStorage / sessionStorage НЕ должны использоваться runtime в
   // shipped JS. Frozen rule top-10. Regex ловит method/property access

@@ -24,17 +24,73 @@
 | D | Админка MVP: вход GitHub OAuth, тексты RU/EN, мета | в ревью (ветка `codex/admin-id-admin-mvp`) |
 | E | Медиа: фото, видео (`.webm`/Vimeo), GLB, OG | в ревью (ветка `codex/admin-ie-media`) |
 | F | Порядок блоков (drag-and-drop), вкл/выкл кейсов и категорий | в ревью (ветка `codex/admin-if-order-visibility`) |
-| G | Превью, гайд владельца, финальный handoff | не начата |
+| G | Превью, гайд владельца, финальный handoff | в ревью (ветка `codex/admin-ig-preview-polish`) |
 
 ## Шаги владельца (требуют ручного участия)
 
+- [ ] Смержить draft PR итераций 0–G (после ревью; порядок: 0 → A → B → C →
+  D → E → F → G — каждая ветка собрана поверх предыдущей).
+- [ ] Создать GitHub OAuth App для входа в админку и добавить переменные в
+  Netlify — пошаговая инструкция в журнале итерации D ниже. До этого вход
+  работает по fine-grained PAT (запасной путь, см. `docs/admin-guide.md`).
+- [ ] Заполнить русские тексты кейсов через админку (сейчас RU = EN,
+  плейсхолдеры). Гайд: `docs/admin-guide.md`, раздел 2.
 - [ ] В Claude Code выполнить: `/plugin marketplace add openai/codex-plugin-cc`,
   затем `/plugin install codex@openai-codex`, `/reload-plugins`, `/codex:setup`.
   `/codex:setup` попросит авторизацию OpenAI (ChatGPT-логин или API-ключ).
   Codex CLI уже установлен глобально (`npm install -g @openai/codex`, 2026-06-10).
-- [ ] Создать GitHub OAuth App для входа в админку — пошаговая инструкция
-  в журнале итерации D ниже.
-- [ ] После итерации D: заполнить русские тексты кейсов через админку (сейчас RU = EN).
+- [ ] Smoke-тест живой Codex-сессии после мержа итерации A (поведение Codex
+  не должно измениться) — осталось с итерации A.
+
+## Состояние проекта (финальный handoff, итерация G)
+
+**Готово.** Все 8 итераций реализованы и находятся в draft PR:
+
+- Контент сайта извлечён в `content/*.json`; генератор
+  (`scripts/generate-content.mjs`) детерминированно собирает
+  `js/cards-data.js`, `js/fa-data.js`, `js/i18n-data.js`, GEN-регионы
+  `index.html`/`free-assets.html` (cards-grid, filters, head-meta, jsonld)
+  и `sitemap.xml`. Golden-тест и валидатор охраняют эквивалентность.
+- CI-конвейер `content-publish.yml`: правка `content/**` в `main` →
+  регенерация → verify (0 FAIL) → bot-коммит; при провале — авто-revert.
+- Админка `/admin/`: вход (GitHub OAuth / PAT), тексты RU/EN, мета-теги и
+  OG, медиа (фото/`.webm`/Vimeo/GLB) с cache-bust-именами, порядок карточек
+  и блоков (drag-and-drop + клавиатура), вкл/выкл кейсов и категорий,
+  предпросмотр черновика на настоящем сайте, публикация одним atomic-коммитом
+  с ожиданием вердикта конвейера.
+- Гайд владельца: `docs/admin-guide.md` (по-русски, 11 скриншотов).
+- Двойная обвязка Claude+Codex: 17 скиллов (включая новый
+  `codex-studio-admin-rules`), зеркало `.claude/` генерируется
+  `npm run sync:harness`, паритет — гейтом `check:parity`.
+
+**Известные ограничения (собраны из deferred всех итераций):**
+
+- Vimeo privacy-hash (unlisted-ролики `vimeo.com/<id>/<hash>`) не
+  поддерживается — только публичные ролики/цифровые ID (итерация E).
+- `og:image:width/height` захардкожены 1200×630; подсказка «1200×630» в
+  админке — только текст, реальные размеры загружаемой картинки не
+  проверяются (итерация E).
+- Free-assets: медиа и тоглы видимости отдельных ассетов не редактируются —
+  экрана FA в админке нет; каталог `content/free-assets.json` правится
+  только через файлы (итерации E/F). JSON-LD ItemList каталога FA — SEO-копи,
+  живёт литералами в генераторе (не в content).
+- Ручной порядок блоков: стартует с авторского порядка файлов (не с seeded-
+  раскладки), ряды идут «два высоких, затем два широких подряд» — правило
+  чередования автоматики не применяется (итерация F). Предпросмотр закрывает
+  этот чёрный ящик.
+- Golden-фикстуры пинят ТЕКУЩИЙ контент: после легитимной публикации их
+  пересобирает CI; локально `scripts/capture-content-golden.mjs` гонять
+  только при намеренном обновлении эталона (итерация B).
+- Тех-долг: нет `.gitattributes` с `eol=lf` — на чужой машине с
+  `autocrlf=true` возможны ложные диффы; генератор и sync-harness
+  EOL-устойчивы, но долг остаётся (итерация B/C).
+- Pre-existing флак: смоук free-assets preloader (`quality:deep`,
+  `test:browser`) флачит по таймингу на этой машине даже на чистом дереве
+  (зафиксировано в итерации C).
+- `i18nOverrides` кейса не переезжают при перестановке слотов/motion-блоков;
+  сегодня существуют только не зависящие от порядка overrides (итерация F).
+- Чистка осиротевших ассетов (заменённые файлы накапливаются в репозитории
+  под старыми именами) — отдельная maintenance-задача (итерация E).
 
 ## Журнал сессий
 
@@ -614,3 +670,110 @@ Final review (та же ветка, до merge):
 `test:admin` (все спеки, включая новый), `test:golden` без пересъёмки
 фикстур, `quality:fast`, `codex:ship` полностью зелёный (verify-frozen
 0 FAIL с ожиданиями из content), `check:parity`, `test:visual` без диффов.
+
+### 2026-06-10 — Сессия 5 (Claude Code): итерация G (превью, гайд, полировка)
+
+Сделано (ветка `codex/admin-ig-preview-polish`):
+
+- Превью «как будет» (`admin/js/preview.js` + кнопка «Предпросмотр» в шапке):
+  настоящий `index.html` сайта → fetch + DOMParser → мутации под черновик →
+  same-origin iframe через srcdoc с `<base>` (относительные пути резолвятся
+  в реальные файлы сайта). Мутации: чекбоксы фильтров пересобираются из
+  settings-черновика; грид — скрытые кейсы/категории выпадают, порядок =
+  cardOrder черновика, тексты/alt/миниатюры черновика (включая blob-URL для
+  pending-медиа), карточка вновь включённого кейса достраивается зеркалом
+  `buildCardHtml`; теги `<script src=…cards-data.js>` и `…i18n-data.js`
+  заменяются inline-скриптами с данными черновика — `main.js` и `i18n.js`
+  сайта потребляют черновик как опубликованные файлы. Гибридная стратегия
+  данных: кейсы БЕЗ черновика идут байт-в-байт из `window.CARDS_DATA` /
+  `window.I18N_DATA` (admin/index.html подключает `../js/cards-data.js` и
+  `../js/i18n-data.js`), кейсы с черновиком пересобираются из content-JSON
+  зеркалами генератора (`buildRuntimeEntry`/`build*Locale` + `applySparse`
+  для `i18nOverrides`). `AdminState.previewDraft(path)` (state.js) отдаёт
+  черновик с pending-медиа, подставленными как object-URL. Оверлей: баннер
+  «Это предпросмотр черновика…», переключатели RU/EN (вызов
+  `iframe.contentWindow.I18N.applyLang` — родная механика сайта),
+  Десктоп/Мобильный (390px), «Закрыть», Escape. GSAP/Lenis/прелоадер/3D
+  работают в srcdoc без фоллбеков: проверено вручную Playwright-зондом —
+  грид виден, case-view открывается, 3D-вкладка рендерит three-canvas
+  (lazy `model-data.js` резолвится через `<base>`), консоль чистая.
+  Тест `tests/quality/admin-preview.spec.mjs` (включён в `test:admin`):
+  черновик RU-заголовка + pending-миниатюра + скрытый кейс → в iframe
+  скрытой карточки нет, миниатюра `blob:`, порядок = cardOrder без скрытого,
+  RU-переключатель показывает черновичный заголовок, EN — опубликованный;
+  geo-зонд i18n (cloudflare trace) в тесте блокируется для детерминизма.
+- SEO-долги E/F: новый GEN-регион `jsonld` в обеих страницах + `sitemap.xml`
+  стал шестым генерируемым таргетом. `content/meta.json` получил
+  `structuredData.featuredWorks` (id+about, валидатор: id существует,
+  уникален, about непуст). Генератор собирает: Organization (logo ←
+  `ogImages.index`), WebSite/WebPage (primaryImageOfPage ← `ogImages.fa`),
+  ItemList главной из featuredWorks ∩ видимые кейсы (позиции
+  перенумеровываются, name — живой title кейса; порядок — авторский порядок
+  featuredWorks, исторически ≠ cardOrder), ItemList каталога FA
+  (numberOfItems ← счётчик content, thumbnail-фоллбеки ← `ogImages.fa`;
+  имена/описания — SEO-копи, литералы в генераторе), sitemap `image:loc` ←
+  ogImages (lastmod — литерал). Первая генерация всех таргетов байт-в-байт
+  (`content:check` OK до пересборки). Кейсы в sitemap не перечислены —
+  менялись только image-поля. `verify-frozen.js`:
+  `F1-sitemap-free-assets-image` теперь выводится из content (+ симметричный
+  `F1-sitemap-index-image`), новый `F1-jsonld-featured-visible` (точная
+  последовательность ItemList = featuredWorks ∩ видимые).
+  `content-publish.yml`: `sitemap.xml` в detect-diff и `git add`.
+  Самотест `content-visibility.test.mjs` +3 сценария: скрытый featured-кейс
+  выпадает из ItemList с перенумерацией; своп ogImages тянет logo/thumbnails/
+  sitemap; несуществующий id в featuredWorks — ошибка валидации.
+- Скилл `codex-studio-admin-rules` (SKILL.md + agents/openai.yaml по формату
+  соседей): контракт content-vs-generated, семантика конвейера и golden,
+  архитектура админки, media-naming `{base}-{hash8}`, правило «verify-frozen
+  выводится из content». `sync:harness` пересобрал зеркало (17 скиллов),
+  `check:parity` 0 FAIL, счётчик скиллов в `verify-codex-plugin` (>=9)
+  проходит. AGENTS.md: скилл в списке, «sixteen» → «seventeen», Working
+  Rules + правило «контент только через content/*.json, GEN-регионы руками
+  не трогать»; skill-map.md дополнен.
+- Гайд владельца `docs/admin-guide.md` (по-русски, 6 сценариев: вход
+  OAuth/PAT; тексты RU/EN; фото и видео+Vimeo; перестановка блоков и
+  карточек с объяснением seeded/manual и «двух широких подряд»; выключение
+  кейса/категории; предпросмотр→публикация→откат через Netlify «Publish
+  deploy» и git-историю). 11 настоящих скриншотов
+  `docs/img/admin-guide/*.png` (Playwright 1280×800, GitHub API замокан,
+  сессия посеяна в sessionStorage; скрипт пересъёмки —
+  `scripts/capture-admin-guide.mjs`); каждый PNG < 300 КБ (превью ужат до
+  1024×640/палитра). README.md: короткая секция «Admin Panel» со ссылками.
+  cspell: `docs/*.md` добавлен в files.
+
+Решения/заметки:
+
+- 3D-вьювер в превью НЕ отключался — фоллбек «3D доступен после публикации»
+  не понадобился (dynamic import и lazy-скрипты резолвятся через `<base>`).
+- Пределы fidelity превью: документ собирается из ОПУБЛИКОВАННОГО
+  `index.html` (структурные правки страницы вне контента в превью не видны
+  до деплоя); карточка вновь включённого кейса строится зеркалом генератора
+  (без HTML-комментария и нюансов fetchpriority оригинала); geo-автоязык
+  работает как на проде (может сам переключить на RU — это поведение сайта).
+- ItemList главной держит порядок featuredWorks (а не cardOrder): текущие
+  байты страницы перечисляют apex-frame ПЕРЕД nightshard, что противоречит
+  cardOrder — байт-идентичность первой генерации диктует владельческий
+  порядок списка. Состав можно менять только через `content/meta.json`.
+
+Верификация: `content:check` (6 таргетов OK, первая генерация байт-в-байт),
+`test:admin` (12 тестов, включая превью), `test:golden` без пересъёмки,
+`test:content-validate` (9 сценариев visibility/jsonld), `npm run verify`
+0 FAIL (sitemap/jsonld-ожидания из content), `check:parity`,
+`codex:verify-plugin` 0 FAIL.
+
+Итоговый прогон `quality:all`: всё зелёное, кроме pre-existing флака —
+`quality:fast` полностью (verify-plugin, governance, content:check, js/css/
+html/markdown/spelling/deps/audit), `check:dead`, `check:duplicates`,
+`test:content-validate`, `test:admin`, `check:a11y` (pa11y: errors=0 на
+обеих страницах), `quality:governance`, `test:visual` (4/4 без диффов),
+`check:lighthouse` (index perf 95 / a11y 100 / seo 100; FA perf 78 /
+a11y 100 / seo 100 — PASS бюджетов), `codex:ship` (verify 0 FAIL).
+Единственный красный — смоук `site-smoke.spec.mjs` «releases preloader
+without waiting for lazy tag previews» (`test:browser` внутри
+`quality:deep`): жёсткий бюджет 2200 мс wall-clock; падает на ЭТОЙ машине
+и на чистом дереве (проверено `git stash` → прогон → fail → `git stash pop`),
+зафиксирован как машинный флак ещё в итерации C. К изменениям итерации G
+отношения не имеет.
+
+Следующий шаг: ревью (`/codex:review`) и мерж цепочки draft PR 0 → G;
+дальше — шаги владельца из чек-листа выше.

@@ -18,10 +18,17 @@
  *   index.html                 — the cards grid between
  *                                <!-- CODEX:GEN cards-grid BEGIN/END --> markers,
  *                                the filter checkboxes between
- *                                <!-- CODEX:GEN filters BEGIN/END --> markers
- *                                and the owner-editable head meta between
+ *                                <!-- CODEX:GEN filters BEGIN/END --> markers,
+ *                                the owner-editable head meta between
  *                                <!-- CODEX:GEN head-meta BEGIN/END --> markers
- *   free-assets.html           — the head-meta GEN region (same markers)
+ *                                and the JSON-LD blocks between
+ *                                <!-- CODEX:GEN jsonld BEGIN/END --> markers
+ *                                (Organization logo + featured-works ItemList
+ *                                from meta.json structuredData ∩ visible cases)
+ *   free-assets.html           — the head-meta and jsonld GEN regions
+ *                                (Organization/WebPage/catalog ItemList images
+ *                                and numberOfItems follow content/)
+ *   sitemap.xml                — image:loc entries follow meta.json ogImages
  *
  * Visibility (iteration F): a case with enabled:false, and every case of a
  * filter with enabled:false in settings.json, is dropped from the grid,
@@ -63,6 +70,8 @@ const HEAD_BEGIN = '<!-- CODEX:GEN head-meta BEGIN -->';
 const HEAD_END = '<!-- CODEX:GEN head-meta END -->';
 const FILTERS_BEGIN = '<!-- CODEX:GEN filters BEGIN -->';
 const FILTERS_END = '<!-- CODEX:GEN filters END -->';
+const JSONLD_BEGIN = '<!-- CODEX:GEN jsonld BEGIN -->';
+const JSONLD_END = '<!-- CODEX:GEN jsonld END -->';
 
 /* ── content loading ─────────────────────────────────────────────────────── */
 
@@ -377,6 +386,34 @@ function validateMetaImages(violations, metaStrings) {
   }
 }
 
+// structuredData.featuredWorks (iteration G): the index.html JSON-LD ItemList
+// is generated from this list intersected with the visible cases, so a hidden
+// case stops being advertised to crawlers. Every id must be a real case.
+function validateStructuredData(violations, metaStrings, caseIds) {
+  const where = 'content/meta.json';
+  const sd = metaStrings && metaStrings.structuredData;
+  if (sd === null || typeof sd !== 'object' || Array.isArray(sd) || !Array.isArray(sd.featuredWorks)) {
+    violations.push(`${where}: "structuredData.featuredWorks" must be an array of { id, about } objects`);
+    return;
+  }
+  const seen = new Set();
+  sd.featuredWorks.forEach((entry, i) => {
+    const w = `${where}: structuredData.featuredWorks[${i}]`;
+    if (entry === null || typeof entry !== 'object') {
+      violations.push(`${w}: must be an object with "id" and "about"`);
+      return;
+    }
+    if (!isNonEmptyString(entry.id) || !caseIds.has(entry.id)) {
+      violations.push(`${w}: "id" must match an existing case (got ${JSON.stringify(entry.id)})`);
+    }
+    if (seen.has(entry.id)) violations.push(`${w}: duplicate id "${entry.id}"`);
+    seen.add(entry.id);
+    if (!isNonEmptyString(entry.about)) {
+      violations.push(`${w}: "about" must be a non-empty string (emitted into the JSON-LD ItemList)`);
+    }
+  });
+}
+
 function validateContent(content) {
   const violations = [];
   const { settings, caseEntries, freeAssets, uiStrings, metaStrings } = content;
@@ -448,6 +485,7 @@ function validateContent(content) {
   checkLocaleParity(violations, 'content/i18n-ui.json', uiStrings);
   checkLocaleParity(violations, 'content/meta.json', metaStrings);
   validateMetaImages(violations, metaStrings);
+  validateStructuredData(violations, metaStrings, fileIds);
   validateFreeAssets(violations, freeAssets);
 
   return violations;
@@ -854,6 +892,250 @@ function buildHeadMetaRegion(content, page) {
   ].join('\n');
 }
 
+/* ── jsonld GEN region (iteration G, byte-identical templating) ──────────── */
+
+// JSON string literal for the hand-formatted JSON-LD blocks (the blocks keep
+// the historical 2-space indentation, so values are interpolated one by one).
+function j(value) {
+  return JSON.stringify(value);
+}
+
+// Shared Organization block (both pages): the logo follows the index OG image
+// owners replace through the admin panel (cache-bust name included).
+function organizationJsonLd(content) {
+  return [
+    '  <script type="application/ld+json">',
+    '  {',
+    '    "@context": "https://schema.org",',
+    '    "@type": "Organization",',
+    '    "name": "Codex Studio",',
+    '    "alternateName": "Codex",',
+    '    "url": "https://codex.promo/",',
+    `    "logo": ${j(absoluteAssetUrl(content.metaStrings.ogImages.index))},`,
+    '    "description": "Remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender.",',
+    '    "sameAs": [',
+    '      "https://t.me/WhiteCatWeb"',
+    '    ]',
+    '  }',
+    '  </script>'
+  ];
+}
+
+// index.html ItemList: featuredWorks from content/meta.json intersected with
+// the visible cases (a hidden case or category leaves no SEO ghost), positions
+// renumbered, names follow the live card titles. List order stays the
+// owner-curated featuredWorks order (historically not equal to cardOrder).
+function buildIndexJsonLdRegion(content) {
+  const visible = new Map(visibleCases(content).map((c) => [c.id, c]));
+  const featured = content.metaStrings.structuredData.featuredWorks.filter((f) => visible.has(f.id));
+  const items = featured.map((f, i) => {
+    const c = visible.get(f.id);
+    return [
+      '      {',
+      '        "@type": "ListItem",',
+      `        "position": ${i + 1},`,
+      '        "item": {',
+      '          "@type": "CreativeWork",',
+      `          "name": ${j(c.card.title.en)},`,
+      '          "creator": { "@type": "Organization", "name": "Codex Studio" },',
+      `          "about": ${j(f.about)},`,
+      `          "url": ${j(`https://codex.promo/#${f.id}`)}`,
+      '        }',
+      '      }'
+    ].join('\n');
+  });
+  return organizationJsonLd(content)
+    .concat([
+      '  <script type="application/ld+json">',
+      '  {',
+      '    "@context": "https://schema.org",',
+      '    "@type": "WebSite",',
+      '    "name": "Codex Studio",',
+      '    "url": "https://codex.promo/",',
+      '    "inLanguage": "en",',
+      '    "publisher": { "@type": "Organization", "name": "Codex Studio" }',
+      '  }',
+      '  </script>',
+      '  <script type="application/ld+json">',
+      '  {',
+      '    "@context": "https://schema.org",',
+      '    "@type": "ItemList",',
+      '    "name": "Codex Studio — Featured Works",',
+      '    "itemListOrder": "https://schema.org/ItemListOrderAscending",',
+      '    "itemListElement": [',
+      items.join(',\n'),
+      '    ]',
+      '  }',
+      '  </script>'
+    ])
+    .join('\n');
+}
+
+// free-assets.html catalog ItemList: the entries are SEO-specific copy that
+// never came from content/free-assets.json (names/descriptions are crafted
+// for crawlers), so they stay literal HERE; what follows content/ is
+// numberOfItems (catalog size) and every og-image-dependent field
+// (thumbnailUrl fallback = the FA OG image owners replace via the admin).
+const FA_JSONLD_ITEMS = [
+  {
+    fragment: 'orbital-mk-ii',
+    name: 'Orbital Mk.II free hard-surface 3D asset',
+    description: 'Sci-fi prop with clean topology, full PBR texture set, and Blender, FBX, OBJ delivery.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/obj', 'model/gltf-binary'],
+    contentSize: '48 MB',
+    thumb: 'https://codex.promo/assets/cards/orbital-mk-ii.svg',
+    contentUrl: 'https://codex.promo/downloads/orbital-mk-ii.zip'
+  },
+  {
+    fragment: 'vega-shell',
+    name: 'Vega Shell free modular armor asset',
+    description: 'Modular exo-armor system with 47 snap-together parts, clean UVs, Blender and FBX files.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary'],
+    contentSize: '93 MB',
+    thumb: 'https://codex.promo/assets/cards/vega-shell.svg'
+  },
+  {
+    fragment: 'ironclad-frame',
+    name: 'Ironclad Frame free industrial chassis asset',
+    description: 'Industrial chassis breakdown with modeled bolts, PBR textures, wire renders, Blender and FBX files.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary'],
+    contentSize: '55 MB',
+    thumb: 'https://codex.promo/assets/cards/ironclad-frame.svg'
+  },
+  {
+    fragment: 'bolt-cluster',
+    name: 'Bolt Cluster free industrial fastener kit',
+    description: 'Industrial fastener kit with 12 variants, GeoNodes scatter setup, Blender file and 2K textures.',
+    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png'],
+    contentSize: '31 MB',
+    thumb: null
+  },
+  {
+    fragment: 'terra-base',
+    name: 'Terra Base free modular environment kit',
+    description: 'Modular environment kit with 24 tileable pieces, GeoNodes scatter system, and 4K textures.',
+    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png'],
+    contentSize: '182 MB',
+    thumb: null
+  },
+  {
+    fragment: 'shard-cannon',
+    name: 'Shard Cannon free sci-fi weapon asset',
+    description: 'Sci-fi heavy weapon with three skin variations, UE5-compatible export, Blender and FBX files.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png'],
+    contentSize: '103 MB',
+    thumb: null
+  },
+  {
+    fragment: 'wraith-blade',
+    name: 'Wraith Blade free melee weapon asset',
+    description: 'Thin melee weapon with emissive edge variant, PBR textures, Blender and FBX files.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png'],
+    contentSize: '76 MB',
+    thumb: null
+  },
+  {
+    fragment: 'apex-frame',
+    name: 'Apex Frame free mechanical component asset',
+    description: 'Mechanical component breakdown with STEP file, exploded rig, textures, README and Blender source.',
+    encodingFormat: ['application/x-blender', 'model/step', 'model/gltf-binary', 'text/plain'],
+    contentSize: '67 MB',
+    thumb: 'https://codex.promo/assets/cards/apex-frame.svg',
+    contentUrl: 'https://codex.promo/downloads/apex-frame.zip'
+  }
+];
+
+function buildFaJsonLdRegion(content) {
+  const faOg = absoluteAssetUrl(content.metaStrings.ogImages.fa);
+  const itemCount = content.freeAssets.categories.reduce((sum, category) => sum + category.items.length, 0);
+  const items = FA_JSONLD_ITEMS.map((item, i) => {
+    const lines = [
+      '      {',
+      '        "@type": "ListItem",',
+      `        "position": ${i + 1},`,
+      `        "url": ${j(`https://codex.promo/free-assets.html#${item.fragment}`)},`,
+      '        "item": {',
+      '          "@type": "3DModel",',
+      `          "name": ${j(item.name)},`,
+      `          "description": ${j(item.description)},`,
+      `          "encodingFormat": [${item.encodingFormat.map(j).join(', ')}],`,
+      `          "contentSize": ${j(item.contentSize)},`,
+      '          "license": "https://creativecommons.org/publicdomain/zero/1.0/",',
+      '          "isAccessibleForFree": true,',
+      `          "thumbnailUrl": ${j(item.thumb || faOg)}${item.contentUrl ? ',' : ''}`
+    ];
+    if (item.contentUrl) lines.push(`          "contentUrl": ${j(item.contentUrl)}`);
+    lines.push('        }', '      }');
+    return lines.join('\n');
+  });
+  return organizationJsonLd(content)
+    .concat([
+      '  <script type="application/ld+json">',
+      '  {',
+      '    "@context": "https://schema.org",',
+      '    "@type": "WebPage",',
+      '    "name": "Free 3D Assets — Codex Studio",',
+      '    "url": "https://codex.promo/free-assets.html",',
+      '    "inLanguage": "en",',
+      '    "description": "Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders.",',
+      '    "isPartOf": { "@type": "WebSite", "name": "Codex Studio", "url": "https://codex.promo/" },',
+      '    "publisher": { "@type": "Organization", "name": "Codex Studio" },',
+      `    "primaryImageOfPage": ${j(faOg)}`,
+      '  }',
+      '  </script>',
+      '  <script type="application/ld+json">',
+      '  {',
+      '    "@context": "https://schema.org",',
+      '    "@type": "ItemList",',
+      '    "name": "Free 3D asset catalog — Codex Studio",',
+      '    "url": "https://codex.promo/free-assets.html",',
+      `    "numberOfItems": ${itemCount},`,
+      '    "itemListOrder": "https://schema.org/ItemListOrderAscending",',
+      '    "itemListElement": [',
+      items.join(',\n'),
+      '    ]',
+      '  }',
+      '  </script>'
+    ])
+    .join('\n');
+}
+
+/* ── sitemap.xml (iteration G: image:loc follows meta.json ogImages) ──────── */
+
+// The whole file is regenerated; no generated-file banner on purpose — the
+// first generation must be byte-identical to the hand-written sitemap.
+// lastmod stays a literal: it tracks page content milestones, not OG swaps.
+function buildSitemapXml(content) {
+  const images = content.metaStrings.ogImages;
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
+    '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
+    '  <url>',
+    '    <loc>https://codex.promo/</loc>',
+    '    <lastmod>2026-05-30</lastmod>',
+    '    <changefreq>weekly</changefreq>',
+    '    <priority>1.0</priority>',
+    '    <image:image>',
+    `      <image:loc>${absoluteAssetUrl(images.index)}</image:loc>`,
+    '      <image:title>Codex Studio — 3D design portfolio</image:title>',
+    '    </image:image>',
+    '  </url>',
+    '  <url>',
+    '    <loc>https://codex.promo/free-assets.html</loc>',
+    '    <lastmod>2026-05-30</lastmod>',
+    '    <changefreq>monthly</changefreq>',
+    '    <priority>0.7</priority>',
+    '    <image:image>',
+    `      <image:loc>${absoluteAssetUrl(images.fa)}</image:loc>`,
+    '      <image:title>Codex Studio — Free 3D assets catalog</image:title>',
+    '    </image:image>',
+    '  </url>',
+    '</urlset>',
+    ''
+  ].join('\n');
+}
+
 /* ── targets, --write / --check ──────────────────────────────────────────── */
 
 function detectEol(text) {
@@ -865,25 +1147,26 @@ function buildTargets(content) {
   const indexEol = detectEol(indexRaw);
   let indexNext = indexRaw.replace(/\r\n/g, '\n');
   indexNext = replaceRegion(indexNext, 'index.html', HEAD_BEGIN, HEAD_END, buildHeadMetaRegion(content, 'index'));
+  indexNext = replaceRegion(indexNext, 'index.html', JSONLD_BEGIN, JSONLD_END, buildIndexJsonLdRegion(content));
   indexNext = replaceRegion(indexNext, 'index.html', FILTERS_BEGIN, FILTERS_END, buildFiltersRegion(content));
   indexNext = replaceRegion(indexNext, 'index.html', GRID_BEGIN, GRID_END, buildGridRegion(content));
 
   const faRaw = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
   const faEol = detectEol(faRaw);
-  const faNext = replaceRegion(
-    faRaw.replace(/\r\n/g, '\n'),
-    'free-assets.html',
-    HEAD_BEGIN,
-    HEAD_END,
-    buildHeadMetaRegion(content, 'fa')
-  );
+  let faNext = faRaw.replace(/\r\n/g, '\n');
+  faNext = replaceRegion(faNext, 'free-assets.html', HEAD_BEGIN, HEAD_END, buildHeadMetaRegion(content, 'fa'));
+  faNext = replaceRegion(faNext, 'free-assets.html', JSONLD_BEGIN, JSONLD_END, buildFaJsonLdRegion(content));
+
+  const sitemapPath = path.join(ROOT, 'sitemap.xml');
+  const sitemapEol = fs.existsSync(sitemapPath) ? detectEol(fs.readFileSync(sitemapPath, 'utf8')) : '\n';
 
   return [
     { rel: 'js/cards-data.js', next: buildCardsDataJs(content), eol: '\n' },
     { rel: 'js/fa-data.js', next: buildFaDataJs(content), eol: '\n' },
     { rel: 'js/i18n-data.js', next: buildI18nDataJs(content), eol: '\n' },
     { rel: 'index.html', next: indexNext, eol: indexEol },
-    { rel: 'free-assets.html', next: faNext, eol: faEol }
+    { rel: 'free-assets.html', next: faNext, eol: faEol },
+    { rel: 'sitemap.xml', next: buildSitemapXml(content), eol: sitemapEol }
   ];
 }
 

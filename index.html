@@ -45,8 +45,11 @@
   <!-- ═══════════════════════════════════════════════════════════
        JSON-LD structured data (v0.13.8)
        Organization + WebSite + ItemList of featured CreativeWorks.
-       Обновлять ItemList при смене featured-кейсов.
+       Итерация G: регион генерируется из content/meta.json
+       (ogImages + structuredData.featuredWorks ∩ видимые кейсы) —
+       править через админку/content, не руками.
        ═══════════════════════════════════════════════════════════ -->
+  <!-- CODEX:GEN jsonld BEGIN -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -125,6 +128,7 @@
     ]
   }
   </script>
+  <!-- CODEX:GEN jsonld END -->
 
   <!-- v0.9.7 — api.fontshare.com preconnect без crossorigin (CSS endpoint
        не отдаёт matching ACAO). cdn.fontshare.com — crossorigin для woff2.

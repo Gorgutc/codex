@@ -33,6 +33,7 @@ The audit/orchestration layer under `.codex/`, `.agents/skills/`, and `docs/agen
 - Read before editing; use `rg` for file and text search.
 - Keep edits scoped to the requested task.
 - Preserve unrelated user changes.
+- Site content lives in `content/*.json`; never hand-edit generated GEN regions or `js/cards-data.js` / `js/fa-data.js` / `js/i18n-data.js` — run `npm run content:generate`.
 - Do not touch `js/model-data.js` unless explicitly requested.
 - Do not commit secrets, personal files, build artifacts, Playwright reports, generated caches, or Google Drive material unless the user explicitly asks for an export and `DO_NOT_PUSH.md` has been checked.
 - Preserve the script order, CSS order, metadata, card IDs, filters, i18n behavior, language toggle, lazy 3D loading, and accessibility budgets tested by `verify-frozen.js`.
@@ -52,6 +53,7 @@ The audit/orchestration layer under `.codex/`, `.agents/skills/`, and `docs/agen
 Primary repo-local plugin skills:
 
 - `codex-studio-rules`: project rules and migrated references.
+- `codex-studio-admin-rules`: content layer (`content/*.json`, generator, GEN regions) and admin panel rules.
 - `codex-studio-frontend-rules`: frontend implementation and review rules.
 - `codex-studio-context-keeper`: narrow read-only code context.
 - `codex-studio-spec-guardian`: frozen architecture checks.
@@ -63,7 +65,7 @@ Primary repo-local plugin skills:
 
 Supplemental skills in `.agents/skills/` are retained as lightweight smoke-test and audit guidance for code, motion, assets, copy, visual review, a11y/SEO/deploy, and instruction drift.
 
-All sixteen skills above are mirrored into `.claude/skills/` for Claude Code sessions, and the six `.codex/agents/*.toml` contracts are mirrored into `.claude/agents/`. The mirror is generated; the files listed in this section stay canonical.
+All seventeen skills above are mirrored into `.claude/skills/` for Claude Code sessions, and the six `.codex/agents/*.toml` contracts are mirrored into `.claude/agents/`. The mirror is generated; the files listed in this section stay canonical.
 
 ## Orchestration
 

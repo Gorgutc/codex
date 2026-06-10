@@ -1,9 +1,11 @@
 # Skill Map
 
 Project-local Codex skills live in `.agents/skills`. Primary plugin skills live
-in `plugins/codex-studio-codex/skills`. Both sets are mirrored into
-`.claude/skills/` for Claude Code by `npm run sync:harness` (ADR 0008); the
-mirror is generated — edit only the canonical locations listed here.
+in `plugins/codex-studio-codex/skills` (see the list in `AGENTS.md`; the
+content-layer/admin-panel rules live in `codex-studio-admin-rules`). Both sets
+are mirrored into `.claude/skills/` for Claude Code by `npm run sync:harness`
+(ADR 0008); the mirror is generated — edit only the canonical locations listed
+here.
 
 - `codex-studio-code`: HTML/CSS/JS generation, review, cleanup, refactor.
 - `codex-studio-motion`: GSAP, ScrollTrigger, SplitText, Lenis, preloader, reduced motion.
