@@ -31,6 +31,7 @@ npm run quality:governance
 npm run content:check
 npm run test:golden
 npm run test:content-validate
+npm run test:admin
 npm run test:visual
 ```
 
@@ -41,6 +42,8 @@ npm run test:visual
 `test:golden` pins the current runtime data and grid markup against golden fixtures. After an intentional content edit it legitimately fails until fixtures are recaptured, which is why the `content-publish` workflow does not run it.
 
 `test:content-validate` is the negative self-test for the content validator: it breaks a temp copy of `content/` and asserts every violation is reported. It runs inside `quality:deep`.
+
+`test:admin` is the admin panel smoke (`admin/` served statically, the whole GitHub API mocked via `page.route`): login screen, PAT login, case list from the real `content/`, draft autosave across reload, Russian client-side validation, and the fully mocked Git Data API publish path. It runs inside `quality:deep`.
 
 `test:visual` protects reviewed Playwright visual baselines for stable desktop and mobile surfaces. Update snapshots only after manual screenshot review.
 

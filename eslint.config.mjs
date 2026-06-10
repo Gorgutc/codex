@@ -46,6 +46,21 @@ const browserGlobals = {
   window: 'readonly'
 };
 
+// admin/js — classic-скрипты админ-панели: те же browser-глобалы, что и js/**,
+// плюс storage/кодеки и общие неймспейсы admin-скриптов (api → state → ui).
+const adminBrowserGlobals = {
+  ...browserGlobals,
+  AdminAPI: 'readonly',
+  AdminState: 'readonly',
+  AdminUI: 'readonly',
+  TextDecoder: 'readonly',
+  TextEncoder: 'readonly',
+  atob: 'readonly',
+  btoa: 'readonly',
+  crypto: 'readonly',
+  sessionStorage: 'readonly'
+};
+
 const nodeGlobals = {
   Buffer: 'readonly',
   URL: 'readonly',
@@ -90,6 +105,43 @@ export default [
     files: ['js/*-data.js'],
     rules: {
       'no-unused-vars': 'off'
+    }
+  },
+  {
+    files: ['admin/js/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      sourceType: 'script',
+      globals: adminBrowserGlobals
+    },
+    rules: {
+      'no-empty': ['warn', { allowEmptyCatch: true }],
+      'no-redeclare': 'off',
+      'no-undef': 'warn',
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-useless-escape': 'warn'
+    }
+  },
+  {
+    files: ['netlify/functions/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...nodeGlobals,
+        Headers: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        URLSearchParams: 'readonly',
+        crypto: 'readonly',
+        fetch: 'readonly'
+      }
+    },
+    rules: {
+      'no-empty': ['warn', { allowEmptyCatch: true }],
+      'no-undef': 'warn',
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-useless-escape': 'warn'
     }
   },
   {
