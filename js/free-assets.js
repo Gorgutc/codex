@@ -9,8 +9,41 @@
 (function() {
 'use strict';
 
-/* ─── TAG SELECTION ─── */
-var activeTag = 'hard-surface';
+/* ─── TAG SELECTION ───
+   Итерация H: каталог редактируется через админку (content/free-assets.json),
+   категории и ассеты можно выключать. FA_DATA содержит только видимые
+   категории (порядок = авторский порядок content), поэтому стартовый тег —
+   первая категория FA_DATA (при полном каталоге это hard-surface, поведение
+   не меняется), а tag-карточки выключенных категорий удаляются из DOM. */
+function firstAvailableTag() {
+  for (var key in FA_DATA) {
+    if (Object.prototype.hasOwnProperty.call(FA_DATA, key) && (FA_DATA[key] || []).length) return key;
+  }
+  return null;
+}
+
+var activeTag = firstAvailableTag();
+
+function pruneHiddenTagCards() {
+  var removed = 0;
+  document.querySelectorAll('.tag-card').forEach(function(card) {
+    var tag = card.dataset.tag;
+    if (!Object.prototype.hasOwnProperty.call(FA_DATA, tag) || !(FA_DATA[tag] || []).length) {
+      card.remove();
+      removed++;
+    }
+  });
+  // Счётчик сайдбара #cards-count main.js уже записал по pre-prune NodeList
+  // (формат updateCount: «N projects», вне i18n-словаря — данные не
+  // переводятся). Если prune удалил карточки — переписываем тем же форматом
+  // по оставшимся tag-карточкам. При полном каталоге removed === 0 и ветка
+  // не выполняется — поведение страницы байт-в-байт прежнее.
+  if (removed === 0) return;
+  var countEl = document.getElementById('cards-count');
+  if (!countEl) return;
+  var n = document.querySelectorAll('.tag-card').length;
+  countEl.textContent = n + (n === 1 ? ' project' : ' projects');
+}
 
 function selectTag(tag, opts) {
   var noCollapse = opts && opts.noCollapse;
@@ -459,10 +492,14 @@ function observeModelViewers() {
 
 /* ─── INIT ─── */
 document.addEventListener('DOMContentLoaded', function() {
+  // Итерация H: tag-карточки категорий, отсутствующих в FA_DATA (выключены
+  // через админку), удаляются ДО bindTagCards. При полном каталоге список
+  // не меняется.
+  pruneHiddenTagCards();
   bindTagCards();
   // Initial load: pre-select first category but DO NOT collapse sidebar on mobile.
   // User should land on the tag-cards overview, not inside a category.
-  selectTag('hard-surface', { noCollapse: true });
+  if (activeTag) selectTag(activeTag, { noCollapse: true });
 
   /* Phase 3 — re-render FA grid при смене языка. i18n.js overlayFA() уже
      мутировал window.FA_DATA для нового языка; renderGrid(activeTag) пере-

@@ -119,18 +119,39 @@ const ogImageUrl = page =>
   'https://codex.promo/' + String((CONTENT_META.ogImages || {})[page] || '').replace(/^\.\//, '');
 
 // free-assets: счётчики каталога тоже из content/ (free-assets.json).
+// Итерация H: каталог редактируется через админку — категории и ассеты можно
+// выключать (enabled:false). Все ожидания выводятся из ВИДИМОЙ выборки
+// (зеркало visibleFaCategories генератора): включённые категории с их
+// включёнными ассетами, пустые категории выпадают целиком. Дефолтный тег =
+// первая видимая категория (так выбирает js/free-assets.js), цель клик-теста
+// переключения — первая видимая категория, отличная от дефолтной (по образцу
+// FILTER_TEST_KEY). Деградации (нет второй категории, скрыта SEO-категория
+// каталога) не валят прогон, а громко помечаются detail «skipped: …».
 const CONTENT_FREE_ASSETS = readContentJson('free-assets.json');
-const FA_ITEM_COUNT = CONTENT_FREE_ASSETS.categories.reduce((sum, cat) => sum + cat.items.length, 0);
-const faCategoryItems = key => {
-  const category = CONTENT_FREE_ASSETS.categories.find(cat => cat.key === key);
-  return category ? category.items : [];
-};
-const FA_CATEGORY_COUNT = CONTENT_FREE_ASSETS.categories.length;
-const FA_DEFAULT_TAG_ITEMS = faCategoryItems('hard-surface');
+const FA_VISIBLE_CATEGORIES = (CONTENT_FREE_ASSETS.categories || [])
+  .filter(cat => cat && cat.enabled !== false)
+  .map(cat => ({
+    key: cat.key,
+    items: (Array.isArray(cat.items) ? cat.items : []).filter(item => item && item.enabled !== false),
+  }))
+  .filter(cat => cat.items.length > 0);
+const FA_ITEM_COUNT = FA_VISIBLE_CATEGORIES.reduce((sum, cat) => sum + cat.items.length, 0);
+const FA_CATEGORY_COUNT = FA_VISIBLE_CATEGORIES.length;
+const FA_DEFAULT_TAG = FA_CATEGORY_COUNT > 0 ? FA_VISIBLE_CATEGORIES[0].key : null;
+const FA_DEFAULT_TAG_ITEMS = FA_CATEGORY_COUNT > 0 ? FA_VISIBLE_CATEGORIES[0].items : [];
 // Mini-3D preview есть у всех ассетов категории, кроме model:null
 // (см. js/free-assets.js resolveAssetMedia).
 const FA_DEFAULT_PREVIEWS = FA_DEFAULT_TAG_ITEMS.filter(item => !('model' in item) || item.model !== null).length;
-const FA_PRODUCT_COUNT = faCategoryItems('product').length;
+// Цель теста переключения тега (бывший литерал 'product').
+const FA_SWITCH_CATEGORY = FA_VISIBLE_CATEGORIES.find(cat => cat.key !== FA_DEFAULT_TAG) || null;
+// SEO-каталог JSON-LD страницы FA курируется по категории hard-surface
+// (см. FA_JSONLD_CATEGORY в scripts/generate-content.mjs): ожидаемая
+// последовательность фрагментов = её видимые ассеты в авторском порядке.
+const FA_JSONLD_CATEGORY = 'hard-surface';
+const FA_CURATED_ITEMS = (FA_VISIBLE_CATEGORIES.find(cat => cat.key === FA_JSONLD_CATEGORY) || { items: [] }).items;
+const FA_CURATED_IDS = FA_CURATED_ITEMS.map(item => item.id);
+const FA_CURATED_DOWNLOADS = FA_CURATED_ITEMS
+  .filter(item => fs.existsSync(path.join(ROOT, 'downloads', String(item.file || '')))).length;
 
 const results = [];
 const add = (suite, name, pass, detail = '') => {
@@ -226,9 +247,17 @@ function runStaticChecks() {
   const missingFaDownloads = faContentUrls
     .map(url => String(url).replace(/^https:\/\/codex\.promo\/downloads\//i, ''))
     .filter(file => !fs.existsSync(path.join(ROOT, 'downloads', file)));
+  // Итерация H: ожидаемое число contentUrl выводится из content — видимые
+  // ассеты SEO-категории, чей архив реально лежит в downloads/ (генератор
+  // ставит contentUrl только таким). Ноль — легитимная деградация (ассеты с
+  // архивами скрыты через админку), помечается явным detail.
   add('static', 'F1-jsonld-contenturl-files',
-      faContentUrls.length >= 2 && missingFaDownloads.length === 0,
-      missingFaDownloads.length ? 'missing=' + missingFaDownloads.join(', ') : `linked=${faContentUrls.length}`);
+      faContentUrls.length === FA_CURATED_DOWNLOADS && missingFaDownloads.length === 0,
+      missingFaDownloads.length
+        ? 'missing=' + missingFaDownloads.join(', ')
+        : FA_CURATED_DOWNLOADS === 0
+          ? 'skipped: no visible curated assets with archives in downloads/'
+          : `linked=${faContentUrls.length} (expected(content) ${FA_CURATED_DOWNLOADS})`);
 
   // Итерация G: featured-ItemList главной генерируется из content/meta.json
   // (featuredWorks ∩ видимые кейсы) — скрытый кейс не должен оставлять
@@ -1350,20 +1379,33 @@ async function testFreeAssets(BASE) {
       allFree: models.every(model => model.isAccessibleForFree === true),
       allLicensed: models.every(model => /creativecommons\.org\/publicdomain\/zero/i.test(String(model.license || ''))),
       hasFormats: models.every(model => Array.isArray(model.encodingFormat) && model.encodingFormat.length >= 2),
-      fragments: fragments.length,
-      allFragmentsResolve: fragments.length === listItems.length && fragments.every(id => !!document.getElementById(id)),
+      fragments,
+      fragmentsResolved: fragments.filter(id => !!document.getElementById(id)).length,
     };
   });
+  // Итерация H: точная последовательность фрагментов ItemList = видимые
+  // ассеты SEO-категории каталога (контент-порядок, скрытый ассет не
+  // оставляет SEO-призрака); numberOfItems = все видимые ассеты. Фрагменты
+  // обязаны резолвиться в DOM, только когда SEO-категория и есть дефолтный
+  // тег (грид рендерит дефолтный тег); иначе сверка DOM явно skipped.
+  const fragmentsExact = faJsonLdDepth.fragments.join('|') === FA_CURATED_IDS.join('|');
+  const fragmentsResolveOK = FA_DEFAULT_TAG === FA_JSONLD_CATEGORY
+    ? faJsonLdDepth.fragmentsResolved === faJsonLdDepth.fragments.length
+    : true;
   add('fa', 'META-jsonLD-asset-depth',
       faJsonLdDepth.itemList &&
       faJsonLdDepth.numberOfItems === FA_ITEM_COUNT &&
-      faJsonLdDepth.items >= 8 &&
-      faJsonLdDepth.models >= 8 &&
+      faJsonLdDepth.items === FA_CURATED_IDS.length &&
+      faJsonLdDepth.models === FA_CURATED_IDS.length &&
       faJsonLdDepth.allFree &&
       faJsonLdDepth.allLicensed &&
       faJsonLdDepth.hasFormats &&
-      faJsonLdDepth.allFragmentsResolve,
-      `items=${faJsonLdDepth.items}, models=${faJsonLdDepth.models}, total=${faJsonLdDepth.numberOfItems}, fragments=${faJsonLdDepth.fragments}`);
+      fragmentsExact &&
+      fragmentsResolveOK,
+      `items=${faJsonLdDepth.items} (expected(content) ${FA_CURATED_IDS.length}), models=${faJsonLdDepth.models}, ` +
+      `total=${faJsonLdDepth.numberOfItems} (expected(content) ${FA_ITEM_COUNT}), fragments=${faJsonLdDepth.fragments.length}` +
+      (FA_CURATED_IDS.length === 0 ? ' — skipped: curated category hidden (empty expected list)' : '') +
+      (FA_DEFAULT_TAG !== FA_JSONLD_CATEGORY ? ' — skipped: DOM-resolve (curated category is not the default tag)' : ''));
   add('fa', 'META-favicon-16', m.favicon16);
   add('fa', 'META-manifest', m.manifest);
   // v0.6 [Z6] — архитектура theme-color приведена к single-tag (как в index.html).
@@ -1411,12 +1453,18 @@ async function testFreeAssets(BASE) {
   }));
   add('fa', 'B6-chevron-icons', toggle.open === '\u2039\u2039' && toggle.closed === '\u203A\u203A');
 
-  // GRID
+  // GRID — дефолтный тег (первая видимая категория content) отрендерен.
+  // Ноль видимых ассетов заблокирован валидатором генератора; если такое
+  // состояние всё же дошло сюда, грид обязан быть пуст — явный skip-маркер.
   const grid = await page.evaluate(() => ({
     count: document.querySelectorAll('.fa-card').length,
     first: document.querySelector('.fa-card .fa-card__title')?.textContent,
   }));
-  add('fa', 'GRID-rendered', grid.count > 0, `${grid.count} cards, first="${grid.first}"`);
+  add('fa', 'GRID-rendered',
+      FA_DEFAULT_TAG ? grid.count === FA_DEFAULT_TAG_ITEMS.length && grid.count > 0 : grid.count === 0,
+      FA_DEFAULT_TAG
+        ? `${grid.count} cards (expected(content) ${FA_DEFAULT_TAG_ITEMS.length}), first="${grid.first}"`
+        : 'skipped: no visible free assets — empty grid expected');
 
   const mini3D = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('.fa-card')];
@@ -1431,11 +1479,13 @@ async function testFreeAssets(BASE) {
       enabledSources: previews.filter(mv => mv.dataset.codexPreviewEnabled === 'true').length,
     };
   });
-  // Итерация F: счётчики дефолтного тега (hard-surface) — из content/.
+  // Итерация F (обобщено в H): счётчики дефолтного тега — из видимой
+  // выборки content/.
   add('fa', 'GRID-mini-3d-previews',
       mini3D.previews === FA_DEFAULT_PREVIEWS &&
       mini3D.noPreview === FA_DEFAULT_TAG_ITEMS.length - FA_DEFAULT_PREVIEWS,
-      `previews=${mini3D.previews} (expected(content) ${FA_DEFAULT_PREVIEWS}), fallback-only=${mini3D.noPreview}`);
+      `previews=${mini3D.previews} (expected(content) ${FA_DEFAULT_PREVIEWS}), fallback-only=${mini3D.noPreview}` +
+      (FA_DEFAULT_TAG ? '' : ' — skipped: no visible free assets'));
   add('fa', 'GRID-mini-3d-auto-rotate-only', mini3D.autoRotate === mini3D.previews && mini3D.cameraControls === 0,
       `auto=${mini3D.autoRotate}, camera-controls=${mini3D.cameraControls}`);
   add('fa', 'GRID-mini-3d-local-srcs', mini3D.localSrcs,
@@ -1453,8 +1503,9 @@ async function testFreeAssets(BASE) {
       assetPreviewButtons: assetCards.filter(card => card.querySelector('.fa-card__preview-btn')).length,
     };
   });
-  // Итерация F: счётчики из content/free-assets.json (категории = tag-карточки,
-  // дефолтный тег hard-surface = видимые ассеты). Строгость прежняя.
+  // Итерация F (обобщено в H): счётчики из видимой выборки content/
+  // (видимые категории = tag-карточки: js/free-assets.js удаляет карточки
+  // категорий, отсутствующих в FA_DATA; дефолтный тег = видимые ассеты).
   add('fa', 'FA-cards-sprint-b-anatomy',
       sprintBFAAnatomy.tags === FA_CATEGORY_COUNT &&
       sprintBFAAnatomy.tagHints === FA_CATEGORY_COUNT &&
@@ -1466,12 +1517,21 @@ async function testFreeAssets(BASE) {
       `tags=${sprintBFAAnatomy.tags}/${sprintBFAAnatomy.tagHints}/${sprintBFAAnatomy.tagPosters} (expected(content) ${FA_CATEGORY_COUNT}), ` +
       `assets=${sprintBFAAnatomy.assets}/${sprintBFAAnatomy.assetHints}/${sprintBFAAnatomy.assetPreviewStates}/${sprintBFAAnatomy.assetPreviewButtons} (expected(content) ${FA_DEFAULT_TAG_ITEMS.length})`);
 
-  // TAG SWITCH — счётчик категории product из content/free-assets.json.
-  await page.click('#tag-product'); await page.waitForTimeout(300);
-  const productCount = await page.$$eval('.fa-card', els => els.length);
-  add('fa', 'TAG-product-switch', productCount === FA_PRODUCT_COUNT,
-      `expected(content) ${FA_PRODUCT_COUNT}, got ${productCount}`);
-  await page.click('#tag-hard-surface'); await page.waitForTimeout(300);
+  // TAG SWITCH — цель и счётчик выводятся из content/free-assets.json
+  // (итерация H, по образцу FILTER_TEST_KEY): первая видимая категория,
+  // отличная от дефолтной. Нет второй категории — явный skipped-маркер.
+  const FA_SWITCH_KEY = FA_SWITCH_CATEGORY ? FA_SWITCH_CATEGORY.key : null;
+  const FA_SWITCH_COUNT = FA_SWITCH_CATEGORY ? FA_SWITCH_CATEGORY.items.length : 0;
+  const FA_SWITCH_SKIP = 'skipped: no second visible FA category';
+  if (FA_SWITCH_KEY) {
+    await page.click('#tag-' + FA_SWITCH_KEY); await page.waitForTimeout(300);
+    const switchedCount = await page.$$eval('.fa-card', els => els.length);
+    add('fa', 'TAG-category-switch', switchedCount === FA_SWITCH_COUNT,
+        `tag=${FA_SWITCH_KEY}, expected(content) ${FA_SWITCH_COUNT}, got ${switchedCount}`);
+    await page.click('#tag-' + FA_DEFAULT_TAG); await page.waitForTimeout(300);
+  } else {
+    add('fa', 'TAG-category-switch', true, FA_SWITCH_SKIP);
+  }
 
   // N4 — game-switch keeps tag-cards visible, filters grid
   const beforeTags = await page.$$eval('.tag-card', els => els.filter(e => !e.hidden && getComputedStyle(e).display !== 'none').length);
@@ -1480,33 +1540,44 @@ async function testFreeAssets(BASE) {
   const bodyFilter = await page.evaluate(() => document.body.classList.contains('filter-game'));
   add('fa', 'N4-game-keeps-tag-cards', afterTags === beforeTags, `before=${beforeTags}, after=${afterTags}`);
   add('fa', 'N4-game-no-body-filter-class', !bodyFilter);
-  await page.click('#tag-product'); await page.waitForTimeout(300);
-  const gameAfterTagSwitch = await page.evaluate(() => {
-    const cards = [...document.querySelectorAll('.fa-card')];
-    const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
-    return {
-      total: cards.length,
-      visible: visible.length,
-      countText: document.getElementById('fa-view-count')?.textContent || ''
-    };
-  });
-  add('fa', 'N4-game-persists-after-tag-switch',
-      gameAfterTagSwitch.total === FA_PRODUCT_COUNT && gameAfterTagSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterTagSwitch.countText),
-      `product total=${gameAfterTagSwitch.total} (expected(content) ${FA_PRODUCT_COUNT}), visible=${gameAfterTagSwitch.visible}, count="${gameAfterTagSwitch.countText}"`);
-  await page.click('#lang-toggle'); await page.waitForTimeout(300);
-  const gameAfterLangSwitch = await page.evaluate(() => {
-    const cards = [...document.querySelectorAll('.fa-card')];
-    const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
-    return {
-      total: cards.length,
-      visible: visible.length,
-      countText: document.getElementById('fa-view-count')?.textContent || ''
-    };
-  });
-  add('fa', 'N4-game-persists-after-lang-switch',
-      gameAfterLangSwitch.total === FA_PRODUCT_COUNT && gameAfterLangSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterLangSwitch.countText),
-      `product total=${gameAfterLangSwitch.total} (expected(content) ${FA_PRODUCT_COUNT}), visible=${gameAfterLangSwitch.visible}, count="${gameAfterLangSwitch.countText}"`);
-  await page.click('#lang-toggle'); await page.waitForTimeout(200);
+  // Ожидаемое число видимых game-ассетов целевой категории — из бейджей
+  // content (рантайм фильтрует по тексту бейджа /game asset/i).
+  const FA_SWITCH_GAME_COUNT = FA_SWITCH_CATEGORY
+    ? FA_SWITCH_CATEGORY.items.filter(item => /game\s*asset/i.test(String(item.badge || ''))).length
+    : 0;
+  const gameCountRe = new RegExp('^' + FA_SWITCH_GAME_COUNT + ' assets? \\(game-only\\)$');
+  if (FA_SWITCH_KEY) {
+    await page.click('#tag-' + FA_SWITCH_KEY); await page.waitForTimeout(300);
+    const gameAfterTagSwitch = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('.fa-card')];
+      const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
+      return {
+        total: cards.length,
+        visible: visible.length,
+        countText: document.getElementById('fa-view-count')?.textContent || ''
+      };
+    });
+    add('fa', 'N4-game-persists-after-tag-switch',
+        gameAfterTagSwitch.total === FA_SWITCH_COUNT && gameAfterTagSwitch.visible === FA_SWITCH_GAME_COUNT && gameCountRe.test(gameAfterTagSwitch.countText),
+        `${FA_SWITCH_KEY} total=${gameAfterTagSwitch.total} (expected(content) ${FA_SWITCH_COUNT}), visible=${gameAfterTagSwitch.visible} (expected(content) ${FA_SWITCH_GAME_COUNT}), count="${gameAfterTagSwitch.countText}"`);
+    await page.click('#lang-toggle'); await page.waitForTimeout(300);
+    const gameAfterLangSwitch = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('.fa-card')];
+      const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
+      return {
+        total: cards.length,
+        visible: visible.length,
+        countText: document.getElementById('fa-view-count')?.textContent || ''
+      };
+    });
+    add('fa', 'N4-game-persists-after-lang-switch',
+        gameAfterLangSwitch.total === FA_SWITCH_COUNT && gameAfterLangSwitch.visible === FA_SWITCH_GAME_COUNT && gameCountRe.test(gameAfterLangSwitch.countText),
+        `${FA_SWITCH_KEY} total=${gameAfterLangSwitch.total} (expected(content) ${FA_SWITCH_COUNT}), visible=${gameAfterLangSwitch.visible} (expected(content) ${FA_SWITCH_GAME_COUNT}), count="${gameAfterLangSwitch.countText}"`);
+    await page.click('#lang-toggle'); await page.waitForTimeout(200);
+  } else {
+    add('fa', 'N4-game-persists-after-tag-switch', true, FA_SWITCH_SKIP);
+    add('fa', 'N4-game-persists-after-lang-switch', true, FA_SWITCH_SKIP);
+  }
   await page.click('.game-switch__track'); await page.waitForTimeout(200);
 
   // M3 — single fetch per click (downloadAsset)

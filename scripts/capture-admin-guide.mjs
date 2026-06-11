@@ -7,6 +7,8 @@
  *
  * Снимки кладутся в docs/img/admin-guide/*.png (viewport 1280x800).
  * Запуск (однократный, при обновлении гайда): node scripts/capture-admin-guide.mjs
+ * Пересъёмка только части кадров: node scripts/capture-admin-guide.mjs 12,13
+ * (аргумент — префиксы имён файлов через запятую; остальные кадры не трогаются).
  */
 import fs from 'node:fs';
 import http from 'node:http';
@@ -80,7 +82,16 @@ async function mockGitHub(page) {
   });
 }
 
+// Префиксы имён кадров для частичной пересъёмки (через запятую в argv).
+const ONLY_PREFIXES = process.argv[2]
+  ? process.argv[2].split(',').map((prefix) => prefix.trim()).filter(Boolean)
+  : null;
+
 async function shoot(page, name) {
+  if (ONLY_PREFIXES && !ONLY_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+    console.log(`[SKIP] ${name}`);
+    return;
+  }
   const file = path.join(OUT_DIR, name);
   await page.screenshot({ path: file });
   const kb = Math.round(fs.statSync(file).size / 1024);
@@ -174,6 +185,19 @@ async function main() {
   await page.click('#publish-btn');
   await page.waitForSelector('#publish-dialog[open]');
   await shoot(page, '11-publish-dialog.png');
+  await page.click('#publish-cancel');
+
+  // 12: каталог Free Assets (итерация H) — группы категорий, тогглы, порядок
+  await page.goto(`${base}/admin/#/free-assets`);
+  await page.waitForSelector('.fa-cat');
+  await shoot(page, '12-free-assets.png');
+
+  // 13: редактор ассета — тексты, архив, GLB/SVG-превью
+  await page.goto(`${base}/admin/#/free-assets/orbital-mk-ii`);
+  await page.waitForSelector('.fa-media-slot');
+  await page.locator('h2', { hasText: 'Медиа карточки' }).scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await shoot(page, '13-free-assets-item.png');
 
   await browser.close();
   await new Promise((resolve) => server.close(resolve));

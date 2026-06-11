@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   state.js — черновики и валидация админ-панели (итерации D–F).
+   state.js — черновики и валидация админ-панели (итерации D–H).
 
    Модель: на каждый редактируемый файл content/*.json держим
      { base: свежий JSON с GitHub, sha, draft: редактируемая копия }.
@@ -86,6 +86,19 @@
       warnText: 'тяжелее 15 МБ — 3D-viewer будет грузиться медленнее',
       blockBytes: 50 * MB,
       blockText: 'модели тяжелее 50 МБ не публикуем'
+    },
+    // Итерация H: постер карточки Free Assets. Рантайм каталога жёстко
+    // подставляет расширение .svg к базовому имени (resolveAssetMedia в
+    // js/free-assets.js), поэтому слот принимает ТОЛЬКО SVG.
+    faThumb: {
+      exts: ['svg'],
+      mimes: ['image/svg+xml'],
+      accept: '.svg',
+      formatLabel: 'SVG',
+      warnBytes: 200 * KB,
+      warnText: 'тяжелее 200 КБ — карточки каталога будут грузиться медленнее',
+      blockBytes: 2 * MB,
+      blockText: 'изображения тяжелее 2 МБ не публикуем'
     }
   };
 
@@ -95,10 +108,28 @@
     return JSON.parse(JSON.stringify(value));
   }
 
-  // Черновик — клон base с тем же порядком ключей, поэтому сравнение
-  // сериализаций корректно детектирует возврат к исходному значению.
+  // Сравнение по канонической сериализации с СОРТИРОВКОЙ ключей:
+  // deleteValue + setValue возвращают семантически то же значение, но ключ
+  // встаёт в конец объекта — посимвольный JSON.stringify навсегда считал бы
+  // такой черновик «грязным» (итерация H: тогл thumb/model выкл→вкл→выкл).
+  // Порядок ключей нигде не несёт смысла: в коммит уходит serializeDraft
+  // (собственный порядок draft), deepEqual используется только как предикат
+  // равенства (persistNow, changedPaths, hasDraft, publishPrecheck).
+  function stableStringify(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) {
+      const items = value.map((item) => (item === undefined ? 'null' : stableStringify(item)));
+      return '[' + items.join(',') + ']';
+    }
+    const keys = Object.keys(value)
+      .filter((key) => value[key] !== undefined)
+      .sort();
+    const body = keys.map((key) => JSON.stringify(key) + ':' + stableStringify(value[key]));
+    return '{' + body.join(',') + '}';
+  }
+
   function deepEqual(a, b) {
-    return JSON.stringify(a) === JSON.stringify(b);
+    return stableStringify(a) === stableStringify(b);
   }
 
   function isFilled(value) {
@@ -225,6 +256,24 @@
     notify();
   }
 
+  // Итерация H: удаление ключа из черновика (возврат к конвенции «поле
+  // отсутствует»: enabled → true, thumb/model → базовое имя = id). setValue
+  // с undefined оставил бы ключ в draft-объекте и шумел при сравнениях.
+  function deleteValue(path, dotPath) {
+    const entry = files.get(path);
+    if (!entry) return;
+    const keys = String(dotPath).split('.');
+    let node = entry.draft;
+    for (let i = 0; i < keys.length - 1; i += 1) {
+      node = node === null || node === undefined ? undefined : node[keys[i]];
+      if (node === null || node === undefined) return;
+    }
+    if (Array.isArray(node)) return; // элементы массивов не удаляем — только ключи
+    delete node[keys[keys.length - 1]];
+    schedulePersist();
+    notify();
+  }
+
   function hasMediaEdits(path) {
     const edits = mediaEdits.get(path);
     return Boolean(edits && edits.size > 0);
@@ -317,14 +366,18 @@
   }
 
   // Постановка файла в очередь публикации.
-  //   filePath/dotPath — куда в content-JSON записать новый путь;
+  //   filePath/dotPath — куда в content-JSON записать новое значение;
   //   kind             — ключ MEDIA_RULES;
   //   namingPath       — путь-«назначение» слота: его папка и базовое имя
   //                      дают каноничное имя нового файла;
   //   currentPath      — текущий файл на GitHub (кандидат на удаление)
-  //                      или null, если у слота файла ещё не было.
+  //                      или null, если у слота файла ещё не было;
+  //   valueMode        — что писать в JSON: 'path' (по умолчанию — полный
+  //                      './assets/...'-путь) или 'baseName' (итерация H,
+  //                      free-assets: имя файла без папки и расширения —
+  //                      конвенция thumb/model в content/free-assets.json).
   // Возвращает { assetPath, objectURL, size, warning|null, unchanged }.
-  async function stageMedia(filePath, dotPath, kind, namingPath, currentPath, file) {
+  async function stageMedia(filePath, dotPath, kind, namingPath, currentPath, file, valueMode) {
     const rule = MEDIA_RULES[kind];
     const ext = assertUploadAllowed(rule, file);
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -338,7 +391,8 @@
     const previous = edits.get(dotPath) || null;
     const originalPath = previous ? previous.originalPath : currentPath || null;
     const baseFrom = previous ? previous.namingPath : namingPath;
-    const assetPath = mediaDirName(baseFrom) + '/' + mediaBaseName(baseFrom) + '-' + hash8 + '.' + ext;
+    const newBase = mediaBaseName(baseFrom) + '-' + hash8;
+    const assetPath = mediaDirName(baseFrom) + '/' + newBase + '.' + ext;
 
     if (assetPath === originalPath) {
       // Загружен файл, байты которого уже опубликованы под этим именем.
@@ -353,7 +407,7 @@
     if (previous) URL.revokeObjectURL(previous.objectURL);
     const objectURL = URL.createObjectURL(new Blob([bytes], { type: file.type || '' }));
     edits.set(dotPath, {
-      value: assetPath,
+      value: valueMode === 'baseName' ? newBase : assetPath,
       originalPath,
       namingPath: baseFrom,
       uploadPath: assetPath.replace(/^\.\//, ''),
@@ -374,6 +428,17 @@
   function getMediaEdit(filePath, dotPath) {
     const edits = mediaEdits.get(filePath);
     return (edits && edits.get(dotPath)) || null;
+  }
+
+  // Итерация H: сброс pending-загрузки слота (например, при выключении
+  // 3D-превью/постера free-asset — файл больше не должен уйти в коммит).
+  function discardMediaEdit(filePath, dotPath) {
+    const edits = mediaEdits.get(filePath);
+    const record = edits && edits.get(dotPath);
+    if (!record) return;
+    URL.revokeObjectURL(record.objectURL);
+    edits.delete(dotPath);
+    notify();
   }
 
   // Итерация F: при перестановке элементов массива (слоты иллюстраций,
@@ -575,6 +640,98 @@
     }
   }
 
+  // Итерация H: зеркало validateFreeAssets из generate-content.mjs для
+  // полей, которые редактирует экран Free Assets.
+  const FA_FIELD_LABELS = {
+    title: 'название',
+    cat: 'подпись категории',
+    badge: 'бейдж',
+    size: 'размер',
+    file: 'имя ZIP-файла',
+    bg: 'фон (CSS-градиент)'
+  };
+
+  function isPlainBaseName(value) {
+    return (
+      isFilled(value) && value.indexOf('/') === -1 && value.indexOf('\\') === -1 && value.indexOf('..') === -1
+    );
+  }
+
+  function validateFreeAssetsDraft(errors, path, draft) {
+    const categories = Array.isArray(draft.categories) ? draft.categories : [];
+    let visible = 0;
+    categories.forEach(function (category, ci) {
+      if (category === null || typeof category !== 'object') return;
+      if ('enabled' in category && typeof category.enabled !== 'boolean') {
+        errors.push({
+          path,
+          field: 'categories.' + ci + '.enabled',
+          message: 'Видимость категории «' + category.key + '» повреждена — переключите тогл заново'
+        });
+      }
+      const items = Array.isArray(category.items) ? category.items : [];
+      items.forEach(function (item, ii) {
+        if (item === null || typeof item !== 'object') return;
+        const dotBase = 'categories.' + ci + '.items.' + ii;
+        const label = 'Ассет «' + (isFilled(item.title) ? item.title : item.id || ii + 1) + '»';
+        if ('enabled' in item && typeof item.enabled !== 'boolean') {
+          errors.push({
+            path,
+            field: dotBase + '.enabled',
+            message: label + ': видимость повреждена — переключите тогл заново'
+          });
+        }
+        for (const field of Object.keys(FA_FIELD_LABELS)) {
+          if (!isFilled(item[field])) {
+            errors.push({
+              path,
+              field: dotBase + '.' + field,
+              message: label + ': поле «' + FA_FIELD_LABELS[field] + '» не может быть пустым'
+            });
+          }
+        }
+        if (isFilled(item.file) && !/^[A-Za-z0-9._-]+\.zip$/i.test(item.file)) {
+          errors.push({
+            path,
+            field: dotBase + '.file',
+            message: label + ': имя ZIP — только имя файла в downloads/, без папок (например ' + (item.id || 'asset') + '.zip)'
+          });
+        }
+        pushPairErrors(errors, path, dotBase + '.desc', item.desc, label + ' — описание');
+        if (
+          !Array.isArray(item.contents) ||
+          item.contents.length === 0 ||
+          !item.contents.every(isFilled)
+        ) {
+          errors.push({
+            path,
+            field: dotBase + '.contents',
+            message: label + ': список «архив содержит» должен иметь хотя бы одну непустую строку'
+          });
+        }
+        // thumb/model: отсутствие = базовое имя id, null = выключено,
+        // строка = базовое имя файла без папок и расширения.
+        for (const key of ['thumb', 'model']) {
+          if (key in item && item[key] !== null && !isPlainBaseName(item[key])) {
+            errors.push({
+              path,
+              field: dotBase + '.' + key,
+              message: label + ': «' + key + '» — базовое имя файла без папок и расширения'
+            });
+          }
+        }
+        if (category.enabled !== false && item.enabled !== false) visible += 1;
+      });
+    });
+    if (visible === 0) {
+      errors.push({
+        path,
+        field: 'categories',
+        message: 'Нельзя скрыть все ассеты — каталог Free Assets на сайте останется пустым'
+      });
+    }
+  }
+
   function validateLeafStrings(errors, path, node, dotBase, fileLabel) {
     if (node !== null && typeof node === 'object' && !Array.isArray(node)) {
       for (const key of Object.keys(node)) {
@@ -644,6 +801,8 @@
       }
     } else if (path === 'content/i18n-ui.json') {
       for (const lang of ['en', 'ru']) validateLeafStrings(errors, path, draft[lang], lang, 'Тексты интерфейса');
+    } else if (path === 'content/free-assets.json') {
+      validateFreeAssetsDraft(errors, path, draft);
     }
     return errors;
   }
@@ -704,6 +863,7 @@
     if (path === 'content/meta.json') return 'Мета-теги';
     if (path === 'content/i18n-ui.json') return 'Тексты интерфейса';
     if (path === 'content/settings.json') return 'Порядок карточек и категории';
+    if (path === 'content/free-assets.json') return 'Каталог Free Assets';
     const entry = files.get(path);
     const match = path.match(/^content\/cases\/(.+)\.json$/);
     const id = match ? match[1] : path;
@@ -716,6 +876,7 @@
       if (path === 'content/meta.json') return 'мета-теги';
       if (path === 'content/i18n-ui.json') return 'тексты интерфейса';
       if (path === 'content/settings.json') return 'порядок и категории';
+      if (path === 'content/free-assets.json') return 'каталог free assets';
       const match = path.match(/^content\/cases\/(.+)\.json$/);
       return match ? 'кейс ' + match[1] : path;
     });
@@ -755,6 +916,7 @@
     getValue,
     peekDraftValue,
     setValue,
+    deleteValue,
     remapMediaEdits,
     changedPaths,
     isDirty,
@@ -770,6 +932,7 @@
     getMediaRule,
     stageMedia,
     getMediaEdit,
+    discardMediaEdit,
     getEffectiveValue,
     mediaPendingCount,
     parseVimeoId,

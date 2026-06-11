@@ -1,5 +1,5 @@
-/* Self-test for iteration F/G generator semantics (visibility, layoutMode,
- * JSON-LD and sitemap derivation).
+/* Self-test for iteration F/G/H generator semantics (visibility, layoutMode,
+ * JSON-LD and sitemap derivation, free-assets catalog).
  *
  * For every scenario a fresh copy of content/ goes to a temp CONTENT_DIR and
  * the generator runs against it:
@@ -13,7 +13,14 @@
  *                                   renumbered (no SEO ghosts, iteration G);
  *   - swap ogImages               → Organization logo, FA thumbnails and
  *                                   sitemap image:loc follow content;
- *   - featuredWorks unknown id    → validation error.
+ *   - featuredWorks unknown id    → validation error;
+ *   - disable one FA item         → fa-data, FA_LOCALES, JSON-LD ItemList and
+ *                                   the fa-filters counts drop it (iteration H);
+ *   - disable an FA category      → its checkbox, fa-data key and locales gone;
+ *   - bad FA "enabled" type       → validation error (item AND category);
+ *   - thumb null / custom base    → fa-data emits the convention verbatim,
+ *                                   JSON-LD thumbnail falls back to the FA OG;
+ *   - all FA items disabled       → "at least one free asset" guard fires.
  *
  * --write output goes to a temp CONTENT_OUT_DIR (the working tree is never
  * touched). Plain node test — no Playwright. Wired into test:content-validate.
@@ -312,4 +319,182 @@ function caseLocalesSection(i18n) {
   }
 }
 
-console.log('iteration F/G visibility/layoutMode/jsonld generator semantics verified');
+/* ── iteration H: free-assets visibility and media conventions ──────────── */
+
+// FA_LOCALES slice of js/i18n-data.js (free-assets items share ids with
+// cases, so FA assertions must not look at the case dictionaries).
+function faLocalesSection(i18n) {
+  const start = i18n.indexOf('const FA_LOCALES');
+  if (start < 0) fail('i18n-data.js: FA_LOCALES section not found');
+  return i18n.slice(start);
+}
+
+// The fa-filters GEN region slice of free-assets.html.
+function faFiltersSection(html) {
+  const start = html.indexOf('<!-- CODEX:GEN fa-filters BEGIN -->');
+  const end = html.indexOf('<!-- CODEX:GEN fa-filters END -->');
+  if (start < 0 || end <= start) fail('free-assets.html: fa-filters GEN region not found');
+  return html.slice(start, end);
+}
+
+/* 10 — disabling one FA item drops it from fa-data, locales, JSON-LD, counts */
+{
+  const sandbox = makeSandbox('fa-item-off');
+  try {
+    const fa = sandbox.readJson('free-assets.json');
+    const hardSurface = fa.categories.find((c) => c.key === 'hard-surface');
+    const before = hardSurface.items.length;
+    const total = fa.categories.reduce((sum, c) => sum + c.items.length, 0);
+    // bolt-cluster is FA-only (no case shares the id) — locale check is exact.
+    hardSurface.items.find((item) => item.id === 'bolt-cluster').enabled = false;
+    sandbox.writeJson('free-assets.json', fa);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must succeed with one FA item disabled', result.output);
+
+    const faData = sandbox.readOut('js/fa-data.js');
+    if (faData.includes("'bolt-cluster'")) fail('fa-data must not contain the disabled item');
+    const locales = faLocalesSection(sandbox.readOut('js/i18n-data.js'));
+    if (locales.includes("'bolt-cluster'")) fail('FA locales must not contain the disabled item');
+
+    const html = sandbox.readOut('free-assets.html');
+    if (html.includes('#bolt-cluster')) fail('the FA JSON-LD must not advertise the hidden item');
+    if (!html.includes(`"numberOfItems": ${total - 1},`)) {
+      fail(`numberOfItems must drop to ${total - 1} (visible items only)`);
+    }
+    const positions = (html.match(/"position": \d+/g) || []).map((m) => Number(m.slice(12)));
+    const expected = Array.from({ length: positions.length }, (_v, i) => i + 1);
+    if (positions.length === 0 || positions.join(',') !== expected.join(',')) {
+      fail(`FA ListItem positions must be renumbered 1..${positions.length} (got ${positions.join(',')})`);
+    }
+    const filters = faFiltersSection(html);
+    if (!filters.includes(`id="opt-count-hard-surface">${before - 1}<`)) {
+      fail(`the hard-surface checkbox count must drop to ${before - 1}`);
+    }
+    console.log('FA item disable: fa-data, locales, JSON-LD and counts dropped');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 11 — disabling an FA category removes its checkbox, fa-data key, locales */
+{
+  const sandbox = makeSandbox('fa-category-off');
+  try {
+    const fa = sandbox.readJson('free-assets.json');
+    const animation = fa.categories.find((c) => c.key === 'animation');
+    const animationIds = animation.items.map((item) => item.id);
+    const total = fa.categories.reduce((sum, c) => sum + c.items.length, 0);
+    animation.enabled = false;
+    sandbox.writeJson('free-assets.json', fa);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must succeed with an FA category disabled', result.output);
+
+    const html = sandbox.readOut('free-assets.html');
+    const filters = faFiltersSection(html);
+    if (filters.includes('data-filter="animation"')) {
+      fail('the fa-filters region must not contain the disabled category checkbox');
+    }
+    if (!filters.includes('data-filter="organic"')) fail('enabled FA category checkboxes must stay');
+    if (!filters.includes(`id="opt-count-all">${fa.categories.length - 1}<`)) {
+      fail('the "all" option must count only visible categories');
+    }
+    if (!html.includes(`"numberOfItems": ${total - animationIds.length},`)) {
+      fail('numberOfItems must exclude the disabled category items');
+    }
+
+    const faData = sandbox.readOut('js/fa-data.js');
+    if (faData.includes('animation:')) fail('fa-data must not contain the disabled category key');
+    const locales = faLocalesSection(sandbox.readOut('js/i18n-data.js'));
+    for (const id of animationIds) {
+      if (locales.includes(`'${id}'`)) fail(`FA locales must not contain ${id} (its category is disabled)`);
+    }
+    console.log('FA category disable: checkbox, fa-data key and locales dropped');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 12 — a non-boolean FA "enabled" (item or category) is a validation error */
+{
+  const sandbox = makeSandbox('fa-enabled-type');
+  try {
+    const fa = sandbox.readJson('free-assets.json');
+    fa.categories[0].enabled = 'yes';
+    fa.categories[0].items[0].enabled = 'no';
+    fa.categories[1].items[0].thumb = 'foo/bar';
+    sandbox.writeJson('free-assets.json', fa);
+
+    const result = sandbox.run('--check');
+    if (result.status === 0) fail('--check must fail on non-boolean FA enabled', result.output);
+    if (!result.output.includes('category "hard-surface" "enabled" must be a boolean')) {
+      fail('expected the category enabled violation in the output', result.output);
+    }
+    if (!result.output.includes('orbital-mk-ii: "enabled" must be a boolean')) {
+      fail('expected the item enabled violation in the output', result.output);
+    }
+    if (!result.output.includes('must be a plain base name')) {
+      fail('expected the thumb base-name violation in the output', result.output);
+    }
+    console.log('FA enabled guard: non-boolean values and bad base names rejected');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 13 — thumb null / custom base names emit verbatim; JSON-LD thumb falls back */
+{
+  const sandbox = makeSandbox('fa-media-conventions');
+  try {
+    const fa = sandbox.readJson('free-assets.json');
+    const hardSurface = fa.categories.find((c) => c.key === 'hard-surface');
+    // orbital-mk-ii: disable the poster (null convention).
+    hardSurface.items.find((item) => item.id === 'orbital-mk-ii').thumb = null;
+    // bolt-cluster: custom model base (points at an existing on-disk GLB).
+    hardSurface.items.find((item) => item.id === 'bolt-cluster').model = 'orbital-mk-ii';
+    sandbox.writeJson('free-assets.json', fa);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must succeed with thumb:null and a custom model base', result.output);
+
+    const faData = sandbox.readOut('js/fa-data.js');
+    const orbitalEntry = faData.slice(faData.indexOf("'orbital-mk-ii'"), faData.indexOf("'vega-shell'"));
+    if (!orbitalEntry.includes('thumb: null')) fail('fa-data must emit thumb: null verbatim');
+    const boltEntry = faData.slice(faData.indexOf("'bolt-cluster'"), faData.indexOf("'terra-base'"));
+    if (!boltEntry.includes("model: 'orbital-mk-ii'")) fail('fa-data must emit the custom model base verbatim');
+
+    // JSON-LD: the orbital thumbnail falls back to the FA OG image.
+    const html = sandbox.readOut('free-assets.html');
+    const jsonLdOrbital = html.slice(html.indexOf('#orbital-mk-ii'), html.indexOf('#vega-shell'));
+    if (!jsonLdOrbital.includes('"thumbnailUrl": "https://codex.promo/assets/img/og-free-assets.jpg"')) {
+      fail('the JSON-LD thumbnail of a thumb:null item must fall back to the FA OG image');
+    }
+    console.log('FA media conventions: null and custom base names emitted correctly');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 14 — disabling every FA item trips the "at least one free asset" guard */
+{
+  const sandbox = makeSandbox('fa-all-off');
+  try {
+    const fa = sandbox.readJson('free-assets.json');
+    for (const category of fa.categories) {
+      for (const item of category.items) item.enabled = false;
+    }
+    sandbox.writeJson('free-assets.json', fa);
+
+    const result = sandbox.run('--check');
+    if (result.status === 0) fail('--check must fail when every FA item is hidden', result.output);
+    if (!result.output.includes('at least one free asset must stay visible')) {
+      fail('expected the empty-catalog guard violation in the output', result.output);
+    }
+    console.log('empty-catalog guard: zero visible free assets rejected');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+console.log('iteration F/G/H visibility/layoutMode/jsonld/free-assets generator semantics verified');

@@ -27,7 +27,9 @@
  *                                from meta.json structuredData ∩ visible cases)
  *   free-assets.html           — the head-meta and jsonld GEN regions
  *                                (Organization/WebPage/catalog ItemList images
- *                                and numberOfItems follow content/)
+ *                                and numberOfItems follow content/) plus the
+ *                                fa-filters GEN region (the FA tags-dropdown
+ *                                checkboxes with per-category item counts)
  *   sitemap.xml                — image:loc entries follow meta.json ogImages
  *
  * Visibility (iteration F): a case with enabled:false, and every case of a
@@ -35,6 +37,13 @@
  * cards-data and the locale dictionaries. A disabled filter also disappears
  * from the filters GEN region. The 'all' filter cannot be disabled and at
  * least one case must stay visible overall.
+ *
+ * FA visibility (iteration H): free-assets items and categories accept the
+ * same optional enabled:false. Disabled items (and every item of a disabled
+ * category) drop out of FA_DATA, FA_LOCALES, the FA JSON-LD ItemList and
+ * numberOfItems, and the fa-filters checkbox row; a category left with zero
+ * visible items is dropped entirely. At least one free asset must stay
+ * visible overall (mirror of the case guard).
  *
  * Both modes first run validateContent() over the content layer and exit 1
  * with the full violation list if anything is broken (unique ids, cardOrder
@@ -70,6 +79,8 @@ const HEAD_BEGIN = '<!-- CODEX:GEN head-meta BEGIN -->';
 const HEAD_END = '<!-- CODEX:GEN head-meta END -->';
 const FILTERS_BEGIN = '<!-- CODEX:GEN filters BEGIN -->';
 const FILTERS_END = '<!-- CODEX:GEN filters END -->';
+const FA_FILTERS_BEGIN = '<!-- CODEX:GEN fa-filters BEGIN -->';
+const FA_FILTERS_END = '<!-- CODEX:GEN fa-filters END -->';
 const JSONLD_BEGIN = '<!-- CODEX:GEN jsonld BEGIN -->';
 const JSONLD_END = '<!-- CODEX:GEN jsonld END -->';
 
@@ -110,6 +121,31 @@ function enabledFilters(content) {
 function visibleCases(content) {
   const enabledKeys = new Set(enabledFilters(content).map((f) => f.key));
   return content.cases.filter((c) => c.enabled !== false && enabledKeys.has(c.category));
+}
+
+// FA visibility (iteration H): enabled categories with their enabled items;
+// a category left with zero visible items is dropped entirely. Every FA
+// consumer (FA_DATA, FA_LOCALES, fa-filters region, FA JSON-LD) reads this
+// selection — js/free-assets.js then removes the tag cards of categories
+// missing from FA_DATA at runtime.
+function visibleFaCategories(content) {
+  const categories =
+    content.freeAssets && Array.isArray(content.freeAssets.categories) ? content.freeAssets.categories : [];
+  return categories
+    .filter((category) => category !== null && typeof category === 'object' && category.enabled !== false)
+    .map((category) => ({
+      key: category.key,
+      items: (Array.isArray(category.items) ? category.items : []).filter(
+        (item) => item !== null && typeof item === 'object' && item.enabled !== false
+      )
+    }))
+    .filter((category) => category.items.length > 0);
+}
+
+// Effective thumb/model base name of an FA item (mirror of resolveAssetMedia
+// in js/free-assets.js): absent key → the item id, null → disabled.
+function faEffectiveBase(item, key) {
+  return key in item ? item[key] : item.id;
 }
 
 /* ── content validation (runs before generation in --write AND --check) ──── */
@@ -323,6 +359,13 @@ function validateFreeAssets(violations, freeAssets) {
       violations.push(`${where}: every category needs a string "key" and an "items" array`);
       continue;
     }
+    // enabled (iteration H): optional strict boolean on categories AND items —
+    // mirrors the case/filter rule; a truthy string would flip visibility.
+    if ('enabled' in category && typeof category.enabled !== 'boolean') {
+      violations.push(
+        `${where}: category "${category.key}" "enabled" must be a boolean (got ${JSON.stringify(category.enabled)})`
+      );
+    }
     for (const item of category.items) {
       if (item === null || typeof item !== 'object' || !isNonEmptyString(item.id)) {
         violations.push(`${where}: category "${category.key}" has an item without a string "id"`);
@@ -331,6 +374,9 @@ function validateFreeAssets(violations, freeAssets) {
       const itemWhere = `${where}: ${category.key}/${item.id}`;
       if (seenIds.has(item.id)) violations.push(`${itemWhere}: duplicate id`);
       seenIds.add(item.id);
+      if ('enabled' in item && typeof item.enabled !== 'boolean') {
+        violations.push(`${itemWhere}: "enabled" must be a boolean (got ${JSON.stringify(item.enabled)})`);
+      }
       if (!hasLocalePair(item.desc)) violations.push(`${itemWhere}: desc must have non-empty "en" and "ru"`);
       // These fields land verbatim in js/fa-data.js (see buildFaDataJs) and
       // render on the free-assets cards; an empty value breaks the card UI.
@@ -338,6 +384,13 @@ function validateFreeAssets(violations, freeAssets) {
         if (!isNonEmptyString(item[field])) {
           violations.push(`${itemWhere}: "${field}" must be a non-empty string (got ${JSON.stringify(item[field])})`);
         }
+      }
+      // file lands in './downloads/' + file at runtime and (when the archive
+      // exists in downloads/) in the JSON-LD contentUrl — plain name only.
+      if (isNonEmptyString(item.file) && !/^[A-Za-z0-9._-]+\.zip$/i.test(item.file)) {
+        violations.push(
+          `${itemWhere}: "file" must be a plain ZIP file name like "${item.id}.zip" (got ${JSON.stringify(item.file)})`
+        );
       }
       if (!Array.isArray(item.contents) || item.contents.length === 0 || !item.contents.every(isNonEmptyString)) {
         violations.push(`${itemWhere}: "contents" must be a non-empty array of non-empty strings`);
@@ -488,6 +541,41 @@ function validateContent(content) {
   validateStructuredData(violations, metaStrings, fileIds);
   validateFreeAssets(violations, freeAssets);
 
+  // Iteration H guards (only when the categories array itself is sane):
+  if (freeAssets !== null && typeof freeAssets === 'object' && Array.isArray(freeAssets.categories)) {
+    const visibleFa = visibleFaCategories(content);
+    // an empty FA catalog would break free-assets.html (and verify-frozen) —
+    // at least one enabled item in an enabled category (mirror of the case
+    // guard).
+    if (visibleFa.length === 0) {
+      violations.push(
+        'content/free-assets.json: at least one free asset must stay visible (an enabled item in an enabled category) — the catalog cannot be empty'
+      );
+    }
+    // the fa-filters GEN region takes the visible EN label of every visible
+    // category from i18n-ui.json (filter.<key>); a missing label would emit
+    // "undefined" into free-assets.html.
+    for (const category of visibleFa) {
+      const suffix = faFilterI18nKey(category.key).slice('filter.'.length);
+      const label = uiStrings && uiStrings.en && uiStrings.en.filter && uiStrings.en.filter[suffix];
+      if (!isNonEmptyString(label)) {
+        violations.push(
+          `content/i18n-ui.json: en.filter.${suffix} must be a non-empty string (label of the visible free-assets category "${category.key}")`
+        );
+      }
+    }
+    // buildFaFiltersRegion also renders labels.all (the "all" option of the
+    // FA dropdown) — same guard as for the per-category labels above.
+    for (const lang of ['en', 'ru']) {
+      const allLabel = uiStrings && uiStrings[lang] && uiStrings[lang].filter && uiStrings[lang].filter.all;
+      if (!isNonEmptyString(allLabel)) {
+        violations.push(
+          `content/i18n-ui.json: ${lang}.filter.all must be a non-empty string (label of the free-assets "all" filter option)`
+        );
+      }
+    }
+  }
+
   return violations;
 }
 
@@ -619,7 +707,7 @@ window.CARDS_DATA = ` +
 
 function buildFaDataJs(content) {
   const data = {};
-  for (const category of content.freeAssets.categories) {
+  for (const category of visibleFaCategories(content)) {
     data[category.key] = category.items.map((item) => {
       const out = { id: item.id };
       if ('thumb' in item) out.thumb = item.thumb;
@@ -699,7 +787,7 @@ function buildCaseLocales(content) {
 function buildFaLocales(content) {
   const en = {};
   const ru = {};
-  for (const category of content.freeAssets.categories) {
+  for (const category of visibleFaCategories(content)) {
     for (const item of category.items) {
       en[item.id] = { desc: item.desc.en };
       ru[item.id] = { desc: item.desc.ru };
@@ -810,6 +898,42 @@ function buildFiltersRegion(content) {
       ].join('\n');
     })
     .join('\n');
+}
+
+/* ── fa-filters GEN region (iteration H, byte-identical templating) ───────── */
+
+// data-i18n key of an FA category checkbox. The FA dropdown historically
+// reuses the shared filter.* dictionary but with FA-specific wording for two
+// keys ('product' → 'Product Viz', 'game' → 'Game Assets'); the rest follow
+// the same camelCase convention as the index filters.
+const FA_FILTER_I18N_SUFFIX = { product: 'productViz', game: 'gameAssets' };
+
+function faFilterI18nKey(key) {
+  const suffix = FA_FILTER_I18N_SUFFIX[key] || String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
+  return 'filter.' + suffix;
+}
+
+// The checkbox row of the FA tags dropdown: 'all' plus one option per visible
+// category, each with its visible item count ('all' counts the categories).
+// Line layout reproduces the pre-iteration-H bytes exactly, so the first
+// generation is a no-op; labels come from content/i18n-ui.json (EN locale).
+function buildFaFiltersRegion(content) {
+  const visible = visibleFaCategories(content);
+  const labels = (content.uiStrings && content.uiStrings.en && content.uiStrings.en.filter) || {};
+  const option = (key, i18nKey, label, count) =>
+    [
+      '          <label class="tags-dropdown__option" role="option">',
+      `            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="${escapeHtmlAttr(key)}" data-i18n-attr="aria-label:${escapeHtmlAttr(i18nKey)}" aria-label="${escapeHtmlAttr(label)}">`,
+      `            <span class="tags-dropdown__label" data-i18n="${escapeHtmlAttr(i18nKey)}">${escapeHtmlText(label)}</span>`,
+      `            <span class="tags-dropdown__option-count" id="opt-count-${escapeHtmlAttr(key)}">${count}</span>`,
+      '          </label>'
+    ].join('\n');
+  const rows = [option('all', 'filter.all', labels.all, visible.length)];
+  for (const category of visible) {
+    const i18nKey = faFilterI18nKey(category.key);
+    rows.push(option(category.key, i18nKey, labels[i18nKey.slice('filter.'.length)], category.items.length));
+  }
+  return rows.join('\n');
 }
 
 function replaceRegion(html, filePath, begin, end, region) {
@@ -971,100 +1095,84 @@ function buildIndexJsonLdRegion(content) {
     .join('\n');
 }
 
-// free-assets.html catalog ItemList: the entries are SEO-specific copy that
-// never came from content/free-assets.json (names/descriptions are crafted
-// for crawlers), so they stay literal HERE; what follows content/ is
-// numberOfItems (catalog size) and every og-image-dependent field
-// (thumbnailUrl fallback = the FA OG image owners replace via the admin).
-const FA_JSONLD_ITEMS = [
-  {
-    fragment: 'orbital-mk-ii',
+// free-assets.html catalog ItemList: name/description/encodingFormat are
+// SEO-specific copy that never came from content/free-assets.json (crafted
+// for crawlers), so they stay literal HERE, keyed by item id. Everything
+// else is derived from content (iteration H): the list = visible items of
+// the curated category in their content order (a hidden item leaves no SEO
+// ghost, positions renumber), contentSize = item.size, thumbnailUrl = the
+// item's effective thumb (null → the FA OG image owners replace via the
+// admin), contentUrl = emitted only when downloads/<file> exists in the repo.
+const FA_JSONLD_CATEGORY = 'hard-surface';
+const FA_JSONLD_COPY = {
+  'orbital-mk-ii': {
     name: 'Orbital Mk.II free hard-surface 3D asset',
     description: 'Sci-fi prop with clean topology, full PBR texture set, and Blender, FBX, OBJ delivery.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/obj', 'model/gltf-binary'],
-    contentSize: '48 MB',
-    thumb: 'https://codex.promo/assets/cards/orbital-mk-ii.svg',
-    contentUrl: 'https://codex.promo/downloads/orbital-mk-ii.zip'
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/obj', 'model/gltf-binary']
   },
-  {
-    fragment: 'vega-shell',
+  'vega-shell': {
     name: 'Vega Shell free modular armor asset',
     description: 'Modular exo-armor system with 47 snap-together parts, clean UVs, Blender and FBX files.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary'],
-    contentSize: '93 MB',
-    thumb: 'https://codex.promo/assets/cards/vega-shell.svg'
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary']
   },
-  {
-    fragment: 'ironclad-frame',
+  'ironclad-frame': {
     name: 'Ironclad Frame free industrial chassis asset',
     description: 'Industrial chassis breakdown with modeled bolts, PBR textures, wire renders, Blender and FBX files.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary'],
-    contentSize: '55 MB',
-    thumb: 'https://codex.promo/assets/cards/ironclad-frame.svg'
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary']
   },
-  {
-    fragment: 'bolt-cluster',
+  'bolt-cluster': {
     name: 'Bolt Cluster free industrial fastener kit',
     description: 'Industrial fastener kit with 12 variants, GeoNodes scatter setup, Blender file and 2K textures.',
-    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png'],
-    contentSize: '31 MB',
-    thumb: null
+    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png']
   },
-  {
-    fragment: 'terra-base',
+  'terra-base': {
     name: 'Terra Base free modular environment kit',
     description: 'Modular environment kit with 24 tileable pieces, GeoNodes scatter system, and 4K textures.',
-    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png'],
-    contentSize: '182 MB',
-    thumb: null
+    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png']
   },
-  {
-    fragment: 'shard-cannon',
+  'shard-cannon': {
     name: 'Shard Cannon free sci-fi weapon asset',
     description: 'Sci-fi heavy weapon with three skin variations, UE5-compatible export, Blender and FBX files.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png'],
-    contentSize: '103 MB',
-    thumb: null
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png']
   },
-  {
-    fragment: 'wraith-blade',
+  'wraith-blade': {
     name: 'Wraith Blade free melee weapon asset',
     description: 'Thin melee weapon with emissive edge variant, PBR textures, Blender and FBX files.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png'],
-    contentSize: '76 MB',
-    thumb: null
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png']
   },
-  {
-    fragment: 'apex-frame',
+  'apex-frame': {
     name: 'Apex Frame free mechanical component asset',
     description: 'Mechanical component breakdown with STEP file, exploded rig, textures, README and Blender source.',
-    encodingFormat: ['application/x-blender', 'model/step', 'model/gltf-binary', 'text/plain'],
-    contentSize: '67 MB',
-    thumb: 'https://codex.promo/assets/cards/apex-frame.svg',
-    contentUrl: 'https://codex.promo/downloads/apex-frame.zip'
+    encodingFormat: ['application/x-blender', 'model/step', 'model/gltf-binary', 'text/plain']
   }
-];
+};
 
 function buildFaJsonLdRegion(content) {
   const faOg = absoluteAssetUrl(content.metaStrings.ogImages.fa);
-  const itemCount = content.freeAssets.categories.reduce((sum, category) => sum + category.items.length, 0);
-  const items = FA_JSONLD_ITEMS.map((item, i) => {
+  const visibleCategories = visibleFaCategories(content);
+  const itemCount = visibleCategories.reduce((sum, category) => sum + category.items.length, 0);
+  const curatedCategory = visibleCategories.find((category) => category.key === FA_JSONLD_CATEGORY);
+  const curated = (curatedCategory ? curatedCategory.items : []).filter((item) => FA_JSONLD_COPY[item.id]);
+  const items = curated.map((item, i) => {
+    const copy = FA_JSONLD_COPY[item.id];
+    const thumbBase = faEffectiveBase(item, 'thumb');
+    const hasDownload = fs.existsSync(path.join(ROOT, 'downloads', item.file));
     const lines = [
       '      {',
       '        "@type": "ListItem",',
       `        "position": ${i + 1},`,
-      `        "url": ${j(`https://codex.promo/free-assets.html#${item.fragment}`)},`,
+      `        "url": ${j(`https://codex.promo/free-assets.html#${item.id}`)},`,
       '        "item": {',
       '          "@type": "3DModel",',
-      `          "name": ${j(item.name)},`,
-      `          "description": ${j(item.description)},`,
-      `          "encodingFormat": [${item.encodingFormat.map(j).join(', ')}],`,
-      `          "contentSize": ${j(item.contentSize)},`,
+      `          "name": ${j(copy.name)},`,
+      `          "description": ${j(copy.description)},`,
+      `          "encodingFormat": [${copy.encodingFormat.map(j).join(', ')}],`,
+      `          "contentSize": ${j(item.size)},`,
       '          "license": "https://creativecommons.org/publicdomain/zero/1.0/",',
       '          "isAccessibleForFree": true,',
-      `          "thumbnailUrl": ${j(item.thumb || faOg)}${item.contentUrl ? ',' : ''}`
+      `          "thumbnailUrl": ${j(thumbBase ? absoluteAssetUrl(`./assets/cards/${thumbBase}.svg`) : faOg)}${hasDownload ? ',' : ''}`
     ];
-    if (item.contentUrl) lines.push(`          "contentUrl": ${j(item.contentUrl)}`);
+    if (hasDownload) lines.push(`          "contentUrl": ${j(`https://codex.promo/downloads/${item.file}`)}`);
     lines.push('        }', '      }');
     return lines.join('\n');
   });
@@ -1156,6 +1264,7 @@ function buildTargets(content) {
   let faNext = faRaw.replace(/\r\n/g, '\n');
   faNext = replaceRegion(faNext, 'free-assets.html', HEAD_BEGIN, HEAD_END, buildHeadMetaRegion(content, 'fa'));
   faNext = replaceRegion(faNext, 'free-assets.html', JSONLD_BEGIN, JSONLD_END, buildFaJsonLdRegion(content));
+  faNext = replaceRegion(faNext, 'free-assets.html', FA_FILTERS_BEGIN, FA_FILTERS_END, buildFaFiltersRegion(content));
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');
   const sitemapEol = fs.existsSync(sitemapPath) ? detectEol(fs.readFileSync(sitemapPath, 'utf8')) : '\n';
