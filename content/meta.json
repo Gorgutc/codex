@@ -3,6 +3,26 @@
     "index": "./assets/img/og-image.jpg",
     "fa": "./assets/img/og-free-assets.jpg"
   },
+  "structuredData": {
+    "featuredWorks": [
+      {
+        "id": "orbital-mk-ii",
+        "about": "Hard surface 3D · game-ready asset"
+      },
+      {
+        "id": "corten-series",
+        "about": "Product visualization · industrial design"
+      },
+      {
+        "id": "apex-frame",
+        "about": "Hard surface 3D · frame system"
+      },
+      {
+        "id": "nightshard",
+        "about": "Hard surface 3D · game asset"
+      }
+    ]
+  },
   "en": {
     "index": {
       "title": "Codex — 3D Design Studio · Hard Surface & Product Visualization",

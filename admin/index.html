@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════════════════════════
-     admin/index.html — Codex Studio, админ-панель (итерация D, MVP).
+     admin/index.html — Codex Studio, админ-панель (итерации D–G).
 
      Назначение: вход (GitHub OAuth / PAT), редактирование текстов RU/EN
      кейсов, мета-тегов и текстов интерфейса. Публикация = один atomic-коммит
      в main через GitHub Git Data API; дальше работает конвейер
      .github/workflows/content-publish.yml (итерация C).
+     Итерация G: «Предпросмотр» — настоящий index.html сайта рендерится в
+     same-origin iframe (srcdoc) с наложенным черновиком до публикации.
 
      НЕ ссылается ни с одной публичной страницы сайта; robots.txt закрывает
      /admin/ от индексации. Classic scripts, без сборки и фреймворков.
@@ -35,6 +37,7 @@
       <span class="draft-indicator" id="draft-indicator" hidden>
         <span class="draft-indicator__dot" aria-hidden="true"></span>несохранённые изменения
       </span>
+      <button type="button" class="btn" id="preview-btn">Предпросмотр</button>
       <button type="button" class="btn btn--primary" id="publish-btn" disabled>Опубликовать</button>
     </div>
     <div class="topbar__user" id="topbar-user"></div>
@@ -43,6 +46,32 @@
   <main class="app" id="app" aria-live="polite"></main>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <!-- Итерация G: полноэкранный предпросмотр черновика. Настоящий index.html
+       сайта мутируется под черновик и рендерится в same-origin iframe. -->
+  <div class="preview-overlay" id="preview-overlay" role="dialog" aria-modal="true"
+       aria-label="Предпросмотр сайта с черновиком" hidden>
+    <div class="preview-overlay__bar">
+      <p class="preview-overlay__banner" id="preview-banner">
+        Это предпросмотр черновика — на сайте изменения появятся после публикации.
+      </p>
+      <div class="preview-overlay__controls">
+        <div class="preview-overlay__group" role="group" aria-label="Язык предпросмотра">
+          <button type="button" class="btn preview-toggle is-active" id="preview-lang-en">EN</button>
+          <button type="button" class="btn preview-toggle" id="preview-lang-ru">RU</button>
+        </div>
+        <div class="preview-overlay__group" role="group" aria-label="Ширина экрана предпросмотра">
+          <button type="button" class="btn preview-toggle is-active" id="preview-vp-desktop">Десктоп</button>
+          <button type="button" class="btn preview-toggle" id="preview-vp-mobile">Мобильный</button>
+        </div>
+        <button type="button" class="btn" id="preview-close">Закрыть</button>
+      </div>
+    </div>
+    <div class="preview-overlay__frame-wrap" id="preview-frame-wrap">
+      <p class="preview-overlay__loading" id="preview-loading" hidden>Собираем предпросмотр…</p>
+      <iframe class="preview-overlay__frame" id="preview-frame" title="Предпросмотр сайта с черновиком"></iframe>
+    </div>
+  </div>
 
   <dialog class="publish-dialog" id="publish-dialog">
     <h2 class="publish-dialog__title">Опубликовать изменения</h2>
@@ -63,8 +92,14 @@
   <!-- SortableJS 1.15.7 (MIT, self-hosted) — drag-and-drop перестановка;
        при отсутствии файла остаётся клавиатурный фоллбек кнопками ↑/↓ -->
   <script src="./js/vendor/sortable.min.js"></script>
+  <!-- Итерация G: опубликованные данные сайта для предпросмотра.
+       cards-data.js → window.CARDS_DATA, i18n-data.js → window.I18N_DATA;
+       preview.js накладывает черновик поверх этих структур. -->
+  <script src="../js/cards-data.js"></script>
+  <script src="../js/i18n-data.js"></script>
   <script src="./js/api.js"></script>
   <script src="./js/state.js"></script>
+  <script src="./js/preview.js"></script>
   <script src="./js/ui.js"></script>
 </body>
 </html>

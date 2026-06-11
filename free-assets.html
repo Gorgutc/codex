@@ -50,7 +50,10 @@
   <!-- ═══════════════════════════════════════════════════════════
        v0.4 [B5]: JSON-LD structured data
        Organization (наследуется с index) + WebPage для FA-страницы.
+       Итерация G: регион генерируется из content/ (ogImages,
+       счётчик каталога) — править через админку/content, не руками.
        ═══════════════════════════════════════════════════════════ -->
+  <!-- CODEX:GEN jsonld BEGIN -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -212,6 +215,7 @@
     ]
   }
   </script>
+  <!-- CODEX:GEN jsonld END -->
 
   <!-- v0.9.7 — api.fontshare.com без crossorigin (CSS endpoint),
        cdn.fontshare.com — crossorigin для woff2-fонtов. -->

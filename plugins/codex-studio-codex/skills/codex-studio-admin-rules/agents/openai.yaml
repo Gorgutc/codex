@@ -1,0 +1,3 @@
+display_name: Codex Studio Admin Rules
+short_description: Content layer and admin panel rules for Gorgutc/codex.
+default_prompt: Use this skill before changing content/*.json, the generator, GEN regions, or the admin panel.

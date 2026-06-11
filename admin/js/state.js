@@ -435,6 +435,23 @@
     return out;
   }
 
+  // Итерация G: черновик для превью — как effectiveDraft, но значения
+  // pending-медиа заменяются на blob object-URL: новые cache-bust-файлы
+  // ещё не существуют на сервере, превью показывает их прямо из памяти.
+  function previewDraft(path) {
+    const entry = files.get(path);
+    const draft = entry ? entry.draft : orphanDrafts[path];
+    if (draft === undefined) return undefined;
+    const out = deepClone(draft);
+    const edits = mediaEdits.get(path);
+    if (edits) {
+      edits.forEach((record, dotPath) => {
+        setDeep(out, dotPath, record.objectURL);
+      });
+    }
+    return out;
+  }
+
   /* ── Vimeo: ID или любой URL ролика → строка цифр ────────────────── */
 
   function parseVimeoId(input) {
@@ -755,6 +772,8 @@
     getMediaEdit,
     getEffectiveValue,
     mediaPendingCount,
-    parseVimeoId
+    parseVimeoId,
+    // итерация G: превью
+    previewDraft
   };
 })();

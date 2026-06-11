@@ -1,13 +1,12 @@
 {
   "version": "0.2",
   "language": "en,ru",
-  "import": [
-    "@cspell/dict-ru_ru/cspell-ext.json"
-  ],
+  "import": ["@cspell/dict-ru_ru/cspell-ext.json"],
   "files": [
     "AGENTS.md",
     "README.md",
     "RUN_INSTRUCTIONS.md",
+    "docs/*.md",
     "docs/agent/**/*.md",
     ".agents/skills/**/*.md",
     "plugins/codex-studio-codex/skills/**/*.md"
@@ -20,11 +19,7 @@
     "package-lock.json",
     "plugins/**/references/claude-original/**"
   ],
-  "ignoreRegExpList": [
-    "/https?:\\/\\/\\S+/g",
-    "/`[^`]+`/g",
-    "/```[\\s\\S]*?```/g"
-  ],
+  "ignoreRegExpList": ["/https?:\\/\\/\\S+/g", "/`[^`]+`/g", "/```[\\s\\S]*?```/g"],
   "words": [
     "a11y",
     "автодеплой",
@@ -206,6 +201,7 @@
     "локалей",
     "локали",
     "пинятся",
+    "предпросмотре",
     "рантаймом",
     "рендерера",
     "рендерится",
@@ -215,6 +211,28 @@
     "тогла",
     "фоллбек",
     "хардкода",
-    "чекбоксы"
+    "чекбоксы",
+    "lastmod",
+    "nightshard",
+    "srcdoc",
+    "Смержить",
+    "автоязык",
+    "вьювер",
+    "гейтом",
+    "непуст",
+    "пересборки",
+    "пересобирает",
+    "пересобираются",
+    "пересобрал",
+    "пинят",
+    "прелоадер",
+    "резолвится",
+    "резолвятся",
+    "рендерит",
+    "флак",
+    "флака",
+    "фоллбеки",
+    "фоллбеков",
+    "черновичный"
   ]
 }

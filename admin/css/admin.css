@@ -1068,6 +1068,99 @@ textarea[disabled] {
   }
 }
 
+/* ── Предпросмотр (итерация G) ─────────────────────────────────────── */
+
+body.preview-open {
+  overflow: hidden;
+}
+
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--a-bg);
+}
+
+.preview-overlay__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid var(--a-divider);
+  background: var(--a-surface);
+}
+
+.preview-overlay__banner {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--a-warn);
+}
+
+.preview-overlay__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.preview-overlay__group {
+  display: inline-flex;
+  border: 1px solid var(--a-border);
+  border-radius: var(--a-radius);
+  overflow: hidden;
+}
+
+.preview-toggle {
+  border: 0;
+  border-radius: 0;
+}
+
+.preview-toggle.is-active {
+  background: var(--a-primary);
+  color: #fff;
+}
+
+.preview-overlay__frame-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  background: #161616;
+  overflow: auto;
+}
+
+.preview-overlay__frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #212121;
+}
+
+/* Мобильная ширина: узкий кадр по центру, как телефон */
+.preview-overlay__frame-wrap--mobile .preview-overlay__frame {
+  width: 390px;
+  max-width: 100%;
+  border-inline: 1px solid var(--a-divider);
+}
+
+.preview-overlay__loading {
+  position: absolute;
+  top: 2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-radius: var(--a-radius);
+  background: var(--a-surface-2);
+  color: var(--a-muted);
+  font-size: 0.875rem;
+}
+
 /* ── Адаптив ────────────────────────────────────────────────────────── */
 
 @media (max-width: 860px) {

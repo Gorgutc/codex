@@ -1,4 +1,5 @@
-/* Self-test for iteration F generator semantics (visibility + layoutMode).
+/* Self-test for iteration F/G generator semantics (visibility, layoutMode,
+ * JSON-LD and sitemap derivation).
  *
  * For every scenario a fresh copy of content/ goes to a temp CONTENT_DIR and
  * the generator runs against it:
@@ -7,7 +8,12 @@
  *   - layoutMode invalid value    → validation error (exit 1);
  *   - layoutMode 'manual'         → flag emitted into cards-data entry;
  *   - all cases disabled          → "at least one case visible" guard fires;
- *   - 'all' filter disabled       → validation error.
+ *   - 'all' filter disabled       → validation error;
+ *   - disable a featured case     → its JSON-LD ListItem is gone, positions
+ *                                   renumbered (no SEO ghosts, iteration G);
+ *   - swap ogImages               → Organization logo, FA thumbnails and
+ *                                   sitemap image:loc follow content;
+ *   - featuredWorks unknown id    → validation error.
  *
  * --write output goes to a temp CONTENT_OUT_DIR (the working tree is never
  * touched). Plain node test — no Playwright. Wired into test:content-validate.
@@ -222,4 +228,88 @@ function caseLocalesSection(i18n) {
   }
 }
 
-console.log('iteration F visibility/layoutMode generator semantics verified');
+/* 7 — disabling a featured case drops its JSON-LD ListItem (iteration G) */
+{
+  const sandbox = makeSandbox('jsonld-featured-off');
+  try {
+    const featured = sandbox.readJson('meta.json').structuredData.featuredWorks;
+    if (featured.length < 2) fail('sanity: at least two featured works expected');
+    const hiddenId = featured[featured.length - 1].id; // nightshard today
+    const data = sandbox.readJson(path.join('cases', `${hiddenId}.json`));
+    data.enabled = false;
+    sandbox.writeJson(path.join('cases', `${hiddenId}.json`), data);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must succeed with a featured case disabled', result.output);
+
+    const html = sandbox.readOut('index.html');
+    if (html.includes(`https://codex.promo/#${hiddenId}`)) {
+      fail('the JSON-LD ItemList must not advertise the hidden case');
+    }
+    const positions = (html.match(/"position": \d+/g) || []).map((m) => Number(m.slice(12)));
+    const expected = Array.from({ length: featured.length - 1 }, (_v, i) => i + 1);
+    if (positions.join(',') !== expected.join(',')) {
+      fail(`ListItem positions must be renumbered 1..${expected.length} (got ${positions.join(',')})`);
+    }
+    console.log('jsonld: hidden featured case dropped, positions renumbered');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 8 — Organization logo, FA thumbnails and sitemap images follow ogImages */
+{
+  const sandbox = makeSandbox('jsonld-og-swap');
+  try {
+    const meta = sandbox.readJson('meta.json');
+    // Swap to OTHER existing files (the validator checks files on disk).
+    meta.ogImages = { index: './assets/img/og-free-assets.jpg', fa: './assets/img/og-image.jpg' };
+    sandbox.writeJson('meta.json', meta);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must succeed after an ogImages swap', result.output);
+
+    const html = sandbox.readOut('index.html');
+    if (!html.includes('"logo": "https://codex.promo/assets/img/og-free-assets.jpg"')) {
+      fail('the Organization logo must follow ogImages.index');
+    }
+    const fa = sandbox.readOut('free-assets.html');
+    if (!fa.includes('"primaryImageOfPage": "https://codex.promo/assets/img/og-image.jpg"')) {
+      fail('the FA WebPage primary image must follow ogImages.fa');
+    }
+    if (!fa.includes('"thumbnailUrl": "https://codex.promo/assets/img/og-image.jpg"')) {
+      fail('FA ItemList thumbnail fallbacks must follow ogImages.fa');
+    }
+    const sitemap = sandbox.readOut('sitemap.xml');
+    if (!sitemap.includes('<image:loc>https://codex.promo/assets/img/og-free-assets.jpg</image:loc>')) {
+      fail('the sitemap index image must follow ogImages.index');
+    }
+    if (!sitemap.includes('<image:loc>https://codex.promo/assets/img/og-image.jpg</image:loc>')) {
+      fail('the sitemap FA image must follow ogImages.fa');
+    }
+    console.log('jsonld/sitemap: image fields follow meta.json ogImages');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 9 — featuredWorks pointing at a nonexistent case is a validation error */
+{
+  const sandbox = makeSandbox('jsonld-bad-featured');
+  try {
+    const meta = sandbox.readJson('meta.json');
+    meta.structuredData.featuredWorks.push({ id: 'no-such-case', about: 'Ghost entry' });
+    sandbox.writeJson('meta.json', meta);
+
+    const result = sandbox.run('--check');
+    if (result.status === 0) fail('--check must fail on a featuredWorks id without a case', result.output);
+    if (!result.output.includes('"id" must match an existing case')) {
+      fail('expected the featuredWorks id violation in the output', result.output);
+    }
+    console.log('featuredWorks guard: unknown case id rejected');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+console.log('iteration F/G visibility/layoutMode/jsonld generator semantics verified');
