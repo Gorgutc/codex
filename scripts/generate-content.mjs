@@ -18,16 +18,25 @@
  *   index.html                 — the cards grid between
  *                                <!-- CODEX:GEN cards-grid BEGIN/END --> markers
  *
+ * Both modes first run validateContent() over the content layer and exit 1
+ * with the full violation list if anything is broken (unique ids, cardOrder
+ * bijection, EN/RU parity, media files on disk, assets/ traversal guard).
+ *
  * Usage:
  *   node scripts/generate-content.mjs --write   # write targets to disk
  *   node scripts/generate-content.mjs --check   # exit 1 if any target differs
+ *
+ * Env: CONTENT_DIR — override the content directory (negative self-test).
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CONTENT_DIR = path.join(ROOT, 'content');
+// CONTENT_DIR may be overridden (tests/quality/content-validate.test.mjs points
+// --check at a deliberately broken copy of the content layer).
+const CONTENT_DIR = process.env.CONTENT_DIR ? path.resolve(process.env.CONTENT_DIR) : path.join(ROOT, 'content');
+const ASSETS_DIR = path.join(ROOT, 'assets');
 const TEMPLATE_PATH = path.join(ROOT, 'scripts', 'templates', 'i18n-data.tpl.js');
 
 const GRID_BEGIN = '<!-- CODEX:GEN cards-grid BEGIN -->';
@@ -41,24 +50,308 @@ function readJson(relPath) {
 
 function loadContent() {
   const settings = readJson('settings.json');
-  const cases = settings.cardOrder.map((id) => {
-    const data = readJson(path.join('cases', `${id}.json`));
-    if (data.id !== id) throw new Error(`content/cases/${id}.json: id mismatch ("${data.id}")`);
-    return data;
-  });
+  // Read every case file (not just cardOrder entries) so validateContent()
+  // can detect orphans in both directions.
+  const caseEntries = fs
+    .readdirSync(path.join(CONTENT_DIR, 'cases'))
+    .filter((name) => name.endsWith('.json'))
+    .sort()
+    .map((file) => ({ file, data: readJson(path.join('cases', file)) }));
+  const byId = new Map();
+  for (const entry of caseEntries) {
+    if (!byId.has(entry.data.id)) byId.set(entry.data.id, entry.data);
+  }
+  const cases = settings.cardOrder.map((id) => byId.get(id)).filter((data) => data !== undefined);
   const freeAssets = readJson('free-assets.json');
   const uiStrings = readJson('i18n-ui.json');
   const metaStrings = readJson('meta.json');
-
-  const filterKeys = new Set(settings.filters.map((f) => f.key));
-  for (const c of cases) {
-    if (!filterKeys.has(c.category)) throw new Error(`${c.id}: unknown category "${c.category}"`);
-  }
-  return { settings, cases, freeAssets, uiStrings, metaStrings };
+  return { settings, cases, caseEntries, freeAssets, uiStrings, metaStrings };
 }
 
 function enabledCases(content) {
   return content.cases.filter((c) => c.enabled !== false);
+}
+
+/* ── content validation (runs before generation in --write AND --check) ──── */
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function hasLocalePair(value) {
+  return value !== null && typeof value === 'object' && isNonEmptyString(value.en) && isNonEmptyString(value.ru);
+}
+
+// Traversal guard: every media path the future admin panel may write must
+// stay inside the repo's assets/ directory (no "..", no absolute paths).
+function assetPathProblem(value) {
+  if (!isNonEmptyString(value)) return 'must be a non-empty string';
+  if (value.includes('\\')) return 'must use forward slashes';
+  if (!value.startsWith('./assets/')) return 'must start with "./assets/"';
+  if (value.split('/').includes('..')) return 'must not contain ".." segments';
+  const resolved = path.resolve(ROOT, value);
+  if (resolved !== ASSETS_DIR && !resolved.startsWith(ASSETS_DIR + path.sep)) return 'must resolve inside assets/';
+  return null;
+}
+
+function checkAssetFile(violations, where, value, extension = null) {
+  const problem = assetPathProblem(value);
+  if (problem) {
+    violations.push(`${where}: "${value}" ${problem}`);
+    return;
+  }
+  if (extension && !value.endsWith(extension)) {
+    violations.push(`${where}: "${value}" must end with ${extension}`);
+    return;
+  }
+  if (!fs.existsSync(path.resolve(ROOT, value))) {
+    violations.push(`${where}: file not found on disk ("${value}")`);
+  }
+}
+
+function collectKeyPaths(value, prefix, out) {
+  for (const key of Object.keys(value)) {
+    const keyPath = prefix ? `${prefix}.${key}` : key;
+    const child = value[key];
+    if (child !== null && typeof child === 'object' && !Array.isArray(child)) collectKeyPaths(child, keyPath, out);
+    else out.push(keyPath);
+  }
+  return out;
+}
+
+function checkLocaleParity(violations, fileLabel, dictionaries) {
+  const en = new Set(collectKeyPaths((dictionaries && dictionaries.en) || {}, '', []));
+  const ru = new Set(collectKeyPaths((dictionaries && dictionaries.ru) || {}, '', []));
+  for (const keyPath of en) {
+    if (!ru.has(keyPath)) violations.push(`${fileLabel}: key "${keyPath}" exists in en but not in ru`);
+  }
+  for (const keyPath of ru) {
+    if (!en.has(keyPath)) violations.push(`${fileLabel}: key "${keyPath}" exists in ru but not in en`);
+  }
+}
+
+function validateMotionBlock(violations, where, block) {
+  if (block === null || typeof block !== 'object') {
+    violations.push(`${where}: must be an object`);
+    return;
+  }
+  if (block.source === 'local') {
+    checkAssetFile(violations, `${where}.src`, block.src, '.webm');
+  } else if (block.source === 'vimeo') {
+    if (typeof block.vimeoId !== 'string' || !/^\d+$/.test(block.vimeoId)) {
+      violations.push(`${where}.vimeoId: must be a string of digits ("${block.vimeoId}")`);
+    }
+  } else {
+    violations.push(`${where}.source: must be "local" or "vimeo" ("${block.source}")`);
+  }
+  if ('poster' in block) checkAssetFile(violations, `${where}.poster`, block.poster);
+  if (!hasLocalePair(block.label) || !hasLocalePair(block.desc)) {
+    violations.push(`${where}: label and desc must have non-empty "en" and "ru"`);
+  }
+}
+
+function validateCase(violations, entry, filterKeys) {
+  const c = entry.data;
+  const where = `content/cases/${entry.file}`;
+  if (!isNonEmptyString(c.id)) {
+    violations.push(`${where}: "id" must be a non-empty string`);
+    return;
+  }
+  if (entry.file !== `${c.id}.json`) violations.push(`${where}: file name does not match id "${c.id}"`);
+  if (!filterKeys.has(c.category) || c.category === 'all') {
+    violations.push(`${where}: category "${c.category}" must be a settings.json filter key other than "all"`);
+  }
+  if (!isNonEmptyString(c.year)) violations.push(`${where}: "year" must be a non-empty string`);
+
+  const card = c.card || {};
+  for (const field of ['title', 'desc', 'alt']) {
+    if (!hasLocalePair(card[field])) violations.push(`${where}: card.${field} must have non-empty "en" and "ru"`);
+  }
+  if (typeof card.htmlComment !== 'string' || card.htmlComment.includes('--')) {
+    violations.push(`${where}: card.htmlComment must be a string without "--" (unsafe inside an HTML comment)`);
+  }
+  if (!isNonEmptyString(card.thumbLabel)) violations.push(`${where}: card.thumbLabel must be a non-empty string`);
+  checkAssetFile(violations, `${where}: card.thumb`, card.thumb);
+  // imgLoading is emitted verbatim into the loading="" attribute of the card
+  // <img>; only the two valid HTML values are allowed.
+  if (card.imgLoading !== 'eager' && card.imgLoading !== 'lazy') {
+    violations.push(
+      `${where}: card.imgLoading must be exactly "eager" or "lazy" (got ${JSON.stringify(card.imgLoading)})`
+    );
+  }
+  // imgFetchPriority is emitted as fetchpriority="" only when truthy (see
+  // buildCardHtml); real content uses null to mean "no attribute", so null
+  // and absent are both accepted alongside the valid HTML enum.
+  if (
+    card.imgFetchPriority !== undefined &&
+    card.imgFetchPriority !== null &&
+    !['high', 'low', 'auto'].includes(card.imgFetchPriority)
+  ) {
+    violations.push(
+      `${where}: card.imgFetchPriority must be "high", "low", "auto", or null/absent (got ${JSON.stringify(card.imgFetchPriority)})`
+    );
+  }
+
+  const cs = c.case || {};
+  if (!hasLocalePair(cs.role)) violations.push(`${where}: case.role must have non-empty "en" and "ru"`);
+  if (!Array.isArray(cs.tools) || cs.tools.length === 0 || !cs.tools.every(isNonEmptyString)) {
+    violations.push(`${where}: case.tools must be a non-empty array of strings`);
+  }
+  checkAssetFile(violations, `${where}: case.modelSrc`, cs.modelSrc, '.glb');
+  if (cs.modelStats === null || typeof cs.modelStats !== 'object' || Array.isArray(cs.modelStats)) {
+    violations.push(`${where}: case.modelStats must be an object`);
+  }
+  if (!Array.isArray(cs.palette) || cs.palette.length !== 5 || !cs.palette.every(isNonEmptyString)) {
+    violations.push(`${where}: case.palette must be an array of 5 non-empty strings`);
+  }
+  if ('srcs' in cs && (!Array.isArray(cs.srcs) || cs.srcs.length !== 5)) {
+    violations.push(`${where}: case.srcs, when present, must be an array of 5 entries (string path or null)`);
+  }
+  // Effective media sources: srcs[i] override or the default per-case SVG.
+  for (let i = 0; i < 5; i += 1) {
+    const override = Array.isArray(cs.srcs) ? cs.srcs[i] : null;
+    if (override === null || override === undefined) {
+      checkAssetFile(violations, `${where}: media slot ${i + 1} (default)`, `./assets/cases/${c.id}/0${i + 1}.svg`);
+    } else {
+      checkAssetFile(violations, `${where}: case.srcs[${i}]`, override);
+    }
+  }
+  if (!Array.isArray(cs.captions) || cs.captions.length !== 5) {
+    violations.push(`${where}: case.captions must be an array of 5 entries`);
+  } else {
+    cs.captions.forEach((caption, i) => {
+      if (
+        caption === null ||
+        typeof caption !== 'object' ||
+        !hasLocalePair(caption.label) ||
+        !hasLocalePair(caption.desc)
+      ) {
+        violations.push(`${where}: case.captions[${i}] must have label and desc with non-empty "en" and "ru"`);
+      }
+    });
+  }
+  for (const block of ['text', 'inline']) {
+    const value = cs[block];
+    if (value === null || typeof value !== 'object' || !hasLocalePair(value.title) || !hasLocalePair(value.body)) {
+      violations.push(`${where}: case.${block} must have title and body with non-empty "en" and "ru"`);
+    }
+  }
+  if ('motionBlocks' in cs) {
+    if (!Array.isArray(cs.motionBlocks) || cs.motionBlocks.length === 0) {
+      violations.push(`${where}: case.motionBlocks, when present, must be a non-empty array`);
+    } else {
+      cs.motionBlocks.forEach((block, i) =>
+        validateMotionBlock(violations, `${where}: case.motionBlocks[${i}]`, block)
+      );
+    }
+  }
+}
+
+// thumb/model conventions (see js/free-assets.js resolveAssetMedia): key absent
+// → defaults to the item id; null → preview explicitly disabled (null marker);
+// string → base file name without extension.
+function checkFreeAssetMedia(violations, itemWhere, key, item, baseDir, extension) {
+  const base = key in item ? item[key] : item.id;
+  if (base === null) return;
+  if (!isNonEmptyString(base) || base.includes('/') || base.includes('\\') || base.includes('..')) {
+    violations.push(`${itemWhere}: ${key} must be a plain base name without path separators ("${base}")`);
+    return;
+  }
+  checkAssetFile(violations, `${itemWhere}: ${key}`, `${baseDir}${base}${extension}`);
+}
+
+function validateFreeAssets(violations, freeAssets) {
+  const where = 'content/free-assets.json';
+  if (freeAssets === null || typeof freeAssets !== 'object' || !Array.isArray(freeAssets.categories)) {
+    violations.push(`${where}: "categories" must be an array`);
+    return;
+  }
+  const seenIds = new Set();
+  for (const category of freeAssets.categories) {
+    if (!isNonEmptyString(category.key) || !Array.isArray(category.items)) {
+      violations.push(`${where}: every category needs a string "key" and an "items" array`);
+      continue;
+    }
+    for (const item of category.items) {
+      if (item === null || typeof item !== 'object' || !isNonEmptyString(item.id)) {
+        violations.push(`${where}: category "${category.key}" has an item without a string "id"`);
+        continue;
+      }
+      const itemWhere = `${where}: ${category.key}/${item.id}`;
+      if (seenIds.has(item.id)) violations.push(`${itemWhere}: duplicate id`);
+      seenIds.add(item.id);
+      if (!hasLocalePair(item.desc)) violations.push(`${itemWhere}: desc must have non-empty "en" and "ru"`);
+      // These fields land verbatim in js/fa-data.js (see buildFaDataJs) and
+      // render on the free-assets cards; an empty value breaks the card UI.
+      for (const field of ['title', 'cat', 'badge', 'size', 'file', 'bg']) {
+        if (!isNonEmptyString(item[field])) {
+          violations.push(`${itemWhere}: "${field}" must be a non-empty string (got ${JSON.stringify(item[field])})`);
+        }
+      }
+      if (!Array.isArray(item.contents) || item.contents.length === 0 || !item.contents.every(isNonEmptyString)) {
+        violations.push(`${itemWhere}: "contents" must be a non-empty array of non-empty strings`);
+      }
+      checkFreeAssetMedia(violations, itemWhere, 'thumb', item, './assets/cards/', '.svg');
+      checkFreeAssetMedia(violations, itemWhere, 'model', item, './assets/models/free/', '.glb');
+    }
+  }
+}
+
+function validateContent(content) {
+  const violations = [];
+  const { settings, caseEntries, freeAssets, uiStrings, metaStrings } = content;
+
+  const filters = Array.isArray(settings.filters) ? settings.filters : [];
+  // Filter keys feed data-category matching, labels feed the visible filter
+  // buttons and the card category line — both must be real strings.
+  filters.forEach((filter, i) => {
+    if (filter === null || typeof filter !== 'object') {
+      violations.push(`content/settings.json: filters[${i}] must be an object with "key" and "label"`);
+      return;
+    }
+    if (!isNonEmptyString(filter.key)) {
+      violations.push(
+        `content/settings.json: filters[${i}] needs a non-empty string "key" (got ${JSON.stringify(filter.key)})`
+      );
+    }
+    if (!isNonEmptyString(filter.label)) {
+      violations.push(
+        `content/settings.json: filters[${i}] ("${filter.key}") needs a non-empty string "label" (got ${JSON.stringify(filter.label)})`
+      );
+    }
+  });
+  const filterKeys = new Set(filters.map((f) => f && f.key));
+
+  // cardOrder ↔ case files must be a bijection: unique ids, no orphans.
+  const order = Array.isArray(settings.cardOrder) ? settings.cardOrder : [];
+  const orderSet = new Set();
+  for (const id of order) {
+    if (orderSet.has(id)) violations.push(`content/settings.json: cardOrder lists "${id}" more than once`);
+    orderSet.add(id);
+  }
+  const fileIds = new Set();
+  for (const entry of caseEntries) {
+    const id = entry.data.id;
+    if (typeof id !== 'string') continue; // reported per-case below
+    if (fileIds.has(id)) violations.push(`content/cases/${entry.file}: duplicate case id "${id}"`);
+    fileIds.add(id);
+  }
+  for (const id of orderSet) {
+    if (!fileIds.has(id)) {
+      violations.push(`content/settings.json: cardOrder lists "${id}" but content/cases/${id}.json does not exist`);
+    }
+  }
+  for (const id of fileIds) {
+    if (!orderSet.has(id)) violations.push(`content/cases/${id}.json: id is missing from settings.json cardOrder`);
+  }
+
+  for (const entry of caseEntries) validateCase(violations, entry, filterKeys);
+
+  checkLocaleParity(violations, 'content/i18n-ui.json', uiStrings);
+  checkLocaleParity(violations, 'content/meta.json', metaStrings);
+  validateFreeAssets(violations, freeAssets);
+
+  return violations;
 }
 
 /* ── JS literal serializer (stable key order, single quotes, 2-space indent) ─ */
@@ -392,13 +685,23 @@ function main() {
   }
 
   const content = loadContent();
+  const violations = validateContent(content);
+  if (violations.length > 0) {
+    console.error(`CONTENT INVALID: ${violations.length} violation(s)`);
+    for (const violation of violations) console.error(`  - ${violation}`);
+    process.exit(1);
+  }
+
   const targets = buildTargets(content);
   let diffs = 0;
 
   for (const target of targets) {
     const fullPath = path.join(ROOT, target.rel);
+    // EOL robustness: with git core.autocrlf=true a fresh checkout puts CRLF
+    // in the working tree while the generator emits LF. Normalize BOTH sides
+    // before comparing so --check passes and --write does not churn.
     const onDisk = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf8').replace(/\r\n/g, '\n') : null;
-    const same = onDisk === target.next;
+    const same = onDisk === target.next.replace(/\r\n/g, '\n');
     if (mode === '--check') {
       if (same) {
         console.log(`[OK]   ${target.rel}`);
