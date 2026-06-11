@@ -1,8 +1,9 @@
 # Codex Studio Agent Rules
 
-This file is the Codex source of truth for `Gorgutc/codex`.
-The former Claude Code configuration was migrated into the repo-local plugin at `plugins/codex-studio-codex/`.
-This branch also adds the newer audit/orchestration layer under `.codex/`, `.agents/skills/`, and `docs/agent/`; treat those files as supplemental operating docs and evaluation material.
+This file is the source of truth for `Gorgutc/codex` for BOTH agent harnesses: OpenAI Codex and Claude Code.
+Codex reads it natively; Claude Code imports it through `CLAUDE.md` (`@AGENTS.md`).
+The canonical skills/agents/hooks live in the Codex layer (`plugins/codex-studio-codex/`, `.agents/skills/`, `.codex/`); the Claude layer `.claude/skills/**` and `.claude/agents/**` is a generated mirror maintained by `npm run sync:harness` (see ADR 0008).
+The audit/orchestration layer under `.codex/`, `.agents/skills/`, and `docs/agent/` remains supplemental operating docs and evaluation material.
 
 ## Repository
 
@@ -22,9 +23,10 @@ This branch also adds the newer audit/orchestration layer under `.codex/`, `.age
 5. Supplemental agent docs in `docs/agent/`.
 6. Supplemental project-local skills in `.agents/skills/`.
 7. Supplemental agent/hook contracts in `.codex/`.
-8. Migrated Claude references under `plugins/codex-studio-codex/skills/codex-studio-rules/references/claude-original/`.
+8. Generated Claude Code mirror in `.claude/skills/`, `.claude/agents/`, plus `.claude/settings.json` (hooks shared with `.codex/hooks/`).
+9. Migrated Claude references under `plugins/codex-studio-codex/skills/codex-studio-rules/references/claude-original/`.
 
-If old Claude references mention `.claude`, translate that to the Codex plugin paths. `.claude` is no longer an active configuration directory. If any legacy reference disagrees with the live code or tests, the legacy reference is stale.
+`.claude/skills/**` and `.claude/agents/**` are generated mirrors of the Codex canon: never edit them directly; edit the canonical skill or agent contract and run `npm run sync:harness`. `npm run check:parity` (inside `npm run codex:ship`) fails the build when the mirror drifts. If any legacy reference under `references/claude-original/` disagrees with the live code or tests, the legacy reference is stale.
 
 ## Working Rules
 
@@ -61,6 +63,8 @@ Primary repo-local plugin skills:
 
 Supplemental skills in `.agents/skills/` are retained as lightweight smoke-test and audit guidance for code, motion, assets, copy, visual review, a11y/SEO/deploy, and instruction drift.
 
+All sixteen skills above are mirrored into `.claude/skills/` for Claude Code sessions, and the six `.codex/agents/*.toml` contracts are mirrored into `.claude/agents/`. The mirror is generated; the files listed in this section stay canonical.
+
 ## Orchestration
 
 Use parallel subagents or the contracts in `.codex/agents/` for substantial work:
@@ -74,12 +78,14 @@ For docs-only edits, read the relevant docs and keep changes scoped. For shipped
 
 ## Commands
 
-Use npm scripts instead of Claude hooks:
+Both harnesses use the same npm scripts:
 
 ```bash
 npm run codex:verify-plugin
 npm run verify
 npm run codex:ship
+npm run sync:harness
+npm run check:parity
 npm run quality:fast
 npm run quality:deep
 npm run check:lighthouse
@@ -97,6 +103,8 @@ npm run check:lighthouse
 ## Reference Map
 
 - Plugin source: `plugins/codex-studio-codex/`
+- Claude Code entry point and mirror rules: `CLAUDE.md`
+- Admin-panel project (spec, research, handoff): `docs/agent/admin-panel/`
 - Supplemental orchestration: `docs/agent/orchestration.md`
 - Architecture and stack: `docs/agent/architecture.md`
 - Code review: `docs/agent/code_review.md`

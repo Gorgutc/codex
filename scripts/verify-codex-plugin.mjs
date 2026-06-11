@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
@@ -62,8 +61,14 @@ check('marketplace exists', existsSync(marketplacePath), marketplacePath);
 check('plugin manifest exists', existsSync(manifestPath), manifestPath);
 check('skills root exists', existsSync(skillsRoot), skillsRoot);
 check('claude-original references moved', existsSync(originalRefs), originalRefs);
-const trackedClaudeFiles = execFileSync('git', ['ls-files', '.claude'], { cwd: root, encoding: 'utf8' }).trim();
-check('legacy .claude not tracked in git', trackedClaudeFiles === '', trackedClaudeFiles.split('\n')[0] || '');
+check('claude mirror: skills directory exists', existsSync(path.join(root, '.claude', 'skills')));
+check('claude mirror: agents directory exists', existsSync(path.join(root, '.claude', 'agents')));
+check('claude harness: settings.json exists', existsSync(path.join(root, '.claude', 'settings.json')));
+const claudeMdPath = path.join(root, 'CLAUDE.md');
+check(
+  'claude harness: CLAUDE.md imports AGENTS.md',
+  existsSync(claudeMdPath) && readFileSync(claudeMdPath, 'utf8').includes('@AGENTS.md')
+);
 check(
   'active instructions avoid stale pass totals',
   staleInstructionCounts.length === 0,

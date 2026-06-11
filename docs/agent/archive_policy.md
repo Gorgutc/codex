@@ -4,13 +4,14 @@ Do not delete legacy instruction material just because Codex no longer uses it d
 
 ## Archive Candidates
 
-- `.claude/settings.json`
-- `.claude/hooks/*.sh`
-- `.claude/commands/*.md`
-- `.claude/agents/*.md`
 - `RUN_INSTRUCTIONS.md`
 - `SKILL_DRIFT_REPORT.md`
-- `CLAUDE.md` after the user approves a full Codex-only migration
+
+`.claude/**` and `CLAUDE.md` are no longer archive candidates: ADR 0008
+restored `.claude` as an active generated mirror of the Codex canon, and
+`CLAUDE.md` is the live Claude Code entry point. The pre-migration Claude
+files remain archived under
+`plugins/codex-studio-codex/skills/codex-studio-rules/references/claude-original/`.
 
 ## Archive Conditions
 

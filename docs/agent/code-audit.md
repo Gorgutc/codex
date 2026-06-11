@@ -14,7 +14,7 @@ No runtime HTML/CSS/JS deletion was made in this pass. The available evidence wa
 
 - `_beget-placeholder.php` is a hosting artifact, not app runtime.
 - `downloads/*.zip` are placeholder archives and should not be removed without a product decision.
-- `.claude/*`, `CLAUDE.md`, `RUN_INSTRUCTIONS.md`, and `SKILL_DRIFT_REPORT.md` contain useful legacy context but are not Codex-native active workflow.
+- `RUN_INSTRUCTIONS.md` and `SKILL_DRIFT_REPORT.md` contain legacy context. `.claude/**` is an active generated mirror and `CLAUDE.md` is the live Claude Code entry point (ADR 0008) — never propose them for deletion.
 
 ## Next Deadwood Audit
 

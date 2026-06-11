@@ -40,7 +40,7 @@ Before shipped-code edits, gather context locally and use agents for sidecar rev
 
 ## Instruction Rewrite Pack
 
-For instruction work, compare live code and verification output before editing. Legacy `.claude` docs are useful source material but should not be copied verbatim into Codex-native docs.
+For instruction work, compare live code and verification output before editing. Claude-era references under `plugins/codex-studio-codex/skills/codex-studio-rules/references/claude-original/` are useful source material but should not be copied verbatim into active docs. After editing canonical skills or `.codex/agents/*.toml`, run `npm run sync:harness` so the Claude Code mirror stays in parity.
 
 Use external orchestration packs as reference material, not as a wholesale import.
 Do not add Beads as a required task ledger for this repository unless the user
@@ -90,7 +90,10 @@ or push for code or agent-infrastructure changes.
 
 ## Future Chat Bootstrap
 
-Future sessions should start by reading `AGENTS.md`. If the task is broad, the
+Future sessions start from `AGENTS.md` (Codex) or `CLAUDE.md` with its
+`@AGENTS.md` import (Claude Code); both harnesses follow the same rules, and
+Claude Code sessions can use the mirrored subagents in `.claude/agents/` for
+the same audit-pack roles. If the task is broad, the
 first move should be to use the relevant audit pack when spawned subagents are
 available and justified; otherwise execute the checks locally or provide a
 manual prompt pack.

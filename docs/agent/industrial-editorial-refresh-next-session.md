@@ -133,7 +133,7 @@ Hooks that actually ran during Sprint A delivery:
 
 Important operational rule:
 
-- Do not use old Claude hooks as active workflow. The active path is `AGENTS.md`, npm scripts, Codex plugin skills, `.codex/agents`, and Lefthook.
+- The archived Claude-era `.sh` hooks are gone; both harnesses now share the Node hooks in `.codex/hooks/` (ADR 0008). The gate path is npm scripts, Lefthook, and `npm run codex:ship`.
 
 ## Original Roadmap Status
 

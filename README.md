@@ -39,14 +39,14 @@ DO_NOT_PUSH.md
 
 `verify-frozen.js` is the architecture gate. Any site change should preserve a green `npm run codex:ship`.
 
-## Codex Workflow
+## Agent Workflow
 
-This repository has migrated from Claude Code to Codex.
+This repository runs a dual agent harness: OpenAI Codex (canonical) and Claude Code.
 
-- `AGENTS.md` is the active source of truth.
-- `plugins/codex-studio-codex/` contains repo-local Codex skills.
-- Former Claude files are preserved as migrated references under `plugins/codex-studio-codex/skills/codex-studio-rules/references/claude-original/`.
-- `.claude` is no longer an active configuration directory.
+- `AGENTS.md` is the source of truth for both harnesses; `CLAUDE.md` imports it for Claude Code.
+- `plugins/codex-studio-codex/` and `.agents/skills/` contain the canonical repo-local skills.
+- `.claude/skills/` and `.claude/agents/` are a generated mirror maintained by `npm run sync:harness` and checked by `npm run check:parity` (part of `npm run codex:ship`). Never edit the mirror by hand.
+- Pre-migration Claude files are preserved as references under `plugins/codex-studio-codex/skills/codex-studio-rules/references/claude-original/`.
 
 Use a `codex/*` branch for every task, push it to GitHub, and open a draft PR.
 
@@ -56,6 +56,8 @@ Use a `codex/*` branch for every task, push it to GitHub, and open a draft PR.
 npm run codex:verify-plugin
 npm run verify
 npm run codex:ship
+npm run sync:harness
+npm run check:parity
 npm run quality:fast
 npm run quality:deep
 npm run check:lighthouse

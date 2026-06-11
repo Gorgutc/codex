@@ -126,6 +126,7 @@
     "SplitText",
     "stylelint",
     "subagents",
-    "worktree"
+    "worktree",
+    "worktrees"
   ]
 }

@@ -17,8 +17,8 @@
 
 | Итерация | Содержание | Статус |
 | --- | --- | --- |
-| 0 | Окружение, ТЗ, ресерч, handoff | в работе |
-| A | Двойная обвязка Claude + Codex (зеркало `.claude`, sync-гейт) | не начата |
+| 0 | Окружение, ТЗ, ресерч, handoff | готово (PR #36, draft) |
+| A | Двойная обвязка Claude + Codex (зеркало `.claude`, sync-гейт) | готово (ветка `codex/admin-ia-dual-harness`, draft PR) |
 | B | Извлечение контента в `content/*.json` + генератор + golden-тест | не начата |
 | C | CI-конвейер публикации (GitHub Action) + sync-гейт | не начата |
 | D | Админка MVP: вход GitHub OAuth, тексты RU/EN, мета | не начата |
@@ -86,3 +86,42 @@
 
 Следующий шаг: завершить итерацию 0 (ветка `codex/admin-i0-docs-env`, draft PR),
 затем итерация A.
+
+### 2026-06-10 — Сессия 1, продолжение: итерация A (двойная обвязка)
+
+Сделано (ветка `codex/admin-ia-dual-harness`, поверх итерации 0):
+
+- `scripts/sync-harness.mjs`: `--write` генерирует зеркало (16 скиллов = 56
+  файлов в `.claude/skills/` + 6 агентов в `.claude/agents/`), `--check` =
+  `npm run check:parity` — гейт паритета, включён в цепочку `codex:ship`.
+- `.claude/settings.json`: три хука обеих систем указывают на ОБЩИЕ скрипты
+  `.codex/hooks/*.js` через `${CLAUDE_PROJECT_DIR}`; плюс
+  `extraKnownMarketplaces`/`enabledPlugins` для `openai/codex-plugin-cc` —
+  Claude Code сам предложит установить плагин кросс-ревью.
+- `CLAUDE.md` переписан: импорт `@AGENTS.md` + Claude-специфика + процесс
+  кросс-ревью. `AGENTS.md` обновлён под двойную обвязку (authority, команды).
+- `scripts/verify-codex-plugin.mjs`: проверки существования зеркала и
+  `@AGENTS.md`-импорта вместо запрета `.claude`.
+- ADR 0008 (dual harness parity); правки дрейфа в 17 местах по итогам аудита
+  (README, RUN_INSTRUCTIONS, SKILL_DRIFT_REPORT, instruction-audit, code-audit,
+  audit-summary, orchestration, quality-tooling, evals/README, docs/agent/README,
+  session-start.js, два TOML-контракта, два скилла, ADR 0001/0003 amended).
+- По adversarial-ревью: `.claude/` исключён из prettier и jscpd (иначе
+  `format:all` ломал бы паритет); read-only агенты в зеркале получают
+  `tools: Read, Grep, Glob` (без Bash); guard на запуск sync-harness вне корня
+  репозитория; симметричная проверка хуков.
+
+Верификация: `npm run check:parity` 0 FAIL, `npm run quality:fast` зелёный,
+`npm run codex:ship` зелёный (прогоняется pre-push хуком).
+
+Незакрытое по итерации A (не блокирует):
+
+- Smoke-тест в живой Codex-сессии (поведение Codex не должно измениться) —
+  владелец или следующая Codex-сессия.
+- Установка плагина кросс-ревью — шаги владельца (см. чек-лист выше);
+  `/codex:review` на итерациях 0/A заменён adversarial-ревью внутренними
+  агентами, фактические имена команд плагина сверить после установки.
+
+Следующий шаг: итерация B — извлечение контента в `content/*.json`, генератор
+и golden-тест (см. tz.md). Перед стартом прочитать `js/main.js` (CARDS_DATA,
+makeItems, buildItems) целиком.

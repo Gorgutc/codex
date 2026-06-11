@@ -2,6 +2,10 @@
 
 This summary records the first Codex-native audit pass.
 
+Update (ADR 0008): `.claude` was later restored as a generated dual-harness
+mirror; the legacy docs referenced below now live in
+`plugins/codex-studio-codex/skills/codex-studio-rules/references/claude-original/`.
+
 ## Verification Baseline
 
 `npm run verify` passed with `0 FAIL`. The exact pass total is historical and should not be reused as a contract.

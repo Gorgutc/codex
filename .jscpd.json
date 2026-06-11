@@ -10,6 +10,7 @@
     "assets/**",
     "downloads/**",
     "plugins/**/references/claude-original/**",
+    ".claude/**",
     "playwright-report/**",
     "test-results/**",
     ".lighthouseci/**"

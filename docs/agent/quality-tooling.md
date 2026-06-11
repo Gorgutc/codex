@@ -52,11 +52,12 @@ npm run hooks:install
 
 Installs Lefthook so `quality:fast` runs before commits and `codex:ship` runs before pushes.
 
-## Notes For Codex
+## Notes For Agents
 
 - Prefer `quality:fast` during implementation loops.
 - Use `quality:deep` for audit, cleanup, refactor, dead-code, a11y, or PR-readiness work.
 - Use `quality:governance` after instruction, script-order, or quality-tooling edits.
 - Use `test:visual` after visual, layout, motion, screenshot, or stable-surface changes.
 - Keep `npm run codex:ship` mandatory before commit or push.
+- After editing canonical skills or `.codex/agents/*.toml`, run `npm run sync:harness`; `npm run check:parity` inside `codex:ship` fails otherwise.
 - Do not auto-format shipped files unless the task is explicitly a formatting cleanup.
