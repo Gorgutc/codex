@@ -20,7 +20,12 @@
  *   - bad FA "enabled" type       → validation error (item AND category);
  *   - thumb null / custom base    → fa-data emits the convention verbatim,
  *                                   JSON-LD thumbnail falls back to the FA OG;
- *   - all FA items disabled       → "at least one free asset" guard fires.
+ *   - all FA items disabled       → "at least one free asset" guard fires;
+ *   - disable an FA category      → its tag-card leaves the fa-tag-cards
+ *                                   overview region (XSS/visibility batch);
+ *   - disable one FA item         → the category count badge (static text AND
+ *                                   the faTag.*.count i18n value) drops by one;
+ *   - title with <script>         → validateFreeAssets rejects "<"/">" (XSS).
  *
  * --write output goes to a temp CONTENT_OUT_DIR (the working tree is never
  * touched). Plain node test — no Playwright. Wired into test:content-validate.
@@ -337,6 +342,14 @@ function faFiltersSection(html) {
   return html.slice(start, end);
 }
 
+// The fa-tag-cards GEN region slice of free-assets.html (overview tag cards).
+function faTagCardsSection(html) {
+  const start = html.indexOf('<!-- CODEX:GEN fa-tag-cards BEGIN -->');
+  const end = html.indexOf('<!-- CODEX:GEN fa-tag-cards END -->');
+  if (start < 0 || end <= start) fail('free-assets.html: fa-tag-cards GEN region not found');
+  return html.slice(start, end);
+}
+
 /* 10 — disabling one FA item drops it from fa-data, locales, JSON-LD, counts */
 {
   const sandbox = makeSandbox('fa-item-off');
@@ -492,6 +505,86 @@ function faFiltersSection(html) {
       fail('expected the empty-catalog guard violation in the output', result.output);
     }
     console.log('empty-catalog guard: zero visible free assets rejected');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 15 — disabling a category drops its tag-card from the fa-tag-cards region */
+{
+  const sandbox = makeSandbox('fa-tag-card-off');
+  try {
+    const fa = sandbox.readJson('free-assets.json');
+    const animation = fa.categories.find((c) => c.key === 'animation');
+    if (!animation) fail('sanity: the animation FA category must exist');
+    animation.enabled = false;
+    sandbox.writeJson('free-assets.json', fa);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must succeed with an FA category disabled', result.output);
+
+    const tagCards = faTagCardsSection(sandbox.readOut('free-assets.html'));
+    if (tagCards.includes('id="tag-animation"') || tagCards.includes('data-tag="animation"')) {
+      fail('the fa-tag-cards region must not contain the disabled category tag card');
+    }
+    if (!tagCards.includes('data-tag="organic"')) {
+      fail('enabled category tag cards must stay in the fa-tag-cards region');
+    }
+    // The new first visible category keeps the tag-card--active class (and only
+    // one card is active) so firstAvailableTag still lands on a real category.
+    const activeCount = (tagCards.match(/tag-card--active/g) || []).length;
+    if (activeCount !== 1) fail(`exactly one tag card must stay active (got ${activeCount})`);
+    console.log('FA tag-card disable: category card dropped from the overview region');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 16 — the count badge reflects the visible item count after hiding one item */
+{
+  const sandbox = makeSandbox('fa-tag-card-count');
+  try {
+    const fa = sandbox.readJson('free-assets.json');
+    const hardSurface = fa.categories.find((c) => c.key === 'hard-surface');
+    const before = hardSurface.items.length;
+    hardSurface.items.find((item) => item.id === 'bolt-cluster').enabled = false;
+    sandbox.writeJson('free-assets.json', fa);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must succeed with one FA item disabled', result.output);
+
+    const tagCards = faTagCardsSection(sandbox.readOut('free-assets.html'));
+    // The static text node of the count badge must follow the visible count.
+    if (!tagCards.includes(`data-i18n="faTag.hardSurface.count">${before - 1} assets<`)) {
+      fail(`the hard-surface count badge text must drop to "${before - 1} assets"`);
+    }
+    // And the i18n dictionary value must agree (both locales) so the runtime
+    // re-render does not revert the badge to a stale hand-maintained string.
+    const i18n = sandbox.readOut('js/i18n-data.js');
+    const matches = (i18n.match(new RegExp(`count: '${before - 1} assets'`, 'g')) || []).length;
+    if (matches < 2) {
+      fail(`the faTag.hardSurface.count dictionary value must be "${before - 1} assets" in EN and RU (got ${matches})`);
+    }
+    console.log('FA tag-card count: badge text and i18n dictionary follow the visible count');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 17 — validateFreeAssets rejects a title containing markup (stored-XSS guard) */
+{
+  const sandbox = makeSandbox('fa-title-xss');
+  try {
+    const fa = sandbox.readJson('free-assets.json');
+    fa.categories[0].items[0].title = 'Pwned <script>alert(1)</script>';
+    sandbox.writeJson('free-assets.json', fa);
+
+    const result = sandbox.run('--check');
+    if (result.status === 0) fail('--check must fail on a title containing "<"/">"', result.output);
+    if (!result.output.includes('"title" must not contain "<" or ">"')) {
+      fail('expected the title angle-bracket violation in the output', result.output);
+    }
+    console.log('FA XSS guard: title with <script> rejected');
   } finally {
     sandbox.cleanup();
   }

@@ -252,6 +252,13 @@ code {
   font-size: 0.8125rem;
 }
 
+/* Слот живого бейджа «черновик» в шапке экрана Free Assets: display:contents,
+   чтобы badge встал прямым flex-элементом .view-head, а пустой слот не давал
+   лишнего gap (бейдж перерисовывается из renderRows — см. ui.js Fix #12). */
+.view-head__badge-slot {
+  display: contents;
+}
+
 .back-link {
   display: inline-block;
   color: var(--a-muted);

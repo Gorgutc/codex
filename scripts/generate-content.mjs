@@ -81,6 +81,8 @@ const FILTERS_BEGIN = '<!-- CODEX:GEN filters BEGIN -->';
 const FILTERS_END = '<!-- CODEX:GEN filters END -->';
 const FA_FILTERS_BEGIN = '<!-- CODEX:GEN fa-filters BEGIN -->';
 const FA_FILTERS_END = '<!-- CODEX:GEN fa-filters END -->';
+const FA_TAG_CARDS_BEGIN = '<!-- CODEX:GEN fa-tag-cards BEGIN -->';
+const FA_TAG_CARDS_END = '<!-- CODEX:GEN fa-tag-cards END -->';
 const JSONLD_BEGIN = '<!-- CODEX:GEN jsonld BEGIN -->';
 const JSONLD_END = '<!-- CODEX:GEN jsonld END -->';
 
@@ -135,6 +137,7 @@ function visibleFaCategories(content) {
     .filter((category) => category !== null && typeof category === 'object' && category.enabled !== false)
     .map((category) => ({
       key: category.key,
+      tagCard: category.tagCard,
       items: (Array.isArray(category.items) ? category.items : []).filter(
         (item) => item !== null && typeof item === 'object' && item.enabled !== false
       )
@@ -338,7 +341,7 @@ function validateCase(violations, entry, filterKeys) {
 // → defaults to the item id; null → preview explicitly disabled (null marker);
 // string → base file name without extension.
 function checkFreeAssetMedia(violations, itemWhere, key, item, baseDir, extension) {
-  const base = key in item ? item[key] : item.id;
+  const base = faEffectiveBase(item, key);
   if (base === null) return;
   if (!isNonEmptyString(base) || base.includes('/') || base.includes('\\') || base.includes('..')) {
     violations.push(`${itemWhere}: ${key} must be a plain base name without path separators ("${base}")`);
@@ -366,6 +369,33 @@ function validateFreeAssets(violations, freeAssets) {
         `${where}: category "${category.key}" "enabled" must be a boolean (got ${JSON.stringify(category.enabled)})`
       );
     }
+    // tagCard (XSS/visibility batch): drives the generated overview tag card.
+    // thumb is the cover SVG base name (./assets/cards/<thumb>.svg); gameAsset
+    // is the optional boolean that emits the "Game" overlay badge.
+    const tagCard = category.tagCard;
+    if (tagCard === null || typeof tagCard !== 'object' || Array.isArray(tagCard)) {
+      violations.push(
+        `${where}: category "${category.key}" needs a "tagCard" object (cover thumb for the overview grid)`
+      );
+    } else {
+      const tagBase = tagCard.thumb;
+      if (!isNonEmptyString(tagBase) || tagBase.includes('/') || tagBase.includes('\\') || tagBase.includes('..')) {
+        violations.push(
+          `${where}: category "${category.key}" tagCard.thumb must be a plain base name without path separators (got ${JSON.stringify(tagBase)})`
+        );
+      } else {
+        checkAssetFile(
+          violations,
+          `${where}: category "${category.key}" tagCard.thumb`,
+          `./assets/cards/${tagBase}.svg`
+        );
+      }
+      if ('gameAsset' in tagCard && typeof tagCard.gameAsset !== 'boolean') {
+        violations.push(
+          `${where}: category "${category.key}" tagCard.gameAsset must be a boolean (got ${JSON.stringify(tagCard.gameAsset)})`
+        );
+      }
+    }
     for (const item of category.items) {
       if (item === null || typeof item !== 'object' || !isNonEmptyString(item.id)) {
         violations.push(`${where}: category "${category.key}" has an item without a string "id"`);
@@ -380,9 +410,16 @@ function validateFreeAssets(violations, freeAssets) {
       if (!hasLocalePair(item.desc)) violations.push(`${itemWhere}: desc must have non-empty "en" and "ru"`);
       // These fields land verbatim in js/fa-data.js (see buildFaDataJs) and
       // render on the free-assets cards; an empty value breaks the card UI.
+      // Defense in depth against stored XSS (the runtime appends title/size as
+      // textContent, see js/free-assets.js): reject "<" and ">" so the values
+      // can never carry HTML tags even if a future renderer regresses to
+      // innerHTML. "file" is regex-guarded separately below; "&" stays allowed
+      // (gradients/copy use it). Current content has none of these chars.
       for (const field of ['title', 'cat', 'badge', 'size', 'file', 'bg']) {
         if (!isNonEmptyString(item[field])) {
           violations.push(`${itemWhere}: "${field}" must be a non-empty string (got ${JSON.stringify(item[field])})`);
+        } else if (field !== 'file' && /[<>]/.test(item[field])) {
+          violations.push(`${itemWhere}: "${field}" must not contain "<" or ">" (got ${JSON.stringify(item[field])})`);
         }
       }
       // file lands in './downloads/' + file at runtime and (when the archive
@@ -796,10 +833,32 @@ function buildFaLocales(content) {
   return { en, ru };
 }
 
+// faTag.<key>.count badges always reflect the visible item count of the
+// category (XSS/visibility batch #11): instead of trusting the hand-maintained
+// i18n string, override count for every visible category in BOTH locales. The
+// current RU strings already mirror EN ("N assets"), so the computed value is
+// byte-identical to the existing dictionaries. A clone keeps content.uiStrings
+// (and thus the on-disk content) untouched.
+function uiStringsWithCounts(content) {
+  const clone = JSON.parse(JSON.stringify(content.uiStrings));
+  const visible = visibleFaCategories(content);
+  for (const lang of ['en', 'ru']) {
+    const faTag = clone[lang] && clone[lang].faTag;
+    if (!faTag || typeof faTag !== 'object') continue;
+    for (const category of visible) {
+      const camel = faTagKey(category.key).slice('faTag.'.length);
+      if (faTag[camel] && typeof faTag[camel] === 'object') {
+        faTag[camel].count = category.items.length + ' assets';
+      }
+    }
+  }
+  return clone;
+}
+
 function buildI18nDataJs(content) {
   const template = fs.readFileSync(TEMPLATE_PATH, 'utf8').replace(/\r\n/g, '\n');
   const replacements = {
-    __UI_STRINGS__: content.uiStrings,
+    __UI_STRINGS__: uiStringsWithCounts(content),
     // Only the locale dictionaries: the sibling ogImages key (iteration E)
     // feeds the head GEN region, not the runtime i18n payload.
     __META_STRINGS__: { en: content.metaStrings.en, ru: content.metaStrings.ru },
@@ -881,22 +940,30 @@ function filterI18nKey(key) {
   return 'filter.' + String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
 }
 
+// One <label> option of a tags dropdown — shared by the index (filters) and FA
+// (fa-filters) regions. When `count` is omitted the count span is dropped, so
+// both regions stay byte-identical to their historical hand-written markup.
+function filterOptionLine(key, i18nKey, label, count) {
+  const k = escapeHtmlAttr(key);
+  const i18n = escapeHtmlAttr(i18nKey);
+  const lines = [
+    '          <label class="tags-dropdown__option" role="option">',
+    `            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="${k}" data-i18n-attr="aria-label:${i18n}" aria-label="${escapeHtmlAttr(label)}">`,
+    `            <span class="tags-dropdown__label" data-i18n="${i18n}">${escapeHtmlText(label)}</span>`
+  ];
+  if (count !== undefined) {
+    lines.push(`            <span class="tags-dropdown__option-count" id="opt-count-${k}">${count}</span>`);
+  }
+  lines.push('          </label>');
+  return lines.join('\n');
+}
+
 // The checkbox row of the tags dropdown: only enabled filters are emitted.
 // Line layout reproduces the pre-iteration-F bytes exactly, so the first
 // generation is a no-op; values come from content/settings.json.
 function buildFiltersRegion(content) {
   return enabledFilters(content)
-    .map((filter) => {
-      const key = escapeHtmlAttr(filter.key);
-      const i18n = escapeHtmlAttr(filterI18nKey(filter.key));
-      const label = filter.label;
-      return [
-        '          <label class="tags-dropdown__option" role="option">',
-        `            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="${key}" data-i18n-attr="aria-label:${i18n}" aria-label="${escapeHtmlAttr(label)}">`,
-        `            <span class="tags-dropdown__label" data-i18n="${i18n}">${escapeHtmlText(label)}</span>`,
-        '          </label>'
-      ].join('\n');
-    })
+    .map((filter) => filterOptionLine(filter.key, filterI18nKey(filter.key), filter.label))
     .join('\n');
 }
 
@@ -909,8 +976,10 @@ function buildFiltersRegion(content) {
 const FA_FILTER_I18N_SUFFIX = { product: 'productViz', game: 'gameAssets' };
 
 function faFilterI18nKey(key) {
-  const suffix = FA_FILTER_I18N_SUFFIX[key] || String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
-  return 'filter.' + suffix;
+  // FA-specific wording for two keys; everything else follows the shared
+  // kebab→camel convention (delegate to filterI18nKey, no duplicated regex).
+  if (FA_FILTER_I18N_SUFFIX[key]) return 'filter.' + FA_FILTER_I18N_SUFFIX[key];
+  return filterI18nKey(key);
 }
 
 // The checkbox row of the FA tags dropdown: 'all' plus one option per visible
@@ -920,20 +989,101 @@ function faFilterI18nKey(key) {
 function buildFaFiltersRegion(content) {
   const visible = visibleFaCategories(content);
   const labels = (content.uiStrings && content.uiStrings.en && content.uiStrings.en.filter) || {};
-  const option = (key, i18nKey, label, count) =>
-    [
-      '          <label class="tags-dropdown__option" role="option">',
-      `            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="${escapeHtmlAttr(key)}" data-i18n-attr="aria-label:${escapeHtmlAttr(i18nKey)}" aria-label="${escapeHtmlAttr(label)}">`,
-      `            <span class="tags-dropdown__label" data-i18n="${escapeHtmlAttr(i18nKey)}">${escapeHtmlText(label)}</span>`,
-      `            <span class="tags-dropdown__option-count" id="opt-count-${escapeHtmlAttr(key)}">${count}</span>`,
-      '          </label>'
-    ].join('\n');
-  const rows = [option('all', 'filter.all', labels.all, visible.length)];
+  const rows = [filterOptionLine('all', 'filter.all', labels.all, visible.length)];
   for (const category of visible) {
     const i18nKey = faFilterI18nKey(category.key);
-    rows.push(option(category.key, i18nKey, labels[i18nKey.slice('filter.'.length)], category.items.length));
+    rows.push(filterOptionLine(category.key, i18nKey, labels[i18nKey.slice('filter.'.length)], category.items.length));
   }
   return rows.join('\n');
+}
+
+/* ── fa-tag-cards GEN region (XSS/visibility batch, byte-identical templating) ─
+ *
+ * The tag-card overview grid in free-assets.html used to be hand-written static
+ * markup outside any GEN region. That meant an admin category reorder/disable
+ * never reached the page and the runtime had to prune hidden cards after the
+ * fact. It is now generated from visibleFaCategories(content) in content order,
+ * only visible categories, so:
+ *   #2  category order/visibility reaches the overview grid;
+ *   #6  main.js captures the NodeList of the already-correct cards at parse
+ *       time, so #cards-count is right on its own (pruneHiddenTagCards is gone);
+ *   #10 firstAvailableTag is deterministic (first emitted .tag-card[data-tag]);
+ *   #11 the per-category count badge is the live visible item count.
+ *
+ * Editorial fields that cannot be derived from the catalog live in
+ * content/free-assets.json category.tagCard:
+ *   thumb     — the cover SVG base name (./assets/cards/<thumb>.svg);
+ *   gameAsset — true only for the game category (emits the "Game" overlay badge
+ *               and data-game-asset="true").
+ * Everything else (comment label, alt, cat, title, desc, format, count text)
+ * comes from the faTag.<key> i18n strings / item counts, so the first
+ * generation reproduces the historical bytes exactly.
+ */
+
+// data-i18n key prefix of an FA tag card: 'hard-surface' → 'faTag.hardSurface'.
+// Plain kebab→camel (no FA filter special-casing — these keys predate it).
+function faTagKey(key) {
+  return 'faTag.' + String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
+}
+
+function buildFaTagCardsRegion(content) {
+  const visible = visibleFaCategories(content);
+  const en = (content.uiStrings && content.uiStrings.en) || {};
+  const filterLabels = (en.filter && typeof en.filter === 'object' && en.filter) || {};
+  const faTag = (en.faTag && typeof en.faTag === 'object' && en.faTag) || {};
+
+  const cards = visible.map((category, index) => {
+    const key = category.key;
+    const tag = category.tagCard || {};
+    const camel = faTagKey(key).slice('faTag.'.length);
+    const t = faTag[camel] || {};
+    // The card comment / data-label reuse the FA filter label of the category
+    // ("Hard Surface", "Product Viz", "Game Assets", …) — matches the bytes.
+    const label = filterLabels[faFilterI18nKey(key).slice('filter.'.length)] || '';
+    const isFirst = index === 0;
+    const gameAsset = tag.gameAsset === true;
+    const count = category.items.length + ' assets';
+
+    const cls = isFirst ? 'tag-card tag-card--active work-card' : 'tag-card work-card';
+    const imgLine2 = isFirst
+      ? '                 loading="eager" fetchpriority="high" decoding="async" width="800" height="600">'
+      : '                 loading="lazy" decoding="async" width="800" height="600">';
+
+    const lines = [
+      `        <!-- TAG CARD: ${escapeHtmlText(label)} -->`,
+      `        <a class="${cls}" id="tag-${escapeHtmlAttr(key)}" href="#${escapeHtmlAttr(key)}"`,
+      `                 data-tag="${escapeHtmlAttr(key)}" data-category="${escapeHtmlAttr(key)}" data-game-asset="${gameAsset ? 'true' : 'false'}">`,
+      `          <div class="tag-card__thumb work-card__thumb" data-label="${escapeHtmlAttr(label)}">`,
+      `            <img src="./assets/cards/${escapeHtmlAttr(tag.thumb)}.svg" data-i18n-attr="alt:faTag.${camel}.alt" alt="${escapeHtmlAttr(t.alt)}"`,
+      imgLine2
+    ];
+    if (gameAsset) {
+      lines.push(
+        '            <!-- v0.4 [HV3]: убран aria-label на <span> — у span нет implicit role,',
+        '                 aria-label игнорируется. Текст "Game" уже семантически достаточен. -->',
+        `            <span class="work-card__badge" data-i18n="faTag.${camel}.badge">${escapeHtmlText(t.badge)}</span>`,
+        '            <!-- v0.4 [M2]: убран лишний inline style — CSS уже задаёт top/right по умолчанию -->'
+      );
+    }
+    lines.push(
+      `            <span class="tag-card__count-badge" data-i18n="faTag.${camel}.count">${escapeHtmlText(count)}</span>`,
+      '          </div>',
+      '          <div class="tag-card__info work-card__info">',
+      '            <div class="tag-card__meta work-card__meta">',
+      `              <span class="tag-card__cat work-card__cat" data-i18n="faTag.${camel}.cat">${escapeHtmlText(t.cat)}</span>`,
+      `              <span class="tag-card__meta-tail work-card__meta-tail"><span class="tag-card__format work-card__year" data-i18n="faTag.${camel}.format">${escapeHtmlText(t.format)}</span><span class="tag-card__hint work-card__hint" aria-hidden="true">↗</span></span>`,
+      '            </div>',
+      `            <h2 class="tag-card__title work-card__title" data-i18n="faTag.${camel}.title">${escapeHtmlText(t.title)}</h2>`,
+      `            <p class="tag-card__desc work-card__desc" data-i18n="faTag.${camel}.desc">${escapeHtmlText(t.desc)}</p>`,
+      '          </div>',
+      '        </a>'
+    );
+    return lines.join('\n');
+  });
+
+  // Leading/trailing blank line reproduce the historical layout (blank after the
+  // cards-list div, blank before its closing tag).
+  return '\n' + cards.join('\n\n') + '\n';
 }
 
 function replaceRegion(html, filePath, begin, end, region) {
@@ -1265,6 +1415,13 @@ function buildTargets(content) {
   faNext = replaceRegion(faNext, 'free-assets.html', HEAD_BEGIN, HEAD_END, buildHeadMetaRegion(content, 'fa'));
   faNext = replaceRegion(faNext, 'free-assets.html', JSONLD_BEGIN, JSONLD_END, buildFaJsonLdRegion(content));
   faNext = replaceRegion(faNext, 'free-assets.html', FA_FILTERS_BEGIN, FA_FILTERS_END, buildFaFiltersRegion(content));
+  faNext = replaceRegion(
+    faNext,
+    'free-assets.html',
+    FA_TAG_CARDS_BEGIN,
+    FA_TAG_CARDS_END,
+    buildFaTagCardsRegion(content)
+  );
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');
   const sitemapEol = fs.existsSync(sitemapPath) ? detectEol(fs.readFileSync(sitemapPath, 'utf8')) : '\n';

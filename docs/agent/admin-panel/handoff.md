@@ -25,7 +25,7 @@
 | E | Медиа: фото, видео (`.webm`/Vimeo), GLB, OG | готово (PR #41, merged) |
 | F | Порядок блоков (drag-and-drop), вкл/выкл кейсов и категорий | готово (PR #42, merged) |
 | G | Превью, гайд владельца, финальный handoff | готово (PR #43, merged) |
-| H | Free Assets: каталог в админке (тексты, медиа, видимость, порядок) | в ревью (ветка `codex/admin-ih-free-assets`) |
+| H | Free Assets: каталог в админке (тексты, медиа, видимость, порядок) + code-review fixes | в ревью (ветка `codex/admin-ih-free-assets`, PR #44) |
 
 ## Шаги владельца (требуют ручного участия)
 
@@ -103,6 +103,54 @@
   под старыми именами) — отдельная maintenance-задача (итерация E).
 
 ## Журнал сессий
+
+### 2026-06-11 — Сессия 2 (Claude Code): code-review итерации H + фиксы
+
+Прогнан xhigh code-review дифа итерации H (9 finder-углов × до 8 кандидатов,
+1-голос verify, gap-sweep): 63 кандидата → 31 после дедупликации → 15
+подтверждённых находок (1 high, 6 medium, 8 low) + ~10 чистых дублирований.
+Все 15 + cleanup исправлены тремя последовательными батчами (одно рабочее
+дерево, непересекающиеся файлы):
+
+- **Батч 1 (сайт + генератор):** #1 stored XSS — рендер метки кнопки загрузки
+  через `createTextNode` (`setDownloadLabel`) вместо `innerHTML`, + запрет
+  `<`/`>` в `validateFreeAssets`; #2 порядок/видимость категорий каталога —
+  сетка tag-карточек вынесена в новый GEN-регион `fa-tag-cards` (первая
+  генерация байт-в-байт), `pruneHiddenTagCards` удалён; #6 счётчик сайдбара
+  больше не рассинхронизируется (карточки скрытых категорий отсутствуют в DOM
+  на сборке); #10 `firstAvailableTag` читает `data-tag` первой отрисованной
+  карточки вместо `for..in`; #11 счётчики `faTag.*.count` генерируются из
+  видимого числа ассетов (обе локали); generator-cleanup (faEffectiveBase,
+  faFilterI18nKey, общий option-хелпер).
+- **Батч 2 (verify-frozen):** #3 `FA_CURATED` фильтруется зеркалом
+  `FA_JSONLD_COPY_IDS` + новый чек `F1-jsonld-copy-mirror`; #4 порог
+  `B1-data-i18n-attr-floor` выведен из видимого контента (35 + 8×категории +
+  game) вместо жёсткого 70; #7 `N4-game` помечается SKIPPED, если switch-
+  категория целиком game-badged; #13 first-class skip-bucket в `add()`/SUMMARY
+  (`X PASS, Y FAIL, Z SKIPPED`); новые инварианты порядка и счётчиков
+  tag-карточек. На текущем контенте все проверки проходят, 0 FAIL и 0 SKIPPED.
+- **Батч 3 (админка):** #5 блок «файла нет в репозитории» переведён в
+  publish-precheck (`State.findMissingFaMediaFiles`, выводится из
+  sessionStorage-черновика, staged-загрузки пропускаются, fail-closed) —
+  reload больше не теряет блок; #8 HEAD-guard учитывает staged-загрузку;
+  #9 rerender только при изменении карты ошибок (нет кражи фокуса);
+  #12 бейдж «черновик» в шапке FA обновляется в `renderRows`; #14 кэш
+  `stableStringify(base)`; #15 единый предикат видимости
+  `State.countVisibleFaAssets`; cleanup (langInput для bg, `walkToParent`,
+  `remapListIndex`, общий `tests/quality/fixtures/admin-harness.mjs`).
+- Гайд: убрана устаревшая подсказка про ручную правку счётчиков (теперь
+  пересчёт автоматический).
+
+Финальное adversarial-ревью комбинированных фиксов: регрессий нет, байт-
+идентичность GEN-региона и i18n-data.js подтверждена, `walkToParent`/
+`remapListIndex` сверены с HEAD. Гейты: `codex:ship` exit 0 (verify-frozen без
+FAIL), `test:admin` все сценарии, `test:golden` без пересъёмки, `test:visual`
+без диффов, `quality:fast` зелёный.
+
+Заметки: зеркало `FA_JSONLD_COPY_IDS` (verify-frozen) держать в синхроне с
+`FA_JSONLD_COPY` (генератор) при добавлении curated-ассета с SEO-копи — иначе
+явно падает `F1-jsonld-copy-mirror`. Тех-долг `.gitattributes eol=lf` остаётся
+(prettier на этой машине шумит только по CRLF).
 
 ### 2026-06-10 — Сессия 1 (Claude Code): разведка, план, итерация 0
 

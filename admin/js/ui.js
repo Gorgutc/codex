@@ -155,6 +155,20 @@
     return i >= to && i < from ? i + 1 : i;
   }
 
+  // Переезд pending-медиа при перестановке элементов массива: dot-пути с
+  // индексом в указанной позиции (capture group `slot` в regex) сдвигаются
+  // через movedIndex. `build(match, newIndex)` собирает новый dot-путь;
+  // `accept(match)` (необязательно) отбраковывает чужие пути (например медиа
+  // другой категории). Делит общую механику между всеми FA/кейс-моверами.
+  function remapListIndex(filePath, regex, slot, from, to, build, accept) {
+    State.remapMediaEdits(filePath, (dot) => {
+      const match = dot.match(regex);
+      if (!match) return dot;
+      if (accept && !accept(match)) return dot;
+      return build(match, movedIndex(Number(match[slot]), from, to));
+    });
+  }
+
   // Ручка ⠿ (крупная зона захвата для SortableJS) + кнопки «вверх/вниз»
   // как клавиатурный a11y-фоллбек. opts: { label, index, count,
   // focusKey, onMove(from, to, focusKey) }.
@@ -861,26 +875,14 @@
     return category.enabled !== false && item.enabled !== false;
   }
 
-  function faVisibleTotal() {
-    let count = 0;
-    for (const category of faCategories()) {
-      for (const item of category.items || []) {
-        if (faItemVisible(category, item)) count += 1;
-      }
-    }
-    return count;
-  }
-
-  // Сколько ассетов останется видимыми, если выключить категорию index.
-  function faVisibleTotalWithout(categoryIndex) {
-    let count = 0;
-    faCategories().forEach((category, ci) => {
-      if (ci === categoryIndex) return;
-      for (const item of category.items || []) {
-        if (faItemVisible(category, item)) count += 1;
-      }
-    });
-    return count;
+  // Видимых ассетов в каталоге; skipCategoryIndex (число) — категория,
+  // которую считаем выключенной (предпросмотр выключения). Делит единый
+  // предикат с валидатором — см. State.countVisibleFaAssets.
+  function faVisibleTotal(skipCategoryIndex) {
+    return State.countVisibleFaAssets(
+      faCategories(),
+      typeof skipCategoryIndex === 'number' ? { skipCategoryIndex } : undefined
+    );
   }
 
   async function renderFreeAssets() {
@@ -893,11 +895,14 @@
       const categories = faCategories();
       if (from === to || to < 0 || to >= categories.length) return;
       State.setValue(FA_PATH, 'categories', movedArray(categories, from, to));
-      State.remapMediaEdits(FA_PATH, (dot) => {
-        const match = dot.match(/^categories\.(\d+)\.(.+)$/);
-        if (!match) return dot;
-        return 'categories.' + movedIndex(Number(match[1]), from, to) + '.' + match[2];
-      });
+      remapListIndex(
+        FA_PATH,
+        /^categories\.(\d+)\.(.+)$/,
+        1,
+        from,
+        to,
+        (match, newIndex) => 'categories.' + newIndex + '.' + match[2]
+      );
       toast('Порядок сохранён в черновик', 'info');
       renderRows();
       focusReorder(focusKey);
@@ -907,11 +912,15 @@
       const items = State.getValue(FA_PATH, 'categories.' + categoryIndex + '.items') || [];
       if (from === to || to < 0 || to >= items.length) return;
       State.setValue(FA_PATH, 'categories.' + categoryIndex + '.items', movedArray(items, from, to));
-      State.remapMediaEdits(FA_PATH, (dot) => {
-        const match = dot.match(/^categories\.(\d+)\.items\.(\d+)\.(.+)$/);
-        if (!match || Number(match[1]) !== categoryIndex) return dot;
-        return 'categories.' + match[1] + '.items.' + movedIndex(Number(match[2]), from, to) + '.' + match[3];
-      });
+      remapListIndex(
+        FA_PATH,
+        /^categories\.(\d+)\.items\.(\d+)\.(.+)$/,
+        2,
+        from,
+        to,
+        (match, newIndex) => 'categories.' + match[1] + '.items.' + newIndex + '.' + match[3],
+        (match) => Number(match[1]) === categoryIndex
+      );
       toast('Порядок сохранён в черновик', 'info');
       renderRows();
       focusReorder(focusKey);
@@ -935,7 +944,7 @@
 
     function toggleCategory(categoryIndex, next, input) {
       const category = faCategories()[categoryIndex];
-      if (!next && faVisibleTotalWithout(categoryIndex) === 0) {
+      if (!next && faVisibleTotal(categoryIndex) === 0) {
         toast('Нельзя выключить категорию «' + category.key + '» — на сайте не останется ни одного видимого ассета.', 'error');
         input.checked = true;
         return;
@@ -1049,12 +1058,25 @@
       ]);
     }
 
+    // Бейдж «черновик» в шапке должен отражать ЖИВОЕ состояние черновика:
+    // экран строится один раз, а renderRows() перерисовывает только список,
+    // поэтому badge обновляем тем же вызовом, что и список (тоглы/перестановки
+    // его уже зовут). Согласован с topbar #draft-indicator.
+    const draftBadgeSlot = el('span', { className: 'view-head__badge-slot' });
+    function refreshDraftBadge() {
+      draftBadgeSlot.replaceChildren();
+      if (State.hasDraft(FA_PATH)) {
+        draftBadgeSlot.appendChild(el('span', { className: 'badge badge--draft', text: 'черновик' }));
+      }
+    }
+
     function renderRows() {
       list.replaceChildren();
       const categories = faCategories();
       categories.forEach((category, categoryIndex) => {
         list.appendChild(categorySection(category, categoryIndex, categories.length));
       });
+      refreshDraftBadge();
     }
 
     renderRows();
@@ -1065,7 +1087,7 @@
         el('div', { className: 'view-head' }, [
           el('h1', { text: 'Free Assets' }),
           el('span', { className: 'view-head__hint', text: 'каталог бесплатных ассетов · content/free-assets.json' }),
-          State.hasDraft(FA_PATH) ? el('span', { className: 'badge badge--draft', text: 'черновик' }) : null
+          draftBadgeSlot
         ]),
         el('p', {
           className: 'hint',
@@ -1075,9 +1097,8 @@
           className: 'hint',
           text:
             'Порядок категорий и ассетов на сайте повторяет порядок списков: перетащите за ⠿ или используйте кнопки ↑/↓. ' +
-            'Выключатель скрывает ассет или категорию целиком (файлы не удаляются). ' +
-            'Подписи и счётчики на карточках категорий сайта — это «Тексты интерфейса» (группа «Free Assets — теги»): ' +
-            'после скрытия ассетов поправьте счётчики там.'
+            'Выключатель скрывает ассет или категорию целиком (файлы не удаляются) — ' +
+            'счётчики на карточках категорий сайта пересчитываются автоматически при публикации.'
         }),
         list
       ])
@@ -1108,19 +1129,15 @@
 
   // Поле фона карточки: CSS-градиент строкой + живой образец рядом.
   function faBgField(dotBase) {
-    const input = el('input', { type: 'text', 'data-field': FA_PATH + '::' + dotBase + '.bg' });
+    // langInput уже даёт data-field, начальное значение и input-листенер
+    // (setValue + clearFieldError); добавляем только покраску образца.
+    const input = langInput(FA_PATH, dotBase + '.bg');
     const swatch = el('span', { className: 'bg-swatch', 'aria-hidden': 'true' });
-    const current = State.getValue(FA_PATH, dotBase + '.bg');
-    input.value = current === undefined || current === null ? '' : String(current);
     function paint() {
       swatch.style.background = '';
       swatch.style.background = input.value;
     }
-    input.addEventListener('input', () => {
-      State.setValue(FA_PATH, dotBase + '.bg', input.value);
-      clearFieldError(input);
-      paint();
-    });
+    input.addEventListener('input', paint);
     paint();
     return el('div', { className: 'pair' }, [
       el('div', { className: 'pair__label', text: 'Фон превью (CSS-градиент)' }),
@@ -1249,18 +1266,27 @@
         const checkPath = opts.resolveValue(baseValue || id);
         fetch(toAdminAssetPath(checkPath), { method: 'HEAD' })
           .then((res) => {
-            // Пока шёл HEAD-запрос, слот могли выключить (null) — не
-            // навешиваем ошибку на выключенный слот.
-            if (State.getValue(FA_PATH, dot) === null) return;
-            if (!res.ok) {
-              faMediaErrors.set(
-                errorKey,
-                'Файла ' + checkPath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.'
-              );
-            } else {
-              faMediaErrors.delete(errorKey);
+            // Пока шёл HEAD-запрос состояние слота могло измениться: слот
+            // выключили (null) ЛИБО появилась staged-загрузка — в обоих
+            // случаях ошибка «файла нет» неактуальна (staged-файл уйдёт в
+            // коммит). Снимаем возможную ошибку и не навешиваем новую.
+            if (State.getValue(FA_PATH, dot) === null || State.getMediaEdit(FA_PATH, dot)) {
+              if (faMediaErrors.delete(errorKey)) rerender();
+              return;
             }
-            rerender();
+            // Перерисовываем только при реальном изменении карты ошибок —
+            // иначе HEAD на существующий файл крал бы фокус/каретку у
+            // печатающего владельца лишним перестроением редактора.
+            if (!res.ok) {
+              const message =
+                'Файла ' + checkPath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+              if (faMediaErrors.get(errorKey) !== message) {
+                faMediaErrors.set(errorKey, message);
+                rerender();
+              }
+            } else if (faMediaErrors.delete(errorKey)) {
+              rerender();
+            }
           })
           .catch(() => {});
       } else {
@@ -1558,11 +1584,7 @@
       State.setValue(path, 'case.srcs', movedArray(srcs, from, to));
       State.setValue(path, 'case.palette', movedArray(cs.palette, from, to));
       State.setValue(path, 'case.captions', movedArray(cs.captions, from, to));
-      State.remapMediaEdits(path, (dot) => {
-        const match = dot.match(/^case\.srcs\.(\d+)$/);
-        if (!match) return dot;
-        return 'case.srcs.' + movedIndex(Number(match[1]), from, to);
-      });
+      remapListIndex(path, /^case\.srcs\.(\d+)$/, 1, from, to, (_match, newIndex) => 'case.srcs.' + newIndex);
       toast('Порядок сохранён в черновик', 'info');
       rerender(focusKey);
     }
@@ -1571,11 +1593,14 @@
       const blocks = State.getValue(path, 'case.motionBlocks') || [];
       if (from === to || to < 0 || to >= blocks.length) return;
       State.setValue(path, 'case.motionBlocks', movedArray(blocks, from, to));
-      State.remapMediaEdits(path, (dot) => {
-        const match = dot.match(/^case\.motionBlocks\.(\d+)\.(.+)$/);
-        if (!match) return dot;
-        return 'case.motionBlocks.' + movedIndex(Number(match[1]), from, to) + '.' + match[2];
-      });
+      remapListIndex(
+        path,
+        /^case\.motionBlocks\.(\d+)\.(.+)$/,
+        1,
+        from,
+        to,
+        (match, newIndex) => 'case.motionBlocks.' + newIndex + '.' + match[2]
+      );
       toast('Порядок сохранён в черновик', 'info');
       rerender(focusKey);
     }
@@ -1969,16 +1994,37 @@
       return;
     }
     const errors = State.validateAll();
-    // Итерация H: блокирующие ошибки медиа-слотов free-assets («файла ещё
-    // нет в репозитории») останавливают публикацию наравне с ошибками полей.
-    faMediaErrors.forEach((message, errorKey) => {
-      const sep = errorKey.lastIndexOf('::');
-      const found = faFindItem(errorKey.slice(0, sep));
+    // Итерация H (Fix #5): блокирующие ошибки медиа-слотов free-assets
+    // («файла ещё нет в репозитории») останавливают публикацию наравне с
+    // ошибками полей. Источник истины — НЕ in-memory faMediaErrors (он
+    // не переживает reload: черновик восстанавливается из sessionStorage, а
+    // карта ошибок — нет, и публикация уходила бы на сервер → checkAssetFile
+    // в CI падал бы → авто-revert). Вместо этого перечень missing-файлов
+    // пере-выводится из текущего состояния на КАЖДОЙ публикации
+    // (State.findMissingFaMediaFiles) и сетевую HEAD-проверку мы awaitим
+    // здесь — слот со staged-загрузкой проверку проходит (файл уйдёт в
+    // коммит). faMediaErrors при этом синхронизируем, чтобы поля подсветились.
+    let missingMedia;
+    try {
+      missingMedia = await State.findMissingFaMediaFiles((sitePath) =>
+        fetch(toAdminAssetPath(sitePath), { method: 'HEAD' }).then((res) => res.ok)
+      );
+    } catch (error) {
+      toast('Не удалось проверить файлы медиа: ' + (error.message || error), 'error');
+      return;
+    }
+    faMediaErrors.clear();
+    for (const slot of missingMedia) {
+      const errorKey = slot.id + '::' + slot.key;
+      const message =
+        'Файла ' + slot.sitePath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+      faMediaErrors.set(errorKey, message);
+      const found = faFindItem(slot.id);
       const field = found
-        ? 'categories.' + found.ci + '.items.' + found.ii + '.' + errorKey.slice(sep + 2)
+        ? 'categories.' + found.ci + '.items.' + found.ii + '.' + slot.key
         : 'categories';
       errors.push({ path: FA_PATH, field, message });
-    });
+    }
     if (errors.length > 0) {
       toast('Публикация остановлена: заполните обязательные поля (ошибок: ' + errors.length + ').', 'error');
       pendingErrors = errors;

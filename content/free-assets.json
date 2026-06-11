@@ -2,6 +2,9 @@
   "categories": [
     {
       "key": "hard-surface",
+      "tagCard": {
+        "thumb": "orbital-mk-ii"
+      },
       "items": [
         {
           "id": "orbital-mk-ii",
@@ -165,6 +168,9 @@
     },
     {
       "key": "product",
+      "tagCard": {
+        "thumb": "corten-series"
+      },
       "items": [
         {
           "id": "corten-series",
@@ -268,6 +274,10 @@
     },
     {
       "key": "game",
+      "tagCard": {
+        "thumb": "nightshard",
+        "gameAsset": true
+      },
       "items": [
         {
           "id": "nightshard",
@@ -351,6 +361,9 @@
     },
     {
       "key": "organic",
+      "tagCard": {
+        "thumb": "nyx-panther"
+      },
       "items": [
         {
           "id": "nyx-panther",
@@ -413,6 +426,9 @@
     },
     {
       "key": "animation",
+      "tagCard": {
+        "thumb": "helix-reveal"
+      },
       "items": [
         {
           "id": "helix-reveal",
@@ -456,6 +472,9 @@
     },
     {
       "key": "cad",
+      "tagCard": {
+        "thumb": "mech-link"
+      },
       "items": [
         {
           "id": "mech-link",
