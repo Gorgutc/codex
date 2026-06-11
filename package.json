@@ -39,6 +39,7 @@
   "license": "UNLICENSED",
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
+    "@cspell/dict-ru_ru": "^2.3.2",
     "@eslint/js": "^10.0.1",
     "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.60.0",

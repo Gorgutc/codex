@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
@@ -61,7 +62,8 @@ check('marketplace exists', existsSync(marketplacePath), marketplacePath);
 check('plugin manifest exists', existsSync(manifestPath), manifestPath);
 check('skills root exists', existsSync(skillsRoot), skillsRoot);
 check('claude-original references moved', existsSync(originalRefs), originalRefs);
-check('legacy .claude removed from root', !existsSync(path.join(root, '.claude')));
+const trackedClaudeFiles = execFileSync('git', ['ls-files', '.claude'], { cwd: root, encoding: 'utf8' }).trim();
+check('legacy .claude not tracked in git', trackedClaudeFiles === '', trackedClaudeFiles.split('\n')[0] || '');
 check(
   'active instructions avoid stale pass totals',
   staleInstructionCounts.length === 0,

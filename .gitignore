@@ -6,3 +6,5 @@ playwright-report/
 coverage/
 .jscpd-report/
 *.log
+.claude/settings.local.json
+.claude/worktrees/
