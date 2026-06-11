@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   state.js — черновики и валидация админ-панели (итерации D–F).
+   state.js — черновики и валидация админ-панели (итерации D–H).
 
    Модель: на каждый редактируемый файл content/*.json держим
      { base: свежий JSON с GitHub, sha, draft: редактируемая копия }.
@@ -33,6 +33,7 @@
   'use strict';
 
   const DRAFTS_KEY = 'codexAdminDrafts';
+  const FA_PATH = 'content/free-assets.json';
   const files = new Map(); // path → { base, sha, draft }
   let orphanDrafts = {}; // черновики из sessionStorage для ещё не загруженных файлов
   const mediaEdits = new Map(); // path → Map(dotPath → media-запись, см. stageMedia)
@@ -86,6 +87,19 @@
       warnText: 'тяжелее 15 МБ — 3D-viewer будет грузиться медленнее',
       blockBytes: 50 * MB,
       blockText: 'модели тяжелее 50 МБ не публикуем'
+    },
+    // Итерация H: постер карточки Free Assets. Рантайм каталога жёстко
+    // подставляет расширение .svg к базовому имени (resolveAssetMedia в
+    // js/free-assets.js), поэтому слот принимает ТОЛЬКО SVG.
+    faThumb: {
+      exts: ['svg'],
+      mimes: ['image/svg+xml'],
+      accept: '.svg',
+      formatLabel: 'SVG',
+      warnBytes: 200 * KB,
+      warnText: 'тяжелее 200 КБ — карточки каталога будут грузиться медленнее',
+      blockBytes: 2 * MB,
+      blockText: 'изображения тяжелее 2 МБ не публикуем'
     }
   };
 
@@ -95,10 +109,43 @@
     return JSON.parse(JSON.stringify(value));
   }
 
-  // Черновик — клон base с тем же порядком ключей, поэтому сравнение
-  // сериализаций корректно детектирует возврат к исходному значению.
+  // Сравнение по канонической сериализации с СОРТИРОВКОЙ ключей:
+  // deleteValue + setValue возвращают семантически то же значение, но ключ
+  // встаёт в конец объекта — посимвольный JSON.stringify навсегда считал бы
+  // такой черновик «грязным» (итерация H: тогл thumb/model выкл→вкл→выкл).
+  // Порядок ключей нигде не несёт смысла: в коммит уходит serializeDraft
+  // (собственный порядок draft), deepEqual используется только как предикат
+  // равенства (persistNow, changedPaths, hasDraft, publishPrecheck).
+  function stableStringify(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) {
+      const items = value.map((item) => (item === undefined ? 'null' : stableStringify(item)));
+      return '[' + items.join(',') + ']';
+    }
+    const keys = Object.keys(value)
+      .filter((key) => value[key] !== undefined)
+      .sort();
+    const body = keys.map((key) => JSON.stringify(key) + ':' + stableStringify(value[key]));
+    return '{' + body.join(',') + '}';
+  }
+
   function deepEqual(a, b) {
-    return JSON.stringify(a) === JSON.stringify(b);
+    return stableStringify(a) === stableStringify(b);
+  }
+
+  // Сериализация base кэшируется на самой entry: changedPaths/isDirty/hasDraft
+  // прогоняют deepEqual(draft, base) по КАЖДОМУ загруженному файлу на каждый
+  // keystroke и каждый persist. base иммутабелен между публикациями, поэтому
+  // его строку считаем один раз (лениво) и инвалидируем там, где base
+  // переприсваивается: ensureFile (загрузка) и markPublished (новая база).
+  // Re-сериализуется только draft.
+  function baseString(entry) {
+    if (entry.baseString === undefined) entry.baseString = stableStringify(entry.base);
+    return entry.baseString;
+  }
+
+  function draftEqualsBase(entry) {
+    return stableStringify(entry.draft) === baseString(entry);
   }
 
   function isFilled(value) {
@@ -124,7 +171,7 @@
     const store = {};
     for (const path of Object.keys(orphanDrafts)) store[path] = orphanDrafts[path];
     files.forEach((entry, path) => {
-      if (!deepEqual(entry.draft, entry.base)) store[path] = entry.draft;
+      if (!draftEqualsBase(entry)) store[path] = entry.draft;
     });
     try {
       if (Object.keys(store).length === 0) sessionStorage.removeItem(DRAFTS_KEY);
@@ -214,13 +261,42 @@
     return node;
   }
 
+  // Спуск по dot-пути до объекта-РОДИТЕЛЯ последнего ключа.
+  // Возвращает { parent, key } или null, если по пути встретился
+  // null/undefined (родитель не существует). setValue и deleteValue делят
+  // безопасное поведение: на отсутствующем родителе обе тихо выходят
+  // (раньше setValue падал на node[keys[i]] === undefined).
+  function walkToParent(draft, dotPath) {
+    const keys = String(dotPath).split('.');
+    let node = draft;
+    for (let i = 0; i < keys.length - 1; i += 1) {
+      if (node === null || node === undefined) return null;
+      node = node[keys[i]];
+    }
+    if (node === null || node === undefined) return null;
+    return { parent: node, key: keys[keys.length - 1] };
+  }
+
   function setValue(path, dotPath, value) {
     const entry = files.get(path);
     if (!entry) return;
-    const keys = String(dotPath).split('.');
-    let node = entry.draft;
-    for (let i = 0; i < keys.length - 1; i += 1) node = node[keys[i]];
-    node[keys[keys.length - 1]] = value;
+    const target = walkToParent(entry.draft, dotPath);
+    if (!target) return;
+    target.parent[target.key] = value;
+    schedulePersist();
+    notify();
+  }
+
+  // Итерация H: удаление ключа из черновика (возврат к конвенции «поле
+  // отсутствует»: enabled → true, thumb/model → базовое имя = id). setValue
+  // с undefined оставил бы ключ в draft-объекте и шумел при сравнениях.
+  function deleteValue(path, dotPath) {
+    const entry = files.get(path);
+    if (!entry) return;
+    const target = walkToParent(entry.draft, dotPath);
+    if (!target) return;
+    if (Array.isArray(target.parent)) return; // элементы массивов не удаляем — только ключи
+    delete target.parent[target.key];
     schedulePersist();
     notify();
   }
@@ -233,7 +309,7 @@
   function changedPaths() {
     const out = [];
     files.forEach((entry, path) => {
-      if (!deepEqual(entry.draft, entry.base) || hasMediaEdits(path)) out.push(path);
+      if (!draftEqualsBase(entry) || hasMediaEdits(path)) out.push(path);
     });
     for (const path of Object.keys(orphanDrafts)) {
       if (out.indexOf(path) === -1) out.push(path);
@@ -248,7 +324,7 @@
 
   function hasDraft(path) {
     const entry = files.get(path);
-    if (entry) return !deepEqual(entry.draft, entry.base) || hasMediaEdits(path);
+    if (entry) return !draftEqualsBase(entry) || hasMediaEdits(path);
     return orphanDrafts[path] !== undefined;
   }
 
@@ -317,14 +393,18 @@
   }
 
   // Постановка файла в очередь публикации.
-  //   filePath/dotPath — куда в content-JSON записать новый путь;
+  //   filePath/dotPath — куда в content-JSON записать новое значение;
   //   kind             — ключ MEDIA_RULES;
   //   namingPath       — путь-«назначение» слота: его папка и базовое имя
   //                      дают каноничное имя нового файла;
   //   currentPath      — текущий файл на GitHub (кандидат на удаление)
-  //                      или null, если у слота файла ещё не было.
+  //                      или null, если у слота файла ещё не было;
+  //   valueMode        — что писать в JSON: 'path' (по умолчанию — полный
+  //                      './assets/...'-путь) или 'baseName' (итерация H,
+  //                      free-assets: имя файла без папки и расширения —
+  //                      конвенция thumb/model в content/free-assets.json).
   // Возвращает { assetPath, objectURL, size, warning|null, unchanged }.
-  async function stageMedia(filePath, dotPath, kind, namingPath, currentPath, file) {
+  async function stageMedia(filePath, dotPath, kind, namingPath, currentPath, file, valueMode) {
     const rule = MEDIA_RULES[kind];
     const ext = assertUploadAllowed(rule, file);
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -338,7 +418,8 @@
     const previous = edits.get(dotPath) || null;
     const originalPath = previous ? previous.originalPath : currentPath || null;
     const baseFrom = previous ? previous.namingPath : namingPath;
-    const assetPath = mediaDirName(baseFrom) + '/' + mediaBaseName(baseFrom) + '-' + hash8 + '.' + ext;
+    const newBase = mediaBaseName(baseFrom) + '-' + hash8;
+    const assetPath = mediaDirName(baseFrom) + '/' + newBase + '.' + ext;
 
     if (assetPath === originalPath) {
       // Загружен файл, байты которого уже опубликованы под этим именем.
@@ -353,7 +434,7 @@
     if (previous) URL.revokeObjectURL(previous.objectURL);
     const objectURL = URL.createObjectURL(new Blob([bytes], { type: file.type || '' }));
     edits.set(dotPath, {
-      value: assetPath,
+      value: valueMode === 'baseName' ? newBase : assetPath,
       originalPath,
       namingPath: baseFrom,
       uploadPath: assetPath.replace(/^\.\//, ''),
@@ -374,6 +455,17 @@
   function getMediaEdit(filePath, dotPath) {
     const edits = mediaEdits.get(filePath);
     return (edits && edits.get(dotPath)) || null;
+  }
+
+  // Итерация H: сброс pending-загрузки слота (например, при выключении
+  // 3D-превью/постера free-asset — файл больше не должен уйти в коммит).
+  function discardMediaEdit(filePath, dotPath) {
+    const edits = mediaEdits.get(filePath);
+    const record = edits && edits.get(dotPath);
+    if (!record) return;
+    URL.revokeObjectURL(record.objectURL);
+    edits.delete(dotPath);
+    notify();
   }
 
   // Итерация F: при перестановке элементов массива (слоты иллюстраций,
@@ -575,6 +667,215 @@
     }
   }
 
+  // Итерация H: зеркало validateFreeAssets из generate-content.mjs для
+  // полей, которые редактирует экран Free Assets.
+  const FA_FIELD_LABELS = {
+    title: 'название',
+    cat: 'подпись категории',
+    badge: 'бейдж',
+    size: 'размер',
+    file: 'имя ZIP-файла',
+    bg: 'фон (CSS-градиент)'
+  };
+
+  function isPlainBaseName(value) {
+    return (
+      isFilled(value) && value.indexOf('/') === -1 && value.indexOf('\\') === -1 && value.indexOf('..') === -1
+    );
+  }
+
+  // Единый предикат «ассет виден на сайте»: категория и сам ассет не
+  // выключены (enabled !== false — конвенция «поле отсутствует = включено»).
+  function faAssetVisible(category, item) {
+    return (
+      category && typeof category === 'object' && category.enabled !== false &&
+      item && typeof item === 'object' && item.enabled !== false
+    );
+  }
+
+  // Сколько ассетов останется видимыми на сайте. opts.skipCategoryIndex —
+  // индекс категории, которую считаем выключенной (предпросмотр выключения
+  // категории в ui.js). Единственный источник правды для guard'ов ui.js и
+  // финальной проверки validateFreeAssetsDraft (генератор/verify-frozen
+  // считают независимо — другой рантайм, намеренно).
+  function countVisibleFaAssets(categories, opts) {
+    const skip = opts && typeof opts.skipCategoryIndex === 'number' ? opts.skipCategoryIndex : -1;
+    let count = 0;
+    (Array.isArray(categories) ? categories : []).forEach(function (category, ci) {
+      if (ci === skip) return;
+      const items = category && Array.isArray(category.items) ? category.items : [];
+      items.forEach(function (item) {
+        if (faAssetVisible(category, item)) count += 1;
+      });
+    });
+    return count;
+  }
+
+  function validateFreeAssetsDraft(errors, path, draft) {
+    const categories = Array.isArray(draft.categories) ? draft.categories : [];
+    categories.forEach(function (category, ci) {
+      if (category === null || typeof category !== 'object') return;
+      if ('enabled' in category && typeof category.enabled !== 'boolean') {
+        errors.push({
+          path,
+          field: 'categories.' + ci + '.enabled',
+          message: 'Видимость категории «' + category.key + '» повреждена — переключите тогл заново'
+        });
+      }
+      const items = Array.isArray(category.items) ? category.items : [];
+      items.forEach(function (item, ii) {
+        if (item === null || typeof item !== 'object') return;
+        const dotBase = 'categories.' + ci + '.items.' + ii;
+        const label = 'Ассет «' + (isFilled(item.title) ? item.title : item.id || ii + 1) + '»';
+        if ('enabled' in item && typeof item.enabled !== 'boolean') {
+          errors.push({
+            path,
+            field: dotBase + '.enabled',
+            message: label + ': видимость повреждена — переключите тогл заново'
+          });
+        }
+        for (const field of Object.keys(FA_FIELD_LABELS)) {
+          if (!isFilled(item[field])) {
+            errors.push({
+              path,
+              field: dotBase + '.' + field,
+              message: label + ': поле «' + FA_FIELD_LABELS[field] + '» не может быть пустым'
+            });
+          }
+        }
+        if (isFilled(item.file) && !/^[A-Za-z0-9._-]+\.zip$/i.test(item.file)) {
+          errors.push({
+            path,
+            field: dotBase + '.file',
+            message: label + ': имя ZIP — только имя файла в downloads/, без папок (например ' + (item.id || 'asset') + '.zip)'
+          });
+        }
+        pushPairErrors(errors, path, dotBase + '.desc', item.desc, label + ' — описание');
+        if (
+          !Array.isArray(item.contents) ||
+          item.contents.length === 0 ||
+          !item.contents.every(isFilled)
+        ) {
+          errors.push({
+            path,
+            field: dotBase + '.contents',
+            message: label + ': список «архив содержит» должен иметь хотя бы одну непустую строку'
+          });
+        }
+        // thumb/model: отсутствие = базовое имя id, null = выключено,
+        // строка = базовое имя файла без папок и расширения.
+        for (const key of ['thumb', 'model']) {
+          if (key in item && item[key] !== null && !isPlainBaseName(item[key])) {
+            errors.push({
+              path,
+              field: dotBase + '.' + key,
+              message: label + ': «' + key + '» — базовое имя файла без папок и расширения'
+            });
+          }
+        }
+      });
+    });
+    if (countVisibleFaAssets(categories) === 0) {
+      errors.push({
+        path,
+        field: 'categories',
+        message: 'Нельзя скрыть все ассеты — каталог Free Assets на сайте останется пустым'
+      });
+    }
+  }
+
+  // Итерация H (Fix #5): шаблоны путей файлов медиа-слотов free-assets.
+  // Рантайм каталога (resolveAssetMedia в js/free-assets.js) подставляет
+  // расширение к базовому имени, поэтому путь детерминирован по ключу слота.
+  // Источник истины и для ui.js (resolveValue dropZone), и для проверки
+  // существования файла перед публикацией.
+  const FA_MEDIA_SLOTS = {
+    thumb: { dir: './assets/cards/', ext: '.svg' },
+    model: { dir: './assets/models/free/', ext: '.glb' }
+  };
+
+  function faSlotPath(key, baseName) {
+    const slot = FA_MEDIA_SLOTS[key];
+    if (!slot) return null;
+    return slot.dir + baseName + slot.ext;
+  }
+
+  // Перечень ВКЛЮЧЁННЫХ медиа-слотов free-assets, у которых эффективное
+  // значение указывает на конкретный файл (конвенция: ключ отсутствует →
+  // файл по умолчанию <id>; строка → базовое имя; null → выключено).
+  // Возвращает [{ id, key, dot, baseName, sitePath, staged }].
+  // staged=true, если слот покрыт pending-загрузкой (файл уже в памяти и
+  // уйдёт в коммит — проверять его наличие в репозитории не нужно).
+  function faEnabledMediaSlots() {
+    const out = [];
+    const entry = files.get(FA_PATH);
+    const draft = entry ? entry.draft : orphanDrafts[FA_PATH];
+    const categories = draft && Array.isArray(draft.categories) ? draft.categories : [];
+    categories.forEach(function (category, ci) {
+      const items = category && Array.isArray(category.items) ? category.items : [];
+      items.forEach(function (item, ii) {
+        if (!item || typeof item !== 'object') return;
+        for (const key of Object.keys(FA_MEDIA_SLOTS)) {
+          const dot = 'categories.' + ci + '.items.' + ii + '.' + key;
+          const staged = Boolean(getMediaEdit(FA_PATH, dot));
+          // Значение слота: pending-загрузка важнее (её базовое имя уйдёт в
+          // коммит); иначе draft-значение; отсутствие ключа = базовое имя id.
+          let value;
+          if (staged) value = getMediaEdit(FA_PATH, dot).value;
+          else if (key in item) value = item[key];
+          else value = item.id;
+          if (value === null) continue; // слот выключен
+          const baseName = String(value);
+          out.push({
+            id: item.id,
+            key,
+            dot,
+            baseName,
+            sitePath: faSlotPath(key, baseName),
+            staged
+          });
+        }
+      });
+    });
+    return out;
+  }
+
+  // Итерация H (Fix #5): асинхронная проверка наличия файлов всех включённых
+  // медиа-слотов free-assets ПЕРЕД публикацией. Раньше блок «файла нет в
+  // репозитории» жил только in-memory в ui.js (faMediaErrors) и не переживал
+  // перезагрузку: после reload черновик восстанавливался из sessionStorage,
+  // а блок терялся → публикация уходила на сервер → checkAssetFile в CI
+  // падал → авто-revert. Теперь проверка пере-выводится из состояния на
+  // каждой публикации, поэтому reload её не теряет.
+  //   checkExists(sitePath) → Promise<boolean> (ui.js даёт HEAD-запрос;
+  //   маппинг site→admin-путь и сеть живут в ui.js, State не знает про fetch).
+  // Возвращает массив { id, key, dot, sitePath } для слотов с отсутствующим
+  // файлом и без staged-загрузки.
+  async function findMissingFaMediaFiles(checkExists) {
+    if (!changedPaths().includes(FA_PATH)) return [];
+    const slots = faEnabledMediaSlots().filter(function (slot) {
+      return !slot.staged && slot.sitePath;
+    });
+    const results = await Promise.all(
+      slots.map(async function (slot) {
+        let exists;
+        try {
+          exists = await checkExists(slot.sitePath);
+        } catch (_e) {
+          exists = false;
+        }
+        return { slot, exists };
+      })
+    );
+    return results
+      .filter(function (r) {
+        return !r.exists;
+      })
+      .map(function (r) {
+        return { id: r.slot.id, key: r.slot.key, dot: r.slot.dot, sitePath: r.slot.sitePath };
+      });
+  }
+
   function validateLeafStrings(errors, path, node, dotBase, fileLabel) {
     if (node !== null && typeof node === 'object' && !Array.isArray(node)) {
       for (const key of Object.keys(node)) {
@@ -644,6 +945,8 @@
       }
     } else if (path === 'content/i18n-ui.json') {
       for (const lang of ['en', 'ru']) validateLeafStrings(errors, path, draft[lang], lang, 'Тексты интерфейса');
+    } else if (path === FA_PATH) {
+      validateFreeAssetsDraft(errors, path, draft);
     }
     return errors;
   }
@@ -704,6 +1007,7 @@
     if (path === 'content/meta.json') return 'Мета-теги';
     if (path === 'content/i18n-ui.json') return 'Тексты интерфейса';
     if (path === 'content/settings.json') return 'Порядок карточек и категории';
+    if (path === FA_PATH) return 'Каталог Free Assets';
     const entry = files.get(path);
     const match = path.match(/^content\/cases\/(.+)\.json$/);
     const id = match ? match[1] : path;
@@ -716,6 +1020,7 @@
       if (path === 'content/meta.json') return 'мета-теги';
       if (path === 'content/i18n-ui.json') return 'тексты интерфейса';
       if (path === 'content/settings.json') return 'порядок и категории';
+      if (path === FA_PATH) return 'каталог free assets';
       const match = path.match(/^content\/cases\/(.+)\.json$/);
       return match ? 'кейс ' + match[1] : path;
     });
@@ -728,6 +1033,7 @@
     files.forEach((entry, path) => {
       entry.draft = effectiveDraft(path);
       entry.base = deepClone(entry.draft);
+      entry.baseString = undefined; // base переприсвоен — кэш сериализации сбросить
     });
     mediaEdits.forEach((edits) => {
       edits.forEach((record) => {
@@ -755,11 +1061,16 @@
     getValue,
     peekDraftValue,
     setValue,
+    deleteValue,
     remapMediaEdits,
     changedPaths,
     isDirty,
     hasDraft,
     validateAll,
+    // итерация H: видимость и медиа-слоты free-assets
+    countVisibleFaAssets,
+    faSlotPath,
+    findMissingFaMediaFiles,
     publishPrecheck,
     buildPublishPlan,
     describeChange,
@@ -770,6 +1081,7 @@
     getMediaRule,
     stageMedia,
     getMediaEdit,
+    discardMediaEdit,
     getEffectiveValue,
     mediaPendingCount,
     parseVimeoId,

@@ -5,7 +5,7 @@ description: Use when working on the Codex Studio content layer or admin panel -
 
 # Codex Studio Admin Rules
 
-Rules for the content layer (iterations B-G of the admin-panel project).
+Rules for the content layer (iterations B-H of the admin-panel project).
 Full spec and session journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`).
 
 ## Content contract
@@ -15,7 +15,11 @@ Full spec and session journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`)
 - `scripts/generate-content.mjs` deterministically derives the shipped files:
   `js/cards-data.js`, `js/fa-data.js`, `js/i18n-data.js`, the
   `<!-- CODEX:GEN ... -->` regions of `index.html` / `free-assets.html`
-  (cards-grid, filters, head-meta, jsonld) and `sitemap.xml`.
+  (cards-grid, filters, head-meta, jsonld, fa-filters) and `sitemap.xml`.
+- Visibility: cases, filter categories, free-assets items AND free-assets
+  categories accept an optional strict-boolean `enabled:false`; every
+  consumer (data files, locales, GEN regions, JSON-LD) reads the visible
+  selection only. At least one case and one free asset must stay visible.
 - NEVER hand-edit generated targets or GEN regions. After editing content run
   `npm run content:generate`; `npm run content:check` must report zero diffs.
 - Runtime never reads `content/*.json`; the deployed site equals the
@@ -54,6 +58,11 @@ Full spec and session journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`)
   the bot commit lands); orphan cleanup is a separate maintenance task.
 - Every media path must stay inside `./assets/` (traversal guard in the
   validator and in `state.js`).
+- Free-assets `thumb`/`model` are BASE NAMES, not paths (runtime appends
+  `./assets/cards/{base}.svg` / `./assets/models/free/{base}.glb`): absent
+  key = the item id, `null` = preview disabled, replacement uploads write
+  the base name `{id}-{hash8}` (`stageMedia` valueMode `baseName`). The FA
+  poster slot accepts ONLY `.svg` - the runtime hardcodes the extension.
 
 ## Verification
 

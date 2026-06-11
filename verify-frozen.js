@@ -119,23 +119,85 @@ const ogImageUrl = page =>
   'https://codex.promo/' + String((CONTENT_META.ogImages || {})[page] || '').replace(/^\.\//, '');
 
 // free-assets: счётчики каталога тоже из content/ (free-assets.json).
+// Итерация H: каталог редактируется через админку — категории и ассеты можно
+// выключать (enabled:false). Все ожидания выводятся из ВИДИМОЙ выборки
+// (зеркало visibleFaCategories генератора): включённые категории с их
+// включёнными ассетами, пустые категории выпадают целиком. Дефолтный тег =
+// первая видимая категория (так выбирает js/free-assets.js), цель клик-теста
+// переключения — первая видимая категория, отличная от дефолтной (по образцу
+// FILTER_TEST_KEY). Деградации (нет второй категории, скрыта SEO-категория
+// каталога) не валят прогон, а громко помечаются detail «skipped: …».
 const CONTENT_FREE_ASSETS = readContentJson('free-assets.json');
-const FA_ITEM_COUNT = CONTENT_FREE_ASSETS.categories.reduce((sum, cat) => sum + cat.items.length, 0);
-const faCategoryItems = key => {
-  const category = CONTENT_FREE_ASSETS.categories.find(cat => cat.key === key);
-  return category ? category.items : [];
-};
-const FA_CATEGORY_COUNT = CONTENT_FREE_ASSETS.categories.length;
-const FA_DEFAULT_TAG_ITEMS = faCategoryItems('hard-surface');
+const FA_VISIBLE_CATEGORIES = (CONTENT_FREE_ASSETS.categories || [])
+  .filter(cat => cat && cat.enabled !== false)
+  .map(cat => ({
+    key: cat.key,
+    // tagCard.gameAsset drives the "Game" overlay badge of the generated tag
+    // card (an extra data-i18n node) — needed by the B1 i18n-attr derivation.
+    gameAsset: !!(cat.tagCard && cat.tagCard.gameAsset === true),
+    items: (Array.isArray(cat.items) ? cat.items : []).filter(item => item && item.enabled !== false),
+  }))
+  .filter(cat => cat.items.length > 0);
+const FA_ITEM_COUNT = FA_VISIBLE_CATEGORIES.reduce((sum, cat) => sum + cat.items.length, 0);
+const FA_CATEGORY_COUNT = FA_VISIBLE_CATEGORIES.length;
+// Number of visible game-badged tag cards — each emits one extra data-i18n
+// node (the "Game" overlay badge), so it feeds the B1 i18n-attr derivation.
+const FA_GAME_CARD_COUNT = FA_VISIBLE_CATEGORIES.filter(cat => cat.gameAsset).length;
+const FA_DEFAULT_TAG = FA_CATEGORY_COUNT > 0 ? FA_VISIBLE_CATEGORIES[0].key : null;
+const FA_DEFAULT_TAG_ITEMS = FA_CATEGORY_COUNT > 0 ? FA_VISIBLE_CATEGORIES[0].items : [];
 // Mini-3D preview есть у всех ассетов категории, кроме model:null
 // (см. js/free-assets.js resolveAssetMedia).
 const FA_DEFAULT_PREVIEWS = FA_DEFAULT_TAG_ITEMS.filter(item => !('model' in item) || item.model !== null).length;
-const FA_PRODUCT_COUNT = faCategoryItems('product').length;
+// Цель теста переключения тега (бывший литерал 'product').
+const FA_SWITCH_CATEGORY = FA_VISIBLE_CATEGORIES.find(cat => cat.key !== FA_DEFAULT_TAG) || null;
+// SEO-каталог JSON-LD страницы FA курируется по категории hard-surface
+// (см. FA_JSONLD_CATEGORY в scripts/generate-content.mjs): ожидаемая
+// последовательность фрагментов = её видимые ассеты в авторском порядке.
+const FA_JSONLD_CATEGORY = 'hard-surface';
+// Fix #3 (XSS/visibility batch): the generator's FA ItemList is NOT every
+// visible curated item — it is `curated.filter(item => FA_JSONLD_COPY[item.id])`
+// (buildFaJsonLdRegion in scripts/generate-content.mjs). The crawler-facing
+// name/description copy lives only in that FA_JSONLD_COPY map, so an item
+// without a copy entry is legitimately omitted from the ItemList (it still
+// counts in numberOfItems, which follows all visible items). verify-frozen
+// must NOT import the generator, so we MIRROR the FA_JSONLD_COPY key set here.
+// Keep this list in sync with FA_JSONLD_COPY in scripts/generate-content.mjs:
+// adding a curated item with copy means adding its id to both; adding a curated
+// item WITHOUT copy is fine and simply stays out of the expected ItemList.
+const FA_JSONLD_COPY_IDS = new Set([
+  'orbital-mk-ii',
+  'vega-shell',
+  'ironclad-frame',
+  'bolt-cluster',
+  'terra-base',
+  'shard-cannon',
+  'wraith-blade',
+  'apex-frame'
+]);
+const FA_CURATED_ITEMS_ALL = (FA_VISIBLE_CATEGORIES.find(cat => cat.key === FA_JSONLD_CATEGORY) || { items: [] }).items;
+// The items the generator actually emits into the ItemList: visible curated
+// items that have a copy entry, in content order (a new no-copy hard-surface
+// item is simply not expected here, so it can never trip a false depth FAIL).
+const FA_CURATED_ITEMS = FA_CURATED_ITEMS_ALL.filter(item => FA_JSONLD_COPY_IDS.has(item.id));
+const FA_CURATED_IDS = FA_CURATED_ITEMS.map(item => item.id);
+// contentUrl is emitted only for an emitted (copy-filtered) item whose archive
+// exists in downloads/ — mirror the same copy filter so the static F1 count
+// matches what the generator legitimately links.
+const FA_CURATED_DOWNLOADS = FA_CURATED_ITEMS
+  .filter(item => fs.existsSync(path.join(ROOT, 'downloads', String(item.file || '')))).length;
 
 const results = [];
-const add = (suite, name, pass, detail = '') => {
-  results.push({ suite, name, pass, detail });
-  console.log(`  [${pass ? 'PASS' : 'FAIL'}] ${name}${detail ? ' — ' + detail : ''}`);
+// Skips are a first-class concept (XSS/visibility batch #13): a check that
+// cannot run on the current (legitimately degraded) content is recorded with
+// skipped=true and STILL passes — AGENTS.md defines success as "0 FAIL", so a
+// dormant check must never fail a valid catalog. They are surfaced separately
+// in the SUMMARY (… W SKIPPED) and tagged with a "skipped: …" detail so a
+// degraded run is no longer silently reported as fully green. On the current
+// all-enabled catalog every skip branch is dormant (W SKIPPED == 0).
+const add = (suite, name, pass, detail = '', skipped = false) => {
+  results.push({ suite, name, pass, detail, skipped });
+  const tag = skipped ? 'SKIP' : pass ? 'PASS' : 'FAIL';
+  console.log(`  [${tag}] ${name}${detail ? ' — ' + detail : ''}`);
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -226,9 +288,42 @@ function runStaticChecks() {
   const missingFaDownloads = faContentUrls
     .map(url => String(url).replace(/^https:\/\/codex\.promo\/downloads\//i, ''))
     .filter(file => !fs.existsSync(path.join(ROOT, 'downloads', file)));
+  // Итерация H: ожидаемое число contentUrl выводится из content — видимые
+  // ассеты SEO-категории, чей архив реально лежит в downloads/ (генератор
+  // ставит contentUrl только таким). Ноль — легитимная деградация (ассеты с
+  // архивами скрыты через админку), помечается явным detail.
   add('static', 'F1-jsonld-contenturl-files',
-      faContentUrls.length >= 2 && missingFaDownloads.length === 0,
-      missingFaDownloads.length ? 'missing=' + missingFaDownloads.join(', ') : `linked=${faContentUrls.length}`);
+      faContentUrls.length === FA_CURATED_DOWNLOADS && missingFaDownloads.length === 0,
+      missingFaDownloads.length
+        ? 'missing=' + missingFaDownloads.join(', ')
+        : FA_CURATED_DOWNLOADS === 0
+          ? 'skipped: no visible curated assets with archives in downloads/'
+          : `linked=${faContentUrls.length} (expected(content) ${FA_CURATED_DOWNLOADS})`,
+      missingFaDownloads.length === 0 && FA_CURATED_DOWNLOADS === 0);
+
+  // Fix #3 (XSS/visibility batch): keep the FA_JSONLD_COPY_IDS mirror honest.
+  // The emitted ItemList fragments (#<id>) must equal the copy-filtered curated
+  // ids in content order. If the generator's FA_JSONLD_COPY gains/loses a key
+  // but this mirror was not updated in lock-step, the sequences diverge and
+  // this names the drift explicitly — instead of surfacing later as an opaque
+  // runtime META-jsonLD-asset-depth mismatch. Skips when the curated category
+  // is hidden (empty expected list), which the generator's validateContent
+  // only allows alongside other visible categories.
+  const faStaticItemList = faJsonLdNodes.find(node =>
+    node && node['@type'] === 'ItemList' && /free 3d asset/i.test(String(node.name || '')));
+  const faStaticFragments = faStaticItemList && Array.isArray(faStaticItemList.itemListElement)
+    ? faStaticItemList.itemListElement
+        .map(entry => String(entry && entry.url || '').match(/#([^#]+)$/))
+        .filter(Boolean)
+        .map(match => decodeURIComponent(match[1]))
+    : [];
+  const faCopyMirrorOK = faStaticFragments.join('|') === FA_CURATED_IDS.join('|');
+  add('static', 'F1-jsonld-copy-mirror',
+      faCopyMirrorOK,
+      FA_CURATED_IDS.length === 0
+        ? 'skipped: curated category hidden (empty expected ItemList)'
+        : `emitted=[${faStaticFragments.join(',')}], expected(copy-filtered content)=[${FA_CURATED_IDS.join(',')}]`,
+      faCopyMirrorOK && FA_CURATED_IDS.length === 0);
 
   // Итерация G: featured-ItemList главной генерируется из content/meta.json
   // (featuredWorks ∩ видимые кейсы) — скрытый кейс не должен оставлять
@@ -1231,13 +1326,44 @@ async function testFreeAssets(BASE) {
 
   /* ───── Stage 2 (B1, B5, B10) ─ FA dict shape + a11y ─────────────────── */
 
-  // B1-fa — data-i18n attribute count floor. FA HTML carries ~87 occurrences
-  // (51 data-i18n + 27 data-i18n-attr + 9 data-i18n-meta). Floor at 70 with
-  // same 15%-regression tolerance as index.
+  // B1-fa — data-i18n attribute count floor. Fix #4 (XSS/visibility batch): the
+  // tag-card grid and the fa-filters dropdown are now GENERATED per visible
+  // category, so hiding categories legitimately removes nodes. The old
+  // hardcoded floor of 70 FAILed valid content once enough categories were
+  // hidden, and the content-publish pipeline auto-reverted the commit. Derive
+  // a CONTENT-SCALED floor instead, so the check stays strict on the full
+  // catalog yet tracks legitimate hiding.
+  //
+  // It is a floor (>=), not exact equality, on purpose: the total node count is
+  // mildly non-deterministic in this harness (86 vs 91 across runs — the FA
+  // chrome's lazy mini-3D / game-switch rebind races inject a few extra i18n
+  // nodes some runs). The per-category generated regions are deterministic
+  // though, so we scale the floor with the catalog and pin the base to the
+  // lowest observed chrome count, keeping ~jitter of headroom while still
+  // catching a real regression (a category's tag-card / filter i18n going
+  // missing drops the live count well below the scaled floor).
+  //
+  // Floor formula (counts [data-i18n] + [data-i18n-attr] + [data-i18n-meta];
+  // [data-i18n-html] = 0 on FA):
+  //   FA_I18N_FLOOR_BASE          — lowest observed catalog-independent FA
+  //                                 chrome count at 1440×900: dropdown
+  //                                 panel/region aria-labels, the 'all' filter
+  //                                 row, game-switch labels, trust signals,
+  //                                 footer, nav/skip-link, 9 head data-i18n-meta.
+  //   + 2 per visible category    — fa-filters checkbox row: input aria-label
+  //                                 (data-i18n-attr) + label (data-i18n).
+  //   + 6 per visible category    — generated tag card: img alt (data-i18n-attr)
+  //                                 + count badge + cat + format + title + desc.
+  //   + 1 per game-badged card    — the "Game" overlay badge (data-i18n).
+  // Full 6-category catalog: floor 84 = 35 + 6*8 + 1 game badge (the generated
+  // regions stably contribute 37 in tag cards + 14 in filter rows; the live
+  // total is 86–91 ≥ 84).
+  const FA_I18N_FLOOR_BASE = 35;
   const faI18nAttrCount = await page.evaluate(() =>
     document.querySelectorAll('[data-i18n], [data-i18n-attr], [data-i18n-html], [data-i18n-meta]').length);
-  add('fa', 'B1-data-i18n-attr-floor', faI18nAttrCount >= 70,
-      `count=${faI18nAttrCount} (floor 70)`);
+  const faI18nFloor = FA_I18N_FLOOR_BASE + 8 * FA_CATEGORY_COUNT + FA_GAME_CARD_COUNT;
+  add('fa', 'B1-data-i18n-attr-floor', faI18nAttrCount >= faI18nFloor,
+      `count=${faI18nAttrCount} (floor(content) ${faI18nFloor} = ${FA_I18N_FLOOR_BASE} base + 8×${FA_CATEGORY_COUNT} categories + ${FA_GAME_CARD_COUNT} game badge)`);
 
   // B5 — FA_LOCALES.ru: количество записей = сумма items по категориям
   // content/free-assets.json (итерация F: счётчик из content, не хардкод).
@@ -1350,20 +1476,40 @@ async function testFreeAssets(BASE) {
       allFree: models.every(model => model.isAccessibleForFree === true),
       allLicensed: models.every(model => /creativecommons\.org\/publicdomain\/zero/i.test(String(model.license || ''))),
       hasFormats: models.every(model => Array.isArray(model.encodingFormat) && model.encodingFormat.length >= 2),
-      fragments: fragments.length,
-      allFragmentsResolve: fragments.length === listItems.length && fragments.every(id => !!document.getElementById(id)),
+      fragments,
+      fragmentsResolved: fragments.filter(id => !!document.getElementById(id)).length,
     };
   });
+  // Итерация H: точная последовательность фрагментов ItemList = видимые
+  // ассеты SEO-категории каталога (контент-порядок, скрытый ассет не
+  // оставляет SEO-призрака); numberOfItems = все видимые ассеты. Фрагменты
+  // обязаны резолвиться в DOM, только когда SEO-категория и есть дефолтный
+  // тег (грид рендерит дефолтный тег); иначе сверка DOM явно skipped.
+  const fragmentsExact = faJsonLdDepth.fragments.join('|') === FA_CURATED_IDS.join('|');
+  const fragmentsResolveOK = FA_DEFAULT_TAG === FA_JSONLD_CATEGORY
+    ? faJsonLdDepth.fragmentsResolved === faJsonLdDepth.fragments.length
+    : true;
+  // The whole depth check is vacuous only when the curated category is hidden
+  // (empty expected ItemList): items/models/fragments all collapse to "expect
+  // 0". The DOM-resolve sub-clause going dormant (curated category is not the
+  // default tag) is a partial relaxation, not a full skip — the rest still runs
+  // strictly — so it is noted in the detail but does not mark the check skipped.
+  const jsonLdDepthSkipped = FA_CURATED_IDS.length === 0;
   add('fa', 'META-jsonLD-asset-depth',
       faJsonLdDepth.itemList &&
       faJsonLdDepth.numberOfItems === FA_ITEM_COUNT &&
-      faJsonLdDepth.items >= 8 &&
-      faJsonLdDepth.models >= 8 &&
+      faJsonLdDepth.items === FA_CURATED_IDS.length &&
+      faJsonLdDepth.models === FA_CURATED_IDS.length &&
       faJsonLdDepth.allFree &&
       faJsonLdDepth.allLicensed &&
       faJsonLdDepth.hasFormats &&
-      faJsonLdDepth.allFragmentsResolve,
-      `items=${faJsonLdDepth.items}, models=${faJsonLdDepth.models}, total=${faJsonLdDepth.numberOfItems}, fragments=${faJsonLdDepth.fragments}`);
+      fragmentsExact &&
+      fragmentsResolveOK,
+      `items=${faJsonLdDepth.items} (expected(content) ${FA_CURATED_IDS.length}), models=${faJsonLdDepth.models}, ` +
+      `total=${faJsonLdDepth.numberOfItems} (expected(content) ${FA_ITEM_COUNT}), fragments=${faJsonLdDepth.fragments.length}` +
+      (jsonLdDepthSkipped ? ' — skipped: curated category hidden (empty expected list)' : '') +
+      (FA_DEFAULT_TAG !== FA_JSONLD_CATEGORY ? ' — DOM-resolve relaxed (curated category is not the default tag)' : ''),
+      jsonLdDepthSkipped);
   add('fa', 'META-favicon-16', m.favicon16);
   add('fa', 'META-manifest', m.manifest);
   // v0.6 [Z6] — архитектура theme-color приведена к single-tag (как в index.html).
@@ -1411,12 +1557,41 @@ async function testFreeAssets(BASE) {
   }));
   add('fa', 'B6-chevron-icons', toggle.open === '\u2039\u2039' && toggle.closed === '\u203A\u203A');
 
-  // GRID
+  // GRID — дефолтный тег (первая видимая категория content) отрендерен.
+  // Ноль видимых ассетов заблокирован валидатором генератора; если такое
+  // состояние всё же дошло сюда, грид обязан быть пуст — явный skip-маркер.
   const grid = await page.evaluate(() => ({
     count: document.querySelectorAll('.fa-card').length,
     first: document.querySelector('.fa-card .fa-card__title')?.textContent,
   }));
-  add('fa', 'GRID-rendered', grid.count > 0, `${grid.count} cards, first="${grid.first}"`);
+  add('fa', 'GRID-rendered',
+      FA_DEFAULT_TAG ? grid.count === FA_DEFAULT_TAG_ITEMS.length && grid.count > 0 : grid.count === 0,
+      FA_DEFAULT_TAG
+        ? `${grid.count} cards (expected(content) ${FA_DEFAULT_TAG_ITEMS.length}), first="${grid.first}"`
+        : 'skipped: no visible free assets — empty grid expected',
+      !FA_DEFAULT_TAG);
+
+  // Net-new (XSS/visibility batch): the generated tag-card overview grid now
+  // carries category order + count badges from content, so gate them directly.
+  //   (a) the visible tag-cards' data-tag sequence == FA_VISIBLE_CATEGORIES
+  //       order (so the admin reorder feature actually reaches the page);
+  //   (b) each tag-card count badge text == its category's visible item count
+  //       ("N assets").
+  const tagCardOverview = await page.evaluate(() =>
+    [...document.querySelectorAll('.cards-list .tag-card[data-tag]')].map(card => ({
+      tag: card.getAttribute('data-tag'),
+      countText: (card.querySelector('.tag-card__count-badge')?.textContent || '').trim(),
+    })));
+  const expectedTagOrder = FA_VISIBLE_CATEGORIES.map(cat => cat.key);
+  const actualTagOrder = tagCardOverview.map(card => card.tag);
+  add('fa', 'TAG-cards-order-matches-content',
+      actualTagOrder.join('|') === expectedTagOrder.join('|'),
+      `order=[${actualTagOrder.join(',')}], expected(content)=[${expectedTagOrder.join(',')}]`);
+  const expectedCountText = FA_VISIBLE_CATEGORIES.map(cat => `${cat.items.length} assets`);
+  const actualCountText = tagCardOverview.map(card => card.countText);
+  add('fa', 'TAG-cards-count-badge-matches-content',
+      actualCountText.join('|') === expectedCountText.join('|'),
+      `badges=[${actualCountText.join(',')}], expected(content)=[${expectedCountText.join(',')}]`);
 
   const mini3D = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('.fa-card')];
@@ -1431,11 +1606,14 @@ async function testFreeAssets(BASE) {
       enabledSources: previews.filter(mv => mv.dataset.codexPreviewEnabled === 'true').length,
     };
   });
-  // Итерация F: счётчики дефолтного тега (hard-surface) — из content/.
+  // Итерация F (обобщено в H): счётчики дефолтного тега — из видимой
+  // выборки content/.
   add('fa', 'GRID-mini-3d-previews',
       mini3D.previews === FA_DEFAULT_PREVIEWS &&
       mini3D.noPreview === FA_DEFAULT_TAG_ITEMS.length - FA_DEFAULT_PREVIEWS,
-      `previews=${mini3D.previews} (expected(content) ${FA_DEFAULT_PREVIEWS}), fallback-only=${mini3D.noPreview}`);
+      `previews=${mini3D.previews} (expected(content) ${FA_DEFAULT_PREVIEWS}), fallback-only=${mini3D.noPreview}` +
+      (FA_DEFAULT_TAG ? '' : ' — skipped: no visible free assets'),
+      !FA_DEFAULT_TAG);
   add('fa', 'GRID-mini-3d-auto-rotate-only', mini3D.autoRotate === mini3D.previews && mini3D.cameraControls === 0,
       `auto=${mini3D.autoRotate}, camera-controls=${mini3D.cameraControls}`);
   add('fa', 'GRID-mini-3d-local-srcs', mini3D.localSrcs,
@@ -1453,8 +1631,9 @@ async function testFreeAssets(BASE) {
       assetPreviewButtons: assetCards.filter(card => card.querySelector('.fa-card__preview-btn')).length,
     };
   });
-  // Итерация F: счётчики из content/free-assets.json (категории = tag-карточки,
-  // дефолтный тег hard-surface = видимые ассеты). Строгость прежняя.
+  // Итерация F (обобщено в H): счётчики из видимой выборки content/
+  // (видимые категории = tag-карточки: js/free-assets.js удаляет карточки
+  // категорий, отсутствующих в FA_DATA; дефолтный тег = видимые ассеты).
   add('fa', 'FA-cards-sprint-b-anatomy',
       sprintBFAAnatomy.tags === FA_CATEGORY_COUNT &&
       sprintBFAAnatomy.tagHints === FA_CATEGORY_COUNT &&
@@ -1466,12 +1645,21 @@ async function testFreeAssets(BASE) {
       `tags=${sprintBFAAnatomy.tags}/${sprintBFAAnatomy.tagHints}/${sprintBFAAnatomy.tagPosters} (expected(content) ${FA_CATEGORY_COUNT}), ` +
       `assets=${sprintBFAAnatomy.assets}/${sprintBFAAnatomy.assetHints}/${sprintBFAAnatomy.assetPreviewStates}/${sprintBFAAnatomy.assetPreviewButtons} (expected(content) ${FA_DEFAULT_TAG_ITEMS.length})`);
 
-  // TAG SWITCH — счётчик категории product из content/free-assets.json.
-  await page.click('#tag-product'); await page.waitForTimeout(300);
-  const productCount = await page.$$eval('.fa-card', els => els.length);
-  add('fa', 'TAG-product-switch', productCount === FA_PRODUCT_COUNT,
-      `expected(content) ${FA_PRODUCT_COUNT}, got ${productCount}`);
-  await page.click('#tag-hard-surface'); await page.waitForTimeout(300);
+  // TAG SWITCH — цель и счётчик выводятся из content/free-assets.json
+  // (итерация H, по образцу FILTER_TEST_KEY): первая видимая категория,
+  // отличная от дефолтной. Нет второй категории — явный skipped-маркер.
+  const FA_SWITCH_KEY = FA_SWITCH_CATEGORY ? FA_SWITCH_CATEGORY.key : null;
+  const FA_SWITCH_COUNT = FA_SWITCH_CATEGORY ? FA_SWITCH_CATEGORY.items.length : 0;
+  const FA_SWITCH_SKIP = 'skipped: no second visible FA category';
+  if (FA_SWITCH_KEY) {
+    await page.click('#tag-' + FA_SWITCH_KEY); await page.waitForTimeout(300);
+    const switchedCount = await page.$$eval('.fa-card', els => els.length);
+    add('fa', 'TAG-category-switch', switchedCount === FA_SWITCH_COUNT,
+        `tag=${FA_SWITCH_KEY}, expected(content) ${FA_SWITCH_COUNT}, got ${switchedCount}`);
+    await page.click('#tag-' + FA_DEFAULT_TAG); await page.waitForTimeout(300);
+  } else {
+    add('fa', 'TAG-category-switch', true, FA_SWITCH_SKIP, true);
+  }
 
   // N4 — game-switch keeps tag-cards visible, filters grid
   const beforeTags = await page.$$eval('.tag-card', els => els.filter(e => !e.hidden && getComputedStyle(e).display !== 'none').length);
@@ -1480,33 +1668,55 @@ async function testFreeAssets(BASE) {
   const bodyFilter = await page.evaluate(() => document.body.classList.contains('filter-game'));
   add('fa', 'N4-game-keeps-tag-cards', afterTags === beforeTags, `before=${beforeTags}, after=${afterTags}`);
   add('fa', 'N4-game-no-body-filter-class', !bodyFilter);
-  await page.click('#tag-product'); await page.waitForTimeout(300);
-  const gameAfterTagSwitch = await page.evaluate(() => {
-    const cards = [...document.querySelectorAll('.fa-card')];
-    const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
-    return {
-      total: cards.length,
-      visible: visible.length,
-      countText: document.getElementById('fa-view-count')?.textContent || ''
-    };
-  });
-  add('fa', 'N4-game-persists-after-tag-switch',
-      gameAfterTagSwitch.total === FA_PRODUCT_COUNT && gameAfterTagSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterTagSwitch.countText),
-      `product total=${gameAfterTagSwitch.total} (expected(content) ${FA_PRODUCT_COUNT}), visible=${gameAfterTagSwitch.visible}, count="${gameAfterTagSwitch.countText}"`);
-  await page.click('#lang-toggle'); await page.waitForTimeout(300);
-  const gameAfterLangSwitch = await page.evaluate(() => {
-    const cards = [...document.querySelectorAll('.fa-card')];
-    const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
-    return {
-      total: cards.length,
-      visible: visible.length,
-      countText: document.getElementById('fa-view-count')?.textContent || ''
-    };
-  });
-  add('fa', 'N4-game-persists-after-lang-switch',
-      gameAfterLangSwitch.total === FA_PRODUCT_COUNT && gameAfterLangSwitch.visible === 0 && /0 assets \(game-only\)/.test(gameAfterLangSwitch.countText),
-      `product total=${gameAfterLangSwitch.total} (expected(content) ${FA_PRODUCT_COUNT}), visible=${gameAfterLangSwitch.visible}, count="${gameAfterLangSwitch.countText}"`);
-  await page.click('#lang-toggle'); await page.waitForTimeout(200);
+  // Ожидаемое число видимых game-ассетов целевой категории — из бейджей
+  // content (рантайм фильтрует по тексту бейджа /game asset/i).
+  const FA_SWITCH_GAME_COUNT = FA_SWITCH_CATEGORY
+    ? FA_SWITCH_CATEGORY.items.filter(item => /game\s*asset/i.test(String(item.badge || ''))).length
+    : 0;
+  const gameCountRe = new RegExp('^' + FA_SWITCH_GAME_COUNT + ' assets? \\(game-only\\)$');
+  // Fix #7 (XSS/visibility batch): N4-game-persists is supposed to prove that
+  // the game-only filter HIDES the non-game assets of the switched category.
+  // If the switch category is entirely game-badged (every item passes the
+  // game filter), visible === total === FA_SWITCH_COUNT trivially — the filter
+  // demonstrates nothing, so the equality would pass vacuously. In that case
+  // skip both persistence checks rather than assert a tautology. Current
+  // content: switch category = 'product' (0 game-badged), so this is dormant.
+  const FA_SWITCH_ALL_GAME = FA_SWITCH_KEY !== null && FA_SWITCH_GAME_COUNT === FA_SWITCH_COUNT;
+  const N4_SKIP = FA_SWITCH_ALL_GAME
+    ? 'skipped: switch category is entirely game-badged (game-only filter hides nothing)'
+    : FA_SWITCH_SKIP;
+  if (FA_SWITCH_KEY && !FA_SWITCH_ALL_GAME) {
+    await page.click('#tag-' + FA_SWITCH_KEY); await page.waitForTimeout(300);
+    const gameAfterTagSwitch = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('.fa-card')];
+      const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
+      return {
+        total: cards.length,
+        visible: visible.length,
+        countText: document.getElementById('fa-view-count')?.textContent || ''
+      };
+    });
+    add('fa', 'N4-game-persists-after-tag-switch',
+        gameAfterTagSwitch.total === FA_SWITCH_COUNT && gameAfterTagSwitch.visible === FA_SWITCH_GAME_COUNT && gameCountRe.test(gameAfterTagSwitch.countText),
+        `${FA_SWITCH_KEY} total=${gameAfterTagSwitch.total} (expected(content) ${FA_SWITCH_COUNT}), visible=${gameAfterTagSwitch.visible} (expected(content) ${FA_SWITCH_GAME_COUNT}), count="${gameAfterTagSwitch.countText}"`);
+    await page.click('#lang-toggle'); await page.waitForTimeout(300);
+    const gameAfterLangSwitch = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('.fa-card')];
+      const visible = cards.filter(card => !card.hidden && getComputedStyle(card).display !== 'none');
+      return {
+        total: cards.length,
+        visible: visible.length,
+        countText: document.getElementById('fa-view-count')?.textContent || ''
+      };
+    });
+    add('fa', 'N4-game-persists-after-lang-switch',
+        gameAfterLangSwitch.total === FA_SWITCH_COUNT && gameAfterLangSwitch.visible === FA_SWITCH_GAME_COUNT && gameCountRe.test(gameAfterLangSwitch.countText),
+        `${FA_SWITCH_KEY} total=${gameAfterLangSwitch.total} (expected(content) ${FA_SWITCH_COUNT}), visible=${gameAfterLangSwitch.visible} (expected(content) ${FA_SWITCH_GAME_COUNT}), count="${gameAfterLangSwitch.countText}"`);
+    await page.click('#lang-toggle'); await page.waitForTimeout(200);
+  } else {
+    add('fa', 'N4-game-persists-after-tag-switch', true, N4_SKIP, true);
+    add('fa', 'N4-game-persists-after-lang-switch', true, N4_SKIP, true);
+  }
   await page.click('.game-switch__track'); await page.waitForTimeout(200);
 
   // M3 — single fetch per click (downloadAsset)
@@ -1607,11 +1817,20 @@ async function testMobileViewport(BASE) {
 
   if (server) server.close();
 
-  const pass = results.filter(r => r.pass).length;
+  // Skips pass but are not "real" PASSes — count them separately so a degraded
+  // catalog (e.g. categories hidden via the admin) is honest about how many
+  // checks actually ran. A skipped check never counts as FAIL (AGENTS.md: 0
+  // FAIL == success), so legitimate degraded states still publish.
   const fail = results.filter(r => !r.pass).length;
+  const skip = results.filter(r => r.pass && r.skipped).length;
+  const pass = results.filter(r => r.pass && !r.skipped).length;
   console.log('\n══════════════════════════════════════════════════════════════════');
-  console.log(`  SUMMARY: ${pass}/${results.length} PASS, ${fail} FAIL`);
+  console.log(`  SUMMARY: ${pass}/${results.length} PASS, ${fail} FAIL, ${skip} SKIPPED`);
   console.log('══════════════════════════════════════════════════════════════════');
+  if (skip) {
+    console.log('Skipped (dormant on this content):');
+    results.filter(r => r.pass && r.skipped).forEach(r => console.log(`  [${r.suite}] ${r.name}: ${r.detail}`));
+  }
   if (fail) {
     console.log('Failures:');
     results.filter(r => !r.pass).forEach(r => console.log(`  [${r.suite}] ${r.name}: ${r.detail}`));

@@ -9,8 +9,29 @@
 (function() {
 'use strict';
 
-/* ─── TAG SELECTION ─── */
-var activeTag = 'hard-surface';
+/* ─── TAG SELECTION ───
+   Итерация H + XSS/visibility batch: каталог редактируется через админку
+   (content/free-assets.json), категории и ассеты можно выключать. Tag-карточки
+   обзорной сетки теперь ГЕНЕРИРУЮТСЯ из видимых категорий (GEN-регион
+   fa-tag-cards в free-assets.html, порядок = авторский порядок content), то
+   есть выключенная категория ОТСУТСТВУЕТ в DOM ещё на этапе сборки — рантайму
+   больше не нужно её прятать. Поэтому стартовый тег = data-tag первой
+   отрисованной .tag-card (детерминированно следует порядку content; при полном
+   каталоге это hard-surface, поведение не меняется), а счётчик #cards-count
+   main.js считает по уже видимо-корректному NodeList без патчей. */
+function firstAvailableTag() {
+  var firstCard = document.querySelector('.tag-card[data-tag]');
+  if (firstCard && firstCard.dataset.tag) return firstCard.dataset.tag;
+  // Фоллбек (DOM без tag-карточек, напр. в тестах): первая видимая категория
+  // FA_DATA. Порядок ключей FA_DATA = авторский порядок content.
+  var keys = Object.keys(FA_DATA);
+  for (var i = 0; i < keys.length; i++) {
+    if ((FA_DATA[keys[i]] || []).length) return keys[i];
+  }
+  return null;
+}
+
+var activeTag = firstAvailableTag();
 
 function selectTag(tag, opts) {
   var noCollapse = opts && opts.noCollapse;
@@ -48,6 +69,16 @@ function dlIcon() {
   return '<svg class="fa-card__dl-icon" viewBox="0 0 14 14" fill="none" aria-hidden="true">'
     + '<path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>'
     + '</svg>';
+}
+
+/* Security boundary (iteration H): asset.title/size are free-text admin fields
+   (validated only as non-empty), so they must NEVER be concatenated into
+   innerHTML. setDownloadLabel renders the fixed icon markup, then appends the
+   owner-controlled label as a textContent node — no HTML parsing of user text.
+   The icon SVG is a hardcoded literal and safe to set via innerHTML. */
+function setDownloadLabel(btn, label) {
+  btn.innerHTML = dlIcon();
+  btn.appendChild(document.createTextNode(label));
 }
 
 function el(tag, className, text) {
@@ -162,7 +193,7 @@ function createAssetBody(asset) {
   download.dataset.title = asset.title;
   download.dataset.size = asset.size;
   download.setAttribute('aria-label', 'Download ' + asset.title);
-  download.innerHTML = dlIcon() + 'Download — ' + asset.size;
+  setDownloadLabel(download, 'Download — ' + asset.size);
   download.addEventListener('click', handleDownload);
 
   return append(el('div', 'fa-card__body'),
@@ -284,9 +315,12 @@ function handleDownload(e) {
   var title = btn.getAttribute('data-title') || file;
   if (!file) return;
 
-  var origHTML = btn.innerHTML;
+  // Re-render the resting label from the asset's size (textContent node) so the
+  // restore path never re-parses owner text as HTML — defense in depth.
+  var size = btn.getAttribute('data-size') || '';
+  var origLabel = 'Download — ' + size;
   btn.disabled = true;
-  btn.innerHTML = dlIcon() + 'Preparing…';
+  setDownloadLabel(btn, 'Preparing…');
 
   fetch('./downloads/' + file, { method: 'GET' })
     .then(function(res) {
@@ -302,10 +336,10 @@ function handleDownload(e) {
       a.click();
       setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 500);
       btn.disabled = false;
-      btn.innerHTML = dlIcon() + title + ' — downloaded ✓';
+      setDownloadLabel(btn, title + ' — downloaded ✓');
       btn.classList.add('fa-card__download--done');
       setTimeout(function() {
-        btn.innerHTML = origHTML;
+        setDownloadLabel(btn, origLabel);
         btn.classList.remove('fa-card__download--done');
         /* v0.4 [M3]: убран лишний btn.addEventListener('click', handleDownload).
            Оригинальный обработчик не снимался — повторная подписка вызывала бы fetch дважды. */
@@ -314,10 +348,10 @@ function handleDownload(e) {
     .catch(function(err) {
       console.warn('Download failed:', err);
       btn.disabled = false;
-      btn.innerHTML = dlIcon() + 'File not found — check ./downloads/';
+      setDownloadLabel(btn, 'File not found — check ./downloads/');
       btn.classList.add('fa-card__download--error');
       setTimeout(function() {
-        btn.innerHTML = origHTML;
+        setDownloadLabel(btn, origLabel);
         btn.classList.remove('fa-card__download--error');
         /* v0.4 [M3]: убран лишний btn.addEventListener — см. выше. */
       }, 3500);
@@ -459,10 +493,14 @@ function observeModelViewers() {
 
 /* ─── INIT ─── */
 document.addEventListener('DOMContentLoaded', function() {
+  // XSS/visibility batch: tag-карточки выключенных категорий теперь
+  // отсутствуют в DOM уже на этапе сборки (GEN-регион fa-tag-cards), поэтому
+  // прежний runtime-прунинг (pruneHiddenTagCards) и патч счётчика больше не
+  // нужны — main.js считает #cards-count по видимо-корректному NodeList сам.
   bindTagCards();
   // Initial load: pre-select first category but DO NOT collapse sidebar on mobile.
   // User should land on the tag-cards overview, not inside a category.
-  selectTag('hard-surface', { noCollapse: true });
+  if (activeTag) selectTag(activeTag, { noCollapse: true });
 
   /* Phase 3 — re-render FA grid при смене языка. i18n.js overlayFA() уже
      мутировал window.FA_DATA для нового языка; renderGrid(activeTag) пере-

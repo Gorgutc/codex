@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════════════════════════
-     admin/index.html — Codex Studio, админ-панель (итерации D–G).
+     admin/index.html — Codex Studio, админ-панель (итерации D–H).
 
      Назначение: вход (GitHub OAuth / PAT), редактирование текстов RU/EN
      кейсов, мета-тегов и текстов интерфейса. Публикация = один atomic-коммит
@@ -8,6 +8,9 @@
      .github/workflows/content-publish.yml (итерация C).
      Итерация G: «Предпросмотр» — настоящий index.html сайта рендерится в
      same-origin iframe (srcdoc) с наложенным черновиком до публикации.
+     Итерация H: экран «Free Assets» — каталог content/free-assets.json
+     (тексты, архив, GLB/SVG-превью, видимость и порядок); в предпросмотр
+     каталог пока не входит.
 
      НЕ ссылается ни с одной публичной страницы сайта; robots.txt закрывает
      /admin/ от индексации. Classic scripts, без сборки и фреймворков.
@@ -27,6 +30,7 @@
     <nav class="topbar__nav" aria-label="Разделы админ-панели">
       <a href="#/cases" data-nav="cases">Кейсы</a>
       <a href="#/categories" data-nav="categories">Категории</a>
+      <a href="#/free-assets" data-nav="free-assets">Free Assets</a>
       <a href="#/meta" data-nav="meta">Мета-теги</a>
       <a href="#/ui" data-nav="ui">Тексты интерфейса</a>
     </nav>

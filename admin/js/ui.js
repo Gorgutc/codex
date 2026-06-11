@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   ui.js — представления и маршрутизация админ-панели (итерации D–F).
+   ui.js — представления и маршрутизация админ-панели (итерации D–H).
 
    Экраны (hash-роутер, «одна задача — один экран»):
      #/login (без токена)  — вход: GitHub OAuth или PAT;
@@ -9,6 +9,11 @@
                              (миниатюра, слоты, motion-блоки, GLB-модель) +
                              порядок блоков (layoutMode seeded/manual);
      #/categories          — категории: вкл/выкл фильтров сайта;
+     #/free-assets         — каталог Free Assets: группы категорий, вкл/выкл
+                             и порядок категорий и ассетов (итерация H);
+     #/free-assets/<id>    — редактор ассета: тексты, архив, фон, замена
+                             GLB-превью и SVG-постера (конвенция thumb/model:
+                             поле отсутствует → id, null → выключено);
      #/meta                — мета-теги + OG-изображения (content/meta.json);
      #/ui                  — тексты интерфейса (content/i18n-ui.json).
 
@@ -33,6 +38,7 @@
   const State = window.AdminState;
 
   const SETTINGS_PATH = 'content/settings.json';
+  const FA_PATH = 'content/free-assets.json';
   // Формат слота фиксирован позицией в раскладке сайта (MEDIA_FORMATS
   // генератора): 1 и 4 — широкие, 2/3/5 — высокие.
   const SLOT_FORMATS = ['широкий', 'высокий', 'высокий', 'широкий', 'высокий'];
@@ -147,6 +153,20 @@
     if (i === from) return to;
     if (from < to) return i > from && i <= to ? i - 1 : i;
     return i >= to && i < from ? i + 1 : i;
+  }
+
+  // Переезд pending-медиа при перестановке элементов массива: dot-пути с
+  // индексом в указанной позиции (capture group `slot` в regex) сдвигаются
+  // через movedIndex. `build(match, newIndex)` собирает новый dot-путь;
+  // `accept(match)` (необязательно) отбраковывает чужие пути (например медиа
+  // другой категории). Делит общую механику между всеми FA/кейс-моверами.
+  function remapListIndex(filePath, regex, slot, from, to, build, accept) {
+    State.remapMediaEdits(filePath, (dot) => {
+      const match = dot.match(regex);
+      if (!match) return dot;
+      if (accept && !accept(match)) return dot;
+      return build(match, movedIndex(Number(match[slot]), from, to));
+    });
   }
 
   // Ручка ⠿ (крупная зона захвата для SortableJS) + кнопки «вверх/вниз»
@@ -271,13 +291,18 @@
   }
 
   // Drop-зона поверх текущего медиа (принцип 6 research.md).
-  // opts: { filePath, dotPath, kind ('image'|'ogImage'|'video'|'model'),
+  // opts: { filePath, dotPath, kind ('image'|'ogImage'|'video'|'model'|'faThumb'),
   //         namingPath  — слот-«назначение»: папка и базовое имя нового файла,
   //         currentPath — текущий файл на GitHub или null,
   //         preview     — 'image' | 'video' | 'file',
-  //         hint        — строка с целевыми размерами/форматами }
+  //         hint        — строка с целевыми размерами/форматами,
+  //         valueMode   — 'baseName' для слотов free-assets (в JSON пишется
+  //                       базовое имя, не путь; см. State.stageMedia),
+  //         resolveValue— значение поля → site-путь файла (для превью и
+  //                       строки пути; по умолчанию значение УЖЕ путь) }
   function dropZone(opts) {
     const rule = State.getMediaRule(opts.kind);
+    const resolveValue = opts.resolveValue || ((value) => value);
     // tabindex="-1": единственный tab-stop слота — сам file-input (он
     // накрывает зону целиком); видимый фокус рисует .drop-zone:focus-within.
     const zone = el('div', { className: 'drop-zone', tabindex: '-1' });
@@ -294,7 +319,12 @@
     function render() {
       const record = State.getMediaEdit(opts.filePath, opts.dotPath);
       const draftValue = State.getValue(opts.filePath, opts.dotPath);
-      const effective = record ? record.value : draftValue || opts.currentPath;
+      // record.value / draftValue проходят через resolveValue (для FA это
+      // базовое имя → путь); opts.currentPath — уже готовый site-путь.
+      let effective;
+      if (record) effective = resolveValue(record.value);
+      else if (draftValue !== undefined && draftValue !== null && draftValue !== '') effective = resolveValue(draftValue);
+      else effective = opts.currentPath || null;
       const url = record ? record.objectURL : effective ? toAdminAssetPath(effective) : null;
 
       zone.replaceChildren();
@@ -337,7 +367,8 @@
           opts.kind,
           opts.namingPath,
           opts.currentPath,
-          file
+          file,
+          opts.valueMode
         );
         if (result.unchanged) {
           toast('Этот файл уже опубликован под тем же именем — заменять нечего.', 'info');
@@ -345,6 +376,10 @@
           toast(result.warning, 'warn');
         }
         render();
+        // Итерация H: слоту free-assets нужно снять блокирующую ошибку
+        // «файла ещё нет» — после staging файл существует (в памяти или
+        // уже опубликован под тем же именем).
+        if (opts.onStaged) opts.onStaged(result);
       } catch (error) {
         toast(error && error.message ? error.message : 'Не удалось подготовить файл.', 'error');
       }
@@ -378,10 +413,22 @@
 
   /* ── ошибки валидации, привязанные к полям ───────────────────────── */
 
-  function hashForPath(path) {
+  function hashForPath(path, field) {
     if (path === 'content/meta.json') return '#/meta';
     if (path === 'content/i18n-ui.json') return '#/ui';
     if (path === 'content/settings.json') return '#/cases';
+    if (path === FA_PATH) {
+      // Ошибка уровня ассета → его редактор (поля живут только там);
+      // ошибка уровня каталога → список Free Assets.
+      const itemMatch = String(field || '').match(/^categories\.(\d+)\.items\.(\d+)\./);
+      if (itemMatch) {
+        const categories = State.getValue(FA_PATH, 'categories') || [];
+        const category = categories[Number(itemMatch[1])];
+        const item = category && Array.isArray(category.items) ? category.items[Number(itemMatch[2])] : null;
+        if (item && item.id) return '#/free-assets/' + encodeURIComponent(item.id);
+      }
+      return '#/free-assets';
+    }
     const match = path.match(/^content\/cases\/(.+)\.json$/);
     return match ? '#/case/' + encodeURIComponent(match[1]) : '#/cases';
   }
@@ -815,6 +862,567 @@
     );
   }
 
+  /* ── Free Assets (итерация H): каталог, видимость, порядок ───────── */
+
+  // Свёрнутость групп категорий переживает перерисовки экрана (не вкладку).
+  const faCollapsed = new Set();
+
+  function faCategories() {
+    return State.getValue(FA_PATH, 'categories') || [];
+  }
+
+  function faItemVisible(category, item) {
+    return category.enabled !== false && item.enabled !== false;
+  }
+
+  // Видимых ассетов в каталоге; skipCategoryIndex (число) — категория,
+  // которую считаем выключенной (предпросмотр выключения). Делит единый
+  // предикат с валидатором — см. State.countVisibleFaAssets.
+  function faVisibleTotal(skipCategoryIndex) {
+    return State.countVisibleFaAssets(
+      faCategories(),
+      typeof skipCategoryIndex === 'number' ? { skipCategoryIndex } : undefined
+    );
+  }
+
+  async function renderFreeAssets() {
+    els.app.replaceChildren(el('p', { className: 'empty-note', text: 'Загружаем каталог Free Assets с GitHub…' }));
+    await State.ensureFile(FA_PATH);
+
+    const list = el('div', { className: 'fa-cat-list', id: 'fa-cat-list' });
+
+    function moveCategory(from, to, focusKey) {
+      const categories = faCategories();
+      if (from === to || to < 0 || to >= categories.length) return;
+      State.setValue(FA_PATH, 'categories', movedArray(categories, from, to));
+      remapListIndex(
+        FA_PATH,
+        /^categories\.(\d+)\.(.+)$/,
+        1,
+        from,
+        to,
+        (match, newIndex) => 'categories.' + newIndex + '.' + match[2]
+      );
+      toast('Порядок сохранён в черновик', 'info');
+      renderRows();
+      focusReorder(focusKey);
+    }
+
+    function moveItem(categoryIndex, from, to, focusKey) {
+      const items = State.getValue(FA_PATH, 'categories.' + categoryIndex + '.items') || [];
+      if (from === to || to < 0 || to >= items.length) return;
+      State.setValue(FA_PATH, 'categories.' + categoryIndex + '.items', movedArray(items, from, to));
+      remapListIndex(
+        FA_PATH,
+        /^categories\.(\d+)\.items\.(\d+)\.(.+)$/,
+        2,
+        from,
+        to,
+        (match, newIndex) => 'categories.' + match[1] + '.items.' + newIndex + '.' + match[3],
+        (match) => Number(match[1]) === categoryIndex
+      );
+      toast('Порядок сохранён в черновик', 'info');
+      renderRows();
+      focusReorder(focusKey);
+    }
+
+    function toggleItem(categoryIndex, itemIndex, next, input) {
+      const category = faCategories()[categoryIndex];
+      const item = (category.items || [])[itemIndex];
+      if (!next && faItemVisible(category, item) && faVisibleTotal() <= 1) {
+        toast('Нельзя скрыть последний видимый ассет — каталог Free Assets на сайте останется пустым.', 'error');
+        input.checked = true;
+        return;
+      }
+      const dot = 'categories.' + categoryIndex + '.items.' + itemIndex + '.enabled';
+      // Включение возвращает конвенцию «поле отсутствует = включено» —
+      // черновик без других правок снова чистый.
+      if (next) State.deleteValue(FA_PATH, dot);
+      else State.setValue(FA_PATH, dot, false);
+      renderRows();
+    }
+
+    function toggleCategory(categoryIndex, next, input) {
+      const category = faCategories()[categoryIndex];
+      if (!next && faVisibleTotal(categoryIndex) === 0) {
+        toast('Нельзя выключить категорию «' + category.key + '» — на сайте не останется ни одного видимого ассета.', 'error');
+        input.checked = true;
+        return;
+      }
+      const dot = 'categories.' + categoryIndex + '.enabled';
+      if (next) State.deleteValue(FA_PATH, dot);
+      else State.setValue(FA_PATH, dot, false);
+      renderRows();
+    }
+
+    function itemRow(category, categoryIndex, item, itemIndex, count) {
+      const enabledFlag = item.enabled !== false;
+      const catEnabled = category.enabled !== false;
+      const toggleInput = el('input', {
+        type: 'checkbox',
+        'data-fa-item-toggle': item.id,
+        'aria-label': enabledFlag ? 'Ассет «' + item.title + '» включён' : 'Ассет «' + item.title + '» скрыт'
+      });
+      toggleInput.checked = enabledFlag;
+      toggleInput.addEventListener('change', () => toggleItem(categoryIndex, itemIndex, toggleInput.checked, toggleInput));
+      return el(
+        'li',
+        { className: 'case-row fa-item-row' + (!enabledFlag || !catEnabled ? ' case-row--off' : ''), 'data-fa-item': item.id },
+        [
+          reorderControls({
+            label: 'Ассет «' + item.title + '»',
+            index: itemIndex,
+            count,
+            focusKey: 'fa-item::' + item.id,
+            onMove: (from, to, focusKey) => moveItem(categoryIndex, from, to, focusKey)
+          }),
+          el('a', { className: 'case-row__link', href: '#/free-assets/' + encodeURIComponent(item.id) }, [
+            el('div', {}, [
+              el('p', { className: 'case-row__title', text: item.title }),
+              el('span', { className: 'case-row__id', text: item.id + ' · ' + item.size + ' · ' + item.file })
+            ])
+          ]),
+          el('div', { className: 'case-row__meta' }, [
+            !enabledFlag ? el('span', { className: 'badge badge--off', text: 'скрыто' }) : null,
+            !catEnabled ? el('span', { className: 'badge badge--off', text: 'категория скрыта' }) : null,
+            el('span', { text: item.badge }),
+            el('label', { className: 'switch', title: enabledFlag ? 'Скрыть ассет с сайта' : 'Показать ассет на сайте' }, [
+              toggleInput,
+              el('span', { className: 'switch__track', 'aria-hidden': 'true' })
+            ])
+          ])
+        ]
+      );
+    }
+
+    function categorySection(category, categoryIndex, count) {
+      const enabled = category.enabled !== false;
+      const items = category.items || [];
+      const visibleItems = items.filter((item) => item.enabled !== false).length;
+      const collapsed = faCollapsed.has(category.key);
+
+      const toggleInput = el('input', {
+        type: 'checkbox',
+        'data-fa-category-toggle': category.key,
+        'aria-label': enabled ? 'Категория «' + category.key + '» включена' : 'Категория «' + category.key + '» скрыта'
+      });
+      toggleInput.checked = enabled;
+      toggleInput.addEventListener('change', () => toggleCategory(categoryIndex, toggleInput.checked, toggleInput));
+
+      const itemsList = el('ul', { className: 'fa-cat__items', hidden: collapsed });
+      items.forEach((item, itemIndex) => itemsList.appendChild(itemRow(category, categoryIndex, item, itemIndex, items.length)));
+      makeSortable(itemsList, '.fa-item-row', (from, to) => moveItem(categoryIndex, from, to, null));
+
+      const collapseBtn = el(
+        'button',
+        {
+          type: 'button',
+          className: 'fa-cat__collapse',
+          'aria-expanded': collapsed ? 'false' : 'true',
+          'data-fa-collapse': category.key
+        },
+        [
+          el('span', { className: 'fa-cat__chevron', 'aria-hidden': 'true', text: collapsed ? '▸' : '▾' }),
+          el('span', { className: 'fa-cat__label', text: (items[0] && items[0].cat) || category.key }),
+          el('span', {
+            className: 'fa-cat__count',
+            text: category.key + ' · ассетов: ' + items.length + (visibleItems !== items.length ? ' · видимых: ' + visibleItems : '')
+          })
+        ]
+      );
+      collapseBtn.addEventListener('click', () => {
+        if (faCollapsed.has(category.key)) faCollapsed.delete(category.key);
+        else faCollapsed.add(category.key);
+        renderRows();
+      });
+
+      return el('section', { className: 'fa-cat' + (enabled ? '' : ' fa-cat--off'), 'data-fa-category': category.key }, [
+        el('div', { className: 'fa-cat__head' }, [
+          reorderControls({
+            label: 'Категория «' + category.key + '»',
+            index: categoryIndex,
+            count,
+            focusKey: 'fa-cat::' + category.key,
+            onMove: moveCategory
+          }),
+          collapseBtn,
+          el('div', { className: 'case-row__meta' }, [
+            !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
+            el('label', {
+              className: 'switch',
+              title: enabled ? 'Скрыть категорию и все её ассеты с сайта' : 'Показать категорию на сайте'
+            }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })])
+          ])
+        ]),
+        itemsList
+      ]);
+    }
+
+    // Бейдж «черновик» в шапке должен отражать ЖИВОЕ состояние черновика:
+    // экран строится один раз, а renderRows() перерисовывает только список,
+    // поэтому badge обновляем тем же вызовом, что и список (тоглы/перестановки
+    // его уже зовут). Согласован с topbar #draft-indicator.
+    const draftBadgeSlot = el('span', { className: 'view-head__badge-slot' });
+    function refreshDraftBadge() {
+      draftBadgeSlot.replaceChildren();
+      if (State.hasDraft(FA_PATH)) {
+        draftBadgeSlot.appendChild(el('span', { className: 'badge badge--draft', text: 'черновик' }));
+      }
+    }
+
+    function renderRows() {
+      list.replaceChildren();
+      const categories = faCategories();
+      categories.forEach((category, categoryIndex) => {
+        list.appendChild(categorySection(category, categoryIndex, categories.length));
+      });
+      refreshDraftBadge();
+    }
+
+    renderRows();
+    makeSortable(list, '.fa-cat', (from, to) => moveCategory(from, to, null));
+
+    els.app.replaceChildren(
+      el('section', { className: 'fa-screen' }, [
+        el('div', { className: 'view-head' }, [
+          el('h1', { text: 'Free Assets' }),
+          el('span', { className: 'view-head__hint', text: 'каталог бесплатных ассетов · content/free-assets.json' }),
+          draftBadgeSlot
+        ]),
+        el('p', {
+          className: 'hint',
+          text: 'Предпросмотр для Free Assets пока не поддерживается — проверяйте изменения на сайте после публикации.'
+        }),
+        el('p', {
+          className: 'hint',
+          text:
+            'Порядок категорий и ассетов на сайте повторяет порядок списков: перетащите за ⠿ или используйте кнопки ↑/↓. ' +
+            'Выключатель скрывает ассет или категорию целиком (файлы не удаляются) — ' +
+            'счётчики на карточках категорий сайта пересчитываются автоматически при публикации.'
+        }),
+        list
+      ])
+    );
+  }
+
+  /* ── Free Assets: редактор ассета ────────────────────────────────── */
+
+  function faFindItem(id) {
+    const categories = faCategories();
+    for (let ci = 0; ci < categories.length; ci += 1) {
+      const items = categories[ci].items || [];
+      for (let ii = 0; ii < items.length; ii += 1) {
+        if (items[ii].id === id) return { category: categories[ci], item: items[ii], ci, ii };
+      }
+    }
+    return null;
+  }
+
+  function faTextField(label, dotPath, opts) {
+    const wrap = el('div', { className: 'pair' }, [
+      el('div', { className: 'pair__label', text: label }),
+      el('div', { className: 'pair__col' }, [langInput(FA_PATH, dotPath, opts)])
+    ]);
+    if (opts && opts.hint) wrap.appendChild(el('p', { className: 'hint', text: opts.hint }));
+    return wrap;
+  }
+
+  // Поле фона карточки: CSS-градиент строкой + живой образец рядом.
+  function faBgField(dotBase) {
+    // langInput уже даёт data-field, начальное значение и input-листенер
+    // (setValue + clearFieldError); добавляем только покраску образца.
+    const input = langInput(FA_PATH, dotBase + '.bg');
+    const swatch = el('span', { className: 'bg-swatch', 'aria-hidden': 'true' });
+    function paint() {
+      swatch.style.background = '';
+      swatch.style.background = input.value;
+    }
+    input.addEventListener('input', paint);
+    paint();
+    return el('div', { className: 'pair' }, [
+      el('div', { className: 'pair__label', text: 'Фон превью (CSS-градиент)' }),
+      el('div', { className: 'pair__col fa-bg-row' }, [input, swatch]),
+      el('p', {
+        className: 'hint',
+        text: 'Строка CSS как есть, например «linear-gradient(135deg,#1e2d3d 0,#2a3a4a 100%)» — образец справа обновляется по мере ввода.'
+      })
+    ]);
+  }
+
+  // Список «архив содержит»: добавление, удаление, порядок строк.
+  function faContentsEditor(dotBase) {
+    const dot = dotBase + '.contents';
+    const rows = el('div', { className: 'fa-contents__rows' });
+    const wrap = el('div', { className: 'fa-contents', 'data-field': FA_PATH + '::' + dot });
+
+    function values() {
+      return (State.getValue(FA_PATH, dot) || []).slice();
+    }
+
+    function moveRow(from, to, focusKey) {
+      const current = values();
+      if (from === to || to < 0 || to >= current.length) return;
+      State.setValue(FA_PATH, dot, movedArray(current, from, to));
+      renderRows();
+      focusReorder(focusKey);
+    }
+
+    function renderRows() {
+      rows.replaceChildren();
+      const current = values();
+      current.forEach((value, i) => {
+        const input = el('input', { type: 'text', 'aria-label': 'Строка ' + (i + 1) + ' списка «архив содержит»' });
+        input.value = value === undefined || value === null ? '' : String(value);
+        input.addEventListener('input', () => {
+          State.setValue(FA_PATH, dot + '.' + i, input.value);
+          clearFieldError(wrap);
+        });
+        const removeBtn = el('button', {
+          type: 'button',
+          className: 'btn btn--ghost fa-contents__remove',
+          'aria-label': 'Строка ' + (i + 1) + ' — удалить',
+          text: 'удалить'
+        });
+        removeBtn.addEventListener('click', () => {
+          const next = values();
+          next.splice(i, 1);
+          State.setValue(FA_PATH, dot, next);
+          renderRows();
+        });
+        rows.appendChild(
+          el('div', { className: 'fa-contents__row' }, [
+            reorderControls({ label: 'Строка ' + (i + 1), index: i, count: current.length, focusKey: 'fa-contents::' + i, onMove: moveRow }),
+            input,
+            removeBtn
+          ])
+        );
+      });
+    }
+
+    const addBtn = el('button', { type: 'button', className: 'btn', id: 'fa-contents-add', text: '+ Добавить строку' });
+    addBtn.addEventListener('click', () => {
+      State.setValue(FA_PATH, dot, values().concat(['']));
+      renderRows();
+      const inputs = rows.querySelectorAll('input');
+      if (inputs.length > 0) inputs[inputs.length - 1].focus();
+    });
+
+    renderRows();
+    wrap.appendChild(el('label', { text: 'Архив содержит (по строке на пункт)' }));
+    wrap.appendChild(rows);
+    wrap.appendChild(addBtn);
+    return wrap;
+  }
+
+  // Опубликованное (base, не draft) состояние ассета — по id, потому что
+  // порядок items в черновике мог поменяться и индексы draft ≠ индексы base.
+  function faBaseItem(id) {
+    const entry = State.getEntry(FA_PATH);
+    const categories = entry && entry.base && Array.isArray(entry.base.categories) ? entry.base.categories : [];
+    for (const category of categories) {
+      const items = Array.isArray(category.items) ? category.items : [];
+      for (const item of items) {
+        if (item && item.id === id) return item;
+      }
+    }
+    return null;
+  }
+
+  // Блокирующие ошибки медиа-слотов free-assets: «включили слот, а файла в
+  // репозитории нет». Ключ — id + '::' + thumb|model (не dot-путь: индексы
+  // черновика меняются при перестановках). onPublishClick добавляет эти
+  // ошибки к State.validateAll() — публикация блокируется как при любой
+  // другой ошибке поля.
+  const faMediaErrors = new Map();
+
+  // Тогл «3D-превью» / «постер» (конвенция thumb/model в free-assets.json:
+  // поле отсутствует → файл по умолчанию = id, null → выключено, строка →
+  // базовое имя). Выключение сбрасывает и pending-загрузку слота.
+  function faMediaSection(id, dotBase, key, opts, rerender) {
+    const dot = dotBase + '.' + key;
+    const errorKey = id + '::' + key;
+    const draftItem = faFindItem(id);
+    const item = draftItem ? draftItem.item : {};
+    const pending = State.getMediaEdit(FA_PATH, dot);
+    const base = key in item ? item[key] : item.id;
+    const enabled = Boolean(pending) || base !== null;
+
+    const toggleInput = el('input', {
+      type: 'checkbox',
+      'data-fa-media-toggle': key,
+      'aria-label': opts.toggleLabel + (enabled ? ' — включено' : ' — выключено')
+    });
+    toggleInput.checked = enabled;
+    toggleInput.addEventListener('change', () => {
+      if (toggleInput.checked) {
+        // Включение: если в опубликованном файле у слота было кастомное
+        // базовое имя ({id}-{hash8} после прошлой загрузки) — возвращаем
+        // именно его; ключ удаляем (файл по умолчанию <id>.<ext>) только
+        // когда в base ключа не было вовсе.
+        const baseItem = faBaseItem(id);
+        const baseValue = baseItem && typeof baseItem[key] === 'string' && baseItem[key] ? baseItem[key] : null;
+        if (baseValue) State.setValue(FA_PATH, dot, baseValue);
+        else State.deleteValue(FA_PATH, dot);
+        const checkPath = opts.resolveValue(baseValue || id);
+        fetch(toAdminAssetPath(checkPath), { method: 'HEAD' })
+          .then((res) => {
+            // Пока шёл HEAD-запрос состояние слота могло измениться: слот
+            // выключили (null) ЛИБО появилась staged-загрузка — в обоих
+            // случаях ошибка «файла нет» неактуальна (staged-файл уйдёт в
+            // коммит). Снимаем возможную ошибку и не навешиваем новую.
+            if (State.getValue(FA_PATH, dot) === null || State.getMediaEdit(FA_PATH, dot)) {
+              if (faMediaErrors.delete(errorKey)) rerender();
+              return;
+            }
+            // Перерисовываем только при реальном изменении карты ошибок —
+            // иначе HEAD на существующий файл крал бы фокус/каретку у
+            // печатающего владельца лишним перестроением редактора.
+            if (!res.ok) {
+              const message =
+                'Файла ' + checkPath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+              if (faMediaErrors.get(errorKey) !== message) {
+                faMediaErrors.set(errorKey, message);
+                rerender();
+              }
+            } else if (faMediaErrors.delete(errorKey)) {
+              rerender();
+            }
+          })
+          .catch(() => {});
+      } else {
+        faMediaErrors.delete(errorKey);
+        State.discardMediaEdit(FA_PATH, dot);
+        State.setValue(FA_PATH, dot, null);
+      }
+      rerender();
+    });
+
+    const section = el('div', { className: 'fa-media-slot', 'data-field': FA_PATH + '::' + dot }, [
+      el('label', { className: 'fa-media-toggle' }, [
+        el('span', { className: 'switch' }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]),
+        el('span', { text: opts.toggleLabel })
+      ])
+    ]);
+    if (enabled) {
+      section.appendChild(
+        dropZone({
+          filePath: FA_PATH,
+          dotPath: dot,
+          kind: opts.kind,
+          valueMode: 'baseName',
+          namingPath: opts.resolveValue(id),
+          currentPath: base ? opts.resolveValue(base) : null,
+          resolveValue: opts.resolveValue,
+          preview: opts.preview,
+          label: opts.zoneLabel,
+          hint: opts.hint,
+          onStaged: () => {
+            if (faMediaErrors.delete(errorKey)) rerender();
+          }
+        })
+      );
+    } else {
+      section.appendChild(el('p', { className: 'hint', text: opts.offHint }));
+    }
+    const errorMessage = faMediaErrors.get(errorKey);
+    if (!errorMessage) return section;
+    // Ошибка рисуется как у обычных полей: рамка + .field-error-msg сразу
+    // ПОСЛЕ узла с data-field (applyPendingErrors тогда не дублирует текст).
+    section.classList.add('field-invalid');
+    return el('div', {}, [section, el('p', { className: 'field-error-msg', text: errorMessage })]);
+  }
+
+  async function renderFaItemEditor(id) {
+    els.app.replaceChildren(el('p', { className: 'empty-note', text: 'Загружаем каталог Free Assets с GitHub…' }));
+    await State.ensureFile(FA_PATH);
+    const found = faFindItem(id);
+    if (!found) {
+      renderError(new Error('Ассет «' + id + '» не найден в content/free-assets.json'));
+      return;
+    }
+    const dotBase = 'categories.' + found.ci + '.items.' + found.ii;
+
+    function rerender() {
+      const y = window.scrollY;
+      renderFaItemEditor(id).then(() => {
+        window.scrollTo(0, y);
+      });
+    }
+
+    const sections = [];
+    sections.push(
+      el('section', { className: 'editor-section' }, [
+        el('h2', { text: 'Карточка ассета' }),
+        faTextField('Название', dotBase + '.title'),
+        faTextField('Бейдж на превью', dotBase + '.badge'),
+        faTextField('Подпись категории на карточке', dotBase + '.cat', {
+          hint:
+            'Видимая подпись категории на самой карточке (например «Hard Surface»). ' +
+            'Принадлежность ассета категории каталога она не меняет.'
+        }),
+        pairField(FA_PATH, 'Описание', dotBase + '.desc.en', dotBase + '.desc.ru', { multiline: true })
+      ])
+    );
+
+    sections.push(
+      el('section', { className: 'editor-section' }, [
+        el('h2', { text: 'Архив' }),
+        faContentsEditor(dotBase),
+        faTextField('Размер архива', dotBase + '.size', {
+          hint: 'Строка как есть, например «48 MB» — показывается на кнопке скачивания.'
+        }),
+        faTextField('Файл архива', dotBase + '.file', {
+          hint:
+            'Имя ZIP в папке downloads/ репозитория (без папок). Сам архив через админку не загружается — ' +
+            'у GitHub лимит 100 МБ на файл; положите ZIP в downloads/ через git.'
+        })
+      ])
+    );
+
+    sections.push(el('section', { className: 'editor-section' }, [el('h2', { text: 'Оформление' }), faBgField(dotBase)]));
+
+    sections.push(
+      el('section', { className: 'editor-section' }, [
+        el('h2', { text: 'Медиа карточки' }),
+        faMediaSection(id, dotBase, 'model', {
+          kind: 'model',
+          preview: 'file',
+          toggleLabel: '3D-превью (вращающаяся модель)',
+          zoneLabel: 'GLB-файл 3D-превью',
+          hint: 'Только GLB · до 15 МБ (жёсткий предел 50 МБ) · файл получит новое имя вида ' + id + '-xxxxxxxx.glb',
+          offHint: '3D-превью выключено (model: null) — карточка покажет постер или фон.',
+          resolveValue: (b) => './assets/models/free/' + b + '.glb'
+        }, rerender),
+        faMediaSection(id, dotBase, 'thumb', {
+          kind: 'faThumb',
+          preview: 'image',
+          toggleLabel: 'Постер (SVG-картинка карточки)',
+          zoneLabel: 'SVG-постер карточки',
+          hint:
+            'Только SVG — сайт жёстко подставляет расширение .svg · до 200 КБ · ' +
+            'файл получит новое имя вида ' + id + '-xxxxxxxx.svg',
+          offHint: 'Постер выключен (thumb: null) — до загрузки 3D карточка покажет только фон.',
+          resolveValue: (b) => './assets/cards/' + b + '.svg'
+        }, rerender)
+      ])
+    );
+
+    els.app.replaceChildren(
+      el('section', {}, [
+        el('a', { className: 'back-link', href: '#/free-assets', text: '← К каталогу Free Assets' }),
+        el('div', { className: 'view-head' }, [
+          el('h1', { text: found.item.title }),
+          el('span', { className: 'view-head__hint', text: id + ' · категория ' + found.category.key })
+        ]),
+        el('p', {
+          className: 'hint',
+          text: 'Предпросмотр для Free Assets пока не поддерживается — проверяйте изменения на сайте после публикации.'
+        }),
+        el('div', {}, sections)
+      ])
+    );
+  }
+
   /* ── редактор кейса ──────────────────────────────────────────────── */
 
   function readOnlyTech(label, value, hint) {
@@ -976,11 +1584,7 @@
       State.setValue(path, 'case.srcs', movedArray(srcs, from, to));
       State.setValue(path, 'case.palette', movedArray(cs.palette, from, to));
       State.setValue(path, 'case.captions', movedArray(cs.captions, from, to));
-      State.remapMediaEdits(path, (dot) => {
-        const match = dot.match(/^case\.srcs\.(\d+)$/);
-        if (!match) return dot;
-        return 'case.srcs.' + movedIndex(Number(match[1]), from, to);
-      });
+      remapListIndex(path, /^case\.srcs\.(\d+)$/, 1, from, to, (_match, newIndex) => 'case.srcs.' + newIndex);
       toast('Порядок сохранён в черновик', 'info');
       rerender(focusKey);
     }
@@ -989,11 +1593,14 @@
       const blocks = State.getValue(path, 'case.motionBlocks') || [];
       if (from === to || to < 0 || to >= blocks.length) return;
       State.setValue(path, 'case.motionBlocks', movedArray(blocks, from, to));
-      State.remapMediaEdits(path, (dot) => {
-        const match = dot.match(/^case\.motionBlocks\.(\d+)\.(.+)$/);
-        if (!match) return dot;
-        return 'case.motionBlocks.' + movedIndex(Number(match[1]), from, to) + '.' + match[2];
-      });
+      remapListIndex(
+        path,
+        /^case\.motionBlocks\.(\d+)\.(.+)$/,
+        1,
+        from,
+        to,
+        (match, newIndex) => 'case.motionBlocks.' + newIndex + '.' + match[2]
+      );
       toast('Порядок сохранён в черновик', 'info');
       rerender(focusKey);
     }
@@ -1387,10 +1994,41 @@
       return;
     }
     const errors = State.validateAll();
+    // Итерация H (Fix #5): блокирующие ошибки медиа-слотов free-assets
+    // («файла ещё нет в репозитории») останавливают публикацию наравне с
+    // ошибками полей. Источник истины — НЕ in-memory faMediaErrors (он
+    // не переживает reload: черновик восстанавливается из sessionStorage, а
+    // карта ошибок — нет, и публикация уходила бы на сервер → checkAssetFile
+    // в CI падал бы → авто-revert). Вместо этого перечень missing-файлов
+    // пере-выводится из текущего состояния на КАЖДОЙ публикации
+    // (State.findMissingFaMediaFiles) и сетевую HEAD-проверку мы awaitим
+    // здесь — слот со staged-загрузкой проверку проходит (файл уйдёт в
+    // коммит). faMediaErrors при этом синхронизируем, чтобы поля подсветились.
+    let missingMedia;
+    try {
+      missingMedia = await State.findMissingFaMediaFiles((sitePath) =>
+        fetch(toAdminAssetPath(sitePath), { method: 'HEAD' }).then((res) => res.ok)
+      );
+    } catch (error) {
+      toast('Не удалось проверить файлы медиа: ' + (error.message || error), 'error');
+      return;
+    }
+    faMediaErrors.clear();
+    for (const slot of missingMedia) {
+      const errorKey = slot.id + '::' + slot.key;
+      const message =
+        'Файла ' + slot.sitePath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+      faMediaErrors.set(errorKey, message);
+      const found = faFindItem(slot.id);
+      const field = found
+        ? 'categories.' + found.ci + '.items.' + found.ii + '.' + slot.key
+        : 'categories';
+      errors.push({ path: FA_PATH, field, message });
+    }
     if (errors.length > 0) {
       toast('Публикация остановлена: заполните обязательные поля (ошибок: ' + errors.length + ').', 'error');
       pendingErrors = errors;
-      const target = hashForPath(errors[0].path);
+      const target = hashForPath(errors[0].path, errors[0].field);
       if (window.location.hash !== target) window.location.hash = target;
       else applyPendingErrors();
       return;
@@ -1460,6 +2098,8 @@
     const parts = hash.replace(/^#\/?/, '').split('/');
     try {
       if (parts[0] === 'case' && parts[1]) await renderCaseEditor(decodeURIComponent(parts[1]));
+      else if (parts[0] === 'free-assets' && parts[1]) await renderFaItemEditor(decodeURIComponent(parts[1]));
+      else if (parts[0] === 'free-assets') await renderFreeAssets();
       else if (parts[0] === 'categories') await renderCategories();
       else if (parts[0] === 'meta') await renderMetaEditor();
       else if (parts[0] === 'ui') await renderUiEditor();

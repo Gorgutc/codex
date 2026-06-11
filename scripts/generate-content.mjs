@@ -27,7 +27,9 @@
  *                                from meta.json structuredData ∩ visible cases)
  *   free-assets.html           — the head-meta and jsonld GEN regions
  *                                (Organization/WebPage/catalog ItemList images
- *                                and numberOfItems follow content/)
+ *                                and numberOfItems follow content/) plus the
+ *                                fa-filters GEN region (the FA tags-dropdown
+ *                                checkboxes with per-category item counts)
  *   sitemap.xml                — image:loc entries follow meta.json ogImages
  *
  * Visibility (iteration F): a case with enabled:false, and every case of a
@@ -35,6 +37,13 @@
  * cards-data and the locale dictionaries. A disabled filter also disappears
  * from the filters GEN region. The 'all' filter cannot be disabled and at
  * least one case must stay visible overall.
+ *
+ * FA visibility (iteration H): free-assets items and categories accept the
+ * same optional enabled:false. Disabled items (and every item of a disabled
+ * category) drop out of FA_DATA, FA_LOCALES, the FA JSON-LD ItemList and
+ * numberOfItems, and the fa-filters checkbox row; a category left with zero
+ * visible items is dropped entirely. At least one free asset must stay
+ * visible overall (mirror of the case guard).
  *
  * Both modes first run validateContent() over the content layer and exit 1
  * with the full violation list if anything is broken (unique ids, cardOrder
@@ -70,6 +79,10 @@ const HEAD_BEGIN = '<!-- CODEX:GEN head-meta BEGIN -->';
 const HEAD_END = '<!-- CODEX:GEN head-meta END -->';
 const FILTERS_BEGIN = '<!-- CODEX:GEN filters BEGIN -->';
 const FILTERS_END = '<!-- CODEX:GEN filters END -->';
+const FA_FILTERS_BEGIN = '<!-- CODEX:GEN fa-filters BEGIN -->';
+const FA_FILTERS_END = '<!-- CODEX:GEN fa-filters END -->';
+const FA_TAG_CARDS_BEGIN = '<!-- CODEX:GEN fa-tag-cards BEGIN -->';
+const FA_TAG_CARDS_END = '<!-- CODEX:GEN fa-tag-cards END -->';
 const JSONLD_BEGIN = '<!-- CODEX:GEN jsonld BEGIN -->';
 const JSONLD_END = '<!-- CODEX:GEN jsonld END -->';
 
@@ -110,6 +123,32 @@ function enabledFilters(content) {
 function visibleCases(content) {
   const enabledKeys = new Set(enabledFilters(content).map((f) => f.key));
   return content.cases.filter((c) => c.enabled !== false && enabledKeys.has(c.category));
+}
+
+// FA visibility (iteration H): enabled categories with their enabled items;
+// a category left with zero visible items is dropped entirely. Every FA
+// consumer (FA_DATA, FA_LOCALES, fa-filters region, FA JSON-LD) reads this
+// selection — js/free-assets.js then removes the tag cards of categories
+// missing from FA_DATA at runtime.
+function visibleFaCategories(content) {
+  const categories =
+    content.freeAssets && Array.isArray(content.freeAssets.categories) ? content.freeAssets.categories : [];
+  return categories
+    .filter((category) => category !== null && typeof category === 'object' && category.enabled !== false)
+    .map((category) => ({
+      key: category.key,
+      tagCard: category.tagCard,
+      items: (Array.isArray(category.items) ? category.items : []).filter(
+        (item) => item !== null && typeof item === 'object' && item.enabled !== false
+      )
+    }))
+    .filter((category) => category.items.length > 0);
+}
+
+// Effective thumb/model base name of an FA item (mirror of resolveAssetMedia
+// in js/free-assets.js): absent key → the item id, null → disabled.
+function faEffectiveBase(item, key) {
+  return key in item ? item[key] : item.id;
 }
 
 /* ── content validation (runs before generation in --write AND --check) ──── */
@@ -302,7 +341,7 @@ function validateCase(violations, entry, filterKeys) {
 // → defaults to the item id; null → preview explicitly disabled (null marker);
 // string → base file name without extension.
 function checkFreeAssetMedia(violations, itemWhere, key, item, baseDir, extension) {
-  const base = key in item ? item[key] : item.id;
+  const base = faEffectiveBase(item, key);
   if (base === null) return;
   if (!isNonEmptyString(base) || base.includes('/') || base.includes('\\') || base.includes('..')) {
     violations.push(`${itemWhere}: ${key} must be a plain base name without path separators ("${base}")`);
@@ -323,6 +362,40 @@ function validateFreeAssets(violations, freeAssets) {
       violations.push(`${where}: every category needs a string "key" and an "items" array`);
       continue;
     }
+    // enabled (iteration H): optional strict boolean on categories AND items —
+    // mirrors the case/filter rule; a truthy string would flip visibility.
+    if ('enabled' in category && typeof category.enabled !== 'boolean') {
+      violations.push(
+        `${where}: category "${category.key}" "enabled" must be a boolean (got ${JSON.stringify(category.enabled)})`
+      );
+    }
+    // tagCard (XSS/visibility batch): drives the generated overview tag card.
+    // thumb is the cover SVG base name (./assets/cards/<thumb>.svg); gameAsset
+    // is the optional boolean that emits the "Game" overlay badge.
+    const tagCard = category.tagCard;
+    if (tagCard === null || typeof tagCard !== 'object' || Array.isArray(tagCard)) {
+      violations.push(
+        `${where}: category "${category.key}" needs a "tagCard" object (cover thumb for the overview grid)`
+      );
+    } else {
+      const tagBase = tagCard.thumb;
+      if (!isNonEmptyString(tagBase) || tagBase.includes('/') || tagBase.includes('\\') || tagBase.includes('..')) {
+        violations.push(
+          `${where}: category "${category.key}" tagCard.thumb must be a plain base name without path separators (got ${JSON.stringify(tagBase)})`
+        );
+      } else {
+        checkAssetFile(
+          violations,
+          `${where}: category "${category.key}" tagCard.thumb`,
+          `./assets/cards/${tagBase}.svg`
+        );
+      }
+      if ('gameAsset' in tagCard && typeof tagCard.gameAsset !== 'boolean') {
+        violations.push(
+          `${where}: category "${category.key}" tagCard.gameAsset must be a boolean (got ${JSON.stringify(tagCard.gameAsset)})`
+        );
+      }
+    }
     for (const item of category.items) {
       if (item === null || typeof item !== 'object' || !isNonEmptyString(item.id)) {
         violations.push(`${where}: category "${category.key}" has an item without a string "id"`);
@@ -331,13 +404,30 @@ function validateFreeAssets(violations, freeAssets) {
       const itemWhere = `${where}: ${category.key}/${item.id}`;
       if (seenIds.has(item.id)) violations.push(`${itemWhere}: duplicate id`);
       seenIds.add(item.id);
+      if ('enabled' in item && typeof item.enabled !== 'boolean') {
+        violations.push(`${itemWhere}: "enabled" must be a boolean (got ${JSON.stringify(item.enabled)})`);
+      }
       if (!hasLocalePair(item.desc)) violations.push(`${itemWhere}: desc must have non-empty "en" and "ru"`);
       // These fields land verbatim in js/fa-data.js (see buildFaDataJs) and
       // render on the free-assets cards; an empty value breaks the card UI.
+      // Defense in depth against stored XSS (the runtime appends title/size as
+      // textContent, see js/free-assets.js): reject "<" and ">" so the values
+      // can never carry HTML tags even if a future renderer regresses to
+      // innerHTML. "file" is regex-guarded separately below; "&" stays allowed
+      // (gradients/copy use it). Current content has none of these chars.
       for (const field of ['title', 'cat', 'badge', 'size', 'file', 'bg']) {
         if (!isNonEmptyString(item[field])) {
           violations.push(`${itemWhere}: "${field}" must be a non-empty string (got ${JSON.stringify(item[field])})`);
+        } else if (field !== 'file' && /[<>]/.test(item[field])) {
+          violations.push(`${itemWhere}: "${field}" must not contain "<" or ">" (got ${JSON.stringify(item[field])})`);
         }
+      }
+      // file lands in './downloads/' + file at runtime and (when the archive
+      // exists in downloads/) in the JSON-LD contentUrl — plain name only.
+      if (isNonEmptyString(item.file) && !/^[A-Za-z0-9._-]+\.zip$/i.test(item.file)) {
+        violations.push(
+          `${itemWhere}: "file" must be a plain ZIP file name like "${item.id}.zip" (got ${JSON.stringify(item.file)})`
+        );
       }
       if (!Array.isArray(item.contents) || item.contents.length === 0 || !item.contents.every(isNonEmptyString)) {
         violations.push(`${itemWhere}: "contents" must be a non-empty array of non-empty strings`);
@@ -488,6 +578,41 @@ function validateContent(content) {
   validateStructuredData(violations, metaStrings, fileIds);
   validateFreeAssets(violations, freeAssets);
 
+  // Iteration H guards (only when the categories array itself is sane):
+  if (freeAssets !== null && typeof freeAssets === 'object' && Array.isArray(freeAssets.categories)) {
+    const visibleFa = visibleFaCategories(content);
+    // an empty FA catalog would break free-assets.html (and verify-frozen) —
+    // at least one enabled item in an enabled category (mirror of the case
+    // guard).
+    if (visibleFa.length === 0) {
+      violations.push(
+        'content/free-assets.json: at least one free asset must stay visible (an enabled item in an enabled category) — the catalog cannot be empty'
+      );
+    }
+    // the fa-filters GEN region takes the visible EN label of every visible
+    // category from i18n-ui.json (filter.<key>); a missing label would emit
+    // "undefined" into free-assets.html.
+    for (const category of visibleFa) {
+      const suffix = faFilterI18nKey(category.key).slice('filter.'.length);
+      const label = uiStrings && uiStrings.en && uiStrings.en.filter && uiStrings.en.filter[suffix];
+      if (!isNonEmptyString(label)) {
+        violations.push(
+          `content/i18n-ui.json: en.filter.${suffix} must be a non-empty string (label of the visible free-assets category "${category.key}")`
+        );
+      }
+    }
+    // buildFaFiltersRegion also renders labels.all (the "all" option of the
+    // FA dropdown) — same guard as for the per-category labels above.
+    for (const lang of ['en', 'ru']) {
+      const allLabel = uiStrings && uiStrings[lang] && uiStrings[lang].filter && uiStrings[lang].filter.all;
+      if (!isNonEmptyString(allLabel)) {
+        violations.push(
+          `content/i18n-ui.json: ${lang}.filter.all must be a non-empty string (label of the free-assets "all" filter option)`
+        );
+      }
+    }
+  }
+
   return violations;
 }
 
@@ -619,7 +744,7 @@ window.CARDS_DATA = ` +
 
 function buildFaDataJs(content) {
   const data = {};
-  for (const category of content.freeAssets.categories) {
+  for (const category of visibleFaCategories(content)) {
     data[category.key] = category.items.map((item) => {
       const out = { id: item.id };
       if ('thumb' in item) out.thumb = item.thumb;
@@ -699,7 +824,7 @@ function buildCaseLocales(content) {
 function buildFaLocales(content) {
   const en = {};
   const ru = {};
-  for (const category of content.freeAssets.categories) {
+  for (const category of visibleFaCategories(content)) {
     for (const item of category.items) {
       en[item.id] = { desc: item.desc.en };
       ru[item.id] = { desc: item.desc.ru };
@@ -708,10 +833,32 @@ function buildFaLocales(content) {
   return { en, ru };
 }
 
+// faTag.<key>.count badges always reflect the visible item count of the
+// category (XSS/visibility batch #11): instead of trusting the hand-maintained
+// i18n string, override count for every visible category in BOTH locales. The
+// current RU strings already mirror EN ("N assets"), so the computed value is
+// byte-identical to the existing dictionaries. A clone keeps content.uiStrings
+// (and thus the on-disk content) untouched.
+function uiStringsWithCounts(content) {
+  const clone = JSON.parse(JSON.stringify(content.uiStrings));
+  const visible = visibleFaCategories(content);
+  for (const lang of ['en', 'ru']) {
+    const faTag = clone[lang] && clone[lang].faTag;
+    if (!faTag || typeof faTag !== 'object') continue;
+    for (const category of visible) {
+      const camel = faTagKey(category.key).slice('faTag.'.length);
+      if (faTag[camel] && typeof faTag[camel] === 'object') {
+        faTag[camel].count = category.items.length + ' assets';
+      }
+    }
+  }
+  return clone;
+}
+
 function buildI18nDataJs(content) {
   const template = fs.readFileSync(TEMPLATE_PATH, 'utf8').replace(/\r\n/g, '\n');
   const replacements = {
-    __UI_STRINGS__: content.uiStrings,
+    __UI_STRINGS__: uiStringsWithCounts(content),
     // Only the locale dictionaries: the sibling ogImages key (iteration E)
     // feeds the head GEN region, not the runtime i18n payload.
     __META_STRINGS__: { en: content.metaStrings.en, ru: content.metaStrings.ru },
@@ -793,23 +940,150 @@ function filterI18nKey(key) {
   return 'filter.' + String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
 }
 
+// One <label> option of a tags dropdown — shared by the index (filters) and FA
+// (fa-filters) regions. When `count` is omitted the count span is dropped, so
+// both regions stay byte-identical to their historical hand-written markup.
+function filterOptionLine(key, i18nKey, label, count) {
+  const k = escapeHtmlAttr(key);
+  const i18n = escapeHtmlAttr(i18nKey);
+  const lines = [
+    '          <label class="tags-dropdown__option" role="option">',
+    `            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="${k}" data-i18n-attr="aria-label:${i18n}" aria-label="${escapeHtmlAttr(label)}">`,
+    `            <span class="tags-dropdown__label" data-i18n="${i18n}">${escapeHtmlText(label)}</span>`
+  ];
+  if (count !== undefined) {
+    lines.push(`            <span class="tags-dropdown__option-count" id="opt-count-${k}">${count}</span>`);
+  }
+  lines.push('          </label>');
+  return lines.join('\n');
+}
+
 // The checkbox row of the tags dropdown: only enabled filters are emitted.
 // Line layout reproduces the pre-iteration-F bytes exactly, so the first
 // generation is a no-op; values come from content/settings.json.
 function buildFiltersRegion(content) {
   return enabledFilters(content)
-    .map((filter) => {
-      const key = escapeHtmlAttr(filter.key);
-      const i18n = escapeHtmlAttr(filterI18nKey(filter.key));
-      const label = filter.label;
-      return [
-        '          <label class="tags-dropdown__option" role="option">',
-        `            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="${key}" data-i18n-attr="aria-label:${i18n}" aria-label="${escapeHtmlAttr(label)}">`,
-        `            <span class="tags-dropdown__label" data-i18n="${i18n}">${escapeHtmlText(label)}</span>`,
-        '          </label>'
-      ].join('\n');
-    })
+    .map((filter) => filterOptionLine(filter.key, filterI18nKey(filter.key), filter.label))
     .join('\n');
+}
+
+/* ── fa-filters GEN region (iteration H, byte-identical templating) ───────── */
+
+// data-i18n key of an FA category checkbox. The FA dropdown historically
+// reuses the shared filter.* dictionary but with FA-specific wording for two
+// keys ('product' → 'Product Viz', 'game' → 'Game Assets'); the rest follow
+// the same camelCase convention as the index filters.
+const FA_FILTER_I18N_SUFFIX = { product: 'productViz', game: 'gameAssets' };
+
+function faFilterI18nKey(key) {
+  // FA-specific wording for two keys; everything else follows the shared
+  // kebab→camel convention (delegate to filterI18nKey, no duplicated regex).
+  if (FA_FILTER_I18N_SUFFIX[key]) return 'filter.' + FA_FILTER_I18N_SUFFIX[key];
+  return filterI18nKey(key);
+}
+
+// The checkbox row of the FA tags dropdown: 'all' plus one option per visible
+// category, each with its visible item count ('all' counts the categories).
+// Line layout reproduces the pre-iteration-H bytes exactly, so the first
+// generation is a no-op; labels come from content/i18n-ui.json (EN locale).
+function buildFaFiltersRegion(content) {
+  const visible = visibleFaCategories(content);
+  const labels = (content.uiStrings && content.uiStrings.en && content.uiStrings.en.filter) || {};
+  const rows = [filterOptionLine('all', 'filter.all', labels.all, visible.length)];
+  for (const category of visible) {
+    const i18nKey = faFilterI18nKey(category.key);
+    rows.push(filterOptionLine(category.key, i18nKey, labels[i18nKey.slice('filter.'.length)], category.items.length));
+  }
+  return rows.join('\n');
+}
+
+/* ── fa-tag-cards GEN region (XSS/visibility batch, byte-identical templating) ─
+ *
+ * The tag-card overview grid in free-assets.html used to be hand-written static
+ * markup outside any GEN region. That meant an admin category reorder/disable
+ * never reached the page and the runtime had to prune hidden cards after the
+ * fact. It is now generated from visibleFaCategories(content) in content order,
+ * only visible categories, so:
+ *   #2  category order/visibility reaches the overview grid;
+ *   #6  main.js captures the NodeList of the already-correct cards at parse
+ *       time, so #cards-count is right on its own (pruneHiddenTagCards is gone);
+ *   #10 firstAvailableTag is deterministic (first emitted .tag-card[data-tag]);
+ *   #11 the per-category count badge is the live visible item count.
+ *
+ * Editorial fields that cannot be derived from the catalog live in
+ * content/free-assets.json category.tagCard:
+ *   thumb     — the cover SVG base name (./assets/cards/<thumb>.svg);
+ *   gameAsset — true only for the game category (emits the "Game" overlay badge
+ *               and data-game-asset="true").
+ * Everything else (comment label, alt, cat, title, desc, format, count text)
+ * comes from the faTag.<key> i18n strings / item counts, so the first
+ * generation reproduces the historical bytes exactly.
+ */
+
+// data-i18n key prefix of an FA tag card: 'hard-surface' → 'faTag.hardSurface'.
+// Plain kebab→camel (no FA filter special-casing — these keys predate it).
+function faTagKey(key) {
+  return 'faTag.' + String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
+}
+
+function buildFaTagCardsRegion(content) {
+  const visible = visibleFaCategories(content);
+  const en = (content.uiStrings && content.uiStrings.en) || {};
+  const filterLabels = (en.filter && typeof en.filter === 'object' && en.filter) || {};
+  const faTag = (en.faTag && typeof en.faTag === 'object' && en.faTag) || {};
+
+  const cards = visible.map((category, index) => {
+    const key = category.key;
+    const tag = category.tagCard || {};
+    const camel = faTagKey(key).slice('faTag.'.length);
+    const t = faTag[camel] || {};
+    // The card comment / data-label reuse the FA filter label of the category
+    // ("Hard Surface", "Product Viz", "Game Assets", …) — matches the bytes.
+    const label = filterLabels[faFilterI18nKey(key).slice('filter.'.length)] || '';
+    const isFirst = index === 0;
+    const gameAsset = tag.gameAsset === true;
+    const count = category.items.length + ' assets';
+
+    const cls = isFirst ? 'tag-card tag-card--active work-card' : 'tag-card work-card';
+    const imgLine2 = isFirst
+      ? '                 loading="eager" fetchpriority="high" decoding="async" width="800" height="600">'
+      : '                 loading="lazy" decoding="async" width="800" height="600">';
+
+    const lines = [
+      `        <!-- TAG CARD: ${escapeHtmlText(label)} -->`,
+      `        <a class="${cls}" id="tag-${escapeHtmlAttr(key)}" href="#${escapeHtmlAttr(key)}"`,
+      `                 data-tag="${escapeHtmlAttr(key)}" data-category="${escapeHtmlAttr(key)}" data-game-asset="${gameAsset ? 'true' : 'false'}">`,
+      `          <div class="tag-card__thumb work-card__thumb" data-label="${escapeHtmlAttr(label)}">`,
+      `            <img src="./assets/cards/${escapeHtmlAttr(tag.thumb)}.svg" data-i18n-attr="alt:faTag.${camel}.alt" alt="${escapeHtmlAttr(t.alt)}"`,
+      imgLine2
+    ];
+    if (gameAsset) {
+      lines.push(
+        '            <!-- v0.4 [HV3]: убран aria-label на <span> — у span нет implicit role,',
+        '                 aria-label игнорируется. Текст "Game" уже семантически достаточен. -->',
+        `            <span class="work-card__badge" data-i18n="faTag.${camel}.badge">${escapeHtmlText(t.badge)}</span>`,
+        '            <!-- v0.4 [M2]: убран лишний inline style — CSS уже задаёт top/right по умолчанию -->'
+      );
+    }
+    lines.push(
+      `            <span class="tag-card__count-badge" data-i18n="faTag.${camel}.count">${escapeHtmlText(count)}</span>`,
+      '          </div>',
+      '          <div class="tag-card__info work-card__info">',
+      '            <div class="tag-card__meta work-card__meta">',
+      `              <span class="tag-card__cat work-card__cat" data-i18n="faTag.${camel}.cat">${escapeHtmlText(t.cat)}</span>`,
+      `              <span class="tag-card__meta-tail work-card__meta-tail"><span class="tag-card__format work-card__year" data-i18n="faTag.${camel}.format">${escapeHtmlText(t.format)}</span><span class="tag-card__hint work-card__hint" aria-hidden="true">↗</span></span>`,
+      '            </div>',
+      `            <h2 class="tag-card__title work-card__title" data-i18n="faTag.${camel}.title">${escapeHtmlText(t.title)}</h2>`,
+      `            <p class="tag-card__desc work-card__desc" data-i18n="faTag.${camel}.desc">${escapeHtmlText(t.desc)}</p>`,
+      '          </div>',
+      '        </a>'
+    );
+    return lines.join('\n');
+  });
+
+  // Leading/trailing blank line reproduce the historical layout (blank after the
+  // cards-list div, blank before its closing tag).
+  return '\n' + cards.join('\n\n') + '\n';
 }
 
 function replaceRegion(html, filePath, begin, end, region) {
@@ -971,100 +1245,84 @@ function buildIndexJsonLdRegion(content) {
     .join('\n');
 }
 
-// free-assets.html catalog ItemList: the entries are SEO-specific copy that
-// never came from content/free-assets.json (names/descriptions are crafted
-// for crawlers), so they stay literal HERE; what follows content/ is
-// numberOfItems (catalog size) and every og-image-dependent field
-// (thumbnailUrl fallback = the FA OG image owners replace via the admin).
-const FA_JSONLD_ITEMS = [
-  {
-    fragment: 'orbital-mk-ii',
+// free-assets.html catalog ItemList: name/description/encodingFormat are
+// SEO-specific copy that never came from content/free-assets.json (crafted
+// for crawlers), so they stay literal HERE, keyed by item id. Everything
+// else is derived from content (iteration H): the list = visible items of
+// the curated category in their content order (a hidden item leaves no SEO
+// ghost, positions renumber), contentSize = item.size, thumbnailUrl = the
+// item's effective thumb (null → the FA OG image owners replace via the
+// admin), contentUrl = emitted only when downloads/<file> exists in the repo.
+const FA_JSONLD_CATEGORY = 'hard-surface';
+const FA_JSONLD_COPY = {
+  'orbital-mk-ii': {
     name: 'Orbital Mk.II free hard-surface 3D asset',
     description: 'Sci-fi prop with clean topology, full PBR texture set, and Blender, FBX, OBJ delivery.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/obj', 'model/gltf-binary'],
-    contentSize: '48 MB',
-    thumb: 'https://codex.promo/assets/cards/orbital-mk-ii.svg',
-    contentUrl: 'https://codex.promo/downloads/orbital-mk-ii.zip'
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/obj', 'model/gltf-binary']
   },
-  {
-    fragment: 'vega-shell',
+  'vega-shell': {
     name: 'Vega Shell free modular armor asset',
     description: 'Modular exo-armor system with 47 snap-together parts, clean UVs, Blender and FBX files.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary'],
-    contentSize: '93 MB',
-    thumb: 'https://codex.promo/assets/cards/vega-shell.svg'
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary']
   },
-  {
-    fragment: 'ironclad-frame',
+  'ironclad-frame': {
     name: 'Ironclad Frame free industrial chassis asset',
     description: 'Industrial chassis breakdown with modeled bolts, PBR textures, wire renders, Blender and FBX files.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary'],
-    contentSize: '55 MB',
-    thumb: 'https://codex.promo/assets/cards/ironclad-frame.svg'
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary']
   },
-  {
-    fragment: 'bolt-cluster',
+  'bolt-cluster': {
     name: 'Bolt Cluster free industrial fastener kit',
     description: 'Industrial fastener kit with 12 variants, GeoNodes scatter setup, Blender file and 2K textures.',
-    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png'],
-    contentSize: '31 MB',
-    thumb: null
+    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png']
   },
-  {
-    fragment: 'terra-base',
+  'terra-base': {
     name: 'Terra Base free modular environment kit',
     description: 'Modular environment kit with 24 tileable pieces, GeoNodes scatter system, and 4K textures.',
-    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png'],
-    contentSize: '182 MB',
-    thumb: null
+    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png']
   },
-  {
-    fragment: 'shard-cannon',
+  'shard-cannon': {
     name: 'Shard Cannon free sci-fi weapon asset',
     description: 'Sci-fi heavy weapon with three skin variations, UE5-compatible export, Blender and FBX files.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png'],
-    contentSize: '103 MB',
-    thumb: null
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png']
   },
-  {
-    fragment: 'wraith-blade',
+  'wraith-blade': {
     name: 'Wraith Blade free melee weapon asset',
     description: 'Thin melee weapon with emissive edge variant, PBR textures, Blender and FBX files.',
-    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png'],
-    contentSize: '76 MB',
-    thumb: null
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png']
   },
-  {
-    fragment: 'apex-frame',
+  'apex-frame': {
     name: 'Apex Frame free mechanical component asset',
     description: 'Mechanical component breakdown with STEP file, exploded rig, textures, README and Blender source.',
-    encodingFormat: ['application/x-blender', 'model/step', 'model/gltf-binary', 'text/plain'],
-    contentSize: '67 MB',
-    thumb: 'https://codex.promo/assets/cards/apex-frame.svg',
-    contentUrl: 'https://codex.promo/downloads/apex-frame.zip'
+    encodingFormat: ['application/x-blender', 'model/step', 'model/gltf-binary', 'text/plain']
   }
-];
+};
 
 function buildFaJsonLdRegion(content) {
   const faOg = absoluteAssetUrl(content.metaStrings.ogImages.fa);
-  const itemCount = content.freeAssets.categories.reduce((sum, category) => sum + category.items.length, 0);
-  const items = FA_JSONLD_ITEMS.map((item, i) => {
+  const visibleCategories = visibleFaCategories(content);
+  const itemCount = visibleCategories.reduce((sum, category) => sum + category.items.length, 0);
+  const curatedCategory = visibleCategories.find((category) => category.key === FA_JSONLD_CATEGORY);
+  const curated = (curatedCategory ? curatedCategory.items : []).filter((item) => FA_JSONLD_COPY[item.id]);
+  const items = curated.map((item, i) => {
+    const copy = FA_JSONLD_COPY[item.id];
+    const thumbBase = faEffectiveBase(item, 'thumb');
+    const hasDownload = fs.existsSync(path.join(ROOT, 'downloads', item.file));
     const lines = [
       '      {',
       '        "@type": "ListItem",',
       `        "position": ${i + 1},`,
-      `        "url": ${j(`https://codex.promo/free-assets.html#${item.fragment}`)},`,
+      `        "url": ${j(`https://codex.promo/free-assets.html#${item.id}`)},`,
       '        "item": {',
       '          "@type": "3DModel",',
-      `          "name": ${j(item.name)},`,
-      `          "description": ${j(item.description)},`,
-      `          "encodingFormat": [${item.encodingFormat.map(j).join(', ')}],`,
-      `          "contentSize": ${j(item.contentSize)},`,
+      `          "name": ${j(copy.name)},`,
+      `          "description": ${j(copy.description)},`,
+      `          "encodingFormat": [${copy.encodingFormat.map(j).join(', ')}],`,
+      `          "contentSize": ${j(item.size)},`,
       '          "license": "https://creativecommons.org/publicdomain/zero/1.0/",',
       '          "isAccessibleForFree": true,',
-      `          "thumbnailUrl": ${j(item.thumb || faOg)}${item.contentUrl ? ',' : ''}`
+      `          "thumbnailUrl": ${j(thumbBase ? absoluteAssetUrl(`./assets/cards/${thumbBase}.svg`) : faOg)}${hasDownload ? ',' : ''}`
     ];
-    if (item.contentUrl) lines.push(`          "contentUrl": ${j(item.contentUrl)}`);
+    if (hasDownload) lines.push(`          "contentUrl": ${j(`https://codex.promo/downloads/${item.file}`)}`);
     lines.push('        }', '      }');
     return lines.join('\n');
   });
@@ -1156,6 +1414,14 @@ function buildTargets(content) {
   let faNext = faRaw.replace(/\r\n/g, '\n');
   faNext = replaceRegion(faNext, 'free-assets.html', HEAD_BEGIN, HEAD_END, buildHeadMetaRegion(content, 'fa'));
   faNext = replaceRegion(faNext, 'free-assets.html', JSONLD_BEGIN, JSONLD_END, buildFaJsonLdRegion(content));
+  faNext = replaceRegion(faNext, 'free-assets.html', FA_FILTERS_BEGIN, FA_FILTERS_END, buildFaFiltersRegion(content));
+  faNext = replaceRegion(
+    faNext,
+    'free-assets.html',
+    FA_TAG_CARDS_BEGIN,
+    FA_TAG_CARDS_END,
+    buildFaTagCardsRegion(content)
+  );
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');
   const sitemapEol = fs.existsSync(sitemapPath) ? detectEol(fs.readFileSync(sitemapPath, 'utf8')) : '\n';
