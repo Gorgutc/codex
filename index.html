@@ -384,6 +384,7 @@
              См. ./assets/img/work/README.md
         ══════════════════════════════════════════════════════════════════════ -->
 
+        <!-- CODEX:GEN cards-grid BEGIN -->
         <!-- 1 -->
         <a class="work-card" data-id="orbital-mk-ii" data-category="hard-surface" href="#orbital-mk-ii">
           <div class="work-card__thumb" data-label="Orbital Mk.II">
@@ -601,6 +602,7 @@
             <p class="work-card__desc" data-i18n="card.cad-strut.desc">Structural strut node. CAD-first geometry with bolt-pattern variants and PBR finish study.</p>
           </div>
         </a>
+        <!-- CODEX:GEN cards-grid END -->
 
       </div><!-- /cards-list -->
     </div><!-- /cards-scroll -->
@@ -879,6 +881,9 @@
 <script src="./js/i18n-data.js"></script>
 <script src="./js/i18n.js"></script>
 <script src="./js/shared-runtime.js"></script>
+<!-- Iteration B — generated case data (content/cases/*.json → scripts/generate-content.mjs).
+     Обязан стоять ПЕРЕД main.js: main.js читает window.CARDS_DATA синхронно при инициализации. -->
+<script src="./js/cards-data.js"></script>
 <!-- v0.11.4 / v0.5 — model-data.js (1.1 MB inline GLB) теперь lazy-loaded.
      Загружается только при первом клике на 3D-вкладку (см. loadModelData() в main.js).
      Это снижает LCP с ~10s до ~2-3s — issue #1 Golden 0.5. -->

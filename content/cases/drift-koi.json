@@ -1,0 +1,126 @@
+{
+  "id": "drift-koi",
+  "enabled": true,
+  "category": "organic",
+  "year": "2024",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "14 — Organic",
+    "thumb": "./assets/cards/drift-koi.svg",
+    "thumbLabel": "Drift Koi",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Drift Koi",
+      "ru": "Drift Koi"
+    },
+    "desc": {
+      "en": "Ornamental fish study. Displacement scales, subsurface scattering pass.",
+      "ru": "Этюд декоративной рыбы. Displacement-чешуя, SSS-пасс."
+    },
+    "alt": {
+      "en": "Drift Koi — ornamental fish study",
+      "ru": "Drift Koi — этюд декоративной рыбы"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "Personal",
+      "ru": "Личный проект"
+    },
+    "tools": [
+      "ZBrush",
+      "Blender",
+      "Substance Painter"
+    ],
+    "modelSrc": "./assets/models/drift-koi.glb",
+    "modelStats": {
+      "triangles": "168",
+      "vertices": "112",
+      "materials": 1,
+      "textures": "Procedural (PBR)",
+      "software": "ZBrush + Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#161e24 0%,#1f2a34 100%)",
+      "linear-gradient(135deg,#121a20 0%,#1a2630 100%)",
+      "linear-gradient(135deg,#0e161c 0%,#18222c 100%)",
+      "linear-gradient(135deg,#0b1218 0%,#141e28 100%)",
+      "linear-gradient(135deg,#080f14 0%,#101a24 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Hero render",
+          "ru": "Hero-рендер"
+        },
+        "desc": {
+          "en": "Ornamental fish study. Displacement scales, three-layer subsurface scattering pass.",
+          "ru": "Этюд декоративной рыбы. Displacement-чешуя, трёхслойный SSS-пасс."
+        }
+      },
+      {
+        "label": {
+          "en": "Scale macro",
+          "ru": "Макро чешуи"
+        },
+        "desc": {
+          "en": "Procedural scale pattern sculpted in ZBrush and driven by a curve-based UV layout.",
+          "ru": "Процедурный паттерн чешуи скульптурирован в ZBrush, ведётся curve-based UV-разверткой."
+        }
+      },
+      {
+        "label": {
+          "en": "Fin study",
+          "ru": "Этюд плавника"
+        },
+        "desc": {
+          "en": "Thin-film interference on the tail fin. Double-sided shader with anisotropic highlights.",
+          "ru": "Thin-film интерференция на хвостовом плавнике. Двусторонний шейдер с anisotropic-highlights."
+        }
+      },
+      {
+        "label": {
+          "en": "Swim loop",
+          "ru": "Swim-луп"
+        },
+        "desc": {
+          "en": "Seamless 3-second swim cycle driven by a spline rig. Ready for particle systems and aquariums.",
+          "ru": "Бесшовный 3-секундный цикл плавания, spline-риг. Готов под particle systems и аквариумы."
+        }
+      },
+      {
+        "label": {
+          "en": "Variant pattern",
+          "ru": "Варианты узора"
+        },
+        "desc": {
+          "en": "Seven patterning variants — Kohaku, Showa, Asagi and custom — via mask blending.",
+          "ru": "Семь patterning-вариантов — Kohaku, Showa, Asagi и кастом — через mask blending."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Organic shading",
+        "ru": "Органический shading"
+      },
+      "body": {
+        "en": "The scale shader reads as wet without looking plastic. A combination of displacement, anisotropic highlight and soft subsurface response keeps the surface grounded even under harsh lighting.",
+        "ru": "Чешуйчатый shader читается как мокрый, но не пластик. Комбинация displacement, anisotropic-highlight и мягкого subsurface держит поверхность даже под жёстким светом."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Scale shader",
+        "ru": "Шейдер чешуи"
+      },
+      "body": {
+        "en": "Iridescent scales driven by fresnel × vertex color. Three variants — koi red, shusui blue, asagi silver — toggle via material ID.",
+        "ru": "Иридесцентные чешуйки управляются fresnel × vertex color. Три варианта — koi red, shusui blue, asagi silver — переключаются через material ID."
+      }
+    }
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "id": "flux-capsule",
+  "enabled": true,
+  "category": "product",
+  "year": "2024",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "6",
+    "thumb": "./assets/cards/flux-capsule.svg",
+    "thumbLabel": "Flux Capsule",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Flux Capsule",
+      "ru": "Flux Capsule"
+    },
+    "desc": {
+      "en": "Consumer tech device. E-commerce shot set, studio lighting rig.",
+      "ru": "Consumer-гаджет. E-commerce сет, studio lighting rig."
+    },
+    "alt": {
+      "en": "Flux Capsule — consumer tech device",
+      "ru": "Flux Capsule — consumer-гаджет"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "R&D",
+      "ru": "R&D"
+    },
+    "tools": [
+      "Blender",
+      "Substance Painter"
+    ],
+    "modelSrc": "./assets/models/flux-capsule.glb",
+    "modelStats": {
+      "triangles": "608",
+      "vertices": "312",
+      "materials": 3,
+      "textures": "Procedural (PBR)",
+      "software": "Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1e2030 0%,#282a40 100%)",
+      "linear-gradient(135deg,#1a1c2c 0%,#24263c 100%)",
+      "linear-gradient(135deg,#161828 0%,#202234 100%)",
+      "linear-gradient(135deg,#12142a 0%,#1c1e30 100%)",
+      "linear-gradient(135deg,#0e102a 0%,#181a2a 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Product shot",
+          "ru": "Product shot"
+        },
+        "desc": {
+          "en": "Consumer tech device. E-commerce hero shot with studio HDRI and custom denoising.",
+          "ru": "Consumer-гаджет. E-commerce hero-кадр со studio HDRI и кастомным denoising."
+        }
+      },
+      {
+        "label": {
+          "en": "360° view",
+          "ru": "Turntable 360°"
+        },
+        "desc": {
+          "en": "Full turntable sequence — 36 frames at 10° increments. Exported as WebP sprite strip.",
+          "ru": "Полная turntable-секвенция — 36 кадров с шагом 10°. Экспорт WebP sprite strip."
+        }
+      },
+      {
+        "label": {
+          "en": "Detail macro",
+          "ru": "Detail macro"
+        },
+        "desc": {
+          "en": "Micro-surface texture pass. Sub-millimetre detail captured with a virtual macro lens rig.",
+          "ru": "Пасс микро-текстуры. Субмиллиметровая детализация — virtual macro lens."
+        }
+      },
+      {
+        "label": {
+          "en": "Packaging",
+          "ru": "Упаковка"
+        },
+        "desc": {
+          "en": "Retail box render with reflective foil stamping, printed using PBR metallic-clearcoat.",
+          "ru": "Рендер упаковки с reflective foil stamping, печать PBR metallic-clearcoat."
+        }
+      },
+      {
+        "label": {
+          "en": "Scale ref",
+          "ru": "Scale-референс"
+        },
+        "desc": {
+          "en": "Hand comparison render to communicate size without breaking photo-neutral background.",
+          "ru": "Сравнение с рукой — передать размер без потери фотонейтрального фона."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Launch ready",
+        "ru": "Готов к запуску"
+      },
+      "body": {
+        "en": "All hero assets were delivered as 6 K master renders plus derivative crops for Shopify, Amazon and paid-social ad placements. Colour profile matches the brand Pantone book.",
+        "ru": "Все hero-ассеты доставлены как 6K master-рендеры плюс производные кропы под Shopify, Amazon и paid-social. Color-profile под brand Pantone."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Containment",
+        "ru": "Containment"
+      },
+      "body": {
+        "en": "Animated shader on the core reads a custom gradient texture — no vertex morph, no simulation cache. Runs at 240 FPS on mid-range GPUs.",
+        "ru": "Анимированный shader на ядре читает кастомный gradient-текстуру — без vertex morph, без sim-кеша. Идёт 240 FPS на mid-range GPU."
+      }
+    }
+  }
+}

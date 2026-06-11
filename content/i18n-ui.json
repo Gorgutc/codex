@@ -1,0 +1,432 @@
+{
+  "en": {
+    "skipToContent": "Skip to content",
+    "aria": {
+      "projectsNavigator": "Projects navigator",
+      "freeAssetsNavigator": "Free assets navigator",
+      "sidebarFooter": "Sidebar footer",
+      "preloaderLoading": "Loading",
+      "codexBackFirst": "Codex — back to first project",
+      "codexBackPortfolio": "Codex — back to portfolio",
+      "codexHome": "Codex — home",
+      "contactTelegram": "Contact via Telegram",
+      "langToggleEn": "Switch language to English",
+      "langToggleRu": "Switch language to Russian",
+      "switchToLight": "Switch to light theme",
+      "switchToDark": "Switch to dark theme",
+      "hideProjectsPanel": "Hide projects panel",
+      "hideCategoriesPanel": "Hide categories panel",
+      "filterByDiscipline": "Filter by discipline",
+      "filterByCategory": "Filter by category",
+      "disciplines": "Disciplines",
+      "categories": "Categories",
+      "projectList": "Project list",
+      "assetCategories": "Asset categories",
+      "visualizationMode": "Visualization mode",
+      "projectNavigation": "Project navigation",
+      "projectGallery": "Project gallery",
+      "projectBlueprint": "Project blueprint",
+      "project3dViewer": "Project 3D viewer",
+      "projectCaseStudy": "Project case study",
+      "backToProjects": "Back to projects",
+      "backToCategories": "Back to categories",
+      "prevProject": "Previous project",
+      "nextProject": "Next project",
+      "copyLink": "Copy link to this project",
+      "exportBlueprintSvg": "Export blueprint as SVG",
+      "openBlueprintFullscreen": "Open blueprint fullscreen",
+      "backToPortfolio": "Back to Portfolio",
+      "freeAssetsView": "Free assets",
+      "downloadTerms": "Download terms"
+    },
+    "title": {
+      "contactTelegram": "Contact · Telegram",
+      "toggleTheme": "Toggle theme",
+      "switchLanguage": "Switch language",
+      "copyLink": "Copy link to this project",
+      "interactive3d": "Interactive 3D viewer",
+      "technicalBlueprint": "Technical blueprint view",
+      "prevProjectKey": "Previous project (←)",
+      "nextProjectKey": "Next project (→)",
+      "fullscreen": "Fullscreen",
+      "backToPortfolio": "Back to Portfolio",
+      "gameSwitchTitle": "Filter the current category to game-ready assets only (does not switch category)"
+    },
+    "btn": {
+      "contact": "Contact",
+      "hideProjects": "Hide projects",
+      "hideCategories": "Hide categories",
+      "enterSite": "ENTER SITE",
+      "copyLink": "COPY LINK",
+      "exportSvg": "Export SVG",
+      "gameAssetsOnly": "Game assets only",
+      "gameSwitchHint": "Filters the current category to game-ready assets only",
+      "backProjects": "Projects",
+      "backCategories": "Categories"
+    },
+    "pill": {
+      "contact": "Contact",
+      "freeAssets": "Free Assets",
+      "portfolio": "Portfolio"
+    },
+    "preloader": {
+      "studio": "CODEX_STUDIO",
+      "loadingIndex": "LOADING_INDEX.HTML",
+      "loadingFa": "LOADING_FREE_ASSETS.HTML",
+      "initializing": "INITIALIZING ASSETS"
+    },
+    "filter": {
+      "placeholderDiscipline": "Filter by discipline",
+      "placeholderCategory": "Filter by category",
+      "all": "All",
+      "hardSurface": "Hard Surface",
+      "product": "Product",
+      "productViz": "Product Viz",
+      "organic": "Organic",
+      "prototyping": "Prototyping",
+      "animations": "Animations",
+      "animation": "Animation",
+      "gameAssets": "Game Assets",
+      "cad": "CAD"
+    },
+    "tabs": {
+      "twoD": "2D",
+      "threeD": "3D",
+      "blueprints": "Blueprints"
+    },
+    "footer": {
+      "statsIndex": "DELETED 422 CUBES • CREATED 120 WORKS",
+      "statsFa": "FREE  ·  25 ASSETS  ·  CC0"
+    },
+    "toggle": {
+      "showProjects": "Show projects",
+      "hideProjects": "Hide projects",
+      "showCategories": "Show categories",
+      "hideCategories": "Hide categories",
+      "showProjectsAria": "Show projects panel",
+      "hideProjectsAria": "Hide projects panel",
+      "showCategoriesAria": "Show categories panel",
+      "hideCategoriesAria": "Hide categories panel"
+    },
+    "theme": {
+      "toDark": "Switch to dark theme",
+      "toLight": "Switch to light theme"
+    },
+    "copy": {
+      "label": "COPY LINK",
+      "copied": "COPIED ✓"
+    },
+    "chip": {
+      "remove": "Remove"
+    },
+    "fs": {
+      "fullscreenView": "Fullscreen view",
+      "closeFullscreen": "Close fullscreen",
+      "previousImage": "Previous image",
+      "nextImage": "Next image",
+      "imageGallery": "Image gallery viewer",
+      "blueprintViewer": "Blueprint viewer",
+      "imagePrefix": "Image",
+      "blueprintPrefix": "Blueprint",
+      "ofWord": "of"
+    },
+    "motion": {
+      "play": "PLAY",
+      "pause": "PAUSE",
+      "playAria": "Play motion loop",
+      "pauseAria": "Pause motion loop"
+    },
+    "bp": {
+      "exportPage": "Export blueprint page {n} as SVG",
+      "fullscreenPage": "Open blueprint page {n} fullscreen",
+      "previous": "Previous blueprint",
+      "next": "Next blueprint"
+    },
+    "viz": {
+      "hintDesktop": "RIGHT MOUSE · ROTATE",
+      "hintMobile": "DRAG · ZOOM",
+      "resetCamera": "Reset camera to initial position",
+      "openFullscreen3d": "Open 3D fullscreen",
+      "envPreset": "Environment preset",
+      "exposure": "Exposure",
+      "exposureLabel": "EXPOSURE",
+      "exposureRange": "Exposure level from 0.5 to 2.0",
+      "lightingSettings": "Lighting settings",
+      "lightingPanel": "Lighting presets and exposure",
+      "environmentLabel": "ENVIRONMENT",
+      "materialMode": "Material view mode",
+      "materialLabel": "MATERIAL"
+    },
+    "faTrust": {
+      "license": "CC0 commercial use",
+      "noAccount": "No account required",
+      "formats": "Blender, FBX, PBR textures"
+    },
+    "faTag": {
+      "hardSurface": {
+        "title": "Hard Surface",
+        "cat": "Hard Surface",
+        "desc": "Props, weapons, armour. AAA-ready topology.",
+        "format": ".blend .fbx",
+        "count": "8 assets",
+        "alt": "Hard Surface assets preview"
+      },
+      "product": {
+        "title": "Product Visualization",
+        "cat": "Product Viz",
+        "desc": "Studio scenes, lighting rigs, camera setups.",
+        "format": ".blend",
+        "count": "5 assets",
+        "alt": "Product Viz preview"
+      },
+      "game": {
+        "title": "Game-Ready",
+        "cat": "Game Assets",
+        "desc": "Optimised props with LODs and 4K PBR maps.",
+        "format": ".fbx LOD 0–2",
+        "count": "4 assets",
+        "alt": "Game Assets preview",
+        "badge": "Game"
+      },
+      "organic": {
+        "title": "Organic",
+        "cat": "Organic",
+        "desc": "Sculpted creatures, fur grooms, rigs.",
+        "format": ".blend rig",
+        "count": "3 assets",
+        "alt": "Organic preview"
+      },
+      "animation": {
+        "title": "Animation",
+        "cat": "Animation",
+        "desc": "Turntables, reveal loops, camera paths.",
+        "format": ".blend .mp4",
+        "count": "2 assets",
+        "alt": "Animation preview"
+      },
+      "cad": {
+        "title": "CAD",
+        "cat": "CAD",
+        "desc": "Parametric assemblies, print-ready geometry.",
+        "format": ".blend .step .stl",
+        "count": "3 assets",
+        "alt": "CAD preview"
+      }
+    }
+  },
+  "ru": {
+    "skipToContent": "Skip to content",
+    "aria": {
+      "projectsNavigator": "Projects navigator",
+      "freeAssetsNavigator": "Free assets navigator",
+      "sidebarFooter": "Sidebar footer",
+      "preloaderLoading": "Loading",
+      "codexBackFirst": "Codex — back to first project",
+      "codexBackPortfolio": "Codex — back to portfolio",
+      "codexHome": "Codex — home",
+      "contactTelegram": "Contact via Telegram",
+      "langToggleEn": "Switch language to English",
+      "langToggleRu": "Switch language to Russian",
+      "switchToLight": "Switch to light theme",
+      "switchToDark": "Switch to dark theme",
+      "hideProjectsPanel": "Hide projects panel",
+      "hideCategoriesPanel": "Hide categories panel",
+      "filterByDiscipline": "Filter by discipline",
+      "filterByCategory": "Filter by category",
+      "disciplines": "Disciplines",
+      "categories": "Categories",
+      "projectList": "Project list",
+      "assetCategories": "Asset categories",
+      "visualizationMode": "Visualization mode",
+      "projectNavigation": "Project navigation",
+      "projectGallery": "Project gallery",
+      "projectBlueprint": "Project blueprint",
+      "project3dViewer": "Project 3D viewer",
+      "projectCaseStudy": "Project case study",
+      "backToProjects": "Back to projects",
+      "backToCategories": "Back to categories",
+      "prevProject": "Previous project",
+      "nextProject": "Next project",
+      "copyLink": "Copy link to this project",
+      "exportBlueprintSvg": "Export blueprint as SVG",
+      "openBlueprintFullscreen": "Open blueprint fullscreen",
+      "backToPortfolio": "Back to Portfolio",
+      "freeAssetsView": "Free assets",
+      "downloadTerms": "Условия скачивания"
+    },
+    "title": {
+      "contactTelegram": "Contact · Telegram",
+      "toggleTheme": "Toggle theme",
+      "switchLanguage": "Switch language",
+      "copyLink": "Copy link to this project",
+      "interactive3d": "Interactive 3D viewer",
+      "technicalBlueprint": "Technical blueprint view",
+      "prevProjectKey": "Previous project (←)",
+      "nextProjectKey": "Next project (→)",
+      "fullscreen": "Fullscreen",
+      "backToPortfolio": "Back to Portfolio",
+      "gameSwitchTitle": "Filter the current category to game-ready assets only (does not switch category)"
+    },
+    "btn": {
+      "contact": "Contact",
+      "hideProjects": "Hide projects",
+      "hideCategories": "Hide categories",
+      "enterSite": "ENTER SITE",
+      "copyLink": "СКОПИРОВАТЬ",
+      "exportSvg": "Export SVG",
+      "gameAssetsOnly": "Game assets only",
+      "gameSwitchHint": "Filters the current category to game-ready assets only",
+      "backProjects": "Projects",
+      "backCategories": "Categories"
+    },
+    "pill": {
+      "contact": "Contact",
+      "freeAssets": "Free Assets",
+      "portfolio": "Portfolio"
+    },
+    "preloader": {
+      "studio": "CODEX_STUDIO",
+      "loadingIndex": "LOADING_INDEX.HTML",
+      "loadingFa": "LOADING_FREE_ASSETS.HTML",
+      "initializing": "INITIALIZING ASSETS"
+    },
+    "filter": {
+      "placeholderDiscipline": "Filter by discipline",
+      "placeholderCategory": "Filter by category",
+      "all": "All",
+      "hardSurface": "Hard Surface",
+      "product": "Product",
+      "productViz": "Product Viz",
+      "organic": "Organic",
+      "prototyping": "Prototyping",
+      "animations": "Animations",
+      "animation": "Animation",
+      "gameAssets": "Game Assets",
+      "cad": "CAD"
+    },
+    "tabs": {
+      "twoD": "2D",
+      "threeD": "3D",
+      "blueprints": "Blueprints"
+    },
+    "footer": {
+      "statsIndex": "DELETED 422 CUBES • CREATED 120 WORKS",
+      "statsFa": "FREE  ·  25 ASSETS  ·  CC0"
+    },
+    "toggle": {
+      "showProjects": "Показать проекты",
+      "hideProjects": "Скрыть проекты",
+      "showCategories": "Показать категории",
+      "hideCategories": "Скрыть категории",
+      "showProjectsAria": "Развернуть панель проектов",
+      "hideProjectsAria": "Свернуть панель проектов",
+      "showCategoriesAria": "Развернуть панель категорий",
+      "hideCategoriesAria": "Свернуть панель категорий"
+    },
+    "theme": {
+      "toDark": "Переключить на тёмную тему",
+      "toLight": "Переключить на светлую тему"
+    },
+    "copy": {
+      "label": "СКОПИРОВАТЬ",
+      "copied": "СКОПИРОВАНО ✓"
+    },
+    "chip": {
+      "remove": "Убрать"
+    },
+    "fs": {
+      "fullscreenView": "Полноэкранный режим",
+      "closeFullscreen": "Закрыть полноэкранный режим",
+      "previousImage": "Предыдущее изображение",
+      "nextImage": "Следующее изображение",
+      "imageGallery": "Галерея изображений",
+      "blueprintViewer": "Просмотр чертежа",
+      "imagePrefix": "Изображение",
+      "blueprintPrefix": "Чертёж",
+      "ofWord": "из"
+    },
+    "motion": {
+      "play": "PLAY",
+      "pause": "PAUSE",
+      "playAria": "Запустить зацикленное видео",
+      "pauseAria": "Остановить зацикленное видео"
+    },
+    "bp": {
+      "exportPage": "Экспорт чертежа {n} в SVG",
+      "fullscreenPage": "Открыть чертёж {n} на полный экран",
+      "previous": "Предыдущий чертёж",
+      "next": "Следующий чертёж"
+    },
+    "viz": {
+      "hintDesktop": "ПКМ · ВРАЩАТЬ",
+      "hintMobile": "СВАЙП · ЗУМ",
+      "resetCamera": "Сбросить камеру в начальное положение",
+      "openFullscreen3d": "Открыть 3D на полный экран",
+      "envPreset": "Окружение",
+      "exposure": "Экспозиция",
+      "exposureLabel": "ЭКСПОЗИЦИЯ",
+      "exposureRange": "Уровень экспозиции от 0.5 до 2.0",
+      "lightingSettings": "Настройки освещения",
+      "lightingPanel": "Пресеты освещения и экспозиция",
+      "environmentLabel": "ОКРУЖЕНИЕ",
+      "materialMode": "Режим отображения материала",
+      "materialLabel": "МАТЕРИАЛ"
+    },
+    "faTrust": {
+      "license": "CC0 для коммерческого использования",
+      "noAccount": "Без аккаунта",
+      "formats": "Blender, FBX, PBR-текстуры"
+    },
+    "faTag": {
+      "hardSurface": {
+        "title": "Hard Surface",
+        "cat": "Hard Surface",
+        "desc": "Props, weapons, armour. AAA-ready topology.",
+        "format": ".blend .fbx",
+        "count": "8 assets",
+        "alt": "Hard Surface assets preview"
+      },
+      "product": {
+        "title": "Product Visualization",
+        "cat": "Product Viz",
+        "desc": "Studio scenes, lighting rigs, camera setups.",
+        "format": ".blend",
+        "count": "5 assets",
+        "alt": "Product Viz preview"
+      },
+      "game": {
+        "title": "Game-Ready",
+        "cat": "Game Assets",
+        "desc": "Optimised props with LODs and 4K PBR maps.",
+        "format": ".fbx LOD 0–2",
+        "count": "4 assets",
+        "alt": "Game Assets preview",
+        "badge": "Game"
+      },
+      "organic": {
+        "title": "Organic",
+        "cat": "Organic",
+        "desc": "Sculpted creatures, fur grooms, rigs.",
+        "format": ".blend rig",
+        "count": "3 assets",
+        "alt": "Organic preview"
+      },
+      "animation": {
+        "title": "Animation",
+        "cat": "Animation",
+        "desc": "Turntables, reveal loops, camera paths.",
+        "format": ".blend .mp4",
+        "count": "2 assets",
+        "alt": "Animation preview"
+      },
+      "cad": {
+        "title": "CAD",
+        "cat": "CAD",
+        "desc": "Parametric assemblies, print-ready geometry.",
+        "format": ".blend .step .stl",
+        "count": "3 assets",
+        "alt": "CAD preview"
+      }
+    }
+  }
+}

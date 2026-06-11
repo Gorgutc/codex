@@ -1,0 +1,128 @@
+{
+  "id": "ironclad-frame",
+  "enabled": true,
+  "category": "hard-surface",
+  "year": "2024",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "3",
+    "thumb": "./assets/cards/ironclad-frame.svg",
+    "thumbLabel": "Ironclad Frame",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Ironclad Frame",
+      "ru": "Ironclad Frame"
+    },
+    "desc": {
+      "en": "Industrial chassis breakdown. Every bolt and seam modeled to spec.",
+      "ru": "Промышленное шасси в разборе. Каждый болт и шов — по чертежу."
+    },
+    "alt": {
+      "en": "Ironclad Frame — industrial chassis breakdown",
+      "ru": "Ironclad Frame — промышленное шасси в разборе"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "R&D",
+      "ru": "R&D"
+    },
+    "tools": [
+      "Blender",
+      "CAD import",
+      "Inkscape"
+    ],
+    "modelSrc": "./assets/models/experimental/car-paint.glb",
+    "modelEnvironment": "studio",
+    "modelExposure": 1.05,
+    "modelStats": {
+      "triangles": "Draco compressed",
+      "vertices": "GLB embedded",
+      "materials": 1,
+      "textures": "3 embedded",
+      "software": "Drive test asset"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1c2428 0%,#28343a 100%)",
+      "linear-gradient(135deg,#181e22 0%,#222e34 100%)",
+      "linear-gradient(135deg,#141a1e 0%,#1c2830 100%)",
+      "linear-gradient(135deg,#10161a 0%,#18242c 100%)",
+      "linear-gradient(135deg,#0c1216 0%,#141e26 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Full assembly",
+          "ru": "Полная сборка"
+        },
+        "desc": {
+          "en": "Industrial chassis breakdown. Every bolt and seam modeled to engineering specification.",
+          "ru": "Промышленное шасси в разборе. Каждый болт и шов — по инженерной спецификации."
+        }
+      },
+      {
+        "label": {
+          "en": "Part isolation",
+          "ru": "Изоляция узла"
+        },
+        "desc": {
+          "en": "Selected sub-assembly with material IDs highlighted. 24 individually named mesh objects.",
+          "ru": "Выделенный sub-assembly с подсветкой material ID. 24 поименованных меша."
+        }
+      },
+      {
+        "label": {
+          "en": "Production notes",
+          "ru": "Производственные ноты"
+        },
+        "desc": {
+          "en": "Annotated render set delivered to engineering team as vector-accurate reference PDF.",
+          "ru": "Аннотированный сет рендеров для инженерной команды — векторно-точный reference PDF."
+        }
+      },
+      {
+        "label": {
+          "en": "Load diagram",
+          "ru": "Диаграмма нагрузок"
+        },
+        "desc": {
+          "en": "Stress-path overlay generated in Blender Compositing from engineering FEA export.",
+          "ru": "Stress-path-оверлей собран в Blender Compositing из инженерного FEA-экспорта."
+        }
+      },
+      {
+        "label": {
+          "en": "Finish variants",
+          "ru": "Варианты отделки"
+        },
+        "desc": {
+          "en": "Powder-coat and raw-steel renders delivered for catalogue and technical documentation.",
+          "ru": "Powder-coat и raw-steel — рендеры под каталог и техническую документацию."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Reference accuracy",
+        "ru": "Точность по чертежу"
+      },
+      "body": {
+        "en": "Modelled directly from issued engineering CAD — every hole pattern, bolt head and weld bead matches the real part to within 0.5 mm at full scale.",
+        "ru": "Смоделировано напрямую из инженерного CAD: каждое отверстие, головка болта и сварной шов совпадают с реальной деталью с точностью до 0.5 мм в полный масштаб."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Weight target",
+        "ru": "Бюджет веса"
+      },
+      "body": {
+        "en": "Under 28 k tris at LOD0. Silhouette readable at 512 px. First-person camera tested at 2 m and 6 m focal distance.",
+        "ru": "До 28k tris на LOD0. Силуэт читается на 512 px. Камера первого лица проверена на дистанции 2 м и 6 м."
+      }
+    }
+  }
+}

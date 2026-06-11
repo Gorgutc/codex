@@ -1,0 +1,520 @@
+{
+  "categories": [
+    {
+      "key": "hard-surface",
+      "items": [
+        {
+          "id": "orbital-mk-ii",
+          "cat": "Hard Surface",
+          "title": "Orbital Mk.II",
+          "desc": {
+            "en": "Sci-fi prop engineered for AAA pipeline. Full PBR, clean topology.",
+            "ru": "Sci-fi-проп для AAA-пайплайна. Полный PBR, чистая топология."
+          },
+          "badge": "Hard Surface",
+          "contents": [
+            ".blend",
+            ".fbx",
+            ".obj",
+            "4K PBR textures",
+            "Normal map"
+          ],
+          "size": "48 MB",
+          "file": "orbital-mk-ii.zip",
+          "bg": "linear-gradient(135deg,#1e2d3d 0,#2a3a4a 100%)"
+        },
+        {
+          "id": "vega-shell",
+          "cat": "Hard Surface",
+          "title": "Vega Shell",
+          "desc": {
+            "en": "Modular exo-armor system — 47 parts. Snap-together assembly, clean UVs.",
+            "ru": "Модульный экзо-доспех — 47 деталей. Snap-сборка, чистые UV."
+          },
+          "badge": "Hard Surface",
+          "contents": [
+            ".blend",
+            ".fbx",
+            "Modular pieces",
+            "4K textures"
+          ],
+          "size": "93 MB",
+          "file": "vega-shell.zip",
+          "bg": "linear-gradient(135deg,#1a2030 0,#252e40 100%)"
+        },
+        {
+          "id": "ironclad-frame",
+          "cat": "Hard Surface",
+          "title": "Ironclad Frame",
+          "desc": {
+            "en": "Industrial chassis breakdown. Every bolt and seam modeled to spec.",
+            "ru": "Промышленное шасси в разборе. Каждый болт и шов — по чертежу."
+          },
+          "badge": "Hard Surface",
+          "contents": [
+            ".blend",
+            ".fbx",
+            "2K textures",
+            "Wire renders"
+          ],
+          "size": "55 MB",
+          "file": "ironclad-frame.zip",
+          "bg": "linear-gradient(135deg,#1c2428 0,#28343a 100%)"
+        },
+        {
+          "id": "bolt-cluster",
+          "thumb": null,
+          "cat": "Hard Surface",
+          "title": "Bolt Cluster",
+          "desc": {
+            "en": "Industrial fastener kit — 12 variants. Scatter-ready GeoNodes setup.",
+            "ru": "Кит промышленного крепежа — 12 вариантов. Scatter-ready на GeoNodes."
+          },
+          "badge": "Hard Surface",
+          "contents": [
+            ".blend",
+            "12 variants",
+            "GeoNodes setup",
+            "2K textures"
+          ],
+          "size": "31 MB",
+          "file": "bolt-cluster.zip",
+          "bg": "linear-gradient(135deg,#1e2428 0,#2a3038 100%)"
+        },
+        {
+          "id": "terra-base",
+          "thumb": null,
+          "cat": "Hard Surface",
+          "title": "Terra Base",
+          "desc": {
+            "en": "Modular environment kit — 24 tileable pieces. GeoNodes scatter system.",
+            "ru": "Модульный environment-кит — 24 tileable-куска. GeoNodes scatter-система."
+          },
+          "badge": "Hard Surface",
+          "contents": [
+            ".blend",
+            "24 modules",
+            "GeoNodes",
+            "4K tileable textures"
+          ],
+          "size": "182 MB",
+          "file": "terra-base.zip",
+          "bg": "linear-gradient(135deg,#1c2030 0,#28303e 100%)"
+        },
+        {
+          "id": "shard-cannon",
+          "thumb": null,
+          "cat": "Hard Surface",
+          "title": "Shard Cannon",
+          "desc": {
+            "en": "Sci-fi heavy weapon — three skin variations, UE5-compatible export.",
+            "ru": "Sci-fi тяжёлое оружие — три варианта скина, экспорт под UE5."
+          },
+          "badge": "Hard Surface",
+          "contents": [
+            ".fbx",
+            ".blend",
+            "3 skin variants",
+            "4K PBR"
+          ],
+          "size": "103 MB",
+          "file": "shard-cannon.zip",
+          "bg": "linear-gradient(135deg,#1a1a2a 0,#252535 100%)"
+        },
+        {
+          "id": "wraith-blade",
+          "thumb": null,
+          "cat": "Hard Surface",
+          "title": "Wraith Blade",
+          "desc": {
+            "en": "Thin melee weapon with emissive edge glow texture variant included.",
+            "ru": "Тонкое холодное оружие с вариантом эмиссивного свечения кромки."
+          },
+          "badge": "Hard Surface",
+          "contents": [
+            ".fbx",
+            ".blend",
+            "Emissive variant",
+            "4K PBR"
+          ],
+          "size": "76 MB",
+          "file": "wraith-blade.zip",
+          "bg": "linear-gradient(135deg,#1e1a28 0,#2a2438 100%)"
+        },
+        {
+          "id": "apex-frame",
+          "cat": "Hard Surface",
+          "title": "Apex Frame",
+          "desc": {
+            "en": "Mechanical component breakdown. Exploded view rig. Mfg-reference accuracy.",
+            "ru": "Разборка механического узла. Exploded view-риг. Точность по заводскому чертежу."
+          },
+          "badge": "Mechanical",
+          "contents": [
+            ".blend",
+            ".step",
+            "Exploded rig",
+            "2K textures",
+            "README"
+          ],
+          "size": "67 MB",
+          "file": "apex-frame.zip",
+          "bg": "linear-gradient(135deg,#202428 0,#2c3034 100%)"
+        }
+      ]
+    },
+    {
+      "key": "product",
+      "items": [
+        {
+          "id": "corten-series",
+          "cat": "Product Viz",
+          "title": "Corten Series",
+          "desc": {
+            "en": "Industrial furniture scene. HDRI + camera rigs for stills and turntable.",
+            "ru": "Сцена индустриальной мебели. HDRI и камерные риги под стиллы и turntable."
+          },
+          "badge": "Product Viz",
+          "contents": [
+            ".blend",
+            "HDRI lighting",
+            "Camera rigs",
+            "4K textures",
+            "Render settings"
+          ],
+          "size": "112 MB",
+          "file": "corten-series.zip",
+          "bg": "linear-gradient(135deg,#2a2018 0,#3a2e22 100%)"
+        },
+        {
+          "id": "lumen-one",
+          "cat": "Product Viz",
+          "title": "Lumen One",
+          "desc": {
+            "en": "Minimalist product scene. Cycles render with area lights and reflectors.",
+            "ru": "Минималистичная product-сцена. Рендер в Cycles с area-lights и рефлекторами."
+          },
+          "badge": "Product Viz",
+          "contents": [
+            ".blend",
+            "Studio lighting",
+            "Material lib",
+            "4K renders"
+          ],
+          "size": "74 MB",
+          "file": "lumen-one.zip",
+          "bg": "linear-gradient(135deg,#1e2428 0,#2c3640 100%)"
+        },
+        {
+          "id": "flux-capsule",
+          "cat": "Product Viz",
+          "title": "Flux Capsule",
+          "desc": {
+            "en": "Consumer tech device — 8 camera angles, e-commerce shot set.",
+            "ru": "Consumer-гаджет — 8 ракурсов камеры, e-commerce-сет."
+          },
+          "badge": "Product Viz",
+          "contents": [
+            ".blend",
+            "8 camera angles",
+            "Studio rig",
+            "4K textures"
+          ],
+          "size": "88 MB",
+          "file": "flux-capsule.zip",
+          "bg": "linear-gradient(135deg,#1e2030 0,#282a40 100%)"
+        },
+        {
+          "id": "echo-shell",
+          "thumb": null,
+          "cat": "Product Viz",
+          "title": "Echo Shell",
+          "desc": {
+            "en": "Speaker product scene — three colorways, compositing nodes included.",
+            "ru": "Сцена со спикером — три colorway, compositing-ноды в комплекте."
+          },
+          "badge": "Product Viz",
+          "contents": [
+            ".blend",
+            "3 colorways",
+            "Compositor",
+            "4K renders"
+          ],
+          "size": "118 MB",
+          "file": "echo-shell.zip",
+          "bg": "linear-gradient(135deg,#1e2024 0,#282830 100%)"
+        },
+        {
+          "id": "prism-lab",
+          "thumb": null,
+          "cat": "Product Viz",
+          "title": "Prism Lab",
+          "desc": {
+            "en": "Architectural product viz — day and night lighting setups.",
+            "ru": "Архитектурный product viz — день/ночь lighting-сетапы."
+          },
+          "badge": "Product Viz",
+          "contents": [
+            ".blend",
+            "Day lighting",
+            "Night lighting",
+            "4K renders"
+          ],
+          "size": "145 MB",
+          "file": "prism-lab.zip",
+          "bg": "linear-gradient(135deg,#1c2030 0,#282a40 100%)"
+        }
+      ]
+    },
+    {
+      "key": "game",
+      "items": [
+        {
+          "id": "nightshard",
+          "cat": "Game Asset",
+          "title": "Nightshard",
+          "desc": {
+            "en": "Hero weapon. 4K PBR textures, optimised for real-time. UE5-ready.",
+            "ru": "Hero-оружие. 4K PBR-текстуры, оптимизация под real-time. UE5-ready."
+          },
+          "badge": "Game Asset",
+          "contents": [
+            ".fbx (LOD 0–2)",
+            ".blend",
+            "4K PBR textures",
+            "AO map"
+          ],
+          "size": "89 MB",
+          "file": "nightshard.zip",
+          "bg": "linear-gradient(135deg,#1a1a2a 0,#252535 100%)"
+        },
+        {
+          "id": "recon-drone",
+          "cat": "Game Asset",
+          "title": "Recon Drone",
+          "desc": {
+            "en": "Tactical UAV prop. LOD 0–2, UE5-compatible. Full PBR texture set.",
+            "ru": "Тактический UAV-проп. LOD 0–2, под UE5. Полный сет PBR-текстур."
+          },
+          "badge": "Game Asset",
+          "contents": [
+            ".fbx",
+            ".blend",
+            "4K PBR textures",
+            "LOD 0–2"
+          ],
+          "size": "61 MB",
+          "file": "recon-drone.zip",
+          "bg": "linear-gradient(135deg,#1c2030 0,#28303e 100%)"
+        },
+        {
+          "id": "wraith-blade-g",
+          "thumb": null,
+          "cat": "Game Asset",
+          "title": "Wraith Blade",
+          "desc": {
+            "en": "Thin melee weapon. High-poly bake, emissive edge glow variant.",
+            "ru": "Тонкое холодное оружие. Hi-poly bake, вариант эмиссивного свечения."
+          },
+          "badge": "Game Asset",
+          "contents": [
+            ".fbx",
+            ".blend",
+            "Emissive variant",
+            "4K PBR"
+          ],
+          "size": "76 MB",
+          "file": "wraith-blade.zip",
+          "bg": "linear-gradient(135deg,#1e1a28 0,#2a2438 100%)"
+        },
+        {
+          "id": "shard-cannon-g",
+          "thumb": null,
+          "cat": "Game Asset",
+          "title": "Shard Cannon",
+          "desc": {
+            "en": "Sci-fi heavy weapon — three skin variations, UE5-compatible.",
+            "ru": "Sci-fi тяжёлое оружие — три варианта скина, под UE5."
+          },
+          "badge": "Game Asset",
+          "contents": [
+            ".fbx",
+            ".blend",
+            "3 skin variants",
+            "4K PBR"
+          ],
+          "size": "103 MB",
+          "file": "shard-cannon.zip",
+          "bg": "linear-gradient(135deg,#1a1a2a 0,#252535 100%)"
+        }
+      ]
+    },
+    {
+      "key": "organic",
+      "items": [
+        {
+          "id": "nyx-panther",
+          "cat": "Organic",
+          "title": "Nyx Panther",
+          "desc": {
+            "en": "Stylized feline. Hand-sculpted anatomy, dual-coat fur groom. Rigged.",
+            "ru": "Стилизованный хищник кошачьих. Скульптинг анатомии, двухслойный грум меха. С ригом."
+          },
+          "badge": "Organic",
+          "contents": [
+            ".blend",
+            "Rig",
+            "Fur groom",
+            "4K textures"
+          ],
+          "size": "156 MB",
+          "file": "nyx-panther.zip",
+          "bg": "linear-gradient(135deg,#1a1816 0,#2a2520 100%)"
+        },
+        {
+          "id": "drift-koi",
+          "cat": "Organic",
+          "title": "Drift Koi",
+          "desc": {
+            "en": "Ornamental fish. SSS pass, displacement scales, swim cycle at 30fps.",
+            "ru": "Декоративная рыба. SSS-пасс, displacement-чешуя, swim-цикл на 30 fps."
+          },
+          "badge": "Organic",
+          "contents": [
+            ".blend",
+            "SSS shader",
+            "Swim cycle",
+            "4K textures"
+          ],
+          "size": "128 MB",
+          "file": "drift-koi.zip",
+          "bg": "linear-gradient(135deg,#161e24 0,#1f2a34 100%)"
+        },
+        {
+          "id": "glint-owl",
+          "cat": "Organic",
+          "title": "Glint Owl",
+          "desc": {
+            "en": "Stylized bird. Procedural feather asymmetry, idle animation rig.",
+            "ru": "Стилизованная птица. Процедурная асимметрия перьев, idle-анимация на риге."
+          },
+          "badge": "Organic",
+          "contents": [
+            ".blend",
+            "Feather groom",
+            "Rig",
+            "4K textures"
+          ],
+          "size": "97 MB",
+          "file": "glint-owl.zip",
+          "bg": "linear-gradient(135deg,#1a1a22 0,#262632 100%)"
+        }
+      ]
+    },
+    {
+      "key": "animation",
+      "items": [
+        {
+          "id": "helix-reveal",
+          "cat": "Animation",
+          "title": "Helix Reveal",
+          "desc": {
+            "en": "Product reveal loop — 6 seconds. Camera path + keyframes fully editable.",
+            "ru": "Product reveal-луп — 6 секунд. Путь камеры и ключи — редактируемые."
+          },
+          "badge": "Animation",
+          "contents": [
+            ".blend",
+            "Camera path",
+            "MP4 render",
+            "4K output"
+          ],
+          "size": "340 MB",
+          "file": "helix-reveal.zip",
+          "bg": "linear-gradient(135deg,#1a2233 0,#26304a 100%)"
+        },
+        {
+          "id": "arc-motion",
+          "cat": "Animation",
+          "title": "Arc Motion",
+          "desc": {
+            "en": "Turntable sequence — full 360° orbit, 4K export. Lighting customizable.",
+            "ru": "Turntable-секвенция — орбита 360°, экспорт 4K. Свет настраиваемый."
+          },
+          "badge": "Animation",
+          "contents": [
+            ".blend",
+            "360° path",
+            "MP4 render",
+            "HDRI"
+          ],
+          "size": "210 MB",
+          "file": "arc-motion.zip",
+          "bg": "linear-gradient(135deg,#1f1a2a 0,#2a2438 100%)"
+        }
+      ]
+    },
+    {
+      "key": "cad",
+      "items": [
+        {
+          "id": "mech-link",
+          "cat": "CAD",
+          "title": "Mech Link",
+          "desc": {
+            "en": "Industrial CAD assembly. Exported from Fusion 360, cleaned for Blender.",
+            "ru": "Промышленная CAD-сборка. Экспорт из Fusion 360, причёсано для Blender."
+          },
+          "badge": "CAD",
+          "contents": [
+            ".blend",
+            ".step",
+            ".f3d source",
+            "Assembly notes"
+          ],
+          "size": "38 MB",
+          "file": "mech-link.zip",
+          "bg": "linear-gradient(135deg,#1d232a 0,#2a3138 100%)"
+        },
+        {
+          "id": "flex-spine",
+          "cat": "CAD",
+          "title": "Flex Spine",
+          "desc": {
+            "en": "Kinematic spine study. Parametric ribs — robotics and biomedical reference.",
+            "ru": "Этюд кинематической оси. Параметрические рёбра — reference для робототехники и biomed."
+          },
+          "badge": "CAD",
+          "contents": [
+            ".blend",
+            ".step",
+            "Parametric notes",
+            "Renders"
+          ],
+          "size": "29 MB",
+          "file": "flex-spine.zip",
+          "bg": "linear-gradient(135deg,#21272d 0,#2e353c 100%)"
+        },
+        {
+          "id": "cad-strut",
+          "cat": "CAD",
+          "title": "CAD Strut",
+          "desc": {
+            "en": "Structural strut node system. Modular connectors, manufacturing docs.",
+            "ru": "Структурный strut-узел. Модульные коннекторы, производственная документация."
+          },
+          "badge": "CAD",
+          "contents": [
+            ".blend",
+            ".stl",
+            ".step",
+            "Tech docs"
+          ],
+          "size": "33 MB",
+          "file": "cad-strut.zip",
+          "bg": "linear-gradient(135deg,#1f2429 0,#2b3138 100%)"
+        }
+      ]
+    }
+  ]
+}

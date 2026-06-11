@@ -1,0 +1,126 @@
+{
+  "id": "arc-motion",
+  "enabled": true,
+  "category": "animations",
+  "year": "2024",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "12",
+    "thumb": "./assets/cards/arc-motion.svg",
+    "thumbLabel": "Arc Motion",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Arc Motion",
+      "ru": "Arc Motion"
+    },
+    "desc": {
+      "en": "Turntable sequence for industrial product. 360° orbit, 4K export.",
+      "ru": "Turntable-секвенция для промышленного продукта. Орбита 360°, выгрузка 4K."
+    },
+    "alt": {
+      "en": "Arc Motion — turntable sequence for industrial product",
+      "ru": "Arc Motion — turntable для индустриального продукта"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "R&D",
+      "ru": "R&D"
+    },
+    "tools": [
+      "Blender",
+      "DaVinci Resolve",
+      "Nuke"
+    ],
+    "modelSrc": "./assets/models/arc-motion.glb",
+    "modelStats": {
+      "triangles": "1,856",
+      "vertices": "930",
+      "materials": 2,
+      "textures": "Procedural (PBR)",
+      "software": "Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1f1a2a 0%,#2a2438 100%)",
+      "linear-gradient(135deg,#1b1626 0%,#262034 100%)",
+      "linear-gradient(135deg,#171222 0%,#221e30 100%)",
+      "linear-gradient(135deg,#130e1e 0%,#1e1a2c 100%)",
+      "linear-gradient(135deg,#0f0a1a 0%,#181428 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Orbit frame",
+          "ru": "Orbit-кадр"
+        },
+        "desc": {
+          "en": "Turntable sequence for industrial product — 360° orbit, 4K export with motion blur.",
+          "ru": "Turntable-секвенция для индустриального продукта — орбита 360°, экспорт 4K с motion blur."
+        }
+      },
+      {
+        "label": {
+          "en": "Lighting pass",
+          "ru": "Lighting-пасс"
+        },
+        "desc": {
+          "en": "3-layer HDRI rig with gel-coloured area lights. Lighting designed to match brand guidelines.",
+          "ru": "3-слойный HDRI-риг с gel-coloured area lights. Свет под brand-гайды."
+        }
+      },
+      {
+        "label": {
+          "en": "Export settings",
+          "ru": "Export-настройки"
+        },
+        "desc": {
+          "en": "Delivered as 4K MP4 (H.264), WebM (VP9), and individual PNG sequence for compositing.",
+          "ru": "Доставлен как 4K MP4 (H.264), WebM (VP9) и отдельная PNG-секвенция под composit."
+        }
+      },
+      {
+        "label": {
+          "en": "Motion blur",
+          "ru": "Motion blur"
+        },
+        "desc": {
+          "en": "Per-object velocity pass rendered separately so the client can tune blur amount in post.",
+          "ru": "Per-object velocity-пасс рендерится отдельно — клиент может крутить blur amount в посте."
+        }
+      },
+      {
+        "label": {
+          "en": "Compositing AOVs",
+          "ru": "Compositing AOVs"
+        },
+        "desc": {
+          "en": "Cryptomatte, depth, ID and position passes delivered for flexible relight in Nuke.",
+          "ru": "Cryptomatte, depth, ID и position-пассы — гибкий relight в Nuke."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Delivery formats",
+        "ru": "Форматы доставки"
+      },
+      "body": {
+        "en": "Shipped as a master ProRes file plus H.264, WebM and an image sequence. Same timing, three containers — ready for web, print and post-production pipelines.",
+        "ru": "Отгружено как мастер ProRes плюс H.264, WebM и image-sequence. Один тайминг, три контейнера — готов под web, печать и post-production пайплайны."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Motion curves",
+        "ru": "Motion curves"
+      },
+      "body": {
+        "en": "Custom ease-out-expo for the main arc. Secondary trails use bezier splines sampled at 60 FPS.",
+        "ru": "Кастомный ease-out-expo на главную дугу. Вторичные следы — bezier-сплайны на 60 FPS."
+      }
+    }
+  }
+}

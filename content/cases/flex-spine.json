@@ -1,0 +1,133 @@
+{
+  "id": "flex-spine",
+  "enabled": true,
+  "category": "cad",
+  "year": "2025",
+  "gameAsset": false,
+  "cadPlaceholder": true,
+  "card": {
+    "htmlComment": "17 — CAD study",
+    "thumb": "./assets/cards/flex-spine.svg",
+    "thumbLabel": "Flex Spine",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Flex Spine",
+      "ru": "Flex Spine"
+    },
+    "desc": {
+      "en": "Kinematic spine study. CAD constraints and parametric ribs for motion review.",
+      "ru": "Этюд кинематической оси. CAD-констрейнты и параметрические рёбра для motion-review."
+    },
+    "alt": {
+      "en": "Flex Spine — kinematic CAD spine study",
+      "ru": "Flex Spine — этюд кинематической оси, CAD"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "R&D",
+      "ru": "R&D"
+    },
+    "tools": [
+      "Fusion 360",
+      "Blender",
+      "KeyShot"
+    ],
+    "modelSrc": "./assets/models/flex-spine.glb",
+    "modelStats": {
+      "triangles": "496",
+      "vertices": "258",
+      "materials": 2,
+      "textures": "Procedural (PBR)",
+      "software": "Fusion 360 + Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#21272d 0%,#2e353c 100%)",
+      "linear-gradient(135deg,#1d232a 0%,#2a3138 100%)",
+      "linear-gradient(135deg,#1a2027 0%,#262c33 100%)",
+      "linear-gradient(135deg,#171d24 0%,#222930 100%)",
+      "linear-gradient(135deg,#141a21 0%,#1e252c 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Spine assembly",
+          "ru": "Сборка позвоночника"
+        },
+        "desc": {
+          "en": "Kinematic spine assembly. Parametric ribs driven by a single driver angle.",
+          "ru": "Кинематическая ось. Параметрические рёбра управляются одним driver-углом."
+        }
+      },
+      {
+        "label": {
+          "en": "Rib section",
+          "ru": "Сечение ребра"
+        },
+        "desc": {
+          "en": "Section-cut through one rib — thickness and fillet radii exposed as parameters.",
+          "ru": "Section-cut через одно ребро — толщина и радиусы фасок выведены как параметры."
+        }
+      },
+      {
+        "label": {
+          "en": "Deflection test",
+          "ru": "Deflection study"
+        },
+        "desc": {
+          "en": "FEA sketch — deflection map under 50 N lateral load, prepared for design review.",
+          "ru": "FEA-скетч — deflection map под 50 N боковой нагрузки для design-review."
+        }
+      },
+      {
+        "label": {
+          "en": "Joint detail",
+          "ru": "Деталь сустава"
+        },
+        "desc": {
+          "en": "Ball-and-socket joint close-up. Tolerance stack-up listed in source PDF.",
+          "ru": "Крупный план ball-and-socket. Tolerance stack-up расписан в исходном PDF."
+        }
+      },
+      {
+        "label": {
+          "en": "Render study",
+          "ru": "Этюд рендера"
+        },
+        "desc": {
+          "en": "KeyShot pass — matte steel against cool grey backdrop.",
+          "ru": "KeyShot-пасс — matte-steel на cool-grey фоне."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Kinematic CAD study",
+        "ru": "Kinematic CAD study"
+      },
+      "body": {
+        "en": "Parametric spine case: one driver angle bends every rib, with render studies prepared for stand and motion review.",
+        "ru": "Параметрическая spine-система: один driver-угол сгибает каждое ребро, render studies подготовлены под stand и motion-review."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Parametrics",
+        "ru": "Параметры"
+      },
+      "body": {
+        "en": "Parameters: rib_count, rib_thickness, segment_angle. Linked through Fusion 360 sketches and exported to Blender.",
+        "ru": "Параметры: rib_count, rib_thickness, segment_angle. Связаны через Fusion 360 sketches → экспорт в Blender."
+      }
+    }
+  },
+  "i18nOverrides": {
+    "caseEn": {
+      "inline": {
+        "body": "Parameters: rib_count, rib_thickness, segment_angle. Linked via Fusion 360 sketches → exported to Blender."
+      }
+    }
+  }
+}

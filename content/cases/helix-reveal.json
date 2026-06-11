@@ -1,0 +1,125 @@
+{
+  "id": "helix-reveal",
+  "enabled": true,
+  "category": "animations",
+  "year": "2025",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "11",
+    "thumb": "./assets/cards/helix-reveal.svg",
+    "thumbLabel": "Helix Reveal",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Helix Reveal",
+      "ru": "Helix Reveal"
+    },
+    "desc": {
+      "en": "Product reveal animation. 6-second loop, render for hero section.",
+      "ru": "Product reveal-анимация. 6-секундный луп, рендер под hero-секцию."
+    },
+    "alt": {
+      "en": "Helix Reveal — product reveal animation",
+      "ru": "Helix Reveal — product reveal-анимация"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "R&D",
+      "ru": "R&D"
+    },
+    "tools": [
+      "Blender",
+      "DaVinci Resolve"
+    ],
+    "modelSrc": "./assets/models/helix-reveal.glb",
+    "modelStats": {
+      "triangles": "168",
+      "vertices": "112",
+      "materials": 1,
+      "textures": "Procedural (PBR)",
+      "software": "Blender"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1a2233 0%,#26304a 100%)",
+      "linear-gradient(135deg,#161e2e 0%,#222c44 100%)",
+      "linear-gradient(135deg,#121a28 0%,#1e283e 100%)",
+      "linear-gradient(135deg,#0e1624 0%,#182238 100%)",
+      "linear-gradient(135deg,#0a1220 0%,#141e30 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Final frame",
+          "ru": "Финальный кадр"
+        },
+        "desc": {
+          "en": "Product reveal animation — 6-second loop rendered for a hero section background.",
+          "ru": "Product reveal-анимация — 6-секундный луп, рендер под фон hero-секции."
+        }
+      },
+      {
+        "label": {
+          "en": "Storyboard",
+          "ru": "Раскадровка"
+        },
+        "desc": {
+          "en": "Hand-drawn beat sheet translated to Blender timeline. 6 key poses over 180 frames.",
+          "ru": "Beat sheet от руки перенесён на Blender timeline. 6 ключевых поз на 180 кадров."
+        }
+      },
+      {
+        "label": {
+          "en": "Render settings",
+          "ru": "Render settings"
+        },
+        "desc": {
+          "en": "4K @ 60 fps, Cycles path-trace, 512 samples. Denoised in OptiX. Exported as ProRes 4444.",
+          "ru": "4K @ 60 fps, Cycles path-trace, 512 сэмплов. Denoise OptiX. Экспорт ProRes 4444."
+        }
+      },
+      {
+        "label": {
+          "en": "Camera moves",
+          "ru": "Движение камеры"
+        },
+        "desc": {
+          "en": "Two-layer parallax camera setup — dolly track plus subtle handheld noise for energy.",
+          "ru": "Двухслойная parallax-камера — dolly-track плюс тонкий handheld noise для энергии."
+        }
+      },
+      {
+        "label": {
+          "en": "Colour grade",
+          "ru": "Color grade"
+        },
+        "desc": {
+          "en": "Teal-orange grade applied in DaVinci Resolve. Matches the brand launch trailer palette.",
+          "ru": "Teal-orange грейд в DaVinci Resolve — совпадает с палитрой brand launch-трейлера."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Built for loops",
+        "ru": "Сделан под лупы"
+      },
+      "body": {
+        "en": "Every motion curve is shaped so the last frame matches the first. The 6-second cycle can play forever as a hero background without a visible cut.",
+        "ru": "Каждая motion-кривая выстроена так, что последний кадр совпадает с первым. 6-секундный цикл играет вечно как hero-фон без заметного шва."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Animation",
+        "ru": "Анимация"
+      },
+      "body": {
+        "en": "12-second loop at 24 FPS. DNA helix unwinds via a single angle-driven shader — no armature, no bake.",
+        "ru": "12-секундный луп на 24 FPS. DNA-helix раскручивается одним angle-driven шейдером — без арматуры, без bake."
+      }
+    }
+  }
+}

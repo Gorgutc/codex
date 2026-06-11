@@ -1,0 +1,126 @@
+{
+  "id": "core-rig",
+  "enabled": true,
+  "category": "prototyping",
+  "year": "2024",
+  "gameAsset": false,
+  "cadPlaceholder": false,
+  "card": {
+    "htmlComment": "10",
+    "thumb": "./assets/cards/core-rig.svg",
+    "thumbLabel": "Core Rig",
+    "imgLoading": "lazy",
+    "imgFetchPriority": null,
+    "badge": null,
+    "title": {
+      "en": "Core Rig",
+      "ru": "Core Rig"
+    },
+    "desc": {
+      "en": "Structural assembly prototype. Modeled for 3D-print validation.",
+      "ru": "Прототип несущей сборки. Геометрия под 3D-печатную валидацию."
+    },
+    "alt": {
+      "en": "Core Rig — structural assembly prototype",
+      "ru": "Core Rig — прототип несущей сборки"
+    }
+  },
+  "case": {
+    "role": {
+      "en": "R&D",
+      "ru": "R&D"
+    },
+    "tools": [
+      "Blender",
+      "Meshmixer",
+      "Cura"
+    ],
+    "modelSrc": "./assets/models/core-rig.glb",
+    "modelStats": {
+      "triangles": "464",
+      "vertices": "240",
+      "materials": 2,
+      "textures": "Procedural (PBR)",
+      "software": "Blender + Fusion 360"
+    },
+    "palette": [
+      "linear-gradient(135deg,#1e2830 0%,#28363e 100%)",
+      "linear-gradient(135deg,#1a2428 0%,#24303a 100%)",
+      "linear-gradient(135deg,#161e24 0%,#202c34 100%)",
+      "linear-gradient(135deg,#121a20 0%,#1c2830 100%)",
+      "linear-gradient(135deg,#0e161c 0%,#18242c 100%)"
+    ],
+    "captions": [
+      {
+        "label": {
+          "en": "Structural view",
+          "ru": "Структурный вид"
+        },
+        "desc": {
+          "en": "Structural assembly prototype modeled for 3D-print validation and form-factor approval.",
+          "ru": "Прототип несущей сборки. Геометрия под 3D-печатную валидацию и утверждение форм-фактора."
+        }
+      },
+      {
+        "label": {
+          "en": "Section cut",
+          "ru": "Section cut"
+        },
+        "desc": {
+          "en": "Cross-section render exposing interior wall thickness for print clearance verification.",
+          "ru": "Cross-section рендер — экспонирует толщину внутренних стенок под проверку зазоров печати."
+        }
+      },
+      {
+        "label": {
+          "en": "Print validation",
+          "ru": "Валидация печати"
+        },
+        "desc": {
+          "en": "Final mesh passed through Meshmixer slicer. Zero errors, overhang angle within tolerance.",
+          "ru": "Финальный меш прошёл Meshmixer-слайсер. Ноль ошибок, overhang-угол в допуске."
+        }
+      },
+      {
+        "label": {
+          "en": "Support map",
+          "ru": "Support map"
+        },
+        "desc": {
+          "en": "Predicted support regions overlaid in blue. Used to iterate the orientation before slicing.",
+          "ru": "Предсказанные зоны поддержек подсвечены синим. Использовалось для итерации ориентации до слайсинга."
+        }
+      },
+      {
+        "label": {
+          "en": "Fit test render",
+          "ru": "Fit-test"
+        },
+        "desc": {
+          "en": "Assembly of the printed prototype with its mating housing. Photogrammetry alignment check.",
+          "ru": "Сборка напечатанного прототипа с его mate-корпусом. Photogrammetry alignment check."
+        }
+      }
+    ],
+    "text": {
+      "title": {
+        "en": "Print-first design",
+        "ru": "Print-first"
+      },
+      "body": {
+        "en": "The geometry is modelled around FDM constraints — 45° overhang rules, wall-thickness minimums and bridging limits — so the file can go straight to a slicer without manual repair.",
+        "ru": "Геометрия смоделирована под FDM-констрейнты — правила 45° overhang, минимумы wall-thickness и bridging-лимиты — файл идёт прямо в слайсер без ручного ремонта."
+      }
+    },
+    "inline": {
+      "title": {
+        "en": "Joint library",
+        "ru": "Joint library"
+      },
+      "body": {
+        "en": "Custom IK handle with stretch-and-squash limits. Retargets to Mixamo and Mannequin out of the box.",
+        "ru": "Кастомный IK-handle с stretch-and-squash лимитами. Retarget на Mixamo и Mannequin из коробки."
+      }
+    }
+  }
+}
