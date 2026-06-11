@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
+    "admin/js/api.js",
+    "admin/js/state.js",
+    "admin/js/ui.js",
     "js/animations.js",
     "js/cards-data.js",
     "js/fa-data.js",
@@ -10,10 +13,19 @@
     "js/main.js",
     "js/model-data.js",
     "js/shared-runtime.js",
+    "netlify/functions/*.mjs",
     "scripts/**/*.mjs",
     "tests/**/*.mjs"
   ],
-  "project": ["js/**/*.js", "scripts/**/*.mjs", "tests/**/*.mjs", "*.config.mjs", "*.config.cjs"],
+  "project": [
+    "admin/js/**/*.js",
+    "js/**/*.js",
+    "netlify/functions/**/*.mjs",
+    "scripts/**/*.mjs",
+    "tests/**/*.mjs",
+    "*.config.mjs",
+    "*.config.cjs"
+  ],
   "ignore": ["js/vendor/**"],
   "ignoreDependencies": ["@lhci/cli"]
 }

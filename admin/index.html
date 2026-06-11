@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     admin/index.html — Codex Studio, админ-панель (итерация D, MVP).
+
+     Назначение: вход (GitHub OAuth / PAT), редактирование текстов RU/EN
+     кейсов, мета-тегов и текстов интерфейса. Публикация = один atomic-коммит
+     в main через GitHub Git Data API; дальше работает конвейер
+     .github/workflows/content-publish.yml (итерация C).
+
+     НЕ ссылается ни с одной публичной страницы сайта; robots.txt закрывает
+     /admin/ от индексации. Classic scripts, без сборки и фреймворков.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Codex Studio — админ-панель</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon/favicon-32.png">
+  <link rel="stylesheet" href="./css/admin.css">
+</head>
+<body>
+  <header class="topbar" id="topbar" hidden>
+    <a class="topbar__brand" href="#/cases">CODEX<span class="topbar__brand-sub">/ админ</span></a>
+    <nav class="topbar__nav" aria-label="Разделы админ-панели">
+      <a href="#/cases" data-nav="cases">Кейсы</a>
+      <a href="#/meta" data-nav="meta">Мета-теги</a>
+      <a href="#/ui" data-nav="ui">Тексты интерфейса</a>
+    </nav>
+    <div class="topbar__actions">
+      <span class="draft-indicator" id="draft-indicator" hidden>
+        <span class="draft-indicator__dot" aria-hidden="true"></span>несохранённые изменения
+      </span>
+      <button type="button" class="btn btn--primary" id="publish-btn" disabled>Опубликовать</button>
+    </div>
+    <div class="topbar__user" id="topbar-user"></div>
+  </header>
+
+  <main class="app" id="app" aria-live="polite"></main>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <dialog class="publish-dialog" id="publish-dialog">
+    <h2 class="publish-dialog__title">Опубликовать изменения</h2>
+    <p class="publish-dialog__lead">Будет создан один коммит в <code>main</code> с файлами:</p>
+    <ul class="publish-dialog__files" id="publish-files"></ul>
+    <label class="publish-dialog__label" for="publish-desc">Короткое описание изменений</label>
+    <input class="publish-dialog__input" id="publish-desc" type="text" autocomplete="off">
+    <p class="publish-dialog__hint">
+      После коммита конвейер проверит контент и пересоберёт сайт.
+      Обновление займёт примерно 2–3 минуты.
+    </p>
+    <div class="publish-dialog__actions">
+      <button type="button" class="btn" id="publish-cancel">Отмена</button>
+      <button type="button" class="btn btn--primary" id="publish-confirm">Опубликовать</button>
+    </div>
+  </dialog>
+
+  <script src="./js/api.js"></script>
+  <script src="./js/state.js"></script>
+  <script src="./js/ui.js"></script>
+</body>
+</html>

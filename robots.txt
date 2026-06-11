@@ -1,38 +1,51 @@
 # Codex Studio — robots.txt (v0.13.8)
 # Allow all search + AI crawlers to the public portfolio.
+# /admin/ is the private admin panel — keep it out of every index
+# (each named group overrides the * group, so the rule repeats per agent).
 
 User-agent: *
 Allow: /
+Disallow: /admin/
 
 User-agent: Googlebot
 Allow: /
+Disallow: /admin/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /admin/
 
 # AI crawlers
 User-agent: GPTBot
 Allow: /
+Disallow: /admin/
 
 User-agent: OAI-SearchBot
 Allow: /
+Disallow: /admin/
 
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /admin/
 
 User-agent: ClaudeBot
 Allow: /
+Disallow: /admin/
 
 User-agent: anthropic-ai
 Allow: /
+Disallow: /admin/
 
 User-agent: PerplexityBot
 Allow: /
+Disallow: /admin/
 
 User-agent: Google-Extended
 Allow: /
+Disallow: /admin/
 
 User-agent: CCBot
 Allow: /
+Disallow: /admin/
 
 Sitemap: https://codex.promo/sitemap.xml

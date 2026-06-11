@@ -4,6 +4,16 @@
 [build]
   publish = "."
 
+# Итерация D — serverless-функции (GitHub OAuth proxy админки: cms-auth.mjs)
+[functions]
+  directory = "netlify/functions"
+
+# Исходники функций не должны раздаваться как статика (publish = ".")
+[[redirects]]
+  from = "/netlify/*"
+  to = "/404"
+  status = 404
+
 # Long-cache на статические ассеты (immutable — пути не меняются без обновления имени)
 [[headers]]
   for = "/assets/*"
