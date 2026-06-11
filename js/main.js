@@ -928,12 +928,19 @@
     var seed = hashStr(id);
     var rng  = mulberry32(seed);
 
+    // Итерация F: layoutMode 'manual' (из cards-data.js) — авторский порядок
+    // media[] без seeded-перемешиваний; план рядов (wide/tall) не меняется.
+    // Отсутствующий или любой другой флаг = прежнее seeded-поведение.
+    var manualOrder = data.layoutMode === 'manual';
+
     // Разделяем media на wide / tall
     var widesSrc = items.media.filter(function (m) { return m.format === 'wide' && m.enabled !== false; });
     var tallsSrc = items.media.filter(function (m) { return m.format === 'tall' && m.enabled !== false; });
 
     // Детерминированное перемешивание внутри каждой группы
+    // (в ручном режиме — no-op, порядок остаётся авторским)
     function shuffleInPlace(arr) {
+      if (manualOrder) return arr;
       for (var i = arr.length - 1; i > 0; i--) {
         var j = Math.floor(rng() * (i + 1));
         var t = arr[i]; arr[i] = arr[j]; arr[j] = t;

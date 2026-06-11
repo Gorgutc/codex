@@ -24,6 +24,7 @@
     <a class="topbar__brand" href="#/cases">CODEX<span class="topbar__brand-sub">/ админ</span></a>
     <nav class="topbar__nav" aria-label="Разделы админ-панели">
       <a href="#/cases" data-nav="cases">Кейсы</a>
+      <a href="#/categories" data-nav="categories">Категории</a>
       <a href="#/meta" data-nav="meta">Мета-теги</a>
       <a href="#/ui" data-nav="ui">Тексты интерфейса</a>
     </nav>
@@ -59,6 +60,9 @@
     </div>
   </dialog>
 
+  <!-- SortableJS 1.15.7 (MIT, self-hosted) — drag-and-drop перестановка;
+       при отсутствии файла остаётся клавиатурный фоллбек кнопками ↑/↓ -->
+  <script src="./js/vendor/sortable.min.js"></script>
   <script src="./js/api.js"></script>
   <script src="./js/state.js"></script>
   <script src="./js/ui.js"></script>

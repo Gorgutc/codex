@@ -427,12 +427,77 @@ textarea[disabled] {
   border-color: var(--a-border);
 }
 
-.case-row__drag {
+/* Итерация F: выключенный кейс/категория — мгновенное затемнение строки
+   (принцип 5 research.md) */
+.case-row--off {
+  opacity: 0.45;
+}
+
+.case-row--off:hover {
+  opacity: 0.7;
+}
+
+.badge--off {
   color: var(--a-faint);
-  cursor: not-allowed;
-  font-size: 1rem;
+  border-color: var(--a-border);
+  background: var(--a-surface-2);
+}
+
+/* Итерация F: ручка ⠿ + клавиатурные кнопки ↑/↓ (принцип 4 research.md) */
+.reorder-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.reorder-handle {
+  color: var(--a-faint);
+  cursor: grab;
+  font-size: 1.1rem;
   letter-spacing: -0.1em;
   user-select: none;
+  padding: 0.4rem 0.45rem; /* крупная зона захвата */
+  border-radius: var(--a-radius);
+}
+
+.reorder-handle:hover {
+  color: var(--a-text);
+  background: var(--a-surface-2);
+}
+
+.reorder-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--a-radius);
+  color: var(--a-muted);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0.3rem 0.35rem;
+}
+
+.reorder-btn:hover:not(:disabled) {
+  color: var(--a-text);
+  border-color: var(--a-border);
+}
+
+.reorder-btn:focus-visible {
+  outline: 2px solid var(--a-primary);
+  outline-offset: 1px;
+}
+
+.reorder-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Плейсхолдер места вставки при drag (SortableJS ghostClass) */
+.reorder-ghost {
+  opacity: 0.35;
+  outline: 1px dashed var(--a-primary);
+  outline-offset: 2px;
 }
 
 .case-row__link {
@@ -496,13 +561,14 @@ textarea[disabled] {
   border-color: var(--a-warn);
 }
 
-/* Выключатель кейса — задел итерации F, пока заблокирован */
+/* Выключатель кейса/категории (итерация F: активен, принцип 5) */
 .switch {
   position: relative;
   display: inline-block;
   width: 2.1rem;
   height: 1.2rem;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
 .switch input {
@@ -510,30 +576,81 @@ textarea[disabled] {
   width: 100%;
   height: 100%;
   margin: 0;
+  cursor: pointer;
 }
 
 .switch__track {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: var(--a-primary);
-  opacity: 0.5;
+  background: var(--a-border);
+  transition: background 0.15s ease;
   pointer-events: none;
+}
+
+.switch input:checked + .switch__track {
+  background: var(--a-primary);
+}
+
+.switch input:focus-visible + .switch__track {
+  outline: 2px solid var(--a-primary);
+  outline-offset: 2px;
+}
+
+.switch input:disabled {
+  cursor: wait;
 }
 
 .switch__track::after {
   content: '';
   position: absolute;
   top: 2px;
-  right: 2px;
+  left: 2px;
   width: calc(1.2rem - 4px);
   height: calc(1.2rem - 4px);
   border-radius: 50%;
   background: #fff;
+  transition: transform 0.15s ease;
 }
 
-.switch--disabled {
-  cursor: not-allowed;
+.switch input:checked + .switch__track::after {
+  transform: translateX(0.9rem);
+}
+
+/* Итерация F: экран «Категории» */
+.category-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--a-surface);
+  border: 1px solid var(--a-divider);
+  border-radius: var(--a-radius-lg);
+  padding: 0.75rem 1rem;
+}
+
+.category-row--off {
+  opacity: 0.45;
+}
+
+.category-row__label {
+  font-weight: 600;
+  margin: 0;
+}
+
+.category-row__id {
+  color: var(--a-faint);
+  font-family: var(--a-mono);
+  font-size: 0.71875rem;
 }
 
 .empty-note {
@@ -588,6 +705,40 @@ textarea[disabled] {
   color: var(--a-faint);
   margin-top: 0.25rem;
   text-align: center;
+}
+
+/* Итерация F: ручка и кнопки порядка над слотом / motion-блоком */
+.media-slot > .reorder-bar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+/* Каждый блок завёрнут в .motion-block-wrap (итерация F): разделитель
+   переезжает на обёртку, у .motion-block внутри неё он гасится
+   правилом :first-of-type ниже. */
+.motion-block-wrap {
+  border-top: 1px solid var(--a-divider);
+  padding-top: 1rem;
+  margin-top: 1rem;
+}
+
+.motion-block-wrap:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.motion-block-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.motion-block-head__title {
+  color: var(--a-muted);
+  font-size: 0.8125rem;
 }
 
 /* ── Drop-зоны медиа (итерация E, принцип 6 research.md) ───────────── */

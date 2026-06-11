@@ -1,7 +1,9 @@
 {
   "version": "0.2",
   "language": "en,ru",
-  "import": ["@cspell/dict-ru_ru/cspell-ext.json"],
+  "import": [
+    "@cspell/dict-ru_ru/cspell-ext.json"
+  ],
   "files": [
     "AGENTS.md",
     "README.md",
@@ -18,7 +20,11 @@
     "package-lock.json",
     "plugins/**/references/claude-original/**"
   ],
-  "ignoreRegExpList": ["/https?:\\/\\/\\S+/g", "/`[^`]+`/g", "/```[\\s\\S]*?```/g"],
+  "ignoreRegExpList": [
+    "/https?:\\/\\/\\S+/g",
+    "/`[^`]+`/g",
+    "/```[\\s\\S]*?```/g"
+  ],
   "words": [
     "a11y",
     "автодеплой",
@@ -191,6 +197,24 @@
     "stylelint",
     "subagents",
     "worktree",
-    "worktrees"
+    "worktrees",
+    "Тоглы",
+    "бейджем",
+    "бейджи",
+    "захардкоженных",
+    "контролами",
+    "локалей",
+    "локали",
+    "пинятся",
+    "рантаймом",
+    "рендерера",
+    "рендерится",
+    "тарболом",
+    "таргетов",
+    "тогл",
+    "тогла",
+    "фоллбек",
+    "хардкода",
+    "чекбоксы"
   ]
 }

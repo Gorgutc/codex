@@ -26,6 +26,6 @@
     "*.config.mjs",
     "*.config.cjs"
   ],
-  "ignore": ["js/vendor/**"],
+  "ignore": ["js/vendor/**", "admin/js/vendor/**"],
   "ignoreDependencies": ["@lhci/cli"]
 }
