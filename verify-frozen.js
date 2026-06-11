@@ -62,6 +62,17 @@ const EXPECTED_IDS = [
 ];
 const EXPECTED_TAGS = ['all','hard-surface','product','organic','prototyping','animations','cad'];
 
+// Итерация E: ожидания motion-контракта orbital-mk-ii выводятся из
+// content-слоя, а не хардкода — владелец легитимно переключает source
+// local↔vimeo через админку, и захардкоженный порядок ронял бы конвейер
+// (revert публикации). Структурная строгость DOM-vs-data сохраняется,
+// меняется только ИСТОЧНИК ожиданий.
+const ORBITAL_CONTENT = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'content', 'cases', 'orbital-mk-ii.json'), 'utf8'));
+const ORBITAL_MOTION = ORBITAL_CONTENT.case && Array.isArray(ORBITAL_CONTENT.case.motionBlocks)
+  ? ORBITAL_CONTENT.case.motionBlocks
+  : [];
+
 const results = [];
 const add = (suite, name, pass, detail = '') => {
   results.push({ suite, name, pass, detail });
@@ -374,6 +385,7 @@ async function testIndex(BASE) {
     ogDescription: !!document.querySelector('meta[property="og:description"]'),
     ogSiteName: !!document.querySelector('meta[property="og:site_name"]'),
     ogImageWidth: !!document.querySelector('meta[property="og:image:width"]'),
+    ogImage: document.querySelector('meta[property="og:image"]')?.content || '',
     twitterCard: !!document.querySelector('meta[name="twitter:card"]'),
     twitterTitle: !!document.querySelector('meta[name="twitter:title"]'),
     twitterImage: !!document.querySelector('meta[name="twitter:image"]'),
@@ -384,6 +396,12 @@ async function testIndex(BASE) {
   add('index', 'META-canonical', m.canonical);
   add('index', 'META-robots', m.robots);
   add('index', 'META-og-complete', m.ogUrl && m.ogType && m.ogDescription && m.ogSiteName && m.ogImageWidth);
+  // Итерация E (зеркально META-og-image-fa-specific): og:image главной —
+  // картинка og-image из /assets/img/, опционально с cache-bust-суффиксом
+  // -<hash8> после замены через админку.
+  add('index', 'META-og-image-index-specific',
+      /\/assets\/img\/og-image(-[0-9a-f]{8})?\.(jpg|jpeg|png|webp)$/.test(m.ogImage),
+      `value=${m.ogImage.slice(-40)}`);
   add('index', 'META-twitter-complete', m.twitterCard && m.twitterTitle && m.twitterImage);
   add('index', 'META-jsonLD', m.jsonLDcount > 0, `count=${m.jsonLDcount}`);
   add('index', 'META-favicon-16', m.favicon16);
@@ -491,15 +509,17 @@ async function testIndex(BASE) {
       dom
     };
   });
-  const expectedMotion = [
-    { source: 'local', playback: 'ambient', layout: 'wide' },
-    { source: 'vimeo', playback: 'controlled', layout: 'wide' },
-    { source: 'local', playback: 'controlled', layout: 'half' },
-    { source: 'vimeo', playback: 'ambient', layout: 'half' }
-  ];
+  // Ожидаемый контракт — из content/cases/orbital-mk-ii.json (см. ORBITAL_MOTION
+  // у шапки файла): source/playback/layout каждого блока, по порядку.
+  const expectedMotion = ORBITAL_MOTION.map(block => ({
+    source: block && block.source,
+    playback: block && block.playback,
+    layout: block && block.layout
+  }));
   const motionShapeOk =
-    motionContract.dataCount === 4 &&
-    motionContract.dom.length === 4 &&
+    expectedMotion.length > 0 &&
+    motionContract.dataCount === expectedMotion.length &&
+    motionContract.dom.length === expectedMotion.length &&
     expectedMotion.every((expected, idx) => {
       const dataBlock = motionContract.dataShape[idx] || {};
       const domBlock = motionContract.dom[idx] || {};
@@ -510,34 +530,40 @@ async function testIndex(BASE) {
         domBlock.playback === expected.playback &&
         domBlock.layout === expected.layout;
     });
-  const localMotionAssets = motionContract.dataShape
-    .filter(block => block.source === 'local')
+  // Локальные ассеты: список тоже из content (блоки с source 'local').
+  const expectedLocalAssets = ORBITAL_MOTION
+    .filter(block => block && block.source === 'local')
     .map(block => block.src || '')
     .map(src => ({
       src,
       exists: src.startsWith('./assets/') &&
         fs.existsSync(path.join(ROOT, ...src.replace(/^\.\//, '').split('/')))
     }));
+  const runtimeLocalSrcs = motionContract.dataShape
+    .filter(block => block.source === 'local')
+    .map(block => block.src || '');
   const localMotionAssetsOk =
-    localMotionAssets.length === 2 &&
-    localMotionAssets.every(asset => asset.exists && /\.(mp4|webm)$/i.test(asset.src));
+    runtimeLocalSrcs.length === expectedLocalAssets.length &&
+    runtimeLocalSrcs.every((src, idx) => src === expectedLocalAssets[idx].src) &&
+    expectedLocalAssets.every(asset => asset.exists && /\.(mp4|webm)$/i.test(asset.src));
   add('index', 'CASE-motion-blocks-contract', motionShapeOk,
-      JSON.stringify(motionContract));
+      `expected(content)=${JSON.stringify(expectedMotion)}; actual=${JSON.stringify(motionContract)}`);
   add('index', 'CASE-motion-local-assets-exist', localMotionAssetsOk,
-      JSON.stringify(localMotionAssets));
+      `expected(content)=${JSON.stringify(expectedLocalAssets)}; runtime=${JSON.stringify(runtimeLocalSrcs)}`);
+  // DOM-анатомия по типу блока (та же строгость, что и раньше, но
+  // привязанная к source/playback из content, а не к индексам 0–3):
+  //   local      → <video>, без vimeo-shell;
+  //   vimeo      → shell без раннего iframe (lazy) и без role;
+  //   controlled → есть кнопка play/pause, ambient → нет.
   const motionPlaybackOk =
-    motionContract.dom[0]?.hasVideo === true &&
-    motionContract.dom[0]?.hasControl === false &&
-    motionContract.dom[1]?.hasVimeoShell === true &&
-    motionContract.dom[1]?.hasIframe === false &&
-    motionContract.dom[1]?.hasControl === true &&
-    motionContract.dom[2]?.hasVideo === true &&
-    motionContract.dom[2]?.hasControl === true &&
-    motionContract.dom[3]?.hasVimeoShell === true &&
-    motionContract.dom[3]?.hasIframe === false &&
-    motionContract.dom[1]?.vimeoRole === '' &&
-    motionContract.dom[3]?.vimeoRole === '' &&
-    motionContract.dom[3]?.hasControl === false;
+    motionContract.dom.length === expectedMotion.length &&
+    expectedMotion.every((expected, idx) => {
+      const domBlock = motionContract.dom[idx] || {};
+      const sourceOk = expected.source === 'local'
+        ? domBlock.hasVideo === true && domBlock.hasVimeoShell === false
+        : domBlock.hasVimeoShell === true && domBlock.hasIframe === false && domBlock.vimeoRole === '';
+      return sourceOk && domBlock.hasControl === (expected.playback === 'controlled');
+    });
   add('index', 'CASE-motion-playback-controls', motionPlaybackOk,
       JSON.stringify(motionContract.dom));
 
@@ -552,21 +578,26 @@ async function testIndex(BASE) {
       JSON.stringify(stoppedMotionLazy));
   add('index', 'CASE-blueprint-svg', !!await page.$('.case-blueprints svg'));
   await page.click('.case-tab[data-viz="2d"]'); await page.waitForTimeout(250);
-  const motionSingleHandler = await page.evaluate(() => {
-    const card = document.querySelector('.case-motion[data-motion-playback="controlled"]');
-    const btn = card && card.querySelector('[data-motion-toggle]');
-    if (!card || !btn) return { ok: false };
-    const before = card.getAttribute('data-motion-playing');
-    btn.click();
-    return {
-      ok: before === 'true' &&
-        card.getAttribute('data-motion-playing') === 'false' &&
-        btn.getAttribute('aria-pressed') === 'false',
-      before,
-      after: card.getAttribute('data-motion-playing'),
-      pressed: btn.getAttribute('aria-pressed')
-    };
-  });
+  // Кнопка play/pause существует только у controlled-блоков; их наличие —
+  // тоже факт content-слоя, а не контракта рендерера.
+  let motionSingleHandler = { ok: true, skipped: 'no controlled motion blocks in content' };
+  if (ORBITAL_MOTION.some(block => block && block.playback === 'controlled')) {
+    motionSingleHandler = await page.evaluate(() => {
+      const card = document.querySelector('.case-motion[data-motion-playback="controlled"]');
+      const btn = card && card.querySelector('[data-motion-toggle]');
+      if (!card || !btn) return { ok: false };
+      const before = card.getAttribute('data-motion-playing');
+      btn.click();
+      return {
+        ok: before === 'true' &&
+          card.getAttribute('data-motion-playing') === 'false' &&
+          btn.getAttribute('aria-pressed') === 'false',
+        before,
+        after: card.getAttribute('data-motion-playing'),
+        pressed: btn.getAttribute('aria-pressed')
+      };
+    });
+  }
   add('index', 'CASE-motion-control-single-handler', motionSingleHandler.ok,
       JSON.stringify(motionSingleHandler));
 
@@ -837,8 +868,9 @@ async function testIndex(BASE) {
   add('index', 'B3-CARDS_LOCALES-18-ru', cardsLocaleShape.ok,
       `ru.length=${cardsLocaleShape.count} (expected 18)`);
 
-  // B4 — CASE_LOCALES.ru has 18 keys matching EXPECTED_IDS.
-  const caseLocaleShape = await page.evaluate((expected) => {
+  // B4 — CASE_LOCALES.ru has 18 keys matching EXPECTED_IDS. Количество
+  // motion-блоков orbital — из content (ORBITAL_MOTION), не хардкод.
+  const caseLocaleShape = await page.evaluate(({ expected, motionCount }) => {
     const cl = window.I18N_DATA && window.I18N_DATA.CASE_LOCALES;
     if (!cl || !cl.en || !cl.ru) return { ok: false, reason: 'no en/ru' };
     const keys = Object.keys(cl.ru);
@@ -846,12 +878,12 @@ async function testIndex(BASE) {
     const ok = keys.length === expected.length &&
                expected.every(id => cl.ru[id] && cl.ru[id].role && Array.isArray(cl.ru[id].captions)) &&
                Array.isArray(orbitalMotion) &&
-               orbitalMotion.length === 4 &&
+               orbitalMotion.length === motionCount &&
                orbitalMotion.every(block => block && block.label && block.desc);
     return { ok, count: keys.length, orbitalMotionCount: Array.isArray(orbitalMotion) ? orbitalMotion.length : 0 };
-  }, EXPECTED_IDS);
+  }, { expected: EXPECTED_IDS, motionCount: ORBITAL_MOTION.length });
   add('index', 'B4-CASE_LOCALES-18-ru', caseLocaleShape.ok,
-      `ru.length=${caseLocaleShape.count} (expected 18, with role+captions), orbitalMotion=${caseLocaleShape.orbitalMotionCount}`);
+      `ru.length=${caseLocaleShape.count} (expected 18, with role+captions), orbitalMotion=${caseLocaleShape.orbitalMotionCount} (expected ${ORBITAL_MOTION.length})`);
 
   // B6 — Full EN ⇄ RU round-trip on lang-toggle. Verifies <html lang>,
   // currentLang AND that we restore EN cleanly (no stuck state).
@@ -1180,7 +1212,13 @@ async function testFreeAssets(BASE) {
   // Тест: должен быть РОВНО ОДИН тег theme-color без media-attribute.
   add('fa', 'META-theme-color-single', m.themeColorPresent && m.themeColorCount === 1, `count=${m.themeColorCount}`);
   add('fa', 'META-og-image-absolute', /^https?:/.test(m.ogImage), `value=${m.ogImage.slice(-40)}`);
-  add('fa', 'META-og-image-fa-specific', /og-free-assets\.jpg$/.test(m.ogImage));
+  // Итерация E: админка заменяет OG-картинку через cache-bust-имя
+  // og-free-assets-<hash8>.<ext> (см. docs/agent/admin-panel/handoff.md).
+  // Инвариант прежний: og:image страницы FA — её СОБСТВЕННАЯ картинка
+  // og-free-assets из /assets/img/, а не общий og-image главной.
+  add('fa', 'META-og-image-fa-specific',
+      /\/assets\/img\/og-free-assets(-[0-9a-f]{8})?\.(jpg|jpeg|png|webp)$/.test(m.ogImage),
+      `value=${m.ogImage.slice(-40)}`);
 
   const faTrust = await page.evaluate(() => {
     const items = [...document.querySelectorAll('.fa-trust__item')];

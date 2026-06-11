@@ -1,16 +1,18 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   ui.js — представления и маршрутизация админ-панели (итерация D).
+   ui.js — представления и маршрутизация админ-панели (итерации D–E).
 
    Экраны (hash-роутер, «одна задача — один экран»):
      #/login (без токена)  — вход: GitHub OAuth или PAT;
      #/cases               — список кейсов с поиском;
-     #/case/<id>           — редактор текстов кейса (RU/EN бок о бок);
-     #/meta                — мета-теги (content/meta.json);
+     #/case/<id>           — редактор кейса: тексты RU/EN + медиа
+                             (миниатюра, слоты, motion-блоки, GLB-модель);
+     #/meta                — мета-теги + OG-изображения (content/meta.json);
      #/ui                  — тексты интерфейса (content/i18n-ui.json).
 
-   Слоты будущих итераций видимы, но заблокированы с подсказкой «скоро»:
-   drag-handle и выключатель кейса (итерация F), медиа и технические поля
-   motion-блоков (итерация E).
+   Медиа (итерация E): drop-зона поверх текущего изображения (принцип 6
+   research.md), превью pending-файлов через object-URL, предупреждение
+   «не переживут перезагрузку» в шапке. Слоты итерации F (drag-handle,
+   выключатели, layout/playback motion-блоков) видимы, но заблокированы.
 
    Зависимости: window.AdminAPI (api.js), window.AdminState (state.js).
    ═══════════════════════════════════════════════════════════════════════ */
@@ -23,6 +25,7 @@
   const els = {
     topbar: document.getElementById('topbar'),
     app: document.getElementById('app'),
+    mediaWarning: document.getElementById('media-warning'),
     draftIndicator: document.getElementById('draft-indicator'),
     publishBtn: document.getElementById('publish-btn'),
     topbarUser: document.getElementById('topbar-user'),
@@ -36,6 +39,7 @@
 
   let publishing = false;
   let pendingErrors = [];
+  let publishPlan = null; // план коммита, собранный перед открытием диалога
 
   const META_PAGE_LABELS = {
     index: 'Главная страница (index.html)',
@@ -99,10 +103,6 @@
     return node;
   }
 
-  function soonBadge(text) {
-    return el('span', { className: 'badge badge--soon', text });
-  }
-
   /* ── тосты ───────────────────────────────────────────────────────── */
 
   function toast(message, type, link) {
@@ -155,6 +155,122 @@
     ]);
   }
 
+  /* ── drop-зоны медиа (итерация E) ────────────────────────────────── */
+
+  function toAdminAssetPath(sitePath) {
+    return String(sitePath).replace(/^\.\//, '../');
+  }
+
+  function fileNameOf(assetPath) {
+    return String(assetPath).split('/').pop();
+  }
+
+  // Drop-зона поверх текущего медиа (принцип 6 research.md).
+  // opts: { filePath, dotPath, kind ('image'|'ogImage'|'video'|'model'),
+  //         namingPath  — слот-«назначение»: папка и базовое имя нового файла,
+  //         currentPath — текущий файл на GitHub или null,
+  //         preview     — 'image' | 'video' | 'file',
+  //         hint        — строка с целевыми размерами/форматами }
+  function dropZone(opts) {
+    const rule = State.getMediaRule(opts.kind);
+    // tabindex="-1": единственный tab-stop слота — сам file-input (он
+    // накрывает зону целиком); видимый фокус рисует .drop-zone:focus-within.
+    const zone = el('div', { className: 'drop-zone', tabindex: '-1' });
+    const badge = el('span', { className: 'drop-zone__badge', text: 'новый файл', hidden: true });
+    const pathLine = el('p', { className: 'drop-zone-path' });
+    const input = el('input', {
+      type: 'file',
+      className: 'drop-zone__input',
+      accept: rule.accept,
+      'aria-label': 'Заменить файл: ' + (opts.hint || rule.formatLabel),
+      'data-media': opts.filePath + '::' + opts.dotPath
+    });
+
+    function render() {
+      const record = State.getMediaEdit(opts.filePath, opts.dotPath);
+      const draftValue = State.getValue(opts.filePath, opts.dotPath);
+      const effective = record ? record.value : draftValue || opts.currentPath;
+      const url = record ? record.objectURL : effective ? toAdminAssetPath(effective) : null;
+
+      zone.replaceChildren();
+      if (url && opts.preview === 'image') {
+        zone.appendChild(el('img', { className: 'drop-zone__preview', src: url, alt: '', loading: 'lazy' }));
+      } else if (url && opts.preview === 'video') {
+        zone.appendChild(
+          el('video', {
+            className: 'drop-zone__preview drop-zone__preview--video',
+            src: url,
+            muted: true,
+            loop: true,
+            controls: true,
+            playsinline: true,
+            preload: 'metadata'
+          })
+        );
+      } else {
+        zone.appendChild(
+          el('div', { className: 'drop-zone__file', text: effective ? fileNameOf(effective) : 'файла ещё нет' })
+        );
+      }
+      zone.appendChild(
+        el('div', { className: 'drop-zone__overlay' }, [
+          el('span', { className: 'drop-zone__cta', text: 'перетащите новую или нажмите' })
+        ])
+      );
+      badge.hidden = !record;
+      zone.appendChild(badge);
+      zone.appendChild(input);
+      pathLine.replaceChildren(el('code', { text: effective || '—' }));
+    }
+
+    async function handleFile(file) {
+      if (!file) return;
+      try {
+        const result = await State.stageMedia(
+          opts.filePath,
+          opts.dotPath,
+          opts.kind,
+          opts.namingPath,
+          opts.currentPath,
+          file
+        );
+        if (result.unchanged) {
+          toast('Этот файл уже опубликован под тем же именем — заменять нечего.', 'info');
+        } else if (result.warning) {
+          toast(result.warning, 'warn');
+        }
+        render();
+      } catch (error) {
+        toast(error && error.message ? error.message : 'Не удалось подготовить файл.', 'error');
+      }
+      input.value = '';
+    }
+
+    input.addEventListener('change', () => handleFile(input.files && input.files[0]));
+    zone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      zone.classList.add('drop-zone--over');
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drop-zone--over'));
+    zone.addEventListener('drop', (event) => {
+      zone.classList.remove('drop-zone--over');
+      // Файл, упавший на невидимый input, обрабатывает его нативный drop
+      // (input.files + событие change) — перехват здесь дал бы двойную
+      // обработку одного файла.
+      if (event.target === input) return;
+      event.preventDefault();
+      handleFile(event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]);
+    });
+
+    render();
+    const wrap = el('div', { className: 'drop-zone-field' });
+    if (opts.label) wrap.appendChild(el('label', { text: opts.label }));
+    wrap.appendChild(zone);
+    if (opts.hint) wrap.appendChild(el('p', { className: 'hint', text: opts.hint }));
+    wrap.appendChild(pathLine);
+    return wrap;
+  }
+
   /* ── ошибки валидации, привязанные к полям ───────────────────────── */
 
   function hashForPath(path) {
@@ -202,6 +318,7 @@
     els.topbar.hidden = !token;
     const dirty = State.isDirty();
     els.draftIndicator.hidden = !dirty;
+    els.mediaWarning.hidden = State.mediaPendingCount() === 0;
     els.publishBtn.disabled = !dirty || publishing || !token;
     els.publishBtn.textContent = publishing ? 'Публикуем…' : 'Опубликовать';
     els.topbarUser.replaceChildren();
@@ -319,7 +436,7 @@
         text: '⠿'
       }),
       el('a', { className: 'case-row__link', href: '#/case/' + encodeURIComponent(item.id) }, [
-        el('img', { className: 'case-row__thumb', src: '../assets/cards/' + item.id + '.svg', alt: '', loading: 'lazy' }),
+        el('img', { className: 'case-row__thumb', src: toAdminAssetPath(data.card.thumb), alt: '', loading: 'lazy' }),
         el('div', {}, [
           el('p', { className: 'case-row__title', text: data.card.title.en }),
           el('span', { className: 'case-row__id', text: item.id })
@@ -396,15 +513,131 @@
 
   /* ── редактор кейса ──────────────────────────────────────────────── */
 
-  function toAdminAssetPath(sitePath) {
-    return String(sitePath).replace(/^\.\//, '../');
-  }
-
-  function readOnlyTech(label, value) {
+  function readOnlyTech(label, value, hint) {
     return el('div', {}, [
       el('label', { text: label }),
-      el('input', { type: 'text', value, disabled: true, title: 'Изменение медиа — скоро (итерация E)' })
+      el('input', {
+        type: 'text',
+        value,
+        disabled: true,
+        title: hint || 'Поле управляется генератором и пока не редактируется'
+      })
     ]);
+  }
+
+  /* ── motion-блок: источник local/vimeo, файлы, Vimeo ID ──────────── */
+
+  function vimeoIdField(path, dotBase) {
+    const wrap = el('div', {});
+    const input = el('input', { type: 'text', 'data-field': path + '::' + dotBase + '.vimeoId' });
+    const confirmLine = el('p', { className: 'vimeo-confirm', hidden: true });
+    const current = State.getValue(path, dotBase + '.vimeoId');
+    input.value = current === undefined || current === null ? '' : String(current);
+
+    function showParsed(raw) {
+      const parsed = State.parseVimeoId(raw);
+      if (!raw.trim()) {
+        confirmLine.hidden = true;
+        return parsed;
+      }
+      confirmLine.hidden = false;
+      if (parsed) {
+        confirmLine.classList.remove('vimeo-confirm--bad');
+        confirmLine.textContent = 'Распознан ID: ' + parsed;
+      } else {
+        confirmLine.classList.add('vimeo-confirm--bad');
+        confirmLine.textContent = 'Не похоже на Vimeo ID или ссылку vimeo.com';
+      }
+      return parsed;
+    }
+
+    input.addEventListener('input', () => {
+      const parsed = showParsed(input.value);
+      State.setValue(path, dotBase + '.vimeoId', parsed || input.value.trim());
+      clearFieldError(input);
+    });
+    showParsed(input.value);
+
+    wrap.appendChild(el('label', { text: 'Vimeo — ссылка на ролик или ID' }));
+    wrap.appendChild(input);
+    wrap.appendChild(confirmLine);
+    wrap.appendChild(
+      el('p', { className: 'hint', text: 'Подойдёт любая ссылка vimeo.com или просто цифровой ID ролика.' })
+    );
+    return wrap;
+  }
+
+  function motionBlockEditor(path, id, i) {
+    const dotBase = 'case.motionBlocks.' + i;
+    const container = el('div', { className: 'motion-block' });
+
+    function renderBlock() {
+      const block = State.getValue(path, dotBase) || {};
+      container.replaceChildren();
+
+      const sourceSelect = el('select', { 'data-field': path + '::' + dotBase + '.source' }, [
+        el('option', { value: 'local', text: 'local — .webm из репозитория' }),
+        el('option', { value: 'vimeo', text: 'vimeo — ролик на Vimeo' })
+      ]);
+      sourceSelect.value = block.source === 'vimeo' ? 'vimeo' : 'local';
+      sourceSelect.addEventListener('change', () => {
+        State.setValue(path, dotBase + '.source', sourceSelect.value);
+        renderBlock();
+      });
+
+      const tech = el('div', { className: 'motion-block__tech' }, [
+        el('div', {}, [el('label', { text: 'source' }), sourceSelect]),
+        readOnlyTech('layout', block.layout || '', 'Редактирование layout — решение в итерации F'),
+        readOnlyTech('playback', block.playback || '', 'Редактирование playback — решение в итерации F')
+      ]);
+      if (block.title) {
+        tech.appendChild(readOnlyTech('title', block.title, 'Технический заголовок Vimeo-плеера'));
+      }
+      container.appendChild(tech);
+
+      if (block.source === 'vimeo') {
+        container.appendChild(vimeoIdField(path, dotBase));
+      } else {
+        container.appendChild(
+          dropZone({
+            filePath: path,
+            dotPath: dotBase + '.src',
+            kind: 'video',
+            namingPath: block.src || './assets/cases/' + id + '/motion-0' + (i + 1) + '.webm',
+            currentPath: block.src || null,
+            preview: 'video',
+            label: 'видеофайл (.webm)',
+            hint: 'Только WebM · до 20 МБ (жёсткий предел 40 МБ — тяжёлые ролики лучше на Vimeo)'
+          })
+        );
+      }
+
+      container.appendChild(
+        dropZone({
+          filePath: path,
+          dotPath: dotBase + '.poster',
+          kind: 'image',
+          namingPath: block.poster || './assets/cases/' + id + '/poster-0' + (i + 1) + '.png',
+          currentPath: block.poster || null,
+          preview: 'image',
+          label: 'постер (показывается до запуска видео)',
+          hint: 'SVG, PNG, JPG или WebP · до 200 КБ'
+        })
+      );
+
+      container.appendChild(
+        pairField(path, 'Блок ' + (i + 1) + ' — подпись', dotBase + '.label.en', dotBase + '.label.ru')
+      );
+      container.appendChild(
+        pairField(path, 'Блок ' + (i + 1) + ' — описание', dotBase + '.desc.en', dotBase + '.desc.ru', {
+          multiline: true
+        })
+      );
+      applyPendingErrors();
+    }
+
+    renderBlock();
+    return container;
   }
 
   async function renderCaseEditor(id) {
@@ -417,6 +650,16 @@
     sections.push(
       el('section', { className: 'editor-section' }, [
         el('h2', { text: 'Карточка в списке работ' }),
+        dropZone({
+          filePath: path,
+          dotPath: 'card.thumb',
+          kind: 'image',
+          namingPath: './assets/cards/' + id + '.svg',
+          currentPath: draft.card.thumb,
+          preview: 'image',
+          label: 'миниатюра карточки',
+          hint: 'SVG, PNG, JPG или WebP · 800×600 (4:3) · до 200 КБ'
+        }),
         pairField(path, 'Заголовок', 'card.title.en', 'card.title.ru'),
         pairField(path, 'Описание', 'card.desc.en', 'card.desc.ru', { multiline: true }),
         pairField(path, 'Alt-текст изображения', 'card.alt.en', 'card.alt.ru')
@@ -449,21 +692,29 @@
 
     const mediaStrip = el('div', { className: 'media-strip' });
     for (let i = 0; i < 5; i += 1) {
-      const src = (draft.case.srcs && draft.case.srcs[i]) || './assets/cases/' + id + '/0' + (i + 1) + '.svg';
+      const defaultSrc = './assets/cases/' + id + '/0' + (i + 1) + '.svg';
+      const effectiveSrc = (draft.case.srcs && draft.case.srcs[i]) || defaultSrc;
       mediaStrip.appendChild(
         el('figure', { className: 'media-slot' }, [
-          el('img', { src: toAdminAssetPath(src), alt: '', loading: 'lazy' }),
+          dropZone({
+            filePath: path,
+            dotPath: 'case.srcs.' + i,
+            kind: 'image',
+            namingPath: defaultSrc,
+            currentPath: effectiveSrc,
+            preview: 'image'
+          }),
           el('figcaption', { text: 'Слот ' + (i + 1) })
         ])
       );
     }
     sections.push(
-      el('section', { className: 'editor-section editor-section--locked' }, [
-        el('h2', {}, ['Медиа кейса ', soonBadge('скоро — итерация E')]),
+      el('section', { className: 'editor-section' }, [
+        el('h2', { text: 'Иллюстрации кейса' }),
         mediaStrip,
         el('p', {
           className: 'hint',
-          text: 'Замена изображений, видео и 3D-модели появится в итерации E. Подписи к слотам редактируются ниже.'
+          text: 'SVG, PNG, JPG или WebP · до 200 КБ на изображение. Подписи к слотам редактируются ниже.'
         })
       ])
     );
@@ -504,31 +755,64 @@
       );
     }
 
+    const modelSection = el('section', { className: 'editor-section' }, [
+      el('h2', { text: '3D-модель' }),
+      dropZone({
+        filePath: path,
+        dotPath: 'case.modelSrc',
+        kind: 'model',
+        namingPath: draft.case.modelSrc,
+        currentPath: draft.case.modelSrc,
+        preview: 'file',
+        label: 'GLB-файл для 3D-viewer',
+        hint: 'Только GLB · до 15 МБ (жёсткий предел 50 МБ)'
+      })
+    ]);
+    const modelTech = el('div', { className: 'motion-block__tech' });
+    if ('modelEnvironment' in draft.case) {
+      modelTech.appendChild(
+        readOnlyTech('modelEnvironment', String(draft.case.modelEnvironment), 'Настройка 3D-viewer — не редактируется')
+      );
+    }
+    if ('modelExposure' in draft.case) {
+      modelTech.appendChild(
+        readOnlyTech('modelExposure', String(draft.case.modelExposure), 'Настройка 3D-viewer — не редактируется')
+      );
+    }
+    if (modelTech.childNodes.length > 0) modelSection.appendChild(modelTech);
+    if (draft.case.modelStats && typeof draft.case.modelStats === 'object') {
+      const statsGrid = el('div', { className: 'model-stats' });
+      for (const key of Object.keys(draft.case.modelStats)) {
+        const dot = 'case.modelStats.' + key;
+        const original = draft.case.modelStats[key];
+        const input = el('input', { type: 'text', 'data-field': path + '::' + dot });
+        input.value = original === undefined || original === null ? '' : String(original);
+        input.addEventListener('input', () => {
+          const raw = input.value;
+          // Числовые значения (например materials: 4) сохраняем числами,
+          // чтобы тип в JSON не дрейфовал от косметической правки.
+          const next = typeof original === 'number' && /^\d+(\.\d+)?$/.test(raw.trim()) ? Number(raw.trim()) : raw;
+          State.setValue(path, dot, next);
+          clearFieldError(input);
+        });
+        statsGrid.appendChild(el('div', {}, [el('label', { text: key }), input]));
+      }
+      modelSection.appendChild(el('p', { className: 'hint', text: 'Статистика модели (показывается в панели кейса):' }));
+      modelSection.appendChild(statsGrid);
+    }
+    sections.push(modelSection);
+
     if (Array.isArray(draft.case.motionBlocks) && draft.case.motionBlocks.length > 0) {
-      const motionSection = el('section', { className: 'editor-section' }, [
-        el('h2', {}, ['Motion-блоки ', soonBadge('медиа — итерация E')])
-      ]);
-      draft.case.motionBlocks.forEach((block, i) => {
-        const base = 'case.motionBlocks.' + i;
-        const tech = el('div', { className: 'motion-block__tech' }, [
-          readOnlyTech('source', block.source || ''),
-          readOnlyTech('layout', block.layout || ''),
-          readOnlyTech('playback', block.playback || '')
-        ]);
-        if (block.src) tech.appendChild(readOnlyTech('src', block.src));
-        if (block.vimeoId) tech.appendChild(readOnlyTech('vimeoId', block.vimeoId));
-        if (block.poster) tech.appendChild(readOnlyTech('poster', block.poster));
-        if (block.title) tech.appendChild(readOnlyTech('title', block.title));
-        motionSection.appendChild(
-          el('div', { className: 'motion-block' }, [
-            tech,
-            pairField(path, 'Блок ' + (i + 1) + ' — подпись', base + '.label.en', base + '.label.ru'),
-            pairField(path, 'Блок ' + (i + 1) + ' — описание', base + '.desc.en', base + '.desc.ru', {
-              multiline: true
-            })
-          ])
-        );
+      const motionSection = el('section', { className: 'editor-section' }, [el('h2', { text: 'Motion-блоки' })]);
+      draft.case.motionBlocks.forEach((_block, i) => {
+        motionSection.appendChild(motionBlockEditor(path, id, i));
       });
+      motionSection.appendChild(
+        el('p', {
+          className: 'hint',
+          text: 'Поля layout и playback заблокированы — решение об их редактировании примет итерация F.'
+        })
+      );
       sections.push(motionSection);
     }
 
@@ -559,6 +843,22 @@
       const section = el('section', { className: 'editor-section' }, [
         el('h2', { text: META_PAGE_LABELS[page] || page })
       ]);
+      // Итерация E: OG-изображение страницы (og:image / twitter:image).
+      const ogPath = entry.draft.ogImages && entry.draft.ogImages[page];
+      if (ogPath) {
+        section.appendChild(
+          dropZone({
+            filePath: path,
+            dotPath: 'ogImages.' + page,
+            kind: 'ogImage',
+            namingPath: ogPath,
+            currentPath: ogPath,
+            preview: 'image',
+            label: 'OG-изображение (превью в соцсетях)',
+            hint: 'JPG, PNG или WebP · 1200×630 · до 200 КБ'
+          })
+        );
+      }
       for (const key of Object.keys(entry.draft.en[page])) {
         const multiline = /description/i.test(key);
         section.appendChild(
@@ -631,10 +931,13 @@
 
   /* ── публикация ──────────────────────────────────────────────────── */
 
-  function openPublishDialog(changed) {
+  function openPublishDialog(changed, plan) {
     els.publishFiles.replaceChildren();
     for (const path of changed) {
       els.publishFiles.appendChild(el('li', {}, [State.describeChange(path) + ' — ', el('code', { text: path })]));
+    }
+    for (const binary of plan.binaries) {
+      els.publishFiles.appendChild(el('li', {}, ['Новый файл — ', el('code', { text: binary.path })]));
     }
     els.publishDesc.value = State.defaultCommitDescription();
     els.dialog.showModal();
@@ -662,7 +965,13 @@
       toast('Нет изменений для публикации.', 'info');
       return;
     }
-    openPublishDialog(changed);
+    try {
+      publishPlan = await State.buildPublishPlan();
+    } catch (error) {
+      toast('Не удалось подготовить публикацию: ' + (error.message || error), 'error');
+      return;
+    }
+    openPublishDialog(changed, publishPlan);
   }
 
   async function doPublish(description) {
@@ -670,9 +979,9 @@
     updateChrome();
     try {
       await State.publishPrecheck();
-      const files = State.buildCommitFiles();
+      const plan = publishPlan || (await State.buildPublishPlan());
       const message = 'content: ' + description + ' [admin]';
-      const result = await API.publish(files, message);
+      const result = await API.publish(plan, message);
       State.markPublished();
       toast('Коммит создан. Конвейер проверяет контент и пересобирает сайт…', 'info');
       const outcome = await API.waitForPipeline(result.date);
@@ -692,6 +1001,7 @@
     } catch (error) {
       toast(error && error.message ? error.message : 'Не удалось опубликовать изменения.', 'error');
     } finally {
+      publishPlan = null;
       publishing = false;
       updateChrome();
     }

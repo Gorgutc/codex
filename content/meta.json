@@ -1,4 +1,8 @@
 {
+  "ogImages": {
+    "index": "./assets/img/og-image.jpg",
+    "fa": "./assets/img/og-free-assets.jpg"
+  },
   "en": {
     "index": {
       "title": "Codex — 3D Design Studio · Hard Surface & Product Visualization",

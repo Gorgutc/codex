@@ -17,6 +17,9 @@
  *                                scripts/templates/i18n-data.tpl.js
  *   index.html                 — the cards grid between
  *                                <!-- CODEX:GEN cards-grid BEGIN/END --> markers
+ *                                and the owner-editable head meta between
+ *                                <!-- CODEX:GEN head-meta BEGIN/END --> markers
+ *   free-assets.html           — the head-meta GEN region (same markers)
  *
  * Both modes first run validateContent() over the content layer and exit 1
  * with the full violation list if anything is broken (unique ids, cardOrder
@@ -41,6 +44,8 @@ const TEMPLATE_PATH = path.join(ROOT, 'scripts', 'templates', 'i18n-data.tpl.js'
 
 const GRID_BEGIN = '<!-- CODEX:GEN cards-grid BEGIN -->';
 const GRID_END = '<!-- CODEX:GEN cards-grid END -->';
+const HEAD_BEGIN = '<!-- CODEX:GEN head-meta BEGIN -->';
+const HEAD_END = '<!-- CODEX:GEN head-meta END -->';
 
 /* ── content loading ─────────────────────────────────────────────────────── */
 
@@ -297,6 +302,44 @@ function validateFreeAssets(violations, freeAssets) {
   }
 }
 
+// Head-meta fields emitted verbatim into the head GEN region of both pages
+// (iteration E); an absent or empty value would render "undefined" into HTML.
+const HEAD_META_FIELDS = [
+  'title',
+  'description',
+  'ogSiteName',
+  'ogTitle',
+  'ogDescription',
+  'ogImageAlt',
+  'ogLocale',
+  'twitterTitle',
+  'twitterDescription'
+];
+
+function validateMetaImages(violations, metaStrings) {
+  const where = 'content/meta.json';
+  const images = metaStrings && metaStrings.ogImages;
+  if (images === null || typeof images !== 'object' || Array.isArray(images)) {
+    violations.push(`${where}: "ogImages" must be an object with "index" and "fa" asset paths`);
+    return;
+  }
+  for (const page of ['index', 'fa']) {
+    const value = images[page];
+    checkAssetFile(violations, `${where}: ogImages.${page}`, value);
+    if (isNonEmptyString(value) && !/\.(jpg|jpeg|png|webp)$/i.test(value)) {
+      violations.push(`${where}: ogImages.${page} must be a .jpg/.jpeg/.png/.webp image ("${value}")`);
+    }
+  }
+  for (const page of ['index', 'fa']) {
+    const pageStrings = (metaStrings && metaStrings.en && metaStrings.en[page]) || {};
+    for (const field of HEAD_META_FIELDS) {
+      if (!isNonEmptyString(pageStrings[field])) {
+        violations.push(`${where}: en.${page}.${field} must be a non-empty string (emitted into the head GEN region)`);
+      }
+    }
+  }
+}
+
 function validateContent(content) {
   const violations = [];
   const { settings, caseEntries, freeAssets, uiStrings, metaStrings } = content;
@@ -349,6 +392,7 @@ function validateContent(content) {
 
   checkLocaleParity(violations, 'content/i18n-ui.json', uiStrings);
   checkLocaleParity(violations, 'content/meta.json', metaStrings);
+  validateMetaImages(violations, metaStrings);
   validateFreeAssets(violations, freeAssets);
 
   return violations;
@@ -571,7 +615,9 @@ function buildI18nDataJs(content) {
   const template = fs.readFileSync(TEMPLATE_PATH, 'utf8').replace(/\r\n/g, '\n');
   const replacements = {
     __UI_STRINGS__: content.uiStrings,
-    __META_STRINGS__: content.metaStrings,
+    // Only the locale dictionaries: the sibling ogImages key (iteration E)
+    // feeds the head GEN region, not the runtime i18n payload.
+    __META_STRINGS__: { en: content.metaStrings.en, ru: content.metaStrings.ru },
     __CARDS_LOCALES__: buildCardsLocales(content),
     __CASE_LOCALES__: buildCaseLocales(content),
     __FA_LOCALES__: buildFaLocales(content)
@@ -642,18 +688,84 @@ function buildGridRegion(content) {
     .join('\n\n');
 }
 
-function splitByMarkers(html, filePath) {
+function replaceRegion(html, filePath, begin, end, region) {
   const lines = html.split('\n');
-  const beginIdx = lines.findIndex((line) => line.trim() === GRID_BEGIN);
-  const endIdx = lines.findIndex((line) => line.trim() === GRID_END);
+  const beginIdx = lines.findIndex((line) => line.trim() === begin);
+  const endIdx = lines.findIndex((line) => line.trim() === end);
   if (beginIdx < 0 || endIdx < 0 || endIdx <= beginIdx) {
-    throw new Error(`${filePath}: CODEX:GEN cards-grid markers not found or malformed`);
+    throw new Error(`${filePath}: ${begin} / ${end} markers not found or malformed`);
   }
-  return {
-    head: lines.slice(0, beginIdx + 1).join('\n'),
-    region: lines.slice(beginIdx + 1, endIdx).join('\n'),
-    tail: lines.slice(endIdx).join('\n')
-  };
+  return lines
+    .slice(0, beginIdx + 1)
+    .concat(region, lines.slice(endIdx))
+    .join('\n');
+}
+
+/* ── head-meta GEN region (iteration E, byte-identical templating) ────────── */
+
+// og:image / twitter:image require absolute URLs (crawlers do not resolve
+// relative paths); content stores the repo-relative "./assets/..." form.
+function absoluteAssetUrl(assetPath) {
+  return 'https://codex.promo/' + String(assetPath).replace(/^\.\//, '');
+}
+
+// The owner-editable head block of each page. Line layout (including the
+// historical attribute padding) reproduces the pre-iteration-E bytes exactly,
+// so the first generation is a no-op; only the values come from content/.
+function buildHeadMetaRegion(content, page) {
+  const m = content.metaStrings.en[page];
+  const og = escapeHtmlAttr(absoluteAssetUrl(content.metaStrings.ogImages[page]));
+  const a = escapeHtmlAttr;
+  if (page === 'index') {
+    return [
+      `  <title data-i18n-meta="index.title">${escapeHtmlText(m.title)}</title>`,
+      '',
+      `  <meta name="description" data-i18n-meta="index.description" content="${a(m.description)}">`,
+      '  <link rel="canonical" href="https://codex.promo/">',
+      '',
+      '  <!-- OpenGraph (absolute URLs required by crawlers) -->',
+      '  <meta property="og:url"             content="https://codex.promo/">',
+      '  <meta property="og:type"            content="website">',
+      `  <meta property="og:site_name"       data-i18n-meta="index.ogSiteName" content="${a(m.ogSiteName)}">`,
+      `  <meta property="og:title"           data-i18n-meta="index.ogTitle"   content="${a(m.ogTitle)}">`,
+      `  <meta property="og:description"     data-i18n-meta="index.ogDescription" content="${a(m.ogDescription)}">`,
+      `  <meta property="og:image"           content="${og}">`,
+      '  <meta property="og:image:width"     content="1200">',
+      '  <meta property="og:image:height"    content="630">',
+      `  <meta property="og:image:alt"       data-i18n-meta="index.ogImageAlt" content="${a(m.ogImageAlt)}">`,
+      `  <meta property="og:locale"          data-i18n-meta="index.ogLocale" content="${a(m.ogLocale)}">`,
+      '',
+      '  <!-- Twitter Card -->',
+      '  <meta name="twitter:card"           content="summary_large_image">',
+      `  <meta name="twitter:title"          data-i18n-meta="index.twitterTitle" content="${a(m.twitterTitle)}">`,
+      `  <meta name="twitter:description"    data-i18n-meta="index.twitterDescription" content="${a(m.twitterDescription)}">`,
+      `  <meta name="twitter:image"          content="${og}">`
+    ].join('\n');
+  }
+  return [
+    `  <title data-i18n-meta="fa.title">${escapeHtmlText(m.title)}</title>`,
+    '',
+    `  <meta name="description" data-i18n-meta="fa.description" content="${a(m.description)}">`,
+    '  <link rel="canonical" href="https://codex.promo/free-assets.html">',
+    '',
+    '  <!-- v0.4 [B5]: OpenGraph (absolute URLs required by crawlers) -->',
+    '  <meta property="og:url"             content="https://codex.promo/free-assets.html">',
+    '  <meta property="og:type"            content="website">',
+    `  <meta property="og:site_name"       data-i18n-meta="fa.ogSiteName" content="${a(m.ogSiteName)}">`,
+    `  <meta property="og:title"           data-i18n-meta="fa.ogTitle"    content="${a(m.ogTitle)}">`,
+    `  <meta property="og:description"    data-i18n-meta="fa.ogDescription" content="${a(m.ogDescription)}">`,
+    `  <meta property="og:image"           content="${og}">`,
+    '  <meta property="og:image:width"     content="1200">',
+    '  <meta property="og:image:height"    content="630">',
+    `  <meta property="og:image:alt"       data-i18n-meta="fa.ogImageAlt" content="${a(m.ogImageAlt)}">`,
+    `  <meta property="og:locale"          data-i18n-meta="fa.ogLocale" content="${a(m.ogLocale)}">`,
+    '',
+    '  <!-- v0.4 [B5]: Twitter Card -->',
+    '  <meta name="twitter:card"           content="summary_large_image">',
+    `  <meta name="twitter:title"          data-i18n-meta="fa.twitterTitle" content="${a(m.twitterTitle)}">`,
+    `  <meta name="twitter:description"    data-i18n-meta="fa.twitterDescription" content="${a(m.twitterDescription)}">`,
+    `  <meta name="twitter:image"          content="${og}">`
+  ].join('\n');
 }
 
 /* ── targets, --write / --check ──────────────────────────────────────────── */
@@ -663,17 +775,28 @@ function detectEol(text) {
 }
 
 function buildTargets(content) {
-  const indexPath = path.join(ROOT, 'index.html');
-  const indexRaw = fs.readFileSync(indexPath, 'utf8');
-  const eol = detectEol(indexRaw);
-  const parts = splitByMarkers(indexRaw.replace(/\r\n/g, '\n'), 'index.html');
-  const indexNext = [parts.head, buildGridRegion(content), parts.tail].join('\n');
+  const indexRaw = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const indexEol = detectEol(indexRaw);
+  let indexNext = indexRaw.replace(/\r\n/g, '\n');
+  indexNext = replaceRegion(indexNext, 'index.html', HEAD_BEGIN, HEAD_END, buildHeadMetaRegion(content, 'index'));
+  indexNext = replaceRegion(indexNext, 'index.html', GRID_BEGIN, GRID_END, buildGridRegion(content));
+
+  const faRaw = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
+  const faEol = detectEol(faRaw);
+  const faNext = replaceRegion(
+    faRaw.replace(/\r\n/g, '\n'),
+    'free-assets.html',
+    HEAD_BEGIN,
+    HEAD_END,
+    buildHeadMetaRegion(content, 'fa')
+  );
 
   return [
     { rel: 'js/cards-data.js', next: buildCardsDataJs(content), eol: '\n' },
     { rel: 'js/fa-data.js', next: buildFaDataJs(content), eol: '\n' },
     { rel: 'js/i18n-data.js', next: buildI18nDataJs(content), eol: '\n' },
-    { rel: 'index.html', next: indexNext, eol }
+    { rel: 'index.html', next: indexNext, eol: indexEol },
+    { rel: 'free-assets.html', next: faNext, eol: faEol }
   ];
 }
 

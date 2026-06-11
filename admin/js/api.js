@@ -179,7 +179,26 @@
 
   /* ── публикация: один atomic-коммит в main ───────────────────────── */
 
-  async function publish(files, message) {
+  // payload (итерация E):
+  //   { files:     [{ path, content }]  — текстовые файлы (content/*.json),
+  //     binaries:  [{ path, bytes }]    — загруженные медиа (Uint8Array →
+  //                                       base64-blob, кодирование чанками
+  //                                       в bytesToBase64 — без лимита стека),
+  //     deletions: [path]               — удаления (tree-entry с sha: null).
+  //                                       Возможность сохранена, но админка
+  //                                       СОЗНАТЕЛЬНО не передаёт deletions:
+  //                                       admin-коммит деплоится на прод сразу,
+  //                                       а страницы, ссылающиеся на старый
+  //                                       файл, пересоберёт только bot-коммит
+  //                                       конвейера минутами позже — удаление
+  //                                       открыло бы окно 404 }
+  // Для совместимости принимается и старый формат — просто массив files.
+  async function publish(payload, message) {
+    const plan = Array.isArray(payload) ? { files: payload } : payload || {};
+    const files = plan.files || [];
+    const binaries = plan.binaries || [];
+    const deletions = plan.deletions || [];
+
     const ref = await api(REPO_BASE + '/git/ref/heads/' + BRANCH);
     const headSha = ref.object.sha;
     const headCommit = await api(REPO_BASE + '/git/commits/' + headSha);
@@ -191,6 +210,16 @@
         body: { content: encodeContent(file.content), encoding: 'base64' }
       });
       tree.push({ path: file.path, mode: '100644', type: 'blob', sha: blob.sha });
+    }
+    for (const binary of binaries) {
+      const blob = await api(REPO_BASE + '/git/blobs', {
+        method: 'POST',
+        body: { content: bytesToBase64(binary.bytes), encoding: 'base64' }
+      });
+      tree.push({ path: binary.path, mode: '100644', type: 'blob', sha: blob.sha });
+    }
+    for (const path of deletions) {
+      tree.push({ path, mode: '100644', type: 'blob', sha: null });
     }
 
     const newTree = await api(REPO_BASE + '/git/trees', {
