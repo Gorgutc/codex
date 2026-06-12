@@ -41,14 +41,17 @@ jobs:
       # Loop guard, defense in depth. The regen commit touches only js/html,
       # so the content/** paths filter already prevents retriggering; the
       # revert commit DOES touch content/**, and this guard stops that run.
+      # Anchored on the bot author ONLY (prod-review F1, finding C-07): the
+      # old additional subject-substring match ('[content-publish' anywhere)
+      # also skipped HUMAN commits whose free-form admin description happened
+      # to contain the marker — a silent non-publication that left main in a
+      # content-vs-generated mismatch without any revert.
       - name: Skip own bot commits
         id: guard
         run: |
           author="$(git log -1 --pretty=%an)"
-          subject="$(git log -1 --pretty=%s)"
           skip=false
           if [ "$author" = "github-actions[bot]" ]; then skip=true; fi
-          case "$subject" in *'[content-publish'*) skip=true ;; esac
           echo "skip=$skip" >> "$GITHUB_OUTPUT"
           if [ "$skip" = "true" ]; then echo "Head commit comes from this workflow - nothing to do."; fi
 
@@ -98,12 +101,18 @@ jobs:
       # The capture script boots its own static server and uses the Chromium
       # installed above; it is deterministic (?lang=en, reduced motion, all
       # external requests aborted, no timestamps).
+      # continue-on-error so a capture failure lands in the revert path below
+      # (prod-review F1, finding D-01): it used to fail the job AFTER verify,
+      # leaving the content commit on main without regeneration and WITHOUT
+      # the auto-revert.
       - name: Recapture golden fixtures
         if: steps.guard.outputs.skip != 'true' && steps.diff.outputs.changed == 'true' && steps.verify.outcome == 'success'
+        id: recapture
+        continue-on-error: true
         run: node scripts/capture-content-golden.mjs
 
       - name: Commit and push regenerated files
-        if: steps.guard.outputs.skip != 'true' && steps.diff.outputs.changed == 'true' && steps.verify.outcome == 'success'
+        if: steps.guard.outputs.skip != 'true' && steps.diff.outputs.changed == 'true' && steps.verify.outcome == 'success' && steps.recapture.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -124,7 +133,7 @@ jobs:
       # never affected the rendered site - so reverting restores the invariant
       # "repository = deployed site" without touching production.
       - name: Revert triggering commits on failure
-        if: steps.regen.outcome == 'failure' || steps.verify.outcome == 'failure'
+        if: steps.regen.outcome == 'failure' || steps.verify.outcome == 'failure' || steps.recapture.outcome == 'failure'
         id: revert
         env:
           BEFORE: ${{ github.event.before }}
@@ -178,10 +187,10 @@ jobs:
           git push origin HEAD:main
 
       - name: Report failure
-        if: always() && (steps.regen.outcome == 'failure' || steps.verify.outcome == 'failure')
+        if: always() && (steps.regen.outcome == 'failure' || steps.verify.outcome == 'failure' || steps.recapture.outcome == 'failure')
         run: |
           if [ "${{ steps.revert.outcome }}" = "success" ]; then
-            echo "::error::Content publish failed: regenerate/verify did not pass. The triggering content commits were reverted on main ([content-publish-revert]). The rendered site was never affected because runtime does not read content/*.json."
+            echo "::error::Content publish failed: regenerate/verify/recapture did not pass. The triggering content commits were reverted on main ([content-publish-revert]). The rendered site was never affected because runtime does not read content/*.json."
           else
             echo "::error::Content publish failed AND the automatic revert did not complete. main still contains the unpublished content commits (the rendered site is unaffected); revert them manually."
           fi

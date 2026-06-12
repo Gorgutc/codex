@@ -1,0 +1,28 @@
+# Line-ending policy (prod-review F1, deferred-list item from iteration B/C):
+# every text file is committed and checked out with LF, so a clone with
+# core.autocrlf=true no longer produces phantom CRLF diffs. The index was
+# already 100% LF when this file landed (git ls-files --eol), so adding the
+# policy caused no renormalization churn.
+* text=auto eol=lf
+
+# Binary assets — never normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.glb binary
+*.gltf binary
+*.zip binary
+*.webm binary
+*.mp4 binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.wasm binary
+*.exr binary
+*.hdr binary
+*.ktx2 binary
+*.pdf binary

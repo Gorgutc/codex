@@ -60,6 +60,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -159,6 +160,30 @@ function isNonEmptyString(value) {
 
 function hasLocalePair(value) {
   return value !== null && typeof value === 'object' && isNonEmptyString(value.en) && isNonEmptyString(value.ru);
+}
+
+// Case text fields are rendered through innerHTML on the case view
+// (js/main.js mediaItemHTML/textFullHTML/buildInfoHTML), so raw markup and
+// control characters are rejected at the validation gate — the mirror of the
+// existing Free-Assets "<>" guard below (prod-review F1, findings C-03/D-05/
+// D-06; the runtime escaping fix itself is tracked as A1-01). U+2028/U+2029
+// additionally break inline <script> JS contexts when unescaped.
+// eslint-disable-next-line no-control-regex -- intentional: the guard exists to REJECT control characters in content
+const CONTROL_CHARS_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u2028\u2029]/;
+// eslint-disable-next-line no-control-regex -- intentional: the guard exists to REJECT control characters in content
+const MARKUP_OR_CONTROL_RE = /[<>\u0000-\u0008\u000B\u000C\u000E-\u001F\u2028\u2029]/;
+
+function checkPlainText(violations, where, label, value) {
+  if (typeof value === 'string' && MARKUP_OR_CONTROL_RE.test(value)) {
+    violations.push(`${where}: ${label} must not contain "<", ">" or control characters`);
+  }
+}
+
+function checkPlainTextPair(violations, where, label, pair) {
+  if (pair !== null && typeof pair === 'object') {
+    checkPlainText(violations, where, `${label}.en`, pair.en);
+    checkPlainText(violations, where, `${label}.ru`, pair.ru);
+  }
 }
 
 // Traversal guard: every media path the future admin panel may write must
@@ -335,6 +360,52 @@ function validateCase(violations, entry, filterKeys) {
       );
     }
   }
+
+  // "<>"/control guard over every HTML-emitted case text field (prod-review
+  // F1, findings C-03/D-05/D-06 — the Free-Assets fields already had this).
+  checkPlainTextPair(violations, where, 'card.title', card.title);
+  checkPlainTextPair(violations, where, 'card.desc', card.desc);
+  checkPlainTextPair(violations, where, 'card.alt', card.alt);
+  checkPlainText(violations, where, 'card.thumbLabel', card.thumbLabel);
+  checkPlainText(violations, where, 'year', c.year);
+  checkPlainTextPair(violations, where, 'case.role', cs.role);
+  if (Array.isArray(cs.tools)) {
+    cs.tools.forEach((tool, i) => checkPlainText(violations, where, `case.tools[${i}]`, tool));
+  }
+  if (Array.isArray(cs.captions)) {
+    cs.captions.forEach((caption, i) => {
+      if (caption !== null && typeof caption === 'object') {
+        checkPlainTextPair(violations, where, `case.captions[${i}].label`, caption.label);
+        checkPlainTextPair(violations, where, `case.captions[${i}].desc`, caption.desc);
+      }
+    });
+  }
+  for (const block of ['text', 'inline']) {
+    const value = cs[block];
+    if (value !== null && typeof value === 'object') {
+      checkPlainTextPair(violations, where, `case.${block}.title`, value.title);
+      checkPlainTextPair(violations, where, `case.${block}.body`, value.body);
+    }
+  }
+  if (Array.isArray(cs.motionBlocks)) {
+    cs.motionBlocks.forEach((block, i) => {
+      if (block !== null && typeof block === 'object') {
+        checkPlainTextPair(violations, where, `case.motionBlocks[${i}].label`, block.label);
+        checkPlainTextPair(violations, where, `case.motionBlocks[${i}].desc`, block.desc);
+      }
+    });
+  }
+  // i18nOverrides leaves end up in the same innerHTML render paths through
+  // the locale dictionaries — walk every string leaf.
+  (function walkOverrides(node, trail) {
+    if (typeof node === 'string') {
+      checkPlainText(violations, where, trail, node);
+      return;
+    }
+    if (node !== null && typeof node === 'object') {
+      for (const key of Object.keys(node)) walkOverrides(node[key], `${trail}.${key}`);
+    }
+  })(c.i18nOverrides, 'i18nOverrides');
 }
 
 // thumb/model conventions (see js/free-assets.js resolveAssetMedia): key absent
@@ -452,6 +523,18 @@ const HEAD_META_FIELDS = [
   'twitterDescription'
 ];
 
+// og:image naming convention pinned by verify-frozen.js
+// (META-og-image-index-specific / META-og-image-fa-specific): the
+// page-specific basename plus an optional -<hash8> cache-bust suffix.
+// Enforcing the same convention here turns a mismatch into a validation
+// error at publish time instead of a verify FAIL with auto-revert of a
+// legitimate publication (prod-review F1, finding D-03). Built from RegExp
+// strings to avoid escape soup; "[.]" and "[/]" are literal characters.
+const OG_BASENAME = {
+  index: new RegExp('^[.][/]assets[/]img[/]og-image(-[0-9a-f]{8})?[.](jpg|jpeg|png|webp)$'),
+  fa: new RegExp('^[.][/]assets[/]img[/]og-free-assets(-[0-9a-f]{8})?[.](jpg|jpeg|png|webp)$')
+};
+
 function validateMetaImages(violations, metaStrings) {
   const where = 'content/meta.json';
   const images = metaStrings && metaStrings.ogImages;
@@ -465,12 +548,35 @@ function validateMetaImages(violations, metaStrings) {
     if (isNonEmptyString(value) && !/\.(jpg|jpeg|png|webp)$/i.test(value)) {
       violations.push(`${where}: ogImages.${page} must be a .jpg/.jpeg/.png/.webp image ("${value}")`);
     }
+    if (isNonEmptyString(value) && !OG_BASENAME[page].test(value)) {
+      violations.push(
+        `${where}: ogImages.${page} must follow the "./assets/img/` +
+          `${page === 'fa' ? 'og-free-assets' : 'og-image'}(-<hash8>).<ext>" naming convention ` +
+          `pinned by verify-frozen.js ("${value}")`
+      );
+    }
+  }
+  // og:locale is emitted verbatim and pinned by verify-frozen.js A6-og-locale
+  // (en_US|ru_RU): a free-form locale passes the generic non-empty check and
+  // only fails at verify time with auto-revert (prod-review F1, finding D-04).
+  for (const lang of ['en', 'ru']) {
+    for (const page of ['index', 'fa']) {
+      const block = metaStrings && metaStrings[lang] && metaStrings[lang][page];
+      const value = block && block.ogLocale;
+      if (value !== undefined && !/^(en_US|ru_RU)$/.test(String(value))) {
+        violations.push(`${where}: ${lang}.${page}.ogLocale must be "en_US" or "ru_RU" (got ${JSON.stringify(value)})`);
+      }
+    }
   }
   for (const page of ['index', 'fa']) {
     const pageStrings = (metaStrings && metaStrings.en && metaStrings.en[page]) || {};
     for (const field of HEAD_META_FIELDS) {
       if (!isNonEmptyString(pageStrings[field])) {
         violations.push(`${where}: en.${page}.${field} must be a non-empty string (emitted into the head GEN region)`);
+      } else if (CONTROL_CHARS_RE.test(pageStrings[field])) {
+        // Control characters and U+2028/U+2029 break the emitted HTML head
+        // and script-embedded JSON (prod-review F1, finding D-06).
+        violations.push(`${where}: en.${page}.${field} must not contain control characters`);
       }
     }
   }
@@ -1171,7 +1277,15 @@ function buildHeadMetaRegion(content, page) {
 // JSON string literal for the hand-formatted JSON-LD blocks (the blocks keep
 // the historical 2-space indentation, so values are interpolated one by one).
 function j(value) {
-  return JSON.stringify(value);
+  // "<" goes out as its JSON unicode escape u003c (same parsed value): a raw
+  // "</script>" inside a value would otherwise close the surrounding
+  // <script type="application/ld+json"> block early and inject markup into
+  // <head> (prod-review F1, finding C-02/D-05). U+2028/U+2029 get the same
+  // treatment as defense in depth for script-embedded JSON.
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
 
 // Shared Organization block (both pages): the logo follows the index OG image
@@ -1360,9 +1474,35 @@ function buildFaJsonLdRegion(content) {
 
 /* ── sitemap.xml (iteration G: image:loc follows meta.json ogImages) ──────── */
 
+// lastmod follows the last commit that touched content/ — admin publications
+// ARE content milestones, and the previous hand-written literal would have
+// stayed frozen for every future publish (prod-review F1, finding E-03).
+// Derived from git so regeneration stays deterministic for --check (same
+// repo state, same date); falls back to the last hand-written literal in a
+// git-less environment. The CI pipeline checks out full history and its
+// triggering commit always touches content/, so the date is always present
+// there.
+const SITEMAP_LASTMOD_FALLBACK = '2026-05-30';
+let cachedContentLastmod = null;
+function contentLastmod() {
+  if (cachedContentLastmod !== null) return cachedContentLastmod;
+  let value = SITEMAP_LASTMOD_FALLBACK;
+  try {
+    const out = execSync('git log -1 --format=%cs -- content/', {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+    if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(out)) value = out;
+  } catch {
+    // keep the fallback
+  }
+  cachedContentLastmod = value;
+  return value;
+}
+
 // The whole file is regenerated; no generated-file banner on purpose — the
 // first generation must be byte-identical to the hand-written sitemap.
-// lastmod stays a literal: it tracks page content milestones, not OG swaps.
 function buildSitemapXml(content) {
   const images = content.metaStrings.ogImages;
   return [
@@ -1371,7 +1511,7 @@ function buildSitemapXml(content) {
     '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
     '  <url>',
     '    <loc>https://codex.promo/</loc>',
-    '    <lastmod>2026-05-30</lastmod>',
+    `    <lastmod>${contentLastmod()}</lastmod>`,
     '    <changefreq>weekly</changefreq>',
     '    <priority>1.0</priority>',
     '    <image:image>',
@@ -1381,7 +1521,7 @@ function buildSitemapXml(content) {
     '  </url>',
     '  <url>',
     '    <loc>https://codex.promo/free-assets.html</loc>',
-    '    <lastmod>2026-05-30</lastmod>',
+    `    <lastmod>${contentLastmod()}</lastmod>`,
     '    <changefreq>monthly</changefreq>',
     '    <priority>0.7</priority>',
     '    <image:image>',

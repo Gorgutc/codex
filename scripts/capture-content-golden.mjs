@@ -21,9 +21,15 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { visibleCaseIds } from './content-expectations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURES_DIR = path.join(ROOT, 'tests', 'quality', 'fixtures');
+// Derived from content/, NOT hardcoded (prod-review F1, finding D-01): a
+// hidden case used to time this wait out INSIDE the content-publish pipeline
+// after verify had already passed, leaving main without regeneration and
+// without the auto-revert.
+const VISIBLE_CARD_COUNT = visibleCaseIds(ROOT).length;
 
 const MIME = {
   '.css': 'text/css',
@@ -91,11 +97,12 @@ async function main() {
 
     await page.goto(`${base}/index.html?lang=en`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(
-      () =>
+      (expectedCards) =>
         !document.documentElement.classList.contains('is-loading') &&
-        document.querySelectorAll('#cards-list .work-card').length === 18 &&
+        document.querySelectorAll('#cards-list .work-card').length === expectedCards &&
         !!document.querySelector('.work-card--active') &&
-        document.querySelectorAll('#case-scroll-track .case-item').length > 0
+        document.querySelectorAll('#case-scroll-track .case-item').length > 0,
+      VISIBLE_CARD_COUNT
     );
     const indexState = await page.evaluate(() => ({
       cardsData: JSON.parse(JSON.stringify(window.CARDS_DATA)),

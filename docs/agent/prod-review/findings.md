@@ -42,19 +42,18 @@ Baseline на чистом дереве: `npm run verify` — 0 FAIL;
    role/tools/bg) в `innerHTML` без `escapeHTML`
    (js/main.js:608-643, 838-886, 898-910, 1945-1965; sink: 1012,
    2467, 2887). Паттерн экранирования уже есть в `motionItemHTML`.
-3. **C-02 / D-05 (high → F1)** — breakout из
-   `<script type="application/ld+json">`: `j()` в генераторе — голый
-   `JSON.stringify` без экранирования `<`
-   (scripts/generate-content.mjs:1173, 1213, 1216); `card.title.en`
-   с `</script>…` валидатор пропускает (нет `<>`-гарда на кейс-полях,
-   в отличие от FA-полей, строка 421). Фикс: `<`-эскейп в `j()`
-   плюс `<>`-гард на кейс-поля (C-03).
-4. **D-01 (high → F1)** — `scripts/capture-content-golden.mjs:96` и
-   `tests/quality/content-golden.spec.mjs:97` ждут ровно 18 карточек.
-   Легитимное скрытие/добавление кейса через админку валит шаг
-   recapture в `content-publish.yml` ПОСЛЕ verify, авто-revert не
-   срабатывает → main остаётся в рассинхроне. Вывести число из
-   content, как EXPECTED_IDS в verify-frozen.
+3. **C-02 / D-05 (high → F1, fixed)** — breakout из
+   `<script type="application/ld+json">`: `j()` в генераторе был
+   голым `JSON.stringify` без экранирования `<`; `card.title.en` с
+   `</script>…` валидатор пропускал (нет `<>`-гарда на кейс-полях, в
+   отличие от FA-полей). Исправлено в F1: `<`-эскейп в `j()` +
+   `<>`/control-гард на все HTML-эмитируемые кейс-поля и
+   i18nOverrides-листья.
+4. **D-01 (high → F1, fixed)** — capture-скрипт и golden-тест ждали
+   ровно 18 карточек: легитимное скрытие кейса валило recapture-шаг
+   `content-publish.yml` ПОСЛЕ verify без авто-revert. Исправлено в
+   F1: ожидания из content (`scripts/content-expectations.mjs`) +
+   recapture включён в revert-условия workflow.
 5. **A2-01 / E-02 / F-03 (high → F4 + owner)** — каталог Free Assets
    обещает 25 архивов, в `downloads/` лежат 4, на проде 404
    (проверено: `vega-shell.zip` → 404). Существующие 4 zip — стабы по
@@ -252,10 +251,9 @@ Baseline на чистом дереве: `npm run verify` — 0 FAIL;
 ## Поток C — безопасность (админка, auth, CI, заголовки)
 
 - **C-01** (high → F2, open): dup A1-01, см. «Критические» п. 2.
-- **C-02** (high → F1, open): dup D-05, см. «Критические» п. 3.
-- **C-03** (medium → F1+F2, open): `<>`-гард есть только у FA-полей
-  (generate-content.mjs:421), кейс-поля и админ-зеркало без него.
-  Server-гард — F1, зеркало в admin/js/state.js — F2.
+- **C-02** (high → F1, fixed): dup D-05, см. «Критические» п. 3.
+- **C-03** (medium → F1+F2, частично fixed): server-гард `<>` на
+  кейс-полях добавлен в F1; зеркало в admin/js/state.js — F2.
 - **C-04** (high → F2, open): см. «Критические» п. 8. CSP-инвентарь
   по директивам собран в ревью потока C (script-src 'self' +
   ajax.googleapis.com + wasm-unsafe-eval + хэш inline-прелоадера;
@@ -276,9 +274,9 @@ Baseline на чистом дереве: `npm run verify` — 0 FAIL;
   `repo` = доступ ко ВСЕМ репо владельца. Компенсации: admin-CSP +
   no-store (F2); рекомендация PAT fine-grained в доке; миграция на
   GitHub App — deferred (решение владельца).
-- **C-07** (low → F1, open): guard «Skip own bot commits» в
-  content-publish.yml:44-53 матчит подстроку `[content-publish` в
-  любом коммите → «тихая непубликация». Якорить на автора bot.
+- **C-07** (low → F1, fixed): guard «Skip own bot commits» якорится
+  только на автора github-actions[bot]; подстрочный матч по subject
+  убран (тихая непубликация при `[content-publish` в описании).
 - **C-08** (low → F2, open): пути git-tree в publish не проверяются
   на префикс content/ | assets/ (admin/js/state.js:993-1004,
   api.js:206-223). Добавить assert.
@@ -298,34 +296,44 @@ self-hosted 1.15.7.
 
 ## Поток D — контракт (генератор ↔ verify-frozen ↔ content)
 
-- **D-01** (high → F1, open): см. «Критические» п. 4.
-- **D-02** (medium → F1, open): `B1-data-i18n-attr-floor` — хардкод
-  100 (verify-frozen.js:1093); скрытие ≥8 кейсов даёт ложный FAIL и
-  авто-revert легитимной публикации. Вывести формулой из content,
-  как FA-floor (1361-1366).
-- **D-03** (medium → F1, open): verify пинит basename og-картинок
-  регэкспом, валидатор принимает любой файл (verify-frozen.js:588,
-  1525 vs generate-content.mjs:455-467) — валидная публикация может
-  отреверчиваться. Согласовать: либо конвенцию в валидатор, либо
-  точный URL из content в verify.
-- **D-04** (low → F1, open): ogLocale не enum-валидируется,
-  verify требует `en_US|ru_RU` (verify-frozen.js:1071, 1325).
-- **D-05** (medium → F1, open): dup C-02 + защита `<>` кейс-полей.
-- **D-06** (low → F1, open): control-символы и U+2028/2029 проходят
-  в title → HTML/JSON-LD (generate-content.mjs:1119, 1144). Добавить
-  charset-гард.
+- **D-01** (high → F1, fixed): см. «Критические» п. 4. Исправлено в
+  F1: число карточек выводится из content через новый
+  `scripts/content-expectations.mjs` (capture-скрипт, golden-тест,
+  site-smoke, admin-smoke); плюс defense-in-depth — recapture-шаг
+  workflow получил `continue-on-error` и включён в revert-условия.
+- **D-02** (medium → F1, fixed): `B1-data-i18n-attr-floor` теперь
+  формула из content: 32 base + 3×карточки + 2×фильтры (на полном
+  каталоге = прежние 100, строгость сохранена).
+- **D-03** (medium → F1, fixed): конвенция basename og-картинок
+  (`og-image(-hash8)` / `og-free-assets(-hash8)`) перенесена в
+  `validateMetaImages` — рассинхрон ловится валидатором, а не
+  verify-FAIL→revert. Тест-сценарий №8 переделан: cache-bust в
+  пределах конвенции (позитив) + кросс-своп отклоняется (8b).
+- **D-04** (low → F1, fixed): ogLocale enum-валидируется
+  (`en_US|ru_RU`) в обеих локалях.
+- **D-05** (medium → F1, fixed): `j()` экранирует `<` как `<`
+  (+U+2028/2029); вывод на текущем контенте байт-идентичен.
+- **D-06** (low → F1, fixed): control-символы и U+2028/2029
+  отклоняются валидатором: кейс-поля (включая i18nOverrides-листья)
+  и head-meta-поля.
 - **D-08** (low, accepted): FA_JSONLD_COPY_IDS — ручная копия в
   verify, дрейф ловится static-чеком F1-jsonld-copy-mirror; долг
   «вынести в общий JSON» — пост-прод.
-- **D-09** (medium → F1, open): i18nOverrides привязаны к
-  структурным индексам и не переезжают при reorder
-  (generate-content.mjs:660-667, 789, 817). Сегодня безопасно
-  (только не-индексные overrides). Фикс: запрет reorder при
-  индексных overrides либо миграция по стабильному id.
-- **D-10** (low → F1, open): мёртвые faTag-ключи скрытых категорий
-  остаются в словаре (generate-content.mjs:842-856). Косметика.
-- **D-14** (low → F1, open): Windows CRLF-churn косметический;
-  закрывается `.gitattributes eol=lf` (deferred-пункт).
+- **D-09** (medium → F2, open): i18nOverrides привязаны к
+  структурным индексам и не переезжают при reorder. Точная локация
+  подтверждена: `admin/js/ui.js:1576-1606` — `moveMediaSlot` /
+  `moveMotionBlock` ремапят pending-edit-пути через
+  `remapListIndex`, но НЕ трогают `i18nOverrides.caseEn.captions.N`
+  / `...motionBlocks.N`. Фикс — в admin-батче F2 (ремап оверрайдов
+  тем же механизмом). Сегодня безопасно (в контенте только
+  не-индексные overrides).
+- **D-10** (low, accepted): мёртвые faTag-ключи скрытых категорий
+  остаются в словаре (generate-content.mjs uiStringsWithCounts) —
+  невидимы на сайте, чистка добавила бы churn генерации; решение:
+  принять.
+- **D-14** (low → F1, fixed): добавлен `.gitattributes`
+  (`* text=auto eol=lf` + binary-маски); индекс уже был 100% LF,
+  ренормализации не было.
 - **D-SKIP** (accepted, задокументировать): SKIP-ветки verify-frozen
   в целом безопасны; два осознанных компромисса: motion-контракт
   целиком отключается, если скрыть все motion-кейсы; клик-тест
@@ -338,11 +346,11 @@ self-hosted 1.15.7.
 
 - **E-01** (high → F4 + owner, open): см. «Критические» п. 6.
 - **E-02** (high → F4 + owner, open): dup A2-01/F-03.
-- **E-03** (medium → F1, open): lastmod sitemap захардкожен
-  «2026-05-30» в генераторе (generate-content.mjs:1374-1386) —
-  каждая публикация пишет замороженную дату. NB: брать дату так,
-  чтобы не сломать детерминизм `--check` (например, дата последнего
-  коммита content/).
+- **E-03** (medium → F1, fixed): lastmod sitemap выводится из даты
+  последнего коммита, тронувшего content/ (`git log -1 --format=%cs
+  -- content/`), с фолбэком на старый литерал в git-less среде;
+  детерминизм `--check` сохранён, sitemap регенерирован
+  (lastmod = 2026-06-11).
 - **E-04** (medium → F4, open): llms.txt устарел: «1 known axe
   issue» (бюджет уже 0), нет Free Assets, плейсхолдер
   ArtStation/Behance, дата 2026-04-19.
@@ -423,13 +431,13 @@ self-hosted 1.15.7.
 | og:image размеры не проверяются | F4 — делаем (чтение размеров при загрузке) |
 | FA не входит в превью админки | F5 — делаем (расширить preview.js) |
 | ZIP-аплоад через админку | deferred — нужна внешняя инфраструктура (S3/R2), отдельное решение |
-| Счётчики «N assets» вручную | уже автоматизировано генератором (см. D-10); обновить текст в handoff — F1 |
+| Счётчики «N assets» вручную | уже автоматизировано генератором (см. D-10); текст в handoff обновлён в F1 |
 | Manual-порядок стартует с авторского | F5 — делаем (старт с seeded-раскладки) |
 | Чередование рядов в manual | F5 — оценить; если рискованно для вёрстки — accepted |
-| i18nOverrides при reorder | F1 — делаем (D-09) |
-| Golden-фикстуры / CI recapture | F1 — делаем (D-01 закрывает главный разрыв) |
-| .gitattributes eol=lf | F1 — делаем |
-| Флак preloader-смоука | F1 — стабилизируем тест, не ослабляя гейт |
+| i18nOverrides при reorder | F2 — admin-батч (точная локация в D-09) |
+| Golden-фикстуры / CI recapture | сделано в F1 (D-01) |
+| .gitattributes eol=lf | сделано в F1 |
+| Флак preloader-смоука | сделано в F1: порог 2200→3500мс при гейте «строго < 4000мс задержки» — контракт сохранён (на прогоне F1 тест занял 3.4s, старый порог флакнул бы) |
 | JSON-LD narrowing | уже согласован (поток D); остаток numberOfItems — F4 (E-05) |
 | Чистка осиротевших ассетов | F5 — делаем (maintenance-скрипт, ручной запуск) |
 | Vimeo автозагрузка | deferred — нужен Vimeo API/аккаунт |

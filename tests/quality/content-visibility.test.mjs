@@ -11,8 +11,11 @@
  *   - 'all' filter disabled       → validation error;
  *   - disable a featured case     → its JSON-LD ListItem is gone, positions
  *                                   renumbered (no SEO ghosts, iteration G);
- *   - swap ogImages               → Organization logo, FA thumbnails and
+ *   - cache-busted ogImages       → Organization logo, FA thumbnails and
  *                                   sitemap image:loc follow content;
+ *   - cross-page ogImages swap    → validation error (the per-page basename
+ *                                   convention pinned by verify-frozen.js,
+ *                                   prod-review F1, finding D-03);
  *   - featuredWorks unknown id    → validation error;
  *   - disable one FA item         → fa-data, FA_LOCALES, JSON-LD ItemList and
  *                                   the fa-filters counts drop it (iteration H);
@@ -269,37 +272,72 @@ function caseLocalesSection(i18n) {
   }
 }
 
-/* 8 — Organization logo, FA thumbnails and sitemap images follow ogImages */
+/* 8 — Organization logo, FA thumbnails and sitemap images follow ogImages.
+ *     Uses cache-busted variants of each page's OWN basename family — the
+ *     old cross-page swap is a convention violation since prod-review F1
+ *     (finding D-03), asserted separately in scenario 8b below. */
 {
-  const sandbox = makeSandbox('jsonld-og-swap');
+  const sandbox = makeSandbox('jsonld-og-cachebust');
+  const bustedIndex = path.join(root, 'assets', 'img', 'og-image-aaaaaaaa.jpg');
+  const bustedFa = path.join(root, 'assets', 'img', 'og-free-assets-aaaaaaaa.jpg');
   try {
+    // The validator checks files on disk: simulate the admin cache-bust
+    // upload by copying the real images next to themselves.
+    cpSync(path.join(root, 'assets', 'img', 'og-image.jpg'), bustedIndex);
+    cpSync(path.join(root, 'assets', 'img', 'og-free-assets.jpg'), bustedFa);
     const meta = sandbox.readJson('meta.json');
-    // Swap to OTHER existing files (the validator checks files on disk).
-    meta.ogImages = { index: './assets/img/og-free-assets.jpg', fa: './assets/img/og-image.jpg' };
+    meta.ogImages = {
+      index: './assets/img/og-image-aaaaaaaa.jpg',
+      fa: './assets/img/og-free-assets-aaaaaaaa.jpg'
+    };
     sandbox.writeJson('meta.json', meta);
 
     const result = sandbox.run('--write');
-    if (result.status !== 0) fail('--write must succeed after an ogImages swap', result.output);
+    if (result.status !== 0) fail('--write must succeed after a cache-busted ogImages update', result.output);
 
     const html = sandbox.readOut('index.html');
-    if (!html.includes('"logo": "https://codex.promo/assets/img/og-free-assets.jpg"')) {
+    if (!html.includes('"logo": "https://codex.promo/assets/img/og-image-aaaaaaaa.jpg"')) {
       fail('the Organization logo must follow ogImages.index');
     }
     const fa = sandbox.readOut('free-assets.html');
-    if (!fa.includes('"primaryImageOfPage": "https://codex.promo/assets/img/og-image.jpg"')) {
+    if (!fa.includes('"primaryImageOfPage": "https://codex.promo/assets/img/og-free-assets-aaaaaaaa.jpg"')) {
       fail('the FA WebPage primary image must follow ogImages.fa');
     }
-    if (!fa.includes('"thumbnailUrl": "https://codex.promo/assets/img/og-image.jpg"')) {
+    if (!fa.includes('"thumbnailUrl": "https://codex.promo/assets/img/og-free-assets-aaaaaaaa.jpg"')) {
       fail('FA ItemList thumbnail fallbacks must follow ogImages.fa');
     }
     const sitemap = sandbox.readOut('sitemap.xml');
-    if (!sitemap.includes('<image:loc>https://codex.promo/assets/img/og-free-assets.jpg</image:loc>')) {
+    if (!sitemap.includes('<image:loc>https://codex.promo/assets/img/og-image-aaaaaaaa.jpg</image:loc>')) {
       fail('the sitemap index image must follow ogImages.index');
     }
-    if (!sitemap.includes('<image:loc>https://codex.promo/assets/img/og-image.jpg</image:loc>')) {
+    if (!sitemap.includes('<image:loc>https://codex.promo/assets/img/og-free-assets-aaaaaaaa.jpg</image:loc>')) {
       fail('the sitemap FA image must follow ogImages.fa');
     }
-    console.log('jsonld/sitemap: image fields follow meta.json ogImages');
+    console.log('jsonld/sitemap: image fields follow meta.json ogImages (cache-busted)');
+  } finally {
+    rmSync(bustedIndex, { force: true });
+    rmSync(bustedFa, { force: true });
+    sandbox.cleanup();
+  }
+}
+
+/* 8b — a cross-page ogImages swap violates the per-page basename convention
+ *      pinned by verify-frozen.js (META-og-image-*-specific): caught as a
+ *      validation error at publish time instead of a verify FAIL with
+ *      auto-revert (prod-review F1, finding D-03). */
+{
+  const sandbox = makeSandbox('jsonld-og-swap-rejected');
+  try {
+    const meta = sandbox.readJson('meta.json');
+    meta.ogImages = { index: './assets/img/og-free-assets.jpg', fa: './assets/img/og-image.jpg' };
+    sandbox.writeJson('meta.json', meta);
+
+    const result = sandbox.run('--check');
+    if (result.status === 0) fail('--check must fail on a cross-page ogImages swap', result.output);
+    if (!result.output.includes('naming convention pinned by verify-frozen.js')) {
+      fail('expected the og basename convention violation in the output', result.output);
+    }
+    console.log('og basename guard: cross-page swap rejected');
   } finally {
     sandbox.cleanup();
   }
