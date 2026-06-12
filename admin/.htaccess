@@ -1,0 +1,26 @@
+# Codex Studio admin panel — per-directory overrides (prod-review F2, C-04).
+# Inherits the root .htaccess; the directives below REPLACE the same-named
+# headers for /admin/*.
+<IfModule mod_headers.c>
+  # The panel handles GitHub tokens in sessionStorage — never cache it.
+  Header always set Cache-Control "no-store"
+  # Apache merges <FilesMatch> sections AFTER all directory-level
+  # directives, so the root .htaccess html/js/css cache rules would
+  # otherwise override the directory-level no-store above (cross-review
+  # F2). Re-assert it at the same FilesMatch layer — child .htaccess
+  # sections run last and win.
+  <FilesMatch "\.(html|js|css)$">
+    Header always set Cache-Control "no-store"
+  </FilesMatch>
+  # robots.txt already disallows /admin/; this hardens against direct links.
+  Header always set X-Robots-Tag "noindex, nofollow"
+  # Superset of the site CSP: the draft preview renders the REAL site inside
+  # an iframe srcdoc, and srcdoc documents inherit THIS policy — so every
+  # site source (inline bootstrap hash, onload handler hash, fonts, Vimeo,
+  # cloudflare geo trace, wasm) must stay allowed here, plus the admin's own
+  # needs: api.github.com (REST), avatars.githubusercontent.com (topbar) and
+  # script-src blob: — the preview injects the DRAFT data scripts
+  # (cards-data/i18n-data) as Blob-URL scripts, whose content cannot be
+  # hash-pinned (cross-review F2; admin/js/preview.js inlineDataScript).
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' blob: 'sha256-MAZbmChJyw59Z0ELyPBNxPfJrWmKlzxELbVGM4lgy2U=' 'unsafe-hashes' 'sha256-1jAmyYXcRq6zFldLe/GCgIDJBiOONdXjTLgEFMDnDSM=' 'wasm-unsafe-eval'; style-src 'self' https://api.fontshare.com 'unsafe-inline'; font-src 'self' https://cdn.fontshare.com; img-src 'self' data: blob: https://avatars.githubusercontent.com; media-src 'self' blob:; connect-src 'self' blob: https://api.github.com https://www.cloudflare.com; frame-src 'self' https://player.vimeo.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; manifest-src 'self'"
+</IfModule>

@@ -1572,9 +1572,33 @@
 
     // Перестановка слота иллюстраций: src/фон/подпись переезжают вместе.
     // Дефолтный src зависит от ПОЗИЦИИ (./assets/cases/<id>/0N.svg), поэтому
+    // prod-review F2 (D-09): i18nOverrides адресуются структурными
+    // индексами (captions.N, motionBlocks.N) и при перестановке слотов
+    // уезжали бы на чужие блоки МОЛЧА (verify это не ловит). Пока
+    // безопасный вариант — блокировать reorder у кейсов с индексными
+    // overrides; миграция overrides по стабильному id — отдельная задача.
+    var NUMERIC_KEY_RE = new RegExp('^[0-9]+$');
+    function hasIndexedOverrides(node) {
+      if (node === null || typeof node !== 'object') return false;
+      return Object.keys(node).some(function (key) {
+        return NUMERIC_KEY_RE.test(key) || hasIndexedOverrides(node[key]);
+      });
+    }
+
+    function reorderBlockedByOverrides() {
+      if (!hasIndexedOverrides(State.getValue(path, 'i18nOverrides'))) return false;
+      toast(
+        'Перестановка недоступна: у кейса есть i18nOverrides, привязанные к номерам слотов. ' +
+          'Перенесите их вручную в репозитории и повторите.',
+        'error'
+      );
+      return true;
+    }
+
     // перед перестановкой эффективные src фиксируются явными путями.
     function moveMediaSlot(from, to, focusKey) {
       if (from === to || to < 0 || to > 4) return;
+      if (reorderBlockedByOverrides()) return;
       const cs = State.getValue(path, 'case') || {};
       const srcs = [];
       for (let i = 0; i < 5; i += 1) {
@@ -1592,6 +1616,7 @@
     function moveMotionBlock(from, to, focusKey) {
       const blocks = State.getValue(path, 'case.motionBlocks') || [];
       if (from === to || to < 0 || to >= blocks.length) return;
+      if (reorderBlockedByOverrides()) return;
       State.setValue(path, 'case.motionBlocks', movedArray(blocks, from, to));
       remapListIndex(
         path,
@@ -2026,7 +2051,16 @@
       errors.push({ path: FA_PATH, field, message });
     }
     if (errors.length > 0) {
-      toast('Публикация остановлена: заполните обязательные поля (ошибок: ' + errors.length + ').', 'error');
+      // prod-review F2 (кросс-ревью): у части ошибок (year, palette,
+      // cardOrder, structuredData, i18nOverrides — обычно следы ручной
+      // правки репозитория) нет полей-якорей в UI, applyPendingErrors их
+      // не отрисует. Первые сообщения показываем прямо в тосте, чтобы
+      // блокировка публикации никогда не была безликим счётчиком.
+      const preview = errors.slice(0, 3).map((e) => e.message).join(' • ');
+      toast(
+        'Публикация остановлена (ошибок: ' + errors.length + '): ' + preview + (errors.length > 3 ? ' …' : ''),
+        'error'
+      );
       pendingErrors = errors;
       const target = hashForPath(errors[0].path, errors[0].field);
       if (window.location.hash !== target) window.location.hash = target;

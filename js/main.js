@@ -287,6 +287,23 @@
   var caseYear   = document.getElementById('case-year');
   var caseScroll = document.getElementById('case-scroll');
   var caseTrack  = document.getElementById('case-scroll-track');
+  // prod-review F2: делегированная замена бывших инлайн-onerror у галерейных
+  // <img>/<video> (mediaItemHTML) — битое медиа убирает себя, а script-src
+  // строгого CSP остаётся без 'unsafe-hashes'. capture=true: error не бабблит.
+  if (caseTrack) {
+    caseTrack.addEventListener('error', function (e) {
+      var t = e.target;
+      if (!t || !t.classList) return;
+      // Motion-видео (case-motion__video) исключены: у них раньше НЕ было
+      // самоудаления, src ставится лениво и транзиентная ошибка сети не
+      // должна навсегда убивать элемент с его play/pause-контролом
+      // (кросс-ревью F2).
+      if (t.closest && t.closest('.case-motion')) return;
+      if (t.classList.contains('case-item__img') || t.classList.contains('case-item__video')) {
+        t.remove();
+      }
+    }, true);
+  }
   var progressBar = document.getElementById('case-progress-bar');
   var tab3d      = document.getElementById('case-tab-3d');
   var tabBp      = document.getElementById('case-tab-bp');
@@ -609,12 +626,20 @@
     var isVideo = item.type === 'video';
     var format  = item.format === 'tall' ? 'tall' : 'wide';
     var cls     = 'case-item case-item--' + format;
+    // prod-review F2 (A1-01/C-01): все admin-редактируемые поля экранируются
+    // перед innerHTML — зеркало motionItemHTML. Ошибки загрузки медиа ловит
+    // делегированный capture-листенер на caseTrack (инлайн-onerror убран:
+    // он был и stored-XSS-соседом, и блокером строгого CSP).
+    var bg    = escapeHTML(item.bg || 'var(--color-surface)');
+    var src   = escapeHTML(item.src || '');
+    var label = escapeHTML(item.label || '');
+    var desc  = escapeHTML(item.desc || '');
     var h  = '<article class="' + cls + '">';
-    h +=     '<div class="case-item__media" style="background:' + (item.bg || 'var(--color-surface)') + ';">';
+    h +=     '<div class="case-item__media" style="background:' + bg + ';">';
     if (isVideo && item.src) {
-      h += '<video class="case-item__video" src="' + item.src + '" autoplay muted loop playsinline ';
-      if (item.poster) h += 'poster="' + item.poster + '" ';
-      h += 'aria-label="' + (item.label || '') + '" onerror="this.remove();"></video>';
+      h += '<video class="case-item__video" src="' + src + '" autoplay muted loop playsinline ';
+      if (item.poster) h += 'poster="' + escapeHTML(item.poster) + '" ';
+      h += 'aria-label="' + label + '"></video>';
     } else if (!isVideo && item.src) {
       // v0.20.0 — gallery img триггерит fullscreen viewer. tabindex+role+aria
       // для клавиатурной доступности (Enter/Space в main.js gallery keydown).
@@ -624,19 +649,18 @@
       // pre-reservation места.
       var iw = item.format === 'wide' ? 1600 : 600;
       var ih = item.format === 'wide' ? 900  : 800;
-      h += '<img class="case-item__img" src="' + item.src + '" alt="' + (item.label || '') + '" ';
+      h += '<img class="case-item__img" src="' + src + '" alt="' + label + '" ';
       h += 'width="' + iw + '" height="' + ih + '" loading="lazy" decoding="async" ';
       h += 'draggable="false" tabindex="0" role="button" ';
-      h += 'aria-haspopup="dialog" aria-label="Open fullscreen view of ' + (item.label || 'image') + '" ';
-      h += 'onerror="this.remove();">';
+      h += 'aria-haspopup="dialog" aria-label="Open fullscreen view of ' + (label || 'image') + '">';
     }
-    h +=   '<span class="case-item__placeholder" aria-hidden="true">' + (item.label || '') + '</span>';
+    h +=   '<span class="case-item__placeholder" aria-hidden="true">' + label + '</span>';
     /* v0.15.2 [B3] — .case-media-fs-btn удалена для 2D кейсов.
        Fullscreen остаётся для 3D (.case-3d__fs-btn) и Blueprints (.case-blueprints__fs-btn). */
     h +=   '</div>';
     h +=   '<div class="case-item__caption">';
-    h +=     '<p class="case-item__caption-label">' + (item.label || '') + '</p>';
-    h +=     '<p class="case-item__caption-desc">' + (item.desc || '') + '</p>';
+    h +=     '<p class="case-item__caption-label">' + label + '</p>';
+    h +=     '<p class="case-item__caption-desc">' + desc + '</p>';
     h +=   '</div>';
     h += '</article>';
     return h;
@@ -837,15 +861,16 @@
      v0.13.8: external link button (ArtStation для game-ассетов, Behance для остальных). */
   function textFullHTML(text, meta) {
     meta = meta || {};
+    // prod-review F2 (A1-01): role/year/tools \u2014 admin-\u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0443\u0435\u043c\u044b\u0435 \u043f\u043e\u043b\u044f.
     var chips = '';
     if (meta.role) {
-      chips += '<span class="case-text__meta-item case-text__meta-item--role">' + meta.role + '</span>';
+      chips += '<span class="case-text__meta-item case-text__meta-item--role">' + escapeHTML(meta.role) + '</span>';
     }
     if (meta.year) {
-      chips += '<span class="case-text__meta-item">' + meta.year + '</span>';
+      chips += '<span class="case-text__meta-item">' + escapeHTML(meta.year) + '</span>';
     }
     if (meta.tools && meta.tools.length) {
-      chips += '<span class="case-text__meta-item">' + meta.tools.join(' \u00b7 ') + '</span>';
+      chips += '<span class="case-text__meta-item">' + escapeHTML(meta.tools.join(' \u00b7 ')) + '</span>';
     }
 
     // v0.13.8 — external link (game → ArtStation, non-game → Behance)
@@ -877,8 +902,8 @@
     h +=             '<span class="case-text__external-btn-arrow" aria-hidden="true">\u2192</span>';
     h +=           '</a>';
     h +=         '</div>';
-    h +=         '<h2 class="case-text__title">' + (text.title || '') + '</h2>';
-    h +=         '<p class="case-text__body">'  + (text.body  || '') + '</p>';
+    h +=         '<h2 class="case-text__title">' + escapeHTML(text.title || '') + '</h2>';
+    h +=         '<p class="case-text__body">'  + escapeHTML(text.body  || '') + '</p>';
     h +=       '</div>';
     h +=     '</article>';
     h +=   '</div>';
@@ -901,8 +926,8 @@
     h +=     '<article class="case-item case-item--text-inline">';
     h +=       '<div class="case-text case-text--inline">';
     h +=         '<p class="case-text__eyebrow">Notes</p>';
-    h +=         '<h3 class="case-text__title">' + (text.title || '') + '</h3>';
-    h +=         '<p class="case-text__body">'  + (text.body  || '') + '</p>';
+    h +=         '<h3 class="case-text__title">' + escapeHTML(text.title || '') + '</h3>';
+    h +=         '<p class="case-text__body">'  + escapeHTML(text.body  || '') + '</p>';
     h +=       '</div>';
     h +=     '</article>';
     h +=   '</div>';
@@ -1944,11 +1969,12 @@
   /* v0.11.1 — верстка info-панели со статистикой модели */
   function buildInfoHTML(data) {
     var s = (data && data.modelStats) || {};
+    // prod-review F2 (A1-01): значения modelStats редактируются через админку.
     function cell(label, value) {
       return (
         '<tr>' +
           '<td class="case-3d__info-label">' + label + '</td>' +
-          '<td class="case-3d__info-value">' + (value == null || value === '' ? '—' : value) + '</td>' +
+          '<td class="case-3d__info-value">' + (value == null || value === '' ? '—' : escapeHTML(value)) + '</td>' +
         '</tr>'
       );
     }
@@ -3590,6 +3616,15 @@
 
     fsStage = document.createElement('div');
     fsStage.className = 'media-fs__stage';
+    // prod-review F2 (кросс-ревью): клоны в fullscreen-стейдже раньше
+    // наследовали inline-onerror самоудаления через cloneNode; теперь
+    // классы/атрибуты у клонов снимаются, а оверлей живёт вне caseTrack —
+    // зеркалим делегированный листенер здесь (битый клон не оставляет
+    // «сломанную» иконку с мёртвыми zoom-контролами).
+    fsStage.addEventListener('error', function (e) {
+      var t = e.target;
+      if (t && t.tagName && (t.tagName === 'IMG' || t.tagName === 'VIDEO')) t.remove();
+    }, true);
 
     fsCloseBtn = document.createElement('button');
     fsCloseBtn.type = 'button';

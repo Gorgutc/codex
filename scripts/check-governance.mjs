@@ -164,6 +164,51 @@ if (exists('.github/workflows/quality.yml')) {
   check('CI: workflow deferred explicitly', true, 'no .github/workflows/quality.yml');
 }
 
+// ── prod-review F2: strict-CSP integrity on the Beget prod host ──────────
+// The .htaccess CSP pins sha256 hashes of (a) the inline bootstrap script
+// and (b) the link onload swap handler. Nothing else recomputed them: an
+// innocent edit of the inline bootstrap passed every local gate (no CSP in
+// dev/preview servers) and broke ONLY in production. These checks recompute
+// the hashes from the shipped HTML and assert both CSP headers carry them.
+if (exists('.htaccess') && exists('admin/.htaccess')) {
+  const { createHash } = await import('node:crypto');
+  const cspTexts = {
+    '.htaccess': read('.htaccess'),
+    'admin/.htaccess': read('admin/.htaccess'),
+  };
+  const requiredHashes = new Map(); // hash → описание источника
+  for (const page of ['index.html', 'free-assets.html']) {
+    const html = read(page);
+    for (const match of html.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/gi)) {
+      if (/ld\+json/i.test(match[1])) continue; // не исполняется, вне script-src
+      const hash = createHash('sha256').update(match[2], 'utf8').digest('base64');
+      requiredHashes.set(hash, `${page} inline script`);
+    }
+    for (const match of html.matchAll(/\bonload="([^"]+)"/gi)) {
+      const hash = createHash('sha256').update(match[1], 'utf8').digest('base64');
+      requiredHashes.set(hash, `${page} onload handler`);
+    }
+  }
+  check('CSP: shipped pages have hashable inline code', requiredHashes.size > 0,
+    `${requiredHashes.size} unique hash(es)`);
+  for (const [file, text] of Object.entries(cspTexts)) {
+    const csp = text.match(/Content-Security-Policy "([^"]+)"/);
+    check(`${file}: CSP header present`, !!csp);
+    if (!csp) continue;
+    for (const [hash, source] of requiredHashes) {
+      check(`${file}: CSP pins ${source}`, csp[1].includes(`'sha256-${hash}'`),
+        `sha256-${hash.slice(0, 12)}…`);
+    }
+  }
+}
+
+// Self-hosted model-viewer (F2, C-05): console-error gates cannot catch a
+// missing vendor file (404s are filtered as noise), so its presence is a
+// static invariant.
+check('vendor: model-viewer.min.js self-hosted', exists('js/vendor/model-viewer.min.js'));
+check('runtime: shared-runtime loads model-viewer from vendor',
+  /js\/vendor\/model-viewer\.min\.js/.test(read('js/shared-runtime.js')));
+
 if (failures > 0) {
   console.error(`SUMMARY: ${failures} governance failure(s)`);
   process.exit(1);

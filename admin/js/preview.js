@@ -331,12 +331,15 @@
     }
   }
 
-  // Inline-скрипт с данными черновика. Символ '<' экранируется юникод-эскейпом
-  // (валиден в JSON), чтобы закрывающий script-тег внутри строк данных
-  // не разорвал srcdoc-документ.
+  // Скрипт с данными черновика (CARDS_DATA/I18N_DATA текущего черновика).
   function inlineDataScript(doc, globalName, value) {
+    // Blob-URL вместо inline-script: строгий admin-CSP (script-src без
+    // 'unsafe-inline') блокировал inline-данные внутри srcdoc-превью
+    // (кросс-ревью F2); blob: разрешён в admin/.htaccess. Эскейп '<'
+    // сохранён — данные не должны рвать сериализацию srcdoc.
+    const code = 'window.' + globalName + ' = ' + JSON.stringify(value).replace(/</g, '\\u003c') + ';';
     const script = doc.createElement('script');
-    script.textContent = 'window.' + globalName + ' = ' + JSON.stringify(value).replace(/</g, '\\u003c') + ';';
+    script.src = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
     return script;
   }
 
