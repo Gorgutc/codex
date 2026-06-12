@@ -1,0 +1,63 @@
+# Codex Studio — Apache config for the Beget production host
+# (prod-review F2, findings C-04/E-22 + F-06). The repo is deployed to the
+# hosting as a full archive, so this file ships automatically with every
+# manual deploy. netlify.toml mirrors the same intent for Netlify previews.
+#
+# Quick rollback: deleting this file restores the previous (headerless)
+# behavior — nothing on the site depends on it functionally.
+
+# NB: no "Options -Indexes" on purpose — if the host's AllowOverride does
+# not include Options, that single directive 500s the whole site on deploy.
+# Directory listing is mitigated by the path blocks below instead.
+
+# ── F-06: repo internals are NOT site content ────────────────────────────
+# The manual deploy uploads the whole repository, which used to expose
+# docs/, scripts/, configs and agent infrastructure publicly.
+# Public surface stays: index.html, free-assets.html, css/, js/, assets/,
+# downloads/, admin/, content/ (the admin panel's loadCatalog fetches
+# ../content/*.json same-origin — these are the site's own texts, nothing
+# secret; cross-review F2 caught that blocking them kills the panel),
+# robots.txt, sitemap.xml, llms.txt, favicon files.
+<IfModule mod_alias.c>
+  RedirectMatch 404 ^/(docs|tests|test-results|scripts|plugins|netlify|node_modules)(/|$)
+  # Dot-files and dot-directories (.github, .codex, .claude, .agents,
+  # .gitattributes, linter configs...). NB: also covers /.well-known —
+  # add an explicit exception above this line if it is ever needed.
+  RedirectMatch 404 ^/\.
+  # Root-level tooling and documentation files.
+  RedirectMatch 404 ^/[^/]+\.md$
+  RedirectMatch 404 ^/(package\.json|package-lock\.json|cspell\.json|netlify\.toml|lefthook\.yml|lighthouserc\.cjs|verify-frozen\.js|eslint\.config\.mjs|stylelint\.config\.mjs|dependency-cruiser\.config\.cjs|playwright\.config\.mjs|knip\.json)$
+</IfModule>
+
+# ── C-04: security headers ───────────────────────────────────────────────
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  # Strict CSP. Inventory (prod-review C-04):
+  #  - one inline bootstrap script on both pages (is-loading) — hashed;
+  #  - link onload swap handlers (font/css preload) — 'unsafe-hashes' +
+  #    the exact handler hash (this.onload=null;this.rel='stylesheet');
+  #  - WASM (DRACO/KTX2/basis decoders) — 'wasm-unsafe-eval';
+  #  - model-viewer is self-hosted since F2 (C-05) — no script CDN;
+  #  - Fontshare CSS/woff2; GSAP sets inline style attributes —
+  #    style-src 'unsafe-inline' (attribute styles cannot execute script);
+  #  - i18n geo detection fetches www.cloudflare.com/cdn-cgi/trace;
+  #  - Vimeo embeds in case motion blocks — frame-src player.vimeo.com;
+  #  - connect-src blob: — GLTFLoader fetches GLB-embedded textures through
+  #    blob: URLs (caught by the local CSP shakedown, not theoretical).
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-MAZbmChJyw59Z0ELyPBNxPfJrWmKlzxELbVGM4lgy2U=' 'unsafe-hashes' 'sha256-1jAmyYXcRq6zFldLe/GCgIDJBiOONdXjTLgEFMDnDSM=' 'wasm-unsafe-eval'; style-src 'self' https://api.fontshare.com 'unsafe-inline'; font-src 'self' https://cdn.fontshare.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' blob: https://www.cloudflare.com; frame-src 'self' https://player.vimeo.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; manifest-src 'self'"
+
+  # ── Caching (F-02): Beget served everything without Cache-Control ──────
+  <FilesMatch "\.html$">
+    Header always set Cache-Control "max-age=0, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.(css|js|mjs)$">
+    Header always set Cache-Control "public, max-age=86400, stale-while-revalidate=604800"
+  </FilesMatch>
+  <FilesMatch "\.(svg|png|jpe?g|webp|avif|ico|glb|webm|mp4|woff2?|wasm|zip|exr|hdr|xml|txt|webmanifest)$">
+    Header always set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>

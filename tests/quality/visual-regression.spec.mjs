@@ -71,7 +71,11 @@ async function waitForPageReady(page) {
 async function prepare(page, routePath, viewport) {
   await page.setViewportSize(viewport);
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  // model-viewer is blocked so FA mini previews stay as static thumbs in the
+  // baselines. Since prod-review F2 the bundle is self-hosted (C-05), so the
+  // local vendor path is blocked too (the CDN pattern stays for older refs).
   await page.route('https://ajax.googleapis.com/ajax/libs/model-viewer/**', (route) => route.abort('blockedbyclient'));
+  await page.route('**/js/vendor/model-viewer.min.js*', (route) => route.abort('blockedbyclient'));
   await page.goto(`${base}${routePath}?lang=en`, { waitUntil: 'networkidle' });
   await waitForPageReady(page);
 }

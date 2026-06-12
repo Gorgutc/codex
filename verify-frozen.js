@@ -1249,12 +1249,14 @@ async function testIndex(BASE) {
   add('index', 'D4-font-display-swap', fontDisplaySwap.ok,
       `css-links=${fontDisplaySwap.total} bad=${fontDisplaySwap.bad || 0}`);
 
-  // CONSOLE — игнорируем внешние CDN failures (model-viewer 403/404, ERR_FAILED от заблокированного googleapis).
+  // CONSOLE — игнорируем внешние CDN failures (fontshare/jsdelivr/cloudflare).
+  // prod-review F2: model-viewer/googleapis убраны из фильтра — бандл
+  // self-hosted, его ошибки первопартийные и глотаться не должны.
   // v0.8.x — добавлены fontshare (TLS MITM в sandboxed cloud envs) и cloudflare
   // (i18n.js geo-fetch endpoint; в corp envs TLS перехватывается, fetch падает
   // тихо в try/catch внутри i18n.js, но requestfailed-эхо всё равно попадает
   // в console). Plus ERR_CERT_AUTHORITY_INVALID — общий TLS-noise от MITM proxy.
-  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|jsdelivr|fontshare|cloudflare)/i.test(e));
+  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|jsdelivr|fontshare|cloudflare)/i.test(e));
   add('index', 'CONSOLE-no-internal-errors', internalErrors.length === 0, internalErrors.slice(0,2).join(' | ') || 'clean');
 
   await browser.close();
@@ -1737,7 +1739,7 @@ async function testFreeAssets(BASE) {
   // CONSOLE — без внутренних ошибок.
   // v0.8.x — filter расширен идентично index (fontshare, cloudflare, ERR_CERT_AUTHORITY_INVALID,
   // ERR_FAILED, jsdelivr) для устойчивости в cloud envs с corp TLS-перехватом.
-  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|jsdelivr|fontshare|cloudflare|og-image\.jpg)/i.test(e));
+  const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|jsdelivr|fontshare|cloudflare|og-image\.jpg)/i.test(e));
   add('fa', 'CONSOLE-no-internal-errors', internalErrors.length === 0, internalErrors.slice(0,2).join(' | ') || 'clean');
 
   await browser.close();

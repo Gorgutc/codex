@@ -562,6 +562,39 @@
     if (!isFilled(ru)) errors.push({ path, field: dotBase + '.ru', message: label + ': RU-текст не может быть пустым' });
   }
 
+  // Зеркало MARKUP_OR_CONTROL_RE генератора (prod-review F2, C-03/C-MIRROR):
+  // «<», «>» и управляющие символы не должны доходить до публикации — иначе
+  // админ узнаёт об ошибке только из авто-revert конвейера. Литерал ниже
+  // байт-в-байт повторяет канон в scripts/generate-content.mjs — при правке
+  // канона скопируйте регэксп сюда целиком.
+  // eslint-disable-next-line no-control-regex -- intentional: the guard exists to REJECT control characters
+  const FORBIDDEN_TEXT_RE = /[<>\u0000-\u0008\u000B\u000C\u000E-\u001F\u2028\u2029]/;
+
+  function pushMarkupError(errors, path, field, value, label) {
+    if (typeof value === 'string' && FORBIDDEN_TEXT_RE.test(value)) {
+      errors.push({
+        path,
+        field,
+        message: label + ': символы «<», «>» и управляющие недопустимы — текст публикуется в HTML'
+      });
+    }
+  }
+
+  function pushPairMarkupErrors(errors, path, dotBase, pair, label) {
+    if (pair && typeof pair === 'object') {
+      pushMarkupError(errors, path, dotBase + '.en', pair.en, label + ' (EN)');
+      pushMarkupError(errors, path, dotBase + '.ru', pair.ru, label + ' (RU)');
+    }
+  }
+
+  // Обязательность + запрет разметки одним вызовом: раньше две проверки шли
+  // парой у каждого текстового поля и легко рассинхронизировались —
+  // кросс-ревью F2 нашло пропуск зеркала у motion-блоков.
+  function pushPairTextErrors(errors, path, dotBase, pair, label) {
+    pushPairErrors(errors, path, dotBase, pair, label);
+    pushPairMarkupErrors(errors, path, dotBase, pair, label);
+  }
+
   // Зеркало traversal-guard валидатора: путь медиа строго внутрь ./assets/.
   function isAssetPath(value) {
     return (
@@ -574,36 +607,66 @@
 
   function validateCaseDraft(errors, path, draft) {
     const card = draft.card || {};
-    pushPairErrors(errors, path, 'card.title', card.title, 'Заголовок карточки');
-    pushPairErrors(errors, path, 'card.desc', card.desc, 'Описание карточки');
-    pushPairErrors(errors, path, 'card.alt', card.alt, 'Alt-текст изображения');
+    // prod-review F2 (C-MIRROR): + зеркала серверных правил (разметка,
+    // year, enum-ы, палитра, длины).
+    pushPairTextErrors(errors, path, 'card.title', card.title, 'Заголовок карточки');
+    pushPairTextErrors(errors, path, 'card.desc', card.desc, 'Описание карточки');
+    pushPairTextErrors(errors, path, 'card.alt', card.alt, 'Alt-текст изображения');
+    pushMarkupError(errors, path, 'card.thumbLabel', card.thumbLabel, 'Подпись миниатюры');
+    pushMarkupError(errors, path, 'year', draft.year, 'Год');
+    if (!isFilled(draft.year)) {
+      errors.push({ path, field: 'year', message: 'Год: не может быть пустым' });
+    }
+    if ('imgLoading' in card && card.imgLoading !== 'eager' && card.imgLoading !== 'lazy') {
+      errors.push({ path, field: 'card.imgLoading', message: 'Загрузка миниатюры: только «eager» или «lazy»' });
+    }
+    if (
+      'imgFetchPriority' in card &&
+      card.imgFetchPriority !== null &&
+      ['high', 'low', 'auto'].indexOf(card.imgFetchPriority) === -1
+    ) {
+      errors.push({ path, field: 'card.imgFetchPriority', message: 'Приоритет миниатюры: high, low, auto или пусто' });
+    }
 
     const cs = draft.case || {};
-    pushPairErrors(errors, path, 'case.role', cs.role, 'Роль в проекте');
+    pushPairTextErrors(errors, path, 'case.role', cs.role, 'Роль в проекте');
     if (!Array.isArray(cs.tools) || cs.tools.length === 0 || !cs.tools.every(isFilled)) {
       errors.push({ path, field: 'case.tools', message: 'Инструменты: укажите хотя бы один (через запятую)' });
+    }
+    if (Array.isArray(cs.tools)) {
+      cs.tools.forEach((tool, i) => pushMarkupError(errors, path, 'case.tools.' + i, tool, 'Инструмент ' + (i + 1)));
+    }
+    // Зеркало «ровно 5» и palette-правил генератора.
+    if (Array.isArray(cs.captions) && cs.captions.length !== 5) {
+      errors.push({ path, field: 'case.captions', message: 'Подписи: должно быть ровно 5 — обновите страницу' });
+    }
+    if (!Array.isArray(cs.palette) || cs.palette.length !== 5 || !cs.palette.every(isFilled)) {
+      errors.push({ path, field: 'case.palette', message: 'Палитра: должно быть 5 непустых значений — обновите страницу' });
+    } else {
+      cs.palette.forEach((color, i) => pushMarkupError(errors, path, 'case.palette.' + i, color, 'Палитра, слот ' + (i + 1)));
     }
     if (Array.isArray(cs.captions)) {
       cs.captions.forEach((caption, i) => {
         const where = 'Подпись ' + (i + 1);
-        pushPairErrors(errors, path, 'case.captions.' + i + '.label', caption && caption.label, where + ' — заголовок');
-        pushPairErrors(errors, path, 'case.captions.' + i + '.desc', caption && caption.desc, where + ' — описание');
+        pushPairTextErrors(errors, path, 'case.captions.' + i + '.label', caption && caption.label, where + ' — заголовок');
+        pushPairTextErrors(errors, path, 'case.captions.' + i + '.desc', caption && caption.desc, where + ' — описание');
       });
     }
     if (cs.text) {
-      pushPairErrors(errors, path, 'case.text.title', cs.text.title, 'Текстовый блок — заголовок');
-      pushPairErrors(errors, path, 'case.text.body', cs.text.body, 'Текстовый блок — текст');
+      pushPairTextErrors(errors, path, 'case.text.title', cs.text.title, 'Текстовый блок — заголовок');
+      pushPairTextErrors(errors, path, 'case.text.body', cs.text.body, 'Текстовый блок — текст');
     }
     if (cs.inline) {
-      pushPairErrors(errors, path, 'case.inline.title', cs.inline.title, 'Инлайн-блок — заголовок');
-      pushPairErrors(errors, path, 'case.inline.body', cs.inline.body, 'Инлайн-блок — текст');
+      pushPairTextErrors(errors, path, 'case.inline.title', cs.inline.title, 'Инлайн-блок — заголовок');
+      pushPairTextErrors(errors, path, 'case.inline.body', cs.inline.body, 'Инлайн-блок — текст');
     }
     if (Array.isArray(cs.motionBlocks)) {
       cs.motionBlocks.forEach((block, i) => {
         const where = 'Motion-блок ' + (i + 1);
         const dotBase = 'case.motionBlocks.' + i;
-        pushPairErrors(errors, path, dotBase + '.label', block && block.label, where + ' — подпись');
-        pushPairErrors(errors, path, dotBase + '.desc', block && block.desc, where + ' — описание');
+        pushPairTextErrors(errors, path, dotBase + '.label', block && block.label, where + ' — подпись');
+        pushPairTextErrors(errors, path, dotBase + '.desc', block && block.desc, where + ' — описание');
+        pushMarkupError(errors, path, dotBase + '.title', block && block.title, where + ' — title');
         if (!block || typeof block !== 'object') return;
         // Итерация E: зеркало validateMotionBlock из generate-content.mjs.
         if (block.source === 'vimeo') {
@@ -663,8 +726,20 @@
             message: 'Статистика модели: «' + key + '» не может быть пустым'
           });
         }
+        pushMarkupError(errors, path, 'case.modelStats.' + key, value, 'Статистика модели — ' + key);
       }
     }
+    // i18nOverrides-листья уходят в те же innerHTML-пути (зеркало walker'а
+    // генератора).
+    (function walkOverrides(node, trail) {
+      if (typeof node === 'string') {
+        pushMarkupError(errors, path, trail, node, 'i18nOverrides');
+        return;
+      }
+      if (node !== null && typeof node === 'object') {
+        for (const key of Object.keys(node)) walkOverrides(node[key], trail + '.' + key);
+      }
+    })(draft.i18nOverrides, 'i18nOverrides');
   }
 
   // Итерация H: зеркало validateFreeAssets из generate-content.mjs для
@@ -713,8 +788,35 @@
 
   function validateFreeAssetsDraft(errors, path, draft) {
     const categories = Array.isArray(draft.categories) ? draft.categories : [];
+    // prod-review F2 (C-MIRROR #38/#39/#40): ключ категории, tagCard и
+    // глобальная уникальность id ассетов — зеркала серверных правил.
+    const seenAssetIds = new Set();
     categories.forEach(function (category, ci) {
       if (category === null || typeof category !== 'object') return;
+      if (!isFilled(category.key)) {
+        errors.push({ path, field: 'categories.' + ci + '.key', message: 'Категория ' + (ci + 1) + ': ключ повреждён — обновите страницу' });
+      }
+      const tagCard = category.tagCard;
+      if (tagCard !== undefined && tagCard !== null) {
+        if (typeof tagCard !== 'object' || Array.isArray(tagCard)) {
+          errors.push({ path, field: 'categories.' + ci + '.tagCard', message: 'Категория «' + category.key + '»: tagCard повреждён' });
+        } else {
+          if ('thumb' in tagCard && tagCard.thumb !== null && !isPlainBaseName(tagCard.thumb)) {
+            errors.push({
+              path,
+              field: 'categories.' + ci + '.tagCard.thumb',
+              message: 'Категория «' + category.key + '»: thumb tag-карточки — базовое имя файла без папок'
+            });
+          }
+          if ('gameAsset' in tagCard && typeof tagCard.gameAsset !== 'boolean') {
+            errors.push({
+              path,
+              field: 'categories.' + ci + '.tagCard.gameAsset',
+              message: 'Категория «' + category.key + '»: признак game-категории повреждён'
+            });
+          }
+        }
+      }
       if ('enabled' in category && typeof category.enabled !== 'boolean') {
         errors.push({
           path,
@@ -734,6 +836,12 @@
             message: label + ': видимость повреждена — переключите тогл заново'
           });
         }
+        if (isFilled(item.id)) {
+          if (seenAssetIds.has(item.id)) {
+            errors.push({ path, field: dotBase + '.id', message: label + ': id «' + item.id + '» уже используется другим ассетом' });
+          }
+          seenAssetIds.add(item.id);
+        }
         for (const field of Object.keys(FA_FIELD_LABELS)) {
           if (!isFilled(item[field])) {
             errors.push({
@@ -741,6 +849,9 @@
               field: dotBase + '.' + field,
               message: label + ': поле «' + FA_FIELD_LABELS[field] + '» не может быть пустым'
             });
+          } else if (field !== 'file') {
+            // Зеркало серверного "<>"-гарда FA-полей (итерация H + F2).
+            pushMarkupError(errors, path, dotBase + '.' + field, item[field], label + ' — ' + FA_FIELD_LABELS[field]);
           }
         }
         if (isFilled(item.file) && !/^[A-Za-z0-9._-]+\.zip$/i.test(item.file)) {
@@ -920,6 +1031,17 @@
       if (!Array.isArray(draft.cardOrder) || draft.cardOrder.length === 0 || !draft.cardOrder.every(isFilled)) {
         errors.push({ path, field: 'cardOrder', message: 'Порядок карточек повреждён — обновите страницу' });
       }
+      // prod-review F2 (C-MIRROR #22): дубль id в cardOrder ловится до
+      // публикации, а не авто-revert'ом конвейера.
+      if (Array.isArray(draft.cardOrder)) {
+        const seen = new Set();
+        draft.cardOrder.forEach((id, i) => {
+          if (seen.has(id)) {
+            errors.push({ path, field: 'cardOrder.' + i, message: 'Порядок карточек: кейс «' + id + '» встречается дважды' });
+          }
+          seen.add(id);
+        });
+      }
       const filters = Array.isArray(draft.filters) ? draft.filters : [];
       filters.forEach((filter, i) => {
         if (filter && filter.key === 'all' && filter.enabled === false) {
@@ -934,12 +1056,64 @@
       for (const lang of ['en', 'ru']) validateLeafStrings(errors, path, draft[lang], lang, 'Мета-теги');
       // Итерация E: зеркало validateMetaImages из generate-content.mjs.
       const images = draft.ogImages || {};
+      // prod-review F2 (C-MIRROR #26): конвенция имени og-картинки, как в
+      // валидаторе и verify-frozen (страница держит СВОЁ базовое имя +
+      // опциональный -hash8 cache-bust).
+      const ogBasename = {
+        index: new RegExp('^[.][/]assets[/]img[/]og-image(-[0-9a-f]{8})?[.](jpg|jpeg|png|webp)$'),
+        fa: new RegExp('^[.][/]assets[/]img[/]og-free-assets(-[0-9a-f]{8})?[.](jpg|jpeg|png|webp)$')
+      };
       for (const page of ['index', 'fa']) {
         if (!isAssetPath(images[page]) || !/\.(jpg|jpeg|png|webp)$/i.test(images[page])) {
           errors.push({
             path,
             field: 'ogImages.' + page,
             message: 'OG-изображение: нужен JPG, PNG или WebP внутри ./assets/'
+          });
+        } else if (!ogBasename[page].test(images[page])) {
+          errors.push({
+            path,
+            field: 'ogImages.' + page,
+            message:
+              'OG-изображение: имя должно быть ' +
+              (page === 'fa' ? 'og-free-assets' : 'og-image') +
+              '(-hash8).jpg/png/webp в ./assets/img/ — загрузите файл через drop-зону'
+          });
+        }
+      }
+      // prod-review F2 (C-MIRROR D-04): зеркало enum-проверки ogLocale.
+      for (const lang of ['en', 'ru']) {
+        for (const page of ['index', 'fa']) {
+          const block = draft[lang] && draft[lang][page];
+          const value = block && block.ogLocale;
+          if (value !== undefined && value !== 'en_US' && value !== 'ru_RU') {
+            errors.push({
+              path,
+              field: lang + '.' + page + '.ogLocale',
+              message: 'og:locale: только «en_US» или «ru_RU»'
+            });
+          }
+        }
+      }
+      // prod-review F2 (C-MIRROR #27): структура featuredWorks — JSON-LD
+      // главной собирается из этого списка.
+      const sd = draft.structuredData;
+      if (sd !== undefined) {
+        if (sd === null || typeof sd !== 'object' || Array.isArray(sd) || !Array.isArray(sd.featuredWorks)) {
+          errors.push({ path, field: 'structuredData', message: 'structuredData.featuredWorks повреждён — обновите страницу' });
+        } else {
+          const seenFeatured = new Set();
+          sd.featuredWorks.forEach((entry, i) => {
+            const base = 'structuredData.featuredWorks.' + i;
+            if (entry === null || typeof entry !== 'object' || !isFilled(entry.id) || !isFilled(entry.about)) {
+              errors.push({ path, field: base, message: 'Featured-работа ' + (i + 1) + ': нужны id кейса и текст about' });
+              return;
+            }
+            if (seenFeatured.has(entry.id)) {
+              errors.push({ path, field: base + '.id', message: 'Featured-работы: «' + entry.id + '» встречается дважды' });
+            }
+            seenFeatured.add(entry.id);
+            pushMarkupError(errors, path, base + '.about', entry.about, 'Featured-работа — about');
           });
         }
       }
@@ -999,6 +1173,20 @@
         binariesByPath.set(record.uploadPath, { path: record.uploadPath, bytes: record.bytes });
       });
     });
+
+    // prod-review F2 (C-08): assert-префиксы путей коммита — defense in
+    // depth поверх валидации. Админка пишет ТОЛЬКО content/*.json и
+    // бинарные медиа в assets/; любой другой путь — баг или атака.
+    for (const file of planFiles) {
+      if (file.path.indexOf('content/') !== 0) {
+        throw new Error('Публикация остановлена: неожиданный путь файла «' + file.path + '» (ожидается content/…)');
+      }
+    }
+    for (const binary of binariesByPath.values()) {
+      if (binary.path.indexOf('assets/') !== 0) {
+        throw new Error('Публикация остановлена: неожиданный путь медиа «' + binary.path + '» (ожидается assets/…)');
+      }
+    }
 
     return { files: planFiles, binaries: Array.from(binariesByPath.values()) };
   }

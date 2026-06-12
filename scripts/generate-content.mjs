@@ -392,8 +392,25 @@ function validateCase(violations, entry, filterKeys) {
       if (block !== null && typeof block === 'object') {
         checkPlainTextPair(violations, where, `case.motionBlocks[${i}].label`, block.label);
         checkPlainTextPair(violations, where, `case.motionBlocks[${i}].desc`, block.desc);
+        // title feeds aria/data attributes of the motion shell (adversarial
+        // F1 review).
+        checkPlainText(violations, where, `case.motionBlocks[${i}].title`, block.title);
       }
     });
+  }
+  // palette values land in the style="background:…" attribute of the case
+  // gallery (escaped at runtime since F2, guarded here as defense in depth —
+  // prod-review F2, finding A2-11/A1-01).
+  if (Array.isArray(cs.palette)) {
+    cs.palette.forEach((color, i) => checkPlainText(violations, where, `case.palette[${i}]`, color));
+  }
+  // modelStats values render in the 3D info panel (buildInfoHTML → innerHTML,
+  // escaped at runtime since F2) — adversarial F1 review found them outside
+  // the guard.
+  if (cs.modelStats !== null && typeof cs.modelStats === 'object' && !Array.isArray(cs.modelStats)) {
+    for (const key of Object.keys(cs.modelStats)) {
+      checkPlainText(violations, where, `case.modelStats.${key}`, cs.modelStats[key]);
+    }
   }
   // i18nOverrides leaves end up in the same innerHTML render paths through
   // the locale dictionaries — walk every string leaf.
@@ -1477,11 +1494,11 @@ function buildFaJsonLdRegion(content) {
 // lastmod follows the last commit that touched content/ — admin publications
 // ARE content milestones, and the previous hand-written literal would have
 // stayed frozen for every future publish (prod-review F1, finding E-03).
-// Derived from git so regeneration stays deterministic for --check (same
-// repo state, same date); falls back to the last hand-written literal in a
-// git-less environment. The CI pipeline checks out full history and its
-// triggering commit always touches content/, so the date is always present
-// there.
+// NOTE (adversarial F1 review): the date is NOT stable across commits — any
+// new commit touching content/ moves it while the committed sitemap still
+// carries the previous date. --check therefore compares sitemap.xml MODULO
+// the lastmod value (see main()); only --write refreshes the real date.
+// Falls back to the last hand-written literal in a git-less environment.
 const SITEMAP_LASTMOD_FALLBACK = '2026-05-30';
 let cachedContentLastmod = null;
 function contentLastmod() {
@@ -1600,7 +1617,18 @@ function main() {
     // in the working tree while the generator emits LF. Normalize BOTH sides
     // before comparing so --check passes and --write does not churn.
     const onDisk = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf8').replace(/\r\n/g, '\n') : null;
-    const same = onDisk === target.next.replace(/\r\n/g, '\n');
+    let same = onDisk === target.next.replace(/\r\n/g, '\n');
+    // sitemap lastmod is compared MODULO the date in --check (prod-review F2,
+    // adversarial finding on F1/E-03): the date follows the last commit that
+    // touched content/, so the moment such a commit lands (a publication, an
+    // auto-revert, a local content edit committed together with its
+    // regeneration) the committed sitemap is one date behind and a strict
+    // byte comparison would turn content:check red repo-wide. --write still
+    // refreshes the real date; --check only proves the structure matches.
+    if (!same && mode === '--check' && target.rel === 'sitemap.xml' && onDisk !== null) {
+      const stripLastmod = (text) => text.replace(/^\s*<lastmod>[0-9-]*<\/lastmod>$/gm, '<lastmod/>');
+      same = stripLastmod(onDisk) === stripLastmod(target.next.replace(/\r\n/g, '\n'));
+    }
     if (mode === '--check') {
       if (same) {
         console.log(`[OK]   ${target.rel}`);

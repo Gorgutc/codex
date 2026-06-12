@@ -91,9 +91,11 @@ for (const pageInfo of PAGES) {
     await expect(page).toHaveTitle(pageInfo.title);
     await expect(page.locator('main')).toBeVisible();
 
+    // prod-review F2: 'model-viewer|googleapis' убраны из фильтра — после
+    // self-host бандла это первопартийные ошибки, их нельзя глотать.
     const internalErrors = consoleErrors.filter(
       (error) =>
-        !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|fontshare|og-image\.jpg)/i.test(error)
+        !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|fontshare|og-image\.jpg)/i.test(error)
     );
     expect(internalErrors).toEqual([]);
   });
@@ -124,11 +126,16 @@ test('/free-assets.html releases preloader without waiting for lazy tag previews
   // previews, which this test delays by 4000ms above. Any release strictly
   // below that artificial delay proves the contract; the previous 2200ms
   // bound additionally pinned machine speed and flaked on slower hosts
-  // (pre-existing flake, iteration C / prod-review F1). 3500ms keeps a
-  // 500ms safety margin below the 4000ms gate without weakening the claim.
-  await page.waitForFunction(() => window.__codexPreloaderDoneEvents.length === 1, null, { timeout: 3500 });
+  // (pre-existing flake, iteration C / prod-review F1). 3900ms is the widest
+  // bound that still sits strictly below the 4000ms gate (adversarial F1
+  // review: a real 3.4s run left only ~100ms margin at 3500ms).
+  await page.waitForFunction(() => window.__codexPreloaderDoneEvents.length === 1, null, { timeout: 3900 });
 
-  expect(Date.now() - started).toBeLessThan(3500);
+  // Wall-clock assert uses the TRUE gate (4000ms artificial delay), not the
+  // waitForFunction timeout: sharing the same 3900 number raced with poll
+  // granularity — a wait that succeeded at ~3.89s could still fail the
+  // elapsed check (cross-review F2).
+  expect(Date.now() - started).toBeLessThan(4000);
   await expect(page.locator('html')).not.toHaveClass(/is-loading/);
   await expect(page.locator('#preloader')).toHaveCount(0);
 });
@@ -185,7 +192,7 @@ test('/free-assets.html keeps trust, preview, tag, and download fallback contrac
 
   const internalErrors = consoleErrors.filter(
     (error) =>
-      !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|model-viewer|googleapis|fontshare|og-image\.jpg)/i.test(error)
+      !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|fontshare|og-image\.jpg)/i.test(error)
   );
   expect(internalErrors).toEqual([]);
 });

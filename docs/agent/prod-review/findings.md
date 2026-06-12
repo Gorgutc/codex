@@ -36,12 +36,12 @@ Baseline на чистом дереве: `npm run verify` — 0 FAIL;
    (см. F-04). Решение владельца: остаёмся на Beget — заголовки и
    кэш через `.htaccess` (F2), вход по PAT (документируем), механизм
    деплоя репо→Beget уточняется у владельца.
-2. **A1-01 / C-01 (high → F2)** — stored XSS на публичном сайте:
-   `mediaItemHTML` / `textFullHTML` / `rowTallText` / `buildInfoHTML`
-   вставляют admin-редактируемые поля кейса (label/desc/title/body/
-   role/tools/bg) в `innerHTML` без `escapeHTML`
-   (js/main.js:608-643, 838-886, 898-910, 1945-1965; sink: 1012,
-   2467, 2887). Паттерн экранирования уже есть в `motionItemHTML`.
+2. **A1-01 / C-01 (high → F2, fixed)** — stored XSS на публичном
+   сайте: `mediaItemHTML` / `textFullHTML` / `rowTallText` /
+   `buildInfoHTML` вставляли admin-редактируемые поля кейса в
+   `innerHTML` без `escapeHTML`. Исправлено в F2 по паттерну
+   `motionItemHTML`; inline-`onerror` заменены делегированным
+   error-листенером на caseTrack (заодно убран CSP-блокер).
 3. **C-02 / D-05 (high → F1, fixed)** — breakout из
    `<script type="application/ld+json">`: `j()` в генераторе был
    голым `JSON.stringify` без экранирования `<`; `card.title.en` с
@@ -69,13 +69,11 @@ Baseline на чистом дереве: `npm run verify` — 0 FAIL;
 7. **E-10 (high → F4)** — RU-блок `content/meta.json` — плейсхолдер:
    16 из 18 строк идентичны EN (title/description/og/twitter).
    Механизм data-i18n-meta готов, нужен перевод.
-8. **C-04 / E-22 (high → F2)** — security-заголовков нет вообще
-   (ни CSP, ни X-Frame-Options/X-Content-Type-Options/
-   Referrer-Policy/HSTS, ни no-cache для `/admin/*`). На проде
-   (Beget) сейчас нет и Cache-Control (F-02). Решение владельца уже
-   есть: полный набор + строгий CSP; целевой носитель зависит от
-   F-01. CSP-инвентарь собран (см. C-05 и раздел CSP в журнале
-   ревью потока C).
+8. **C-04 / E-22 (high → F2, fixed)** — security-заголовков не было
+   вообще. Закрыто в F2 через `.htaccess` (Beget — прод-носитель):
+   полный набор + строгий CSP, no-store для `/admin/`, кэш-политика
+   (F-02). Локальная CSP-обкатка — 0 нарушений; проверка в бою —
+   после следующего деплоя (F6).
 
 ## Поток A1 — js/main.js + index.html
 
@@ -254,7 +252,15 @@ Baseline на чистом дереве: `npm run verify` — 0 FAIL;
 - **C-02** (high → F1, fixed): dup D-05, см. «Критические» п. 3.
 - **C-03** (medium → F1+F2, частично fixed): server-гард `<>` на
   кейс-полях добавлен в F1; зеркало в admin/js/state.js — F2.
-- **C-04** (high → F2, open): см. «Критические» п. 8. CSP-инвентарь
+- **C-04** (high → F2, fixed): закрыто в `.htaccess` (корень +
+  `/admin/`-оверрайд): nosniff, Referrer-Policy, XFO, HSTS,
+  Permissions-Policy, СТРОГИЙ CSP (один inline-хэш + 'unsafe-hashes'
+  для onload-свопа preload-линков + wasm-unsafe-eval; без CDN после
+  C-05), no-store + X-Robots-Tag для админки. Локальная обкатка
+  Playwright (index с 3D/wasm/motion, FA с mini-3D, админка):
+  0 нарушений CSP — попутно пойман реальный блокер connect-src
+  blob: (GLTFLoader-текстуры). Проверка в бою — после следующего
+  деплоя владельца (F6). Исходный CSP-инвентарь
   по директивам собран в ревью потока C (script-src 'self' +
   ajax.googleapis.com + wasm-unsafe-eval + хэш inline-прелоадера;
   style-src 'self' + api.fontshare.com + 'unsafe-inline'; font-src
@@ -266,27 +272,37 @@ Baseline на чистом дереве: `npm run verify` — 0 FAIL;
   `onerror="this.remove()"` (вынести в делегированный обработчик),
   inline style="background:…" ('unsafe-inline' или рефактор),
   CDN model-viewer (C-05).
-- **C-05** (medium → F2, open): model-viewer 4.0.0 грузится с
-  ajax.googleapis.com без SRI — единственный внешний скрипт,
-  противоречит self-hosted политике (js/shared-runtime.js:5).
-  Self-host в js/vendor/.
-- **C-06** (medium → F2/owner, open): OAuth App с классическим scope
-  `repo` = доступ ко ВСЕМ репо владельца. Компенсации: admin-CSP +
-  no-store (F2); рекомендация PAT fine-grained в доке; миграция на
-  GitHub App — deferred (решение владельца).
+- **C-05** (medium → F2, fixed): model-viewer 4.0.0 self-hosted в
+  js/vendor/ (955КБ, лицензия в шапке), декодеры Draco/KTX2
+  защитно запинены на уже self-hosted пути js/vendor/three/libs/
+  (все 26 FA-моделей сейчас без сжатия — проверено);
+  visual-regression блокирует и локальный путь, чтобы baselines не
+  поплыли.
+- **C-06** (medium → F2, частично fixed): admin-guide переписан —
+  на Beget вход по PAT объявлен ОСНОВНЫМ (OAuth требует Netlify),
+  отмечено преимущество fine-grained-токена. Миграция на GitHub App
+  — deferred (решение владельца).
 - **C-07** (low → F1, fixed): guard «Skip own bot commits» якорится
   только на автора github-actions[bot]; подстрочный матч по subject
   убран (тихая непубликация при `[content-publish` в описании).
-- **C-08** (low → F2, open): пути git-tree в publish не проверяются
-  на префикс content/ | assets/ (admin/js/state.js:993-1004,
-  api.js:206-223). Добавить assert.
+- **C-08** (low → F2, fixed): `buildPublishPlan` ассертит префиксы
+  путей коммита (content/ для JSON, assets/ для бинарных медиа).
 - **C-09** (low, accepted): нет rate-limit на OAuth-функции — abuse
   ограничен механикой state; опционально после F-01.
-- **C-MIRROR** (medium → F2, open): зеркало валидации admin ↔ server
-  неполно (~20 правил). Приоритет: `<>`-гард FA/кейс-полей (#31),
-  cardOrder bijection (#22), существование og-файла (#26),
-  featuredWorks (#27), tagCard (#39), глобальный дубль FA id (#40).
-  Полная таблица — в отчёте потока D (журнал сессии).
+- **C-MIRROR** (medium → F2, fixed): зеркало валидации admin ↔
+  server дозаполнено в admin/js/state.js: `<>`/control-гард всех
+  текстовых кейс- и FA-полей + i18nOverrides (#31), уникальность
+  cardOrder (#22), конвенция имени og-картинки + ogLocale enum
+  (#26/D-04), структура featuredWorks (#27), tagCard (#39),
+  глобальный дубль FA id (#40), key категории (#38), year/imgLoading/
+  imgFetchPriority/palette/captions-длина (#4/#5/#11/#13/#21).
+  Не зеркалится осознанно: category∈filters (админка не редактирует
+  категорию кейса), существование og-файла на диске (ловится
+  publish-precheck'ом медиа), parity локалей (ловит CI).
+- **D-09** (medium → F2, fixed): перестановка слотов/motion-блоков
+  блокируется с объясняющим тостом, если у кейса есть i18nOverrides
+  с числовыми индексами (admin/js/ui.js, reorderBlockedByOverrides).
+  Миграция overrides по стабильному id — пост-прод улучшение.
 
 Проверено и чисто: токен только в sessionStorage; postMessage с
 pinned origin + source; state-cookie HttpOnly/Secure/SameSite +
@@ -319,14 +335,11 @@ self-hosted 1.15.7.
 - **D-08** (low, accepted): FA_JSONLD_COPY_IDS — ручная копия в
   verify, дрейф ловится static-чеком F1-jsonld-copy-mirror; долг
   «вынести в общий JSON» — пост-прод.
-- **D-09** (medium → F2, open): i18nOverrides привязаны к
-  структурным индексам и не переезжают при reorder. Точная локация
-  подтверждена: `admin/js/ui.js:1576-1606` — `moveMediaSlot` /
-  `moveMotionBlock` ремапят pending-edit-пути через
-  `remapListIndex`, но НЕ трогают `i18nOverrides.caseEn.captions.N`
-  / `...motionBlocks.N`. Фикс — в admin-батче F2 (ремап оверрайдов
-  тем же механизмом). Сегодня безопасно (в контенте только
-  не-индексные overrides).
+- **D-09** (medium → F2, fixed): i18nOverrides привязаны к
+  структурным индексам и не переезжали при reorder
+  (`admin/js/ui.js` moveMediaSlot/moveMotionBlock). Закрыто в F2
+  блокировкой перестановки при индексных overrides (см. C-MIRROR
+  блок); миграция по стабильному id — пост-прод.
 - **D-10** (low, accepted): мёртвые faTag-ключи скрытых категорий
   остаются в словаре (generate-content.mjs uiStringsWithCounts) —
   невидимы на сайте, чистка добавила бы churn генерации; решение:
@@ -387,8 +400,9 @@ self-hosted 1.15.7.
 - **E-19** (medium → F4, open): нет кастомного 404 (на проде
   дефолтная страница хостинга; redirect `/netlify/*` ведёт на
   несуществующий /404).
-- **E-20** (medium → F2, open): правило `for = "/*.html"` в
-  netlify.toml почти наверняка мёртвое (сплат не в конце пути).
+- **E-20** (medium → F2, fixed): мёртвое правило `for = "/*.html"`
+  заменено явными `/index.html` + `/free-assets.html` (netlify.toml
+  теперь preview-контур, прод-носитель — `.htaccess`).
 - **E-21** (low, accepted): css/js max-age 86400 + SWR — окно
   стейла после публикации, осознанный trade-off (пересмотреть при
   F-01).
@@ -404,17 +418,110 @@ self-hosted 1.15.7.
 
 ## Поток F — живой сайт codex.promo
 
-- **F-01** (critical, owner): см. «Критические» п. 1.
-- **F-02** (medium → F2 + F-01, open): на проде нет вообще никаких
-  Cache-Control (nginx отдаёт только ETag/Last-Modified) — браузеры
-  кэшируют эвристически; стратегия кэширования должна быть задана
-  на целевом хостинге.
+- **F-01** (critical → решено: Beget): см. «Критические» п. 1.
+  Механизм деплоя уточнён у владельца (2026-06-12): ручной — архив
+  репозитория с GitHub распаковывается в файловое пространство Beget
+  с предварительной полной очисткой. Значит `.htaccess` доезжает
+  автоматически с каждым деплоем.
+- **F-02** (medium → F2, fixed): Cache-Control задан в `.htaccess`
+  (html must-revalidate; css/js 1d+SWR; ассеты 7d). Финальная
+  подстройка — F4.
+- **F-06** (medium-high → F2, fixed, НОВАЯ): из-за деплоя «весь
+  репозиторий как есть» на проде публично раздавались docs/
+  (включая внутренний handoff), content/*.json, scripts/, tests/,
+  .github/, AGENTS.md, package.json, verify-frozen.js и т.д.
+  (проверено: HTTP 200). Секретов нет, но это information
+  disclosure. Закрыто в `.htaccess`: RedirectMatch 404 на все
+  не-сайтовые пути (+ Options -Indexes); публичными остаются только
+  index/free-assets, css/js/assets/downloads, admin, robots/
+  sitemap/llms и фавиконы.
 - **F-03** (high, dup A2-01/E-02): 404 на 21/25 архивов подтверждён
   на проде.
 - **F-04** (положительное): index.html, free-assets.html,
   robots.txt, sitemap.xml на проде байт-в-байт совпадают с main —
   инвариант «репо = прод» выполняется, деплой-синк работает.
 - **F-05** (dup E-19): кастомной 404-страницы на проде нет.
+
+## Adversarial-ревью F1 (после мержа PR #46)
+
+Независимый агент-ревьюер атаковал диф F1; контрактные ужесточения
+выдержали (B1-формула, og-конвенция, plain-text-диапазоны, j(),
+workflow-матрица, .gitattributes, эквивалентность
+content-expectations). Находки:
+
+- **ADV1-1** (high → F2, fixed): `contentLastmod()` ломал
+  байт-идентичность `--check` после ЛЮБОГО нового коммита,
+  тронувшего content/ (auto-revert, локальный коммит
+  content+generated, shallow clone) — эмпирически подтверждено.
+  Фикс: `--check` сравнивает sitemap.xml ПО МОДУЛЮ lastmod-даты;
+  реальную дату обновляет только `--write`. Протестировано подменой
+  даты на диске.
+- **ADV1-2** (medium → F2, fixed): `modelStats` (и
+  `motionBlocks[].title`) были вне plain-text-гарда — добавлены в
+  валидатор; рантайм-экранирование buildInfoHTML сделано в A1-01.
+- **ADV1-3** (medium-low, accepted): транзиентный сбой recapture
+  теперь откатывает легитимную публикацию (до F1 он молча оставлял
+  main без регенерации — хуже). Осознанный trade-off: revert честный
+  и громкий, владелец публикует повторно.
+- **ADV1-4** (low → F2, fixed): порог preloader-гейта поднят
+  3500→3900мс (реальный прогон 3.4s оставлял ~100мс запаса);
+  инвариант «строго < 4000мс задержки» сохранён.
+- **ADV1-5** (info, accepted, pre-existing): сбой на шаге
+  commit/push конвейера (конфликт rebase) роняет job без revert —
+  сообщение честно требует перезапуска; F1 не ухудшил.
+
+## Кросс-ревью F2 (security-review + code-review до коммита)
+
+`/security-review` (агент + false-positive-фильтр): 0 уязвимостей
+HIGH/MEDIUM в диффе F2; остаточные замечания ниже порога (CSS-контекст
+palette — нейтрализован CSP; `/admin/.htaccess` закрыт стандартным
+Apache-deny; префикс-ассерты без нормализации — пути недостижимы).
+
+`/code-review` (high, 4 finder-угла + сверки): найдено и исправлено
+ДО коммита:
+
+- **CR-1 (critical, fixed)**: блокировка `/content/` в `.htaccess`
+  убивала загрузку каталога админки на Beget (`loadCatalog` фетчит
+  `../content/*.json` same-origin). `/content/` исключён из
+  блок-листа — это собственные тексты сайта, не секрет.
+- **CR-2 (critical, fixed)**: строгий admin-CSP блокировал
+  inline-скрипты ДАННЫХ черновика в srcdoc-превью (их хэш
+  непредсказуем). `preview.js` переведён на Blob-URL-скрипты +
+  `script-src blob:` в admin-CSP.
+- **CR-3 (high, fixed)**: `no-store` админки перекрывался
+  родительскими `<FilesMatch>` (Apache мержит FilesMatch ПОСЛЕ
+  directory-уровня) — переопределён на том же FilesMatch-уровне в
+  admin/.htaccess.
+- **CR-4 (medium, fixed)**: делегированный error-листенер
+  овер-матчил motion-видео (классы пересекаются) — у них никогда не
+  было самоудаления; исключены через `.closest('.case-motion')`.
+- **CR-5 (medium, fixed)**: fullscreen-клоны потеряли самоудаление
+  битых медиа (клоны живут вне caseTrack, классы сняты) — зеркальный
+  листенер на fsStage.
+- **CR-6 (medium, fixed)**: `Options -Indexes` мог дать 500 на весь
+  сайт при AllowOverride без Options — убран (листинг закрыт
+  блок-листом путей).
+- **CR-7 (low, fixed)**: тест прелоадера — expect декаплен от
+  waitForFunction (3900/4000), гонка с самим собой устранена.
+- **CR-8 (low, fixed)**: фильтры консольных ошибок verify/смоуков
+  больше не глотают `model-viewer|googleapis` (бандл первопартийный);
+  добавлен governance-гард: наличие vendor-файла и пересчёт
+  CSP-хэшей inline-кода на каждом codex:ship (дрейф ловится
+  локально, а не на проде).
+- **CR-9 (medium, fixed)**: ошибки валидации без полей-якорей (year,
+  palette, cardOrder, structuredData, i18nOverrides) были невидимы —
+  первые сообщения теперь показываются в тосте публикации.
+- Cleanup: `pushPairTextErrors` (обязательность+разметка одним
+  вызовом; найден и закрыт пропуск зеркала у motion-блоков),
+  FORBIDDEN_TEXT_RE — литерал байт-в-байт с каноном, слиты два
+  motionBlocks-цикла генератора, хойст числового регэкспа.
+- Принято без изменений: netlify-контур получил зеркало
+  admin-заголовков; 4-я копия og-регэкспа — санкционированный
+  mirror-паттерн; сужение D-09-блокировки до поддерева — пост-прод.
+
+Остаточный риск для F6: blob-скрипты в srcdoc-превью под CSP
+проверены по спецификации и обкаткой админ-страницы, но не
+end-to-end с логином — проверить превью вживую после деплоя.
 
 ## Окружение
 
