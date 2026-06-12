@@ -15,9 +15,13 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
+import { visibleCaseIds } from '../../scripts/content-expectations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURES_DIR = path.join(ROOT, 'tests', 'quality', 'fixtures');
+// Derived from content/, NOT hardcoded (prod-review F1, finding D-01) — the
+// same selection the capture script, verify-frozen.js and the generator use.
+const VISIBLE_CARD_COUNT = visibleCaseIds(ROOT).length;
 
 const MIME = {
   '.css': 'text/css',
@@ -92,11 +96,12 @@ test.beforeEach(async ({ context, page }) => {
 test('index.html runtime CARDS_DATA, grid markup and i18n dictionaries match the golden fixtures', async ({ page }) => {
   await page.goto(`${base}/index.html?lang=en`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () =>
+    (expectedCards) =>
       !document.documentElement.classList.contains('is-loading') &&
-      document.querySelectorAll('#cards-list .work-card').length === 18 &&
+      document.querySelectorAll('#cards-list .work-card').length === expectedCards &&
       !!document.querySelector('.work-card--active') &&
-      document.querySelectorAll('#case-scroll-track .case-item').length > 0
+      document.querySelectorAll('#case-scroll-track .case-item').length > 0,
+    VISIBLE_CARD_COUNT
   );
 
   const state = await page.evaluate(() => ({

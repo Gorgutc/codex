@@ -1083,15 +1083,22 @@ async function testIndex(BASE) {
 
   /* ───── Stage 2 (B1-B8, B10) ─ i18n dict shape + walker + a11y ────────── */
 
-  // B1 — data-i18n attribute count floor. Index HTML carries ~121 total
-  // occurrences (61 data-i18n + 51 data-i18n-attr + 9 data-i18n-meta);
-  // unique elements (some carry two attrs simultaneously) are slightly less.
-  // Floor at 100 catches regressions where >15% of attrs go missing while
-  // staying above noise from minor refactors.
+  // B1 — data-i18n attribute count floor, content-scaled (prod-review F1,
+  // finding D-02 — mirrors the FA floor formula in testFreeAssets). The
+  // generated regions contribute deterministically: 3 nodes per visible card
+  // (img alt data-i18n-attr + title + desc data-i18n) and 2 per enabled
+  // filter row (input aria-label data-i18n-attr + label data-i18n). The old
+  // hardcoded floor of 100 broke the content contract: hiding ≥8 cases
+  // through the admin panel (legitimate, validator allows down to 1 visible
+  // case) dropped the live count below 100 and auto-reverted the publication.
+  // Base 32 reproduces the exact old strictness at the full catalog
+  // (32 + 3×18 cards + 2×7 filters = 100) while tracking legitimate hiding.
+  const INDEX_I18N_FLOOR_BASE = 32;
   const indexI18nAttrCount = await page.evaluate(() =>
     document.querySelectorAll('[data-i18n], [data-i18n-attr], [data-i18n-html], [data-i18n-meta]').length);
-  add('index', 'B1-data-i18n-attr-floor', indexI18nAttrCount >= 100,
-      `count=${indexI18nAttrCount} (floor 100)`);
+  const indexI18nFloor = INDEX_I18N_FLOOR_BASE + 3 * EXPECTED_IDS.length + 2 * ENABLED_FILTERS.length;
+  add('index', 'B1-data-i18n-attr-floor', indexI18nAttrCount >= indexI18nFloor,
+      `count=${indexI18nAttrCount} (floor(content) ${indexI18nFloor} = ${INDEX_I18N_FLOOR_BASE} base + 3×${EXPECTED_IDS.length} cards + 2×${ENABLED_FILTERS.length} filters)`);
 
   // B2 — UI_STRINGS shape: both langs exist, each has all critical namespaces.
   const uiShape = await page.evaluate(() => {
