@@ -194,7 +194,9 @@
         if (!exited) exit();
       }, 2500);
 
-      // SKIP affordance at 4s — only if user is still here.
+      // SKIP affordance — A1-10: показываем РАНЬШЕ soft-таймаута (2500мс),
+      // иначе exit() в softTimer force-финишит прелоадер и cleanup() гасит
+      // skipTimer, и кнопка #preloader-skip никогда не появляется.
       skipTimer = setTimeout(function () {
         if (!exited && skipBtn) {
           skipBtn.hidden = false;
@@ -202,7 +204,7 @@
           void skipBtn.offsetWidth;
           skipBtn.classList.add('is-visible');
         }
-      }, 4000);
+      }, 1500);
 
       if (skipBtn) skipBtn.addEventListener('click', exit, { once: true });
     }
@@ -382,6 +384,9 @@
       if (show) visible++;
     });
     document.body.classList.toggle('filter-game', gameOnly);
+    // A1-20 — сигнал нулевого результата фильтра для empty-state (видимый
+    // CSS/i18n-месседж добавляется в F4). Снимаем класс при наличии совпадений.
+    document.body.classList.toggle('filter-empty', visible === 0);
     updateCount(visible);
     // v0.10 — если текущий кейс скрыт фильтром — переключаемся на первый видимый
     if (currentCaseId) {
@@ -390,7 +395,18 @@
         var firstVisible = document.querySelector('.work-card[data-id]:not([hidden])');
         if (firstVisible) {
           openCase(firstVisible.dataset.id);
-          return;                                   // openCase сама диспатчит filter-event
+          // A1-07 — openCase диспатчит codex:case-open, а НЕ codex:filter.
+          // Подписчик re-animate в animations.js слушает codex:filter, поэтому
+          // эмитим его явно перед выходом, иначе reveal карточек пропускается.
+          document.dispatchEvent(new CustomEvent('codex:filter', {
+            detail: {
+              category: allActive ? 'all' : selectedFilters[0],
+              filters: allActive ? ['all'] : selectedFilters.slice(),
+              gameOnly: gameOnly,
+              visible: visible
+            }
+          }));
+          return;
         }
       }
     }
@@ -420,6 +436,21 @@
     }
   }
 
+  // A2-08 — человекочитаемый лейбл chip'а берём из текста чекбокса дропдауна
+  // (i18n-переведённого walker'ом и знающего FA-ключи game/animation/...),
+  // а не из FILTER_LABELS, который содержит только index-дисциплины.
+  function chipLabelFor(key) {
+    var box = null;
+    for (var i = 0; i < tags.length; i++) {
+      if (tags[i].dataset.filter === key) { box = tags[i]; break; }
+    }
+    if (box && box.parentNode) {
+      var lbl = box.parentNode.querySelector('.tags-dropdown__label');
+      var txt = lbl ? (lbl.textContent || '').trim() : '';
+      if (txt) return txt;
+    }
+    return FILTER_LABELS[key] || key;
+  }
   function renderChips() {
     if (!tagsDropdownChips || !tagsDropdown) return;
     tagsDropdownChips.innerHTML = '';
@@ -435,17 +466,17 @@
 
       var label = document.createElement('span');
       label.className = 'tags-dropdown__chip-label';
-      label.textContent = FILTER_LABELS[key] || key;
+      label.textContent = chipLabelFor(key);
       chip.appendChild(label);
 
-      var remove = document.createElement('button');
-      remove.type = 'button';
+      // A1-08 — remove-аффорданс рендерим <span>, а не <button>: контейнер chips
+      // вложен в trigger <button> (button-in-button) и помечен aria-hidden="true".
+      // Plain <span> без tabindex не фокусируется → нет нарушения aria-hidden-focus
+      // и нет вложенного интерактива. Удаление работает делегированием по классу
+      // на tagsDropdownChips (см. addEventListener ниже). aria-label не нужен:
+      // элемент внутри aria-hidden и скринридером не озвучивается.
+      var remove = document.createElement('span');
       remove.className = 'tags-dropdown__chip-remove';
-      // Phase 4a — i18n префикс 'Remove' / 'Убрать'. FILTER_LABELS[key] —
-      // англицизм-категория ('Hard Surface' и т.п.), не переводится.
-      var __i18n = window.I18N;
-      var __removeWord = (__i18n && __i18n.t) ? __i18n.t('chip.remove') : 'Remove';
-      remove.setAttribute('aria-label', __removeWord + ' ' + (FILTER_LABELS[key] || key));
       remove.setAttribute('data-remove-filter', key);
       remove.textContent = '×';
       chip.appendChild(remove);
@@ -622,7 +653,7 @@
     return 'https://player.vimeo.com/video/' + id + '?' + params.join('&');
   }
 
-  function mediaItemHTML(item) {
+  function mediaItemHTML(item, eager) {
     var isVideo = item.type === 'video';
     var format  = item.format === 'tall' ? 'tall' : 'wide';
     var cls     = 'case-item case-item--' + format;
@@ -637,7 +668,11 @@
     var h  = '<article class="' + cls + '">';
     h +=     '<div class="case-item__media" style="background:' + bg + ';">';
     if (isVideo && item.src) {
-      h += '<video class="case-item__video" src="' + src + '" autoplay muted loop playsinline ';
+      // prod-review F3 (E-17): width/height у галерейного <video> (CLS) —
+      // зеркало <img>-ветки: wide 1600×900 / tall 600×800.
+      var vw = format === 'wide' ? 1600 : 600;
+      var vh = format === 'wide' ? 900  : 800;
+      h += '<video class="case-item__video" src="' + src + '" width="' + vw + '" height="' + vh + '" autoplay muted loop playsinline ';
       if (item.poster) h += 'poster="' + escapeHTML(item.poster) + '" ';
       h += 'aria-label="' + label + '"></video>';
     } else if (!isVideo && item.src) {
@@ -650,7 +685,10 @@
       var iw = item.format === 'wide' ? 1600 : 600;
       var ih = item.format === 'wide' ? 900  : 800;
       h += '<img class="case-item__img" src="' + src + '" alt="' + label + '" ';
-      h += 'width="' + iw + '" height="' + ih + '" loading="lazy" decoding="async" ';
+      h += 'width="' + iw + '" height="' + ih + '" ';
+      // prod-review F3 (E-23): первый media-item открытого кейса — LCP-кандидат.
+      // eager + fetchpriority=high для него; остальные остаются lazy.
+      h += (eager ? 'loading="eager" fetchpriority="high" ' : 'loading="lazy" ') + 'decoding="async" ';
       h += 'draggable="false" tabindex="0" role="button" ';
       h += 'aria-haspopup="dialog" aria-label="Open fullscreen view of ' + (label || 'image') + '">';
     }
@@ -911,18 +949,18 @@
   }
 
   /* Row variants */
-  function rowWide(media) {
-    return '<div class="case-row case-row--wide">' + mediaItemHTML(media) + '</div>';
+  function rowWide(media, eager) {
+    return '<div class="case-row case-row--wide">' + mediaItemHTML(media, eager) + '</div>';
   }
-  function rowTall1(media) {
-    return '<div class="case-row case-row--tall-1">' + mediaItemHTML(media) + '</div>';
+  function rowTall1(media, eager) {
+    return '<div class="case-row case-row--tall-1">' + mediaItemHTML(media, eager) + '</div>';
   }
-  function rowTall2(a, b) {
-    return '<div class="case-row case-row--tall-2">' + mediaItemHTML(a) + mediaItemHTML(b) + '</div>';
+  function rowTall2(a, b, eager) {
+    return '<div class="case-row case-row--tall-2">' + mediaItemHTML(a, eager) + mediaItemHTML(b) + '</div>';
   }
-  function rowTallText(media, text) {
+  function rowTallText(media, text, eager) {
     var h  = '<div class="case-row case-row--tall-text">';
-    h +=     mediaItemHTML(media);
+    h +=     mediaItemHTML(media, eager);
     h +=     '<article class="case-item case-item--text-inline">';
     h +=       '<div class="case-text case-text--inline">';
     h +=         '<p class="case-text__eyebrow">Notes</p>';
@@ -1026,11 +1064,13 @@
       html += textFullHTML(items.text, textMeta);
     }
 
-    all.forEach(function (row) {
-      if (row.kind === 'wide')      html += rowWide(row.a);
-      else if (row.kind === 'tall-1') html += rowTall1(row.a);
-      else if (row.kind === 'tall-2') html += rowTall2(row.a, row.b);
-      else if (row.kind === 'tall-text') html += rowTallText(row.a, items.inline);
+    all.forEach(function (row, idx) {
+      // prod-review F3 (E-23): первый отрисованный media-item — LCP-кандидат → eager.
+      var eager = idx === 0;
+      if (row.kind === 'wide')      html += rowWide(row.a, eager);
+      else if (row.kind === 'tall-1') html += rowTall1(row.a, eager);
+      else if (row.kind === 'tall-2') html += rowTall2(row.a, row.b, eager);
+      else if (row.kind === 'tall-text') html += rowTallText(row.a, items.inline, eager);
     });
     html += motionRowsHTML(items.motionBlocks);
 
@@ -1216,6 +1256,17 @@
       renderBlueprints(id);
     } else if (currentViz === '3d') {
       build3D(id);                                  // v0.11 — перестраиваем 3D под новый кейс
+    }
+
+    // prod-review F3 (A1-09): BLUEPRINT_META — ручной список 18 id. Новый ассет
+    // из админки без записи получал бы пустую вкладку Blueprints с no-op
+    // pager/export. Прячем триггер, если страниц нет; если он был активен —
+    // откатываемся на 2D. Для всех текущих кейсов pages>0 → вкладка остаётся
+    // (hidden не убирает узел из querySelectorAll, CASE-tabs-3 не ломается).
+    if (tabBp) {
+      var hasBlueprints = getBpPages(id).length > 0;
+      tabBp.hidden = !hasBlueprints;
+      if (!hasBlueprints && currentViz === 'blueprints') setViz('2d');
     }
 
     // v0.2.3 [П2] — синхронизируем location.hash с текущим кейсом.
@@ -2956,7 +3007,11 @@
         host: case3dCanvas,
         src: src,
         alt: currentThreeSource.alt,
-        autoRotate: autoRotateOn,
+        // A1-02 (review/Codex): если пользователь ушёл с 3D-вкладки, пока модель
+        // ещё грузилась, не стартуем autoRotate у уже скрытого вьюера. Предпочтение
+        // хранит currentThreeSource.autoRotate (выше), и setViz('3d') возобновит
+        // его при возврате на вкладку.
+        autoRotate: (currentViz === '3d') && autoRotateOn,
         exposure: currentThreeSource.exposure,
         environment: currentEnv,
         materialMode: currentMaterial,
@@ -3036,6 +3091,10 @@
     if (mode === '2d') {
       if (caseBlueprints) caseBlueprints.hidden = true;
       if (case3d)         case3d.hidden         = true;
+      // prod-review F3 (A1-02): уход с 3D-вкладки прячет контейнер, но не
+      // останавливал rAF/autoRotate Three-вьюера — фоновый WebGL-render жёг
+      // GPU/батарею. setAutoRotate(false) гасит continuous-цикл (cancelAnimationFrame).
+      if (currentThreeViewer && currentThreeViewer.setAutoRotate) currentThreeViewer.setAutoRotate(false);
       if (caseScroll)     caseScroll.hidden     = false;
       initCaseMotionBlocks();
       // v0.10.2 — если кейс менялся пока был Blueprints/3D — сбрасываем позицию теперь
@@ -3046,6 +3105,8 @@
       }
     } else if (mode === 'blueprints') {
       stopCaseMotionBlocks();
+      // prod-review F3 (A1-02): пауза Three-вьюера и при уходе на Blueprints.
+      if (currentThreeViewer && currentThreeViewer.setAutoRotate) currentThreeViewer.setAutoRotate(false);
       if (caseScroll)     caseScroll.hidden     = true;
       if (case3d)         case3d.hidden         = true;
       if (caseBlueprints) caseBlueprints.hidden = false;
@@ -3062,6 +3123,11 @@
       } else if (typeof currentMvReset === 'function') {
         // v0.11.4 — возврат на тот же 3D-кейс (без пересборки) → сбрасываем камеру к initial
         currentMvReset();
+        // prod-review F3 (A1-02): возобновляем autoRotate по сохранённому
+        // предпочтению (currentThreeSource.autoRotate), погашенному при уходе.
+        if (currentThreeViewer && currentThreeViewer.setAutoRotate) {
+          currentThreeViewer.setAutoRotate(!!(currentThreeSource && currentThreeSource.autoRotate));
+        }
       }
     }
     // v0.10.1 — уведомляем animations.js: при возврате на 2D нужно
@@ -3198,10 +3264,14 @@
     logoHome.addEventListener('click', function (e) {
       e.preventDefault();
       // cards — NodeList, конвертируем в Array для .find
+      // A1-18 — берём первую карту, не скрытую ФИЛЬТРОМ (hidden-атрибут).
+      // offsetParent-проверку убрали: при свёрнутом сайдбаре cards-scroll
+      // скрыт (offsetParent===null у всех карт), и старый fallback cardsArr[0]
+      // мог открыть скрытый фильтром кейс.
       var cardsArr = Array.prototype.slice.call(cards);
       var firstVisible = cardsArr.filter(function (c) {
-        return !c.hasAttribute('hidden') && c.offsetParent !== null;
-      })[0] || cardsArr[0];
+        return !c.hasAttribute('hidden');
+      })[0];
       if (firstVisible && firstVisible.dataset.id) {
         openCase(firstVisible.dataset.id, { initial: true });
         // на мобилке — свернуть sidebar, чтобы показать case-view
@@ -3221,6 +3291,10 @@
   cards.forEach(function (card) {
     card.addEventListener('click', function (e) {
       if (!card.dataset.id) return;
+      // A1-16 — карта это <a href="#id">: модификаторные/непервичные клики
+      // (Ctrl/Cmd/Shift/Alt, middle-click) отдаём браузеру (open-in-new-tab
+      // и т.п.) — #id-deep-link корректно откроет нужный кейс при init.
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
       // <a href="#X"> — без preventDefault браузер откроет hash-навигацию параллельно.
       e.preventDefault();
       openCase(card.dataset.id);
@@ -3349,9 +3423,13 @@
         });
     }
 
+    // A1-04 — pending-state: целевую тему держим в переменной, а не читаем
+    // живой data-theme (он меняется только в onComplete ~140мс спустя, из-за
+    // чего двойной быстрый клик дважды читал стейл-значение и «съедал» toggle).
+    var themeTarget = document.body.getAttribute('data-theme') || 'dark';
     themeBtn.addEventListener('click', function () {
-      var current = document.body.getAttribute('data-theme') || 'dark';
-      applyTheme(current === 'dark' ? 'light' : 'dark');
+      themeTarget = themeTarget === 'dark' ? 'light' : 'dark';
+      applyTheme(themeTarget);
     });
 
     // Keyboard: Enter / Space — native button, но aria-pressed toggle по-дефолту окей.
@@ -3413,12 +3491,22 @@
      существующей карточки — открываем этот кейс.
      На mobile дополнительно сворачиваем sidebar в case-view.
   ══════════════════════════════════ */
+  // A1-06 — безопасный поиск карты по id: сравниваем dataset.id напрямую,
+  // без построения CSS-селектора из пользовательского hash (иначе #abc\
+  // роняет querySelector SyntaxError'ом и убивает init/hashchange).
+  function findCardById(rawId) {
+    if (!rawId) return null;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i].dataset.id === rawId) return cards[i];
+    }
+    return null;
+  }
   setTimeout(function () {
     var initialId = null;
     var fromHash = false;
     var rawHash = (window.location.hash || '').replace(/^#/, '');
     if (rawHash) {
-      var hashCard = document.querySelector('.work-card[data-id="' + rawHash.replace(/"/g, '') + '"]');
+      var hashCard = findCardById(rawHash);
       if (hashCard && hashCard.dataset.id && !hashCard.hasAttribute('hidden')) {
         initialId = hashCard.dataset.id;
         fromHash = true;
@@ -3457,9 +3545,19 @@
       return;
     }
     if (newHash === currentCaseId) return;
-    var card = document.querySelector('.work-card[data-id="' + newHash.replace(/"/g, '') + '"]');
+    var card = findCardById(newHash);
     if (card && !card.hasAttribute('hidden')) {
       openCase(newHash, { skipHashSync: true });
+    } else if (currentCaseId) {
+      // A1-14 — невалидный/скрытый таргет: не оставляем URL врущим про
+      // открытый кейс — восстанавливаем канонический hash текущего кейса
+      // (или корень, если это первый видимый кейс). A1-06 — findCardById
+      // не роняет querySelector на битом hash.
+      var firstVisForHash = document.querySelector('.work-card[data-id]:not([hidden])');
+      var canonicalHash = (firstVisForHash && currentCaseId === firstVisForHash.dataset.id) ? '' : ('#' + currentCaseId);
+      try {
+        history.replaceState(null, '', window.location.pathname + window.location.search + canonicalHash);
+      } catch (_) { /* file:// или строгий sandbox — игнорируем */ }
     }
   });
 
@@ -3494,6 +3592,9 @@
      всегда включаем явный якорь, чтобы на принимающей стороне
      гарантированно открылся именно этот кейс).
      Clipboard API с fallback через execCommand('copy') для file://. */
+  // A1-19 — таймер сброса label'а COPY LINK хранится НА КНОПКЕ
+  // (button._copyResetTimer): чистится между кликами по той же кнопке и не
+  // конфликтует между desktop/mobile share-кнопками (review F3).
   function copyCaseLink(button) {
     if (!currentCaseId) return;
     var origin = window.location.origin;
@@ -3514,7 +3615,9 @@
       button.classList.add('case-share--copied');
       label.textContent = copiedTxt;
       button.setAttribute('aria-live', 'polite');
-      setTimeout(function () {
+      if (button._copyResetTimer) clearTimeout(button._copyResetTimer);
+      button._copyResetTimer = setTimeout(function () {
+        button._copyResetTimer = null;
         button.classList.remove('case-share--copied');
         label.removeAttribute('data-i18n-pause');
         // Re-read current language label (а не закешированный prev).
@@ -3702,7 +3805,14 @@
         return;
       }
       if (e.target !== fsOverlay && e.target !== fsStage) return;
-      if (fsContext === 'gallery' || fsContext === 'blueprint') {
+      // prod-review F3 (A1-05): при единственном элементе (blueprint у 15/18
+      // кейсов, или одиночная gallery-картинка) navGallery/navBlueprint делают
+      // ранний return (list<2 / total<2) — клик по фону «проглатывался», оверлей
+      // не закрывался. Если навигировать нечем — закрываем.
+      var canNav =
+        (fsContext === 'gallery'   && gallery.list.length > 1) ||
+        (fsContext === 'blueprint' && blueprintFs.total   > 1);
+      if (canNav) {
         navFs(e.clientX < window.innerWidth / 2 ? -1 : +1);
       } else {
         closeFs();
@@ -3835,6 +3945,11 @@
         }
       });
     }).catch(function () {
+      // prod-review F3 (A1-15): сбрасываем кэш rejected-промиса динамического
+      // import() (как делает in-case mount-путь), иначе loadThreeViewer()
+      // навсегда возвращает один отклонённый промис и fullscreen-3D остаётся
+      // offline после одного сетевого сбоя.
+      threeViewerLoading = null;
       holder.innerHTML =
         '<div class="case-3d__fallback">' +
           '<p class="case-3d__fallback-title">VIEWER OFFLINE</p>' +
@@ -3887,7 +4002,10 @@
       ? Array.prototype.slice.call(scope.querySelectorAll('img'))
       : [sourceImg];
     // Отфильтровываем картинки, которые не отрисовались (broken/removed)
-    imgs = imgs.filter(function (i) { return i.isConnected && i.naturalWidth >= 0; });
+    // prod-review F3 (A1-11): старый предикат naturalWidth>=0 всегда true (для
+    // битой картинки naturalWidth===0). Оставляем ещё грузящиеся (!complete) и
+    // успешно загруженные (naturalWidth>0), отбрасывая только реально битые.
+    imgs = imgs.filter(function (i) { return i.isConnected && (!i.complete || i.naturalWidth > 0); });
     gallery.list = imgs;
     gallery.index = Math.max(0, imgs.indexOf(sourceImg));
     gallery.triggerEl = sourceImg;
@@ -3921,6 +4039,13 @@
   }
 
   function flipOpen(sourceImg) {
+    // prod-review F3 (A1-03): гонка close→reopen. Если предыдущий
+    // closeFsImageReverseFlip ещё анимирует overlay-opacity, его onComplete
+    // выставил бы hidden=true + restoreFsContext() и убил свежеоткрытый overlay.
+    // Глушим in-flight tween на overlay (и старых stage-детях) ДО его onComplete
+    // и сбрасываем opacity, оставшийся от прерванного fade-out.
+    if (typeof gsap !== 'undefined') { gsap.killTweensOf(fsOverlay); gsap.killTweensOf(fsStage.children); }
+    fsOverlay.style.opacity = '';
     while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
     var clone = buildImageClone(sourceImg);
     fsStage.appendChild(clone);
@@ -3945,6 +4070,10 @@
     var tgtRect = clone.getBoundingClientRect();
     if (tgtRect.width === 0 || tgtRect.height === 0) {
       // image ещё не загрузилась — fallback на opacity-only
+      // prod-review F3 (A1-21): этот fallback пропускал activateFsImageZoom
+      // (в отличие от reduced/hidden-ветки выше) — открытая картинка не
+      // получала zoom/pan. Активируем зум и здесь.
+      activateFsImageZoom(clone);
       setupFocusTrap();
       return;
     }

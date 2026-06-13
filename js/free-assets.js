@@ -19,16 +19,49 @@
    отрисованной .tag-card (детерминированно следует порядку content; при полном
    каталоге это hard-surface, поведение не меняется), а счётчик #cards-count
    main.js считает по уже видимо-корректному NodeList без патчей. */
+// v0.x [A2-10]: единая точка доступа к каталогу. Если fa-data.js не загрузился,
+// window.FA_DATA === undefined и голое чтение FA_DATA бросает ReferenceError,
+// каскадно убивая init. Геттер возвращает {} → init деградирует мягко.
+function faData() {
+  return (typeof FA_DATA !== 'undefined' && FA_DATA) ? FA_DATA : {};
+}
+
 function firstAvailableTag() {
   var firstCard = document.querySelector('.tag-card[data-tag]');
   if (firstCard && firstCard.dataset.tag) return firstCard.dataset.tag;
   // Фоллбек (DOM без tag-карточек, напр. в тестах): первая видимая категория
   // FA_DATA. Порядок ключей FA_DATA = авторский порядок content.
-  var keys = Object.keys(FA_DATA);
+  var keys = Object.keys(faData());
   for (var i = 0; i < keys.length; i++) {
-    if ((FA_DATA[keys[i]] || []).length) return keys[i];
+    if ((faData()[keys[i]] || []).length) return keys[i];
   }
   return null;
+}
+
+// v0.x [A2-04]: маппинг #<asset-id> (из JSON-LD itemList / расшаренных ссылок)
+// в категорию, содержащую этот ассет. null — если hash пуст или id не найден.
+function tagForHash(hash) {
+  var id = (hash || '').replace(/^#/, '');
+  if (!id) return null;
+  var data = faData();
+  var keys = Object.keys(data);
+  for (var i = 0; i < keys.length; i++) {
+    var list = data[keys[i]] || [];
+    for (var j = 0; j < list.length; j++) {
+      if (list[j] && list[j].id === id) return keys[i];
+    }
+  }
+  return null;
+}
+
+// v0.x [A2-04]: после рендера категории доводим карточку дип-линка до вида.
+function scrollHashCardIntoView(hash) {
+  var id = (hash || '').replace(/^#/, '');
+  if (!id) return;
+  var card = document.getElementById(id);
+  if (card && typeof card.scrollIntoView === 'function') {
+    try { card.scrollIntoView({ block: 'center' }); } catch (_) { card.scrollIntoView(); }
+  }
 }
 
 var activeTag = firstAvailableTag();
@@ -47,16 +80,34 @@ function selectTag(tag, opts) {
   updateHeader(tag);
   renderGrid(tag);
   // Mobile: collapse sidebar to show grid only on explicit user click, not initial load
+  // v0.x [A2-14]: раньше вручную ставили cards-collapsed + aria-expanded, минуя
+  // main.js setCollapsed() — label кнопки оставался «Hide categories» (стейл), не
+  // летел codex:toggle и не пересчитывался Lenis. Роутим через клик по
+  // #cards-toggle (его handler зовёт setCollapsed со всем побочным эффектом),
+  // но только когда панель ещё развёрнута — без двойного тоггла.
   if (!noCollapse && window.innerWidth < 768) {
-    document.body.classList.add('cards-collapsed');
     var ct = document.getElementById('cards-toggle');
-    if (ct) ct.setAttribute('aria-expanded', 'false');
+    if (ct && ct.getAttribute('aria-expanded') !== 'false') {
+      ct.click();
+    } else if (!ct) {
+      document.body.classList.add('cards-collapsed');
+    }
   }
 }
 
+function catLabelForTag(tag) {
+  var assets = faData()[tag] || [];
+  if (assets.length > 0 && assets[0].cat) return assets[0].cat;
+  // v0.x [A2-09]: пустая категория — не показываем сырой slug в H1; берём
+  // человекочитаемый label из tag-карточки (генерится из content), иначе tag.
+  var tagCard = document.querySelector('.tag-card[data-tag="' + (window.CSS && window.CSS.escape ? window.CSS.escape(tag) : tag) + '"]');
+  var label = tagCard && tagCard.querySelector('.tag-card__title');
+  return (label && label.textContent.trim()) || tag;
+}
+
 function updateHeader(tag) {
-  var assets = FA_DATA[tag] || [];
-  var catLabel = assets.length > 0 ? assets[0].cat : tag;
+  var assets = faData()[tag] || [];
+  var catLabel = catLabelForTag(tag);
   var catEl  = document.getElementById('fa-view-cat');
   var cntEl  = document.getElementById('fa-view-count');
   var titEl  = document.getElementById('fa-view-title');
@@ -106,15 +157,26 @@ function resolveAssetMedia(asset) {
   };
 }
 
+// v0.x [A2-11]: asset.bg — admin free-text. url()/image-set() инициировали бы
+// кросс-доменный fetch при рендере (CSS-injection surface); цвета и градиенты
+// безопасны. Не применяем значения, тянущие внешний ресурс.
+function setSafeBackground(node, bg) {
+  if (!bg) return;
+  if (/url\s*\(|image-set\s*\(/i.test(bg)) return;
+  node.style.background = bg;
+}
+
 function createPreviewThumb(asset, media, reducedMotion) {
   var thumb = el('div', 'fa-card__thumb');
   thumb.dataset.label = asset.title;
   thumb.dataset.previewState = media.previewState;
-  thumb.style.background = asset.bg;
+  setSafeBackground(thumb, asset.bg);
 
   if (media.thumb) {
     var img = el('img');
-    img.src = './assets/cards/' + media.thumb + '.svg';
+    // v0.x [A2-11]: encode admin-имени файла, чтобы ? # .. или пробелы не
+    // переформировали URL.
+    img.src = './assets/cards/' + encodeURIComponent(media.thumb) + '.svg';
     img.alt = '';
     img.setAttribute('aria-hidden', 'true');
     img.loading = 'lazy';
@@ -127,7 +189,8 @@ function createPreviewThumb(asset, media, reducedMotion) {
   if (media.model) {
     var mv = document.createElement('model-viewer');
     mv.className = 'fa-card__thumb-mv';
-    mv.dataset.codexPreviewSrc = './assets/models/free/' + media.model + '.glb';
+    // v0.x [A2-11]: encode admin-имени GLB (идентично для текущих [a-z0-9-] имён).
+    mv.dataset.codexPreviewSrc = './assets/models/free/' + encodeURIComponent(media.model) + '.glb';
     mv.setAttribute('alt', asset.title + ' — 3D preview');
     mv.setAttribute('loading', 'lazy');
     mv.setAttribute('reveal', 'auto');
@@ -218,12 +281,20 @@ function createAssetCard(asset, reducedMotion) {
 function renderGrid(tag) {
   var grid = document.getElementById('fa-grid');
   if (!grid) return;
-  var assets = FA_DATA[tag] || [];
+  var assets = faData()[tag] || [];
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var fragment = document.createDocumentFragment();
 
+  // v0.x [A2-03]: game-ность категории берём из tag-card (генератор ставит
+  // data-game-asset="true" только на game-категорию) и штампуем на каждую
+  // .fa-card — game-фильтр читает стабильный атрибут, а не текст бейджа.
+  var tagCardEl = document.querySelector('.tag-card[data-tag="' + (window.CSS && window.CSS.escape ? window.CSS.escape(tag) : tag) + '"]');
+  var isGameCat = !!(tagCardEl && tagCardEl.dataset.gameAsset === 'true');
+
   assets.forEach(function(asset) {
-    fragment.appendChild(createAssetCard(asset, reducedMotion));
+    var card = createAssetCard(asset, reducedMotion);
+    card.dataset.gameAsset = isGameCat ? 'true' : 'false';
+    fragment.appendChild(card);
   });
   grid.replaceChildren(fragment);
   applyGameFilter();
@@ -392,17 +463,40 @@ function applyGameFilter() {
   var cards = grid.querySelectorAll('.fa-card');
   var visible = 0;
   cards.forEach(function(card) {
-    var badge = card.querySelector('.fa-card__badge');
-    var isGame = badge && /game\s*asset/i.test(badge.textContent || '');
+    // v0.x [A2-03]: game-детекция по data-атрибуту (штампуется в renderGrid из
+    // game-флага категории, который генератор кладёт на tag-card), а НЕ по тексту
+    // бейджа — переименование бейджа в админке больше не ломает фильтр.
+    var isGame = card.dataset.gameAsset === 'true';
     var show = !on || isGame;
     card.hidden = !show;
     if (show) visible++;
   });
 
+  setGridEmptyState(grid, visible === 0, on);
+
   var cntEl = document.getElementById('fa-view-count');
   if (cntEl) {
     cntEl.textContent = visible + ' asset' + (visible !== 1 ? 's' : '') + (on ? ' (game-only)' : '');
   }
+}
+
+// v0.x [A2-03/A2-09]: общий empty-state грида. Рендерит доступное сообщение <li>
+// (без класса .fa-card → не влияет на счётчики .fa-card в verify-frozen), когда
+// активная категория или game-only-фильтр дают ноль карточек.
+function setGridEmptyState(grid, isEmpty, gameOnly) {
+  var node = grid.querySelector('.fa-grid__empty');
+  if (!isEmpty) {
+    if (node) node.remove();
+    return;
+  }
+  if (!node) {
+    node = el('li', 'fa-grid__empty');
+    node.setAttribute('role', 'status');
+    grid.appendChild(node);
+  }
+  node.textContent = gameOnly
+    ? 'No game-ready assets in this category yet.'
+    : 'No assets in this category yet.';
 }
 
 function rebindGameSwitch() {
@@ -498,9 +592,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // прежний runtime-прунинг (pruneHiddenTagCards) и патч счётчика больше не
   // нужны — main.js считает #cards-count по видимо-корректному NodeList сам.
   bindTagCards();
-  // Initial load: pre-select first category but DO NOT collapse sidebar on mobile.
-  // User should land on the tag-cards overview, not inside a category.
-  if (activeTag) selectTag(activeTag, { noCollapse: true });
+  // Initial load: honor a deep-link hash (#<asset-id> из JSON-LD itemList /
+  // расшаренных ссылок). Если hash указывает на известный ассет — открываем его
+  // категорию и доводим карточку до вида; иначе — первая категория. DO NOT
+  // collapse sidebar on mobile — пользователь приземляется на обзор категорий.
+  var deepLinkTag = tagForHash(window.location.hash);
+  var initialTag = deepLinkTag || activeTag;
+  if (initialTag) {
+    selectTag(initialTag, { noCollapse: true });
+    if (deepLinkTag) scrollHashCardIntoView(window.location.hash);
+  }
 
   /* Phase 3 — re-render FA grid при смене языка. i18n.js overlayFA() уже
      мутировал window.FA_DATA для нового языка; renderGrid(activeTag) пере-
@@ -508,7 +609,21 @@ document.addEventListener('DOMContentLoaded', function() {
      и не вызываем selectTag (он закрыл бы sidebar на mobile) — re-render
      только grid'а. */
   window.addEventListener('i18n:changed', function () {
-    if (typeof renderGrid === 'function') renderGrid(activeTag);
+    // v0.x [A2-07]: на смене языка переводим только asset.desc (overlayFA в
+    // i18n.js уже обновил window.FA_DATA). Полный renderGrid пересобирал весь
+    // grid — сбрасывал scroll и пересоздавал GLB-превью. Обновляем desc in-place,
+    // сохраняя DOM, scroll и превью.
+    var grid = document.getElementById('fa-grid');
+    if (!grid) return;
+    var assets = faData()[activeTag] || [];
+    var cards = grid.querySelectorAll('.fa-card');
+    // renderGrid строит .fa-card в порядке FA_DATA[activeTag] → индексы совпадают.
+    for (var i = 0; i < cards.length && i < assets.length; i++) {
+      var descEl = cards[i].querySelector('.fa-card__desc');
+      if (descEl && assets[i] && typeof assets[i].desc === 'string') {
+        descEl.textContent = assets[i].desc;
+      }
+    }
   });
 
   // v0.4 [N4]: rebind game-switch ПОСЛЕ main.js (который тоже слушает DOMContentLoaded).
