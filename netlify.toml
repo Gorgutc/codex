@@ -11,14 +11,18 @@
 # Исходники функций не должны раздаваться как статика (publish = ".")
 [[redirects]]
   from = "/netlify/*"
-  to = "/404"
+  to = "/404.html"
   status = 404
 
-# Long-cache на статические ассеты (immutable — пути не меняются без обновления имени)
+# E-18: /assets/ mixes hash-busted admin media ({base}-{hash8}) with NON-hashed
+# repo art (og-image.jpg, cards/*.svg, cases/**, models/**). 'immutable' for a
+# year is unsafe for the non-hashed files (an in-place edit would cache stale for
+# 365d). Beget (.htaccess, the live carrier) already uses 7d; mirror a revalidating
+# policy here so a future Netlify cutover (F-01) cannot pin stale art for a year.
 [[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "max-age=31536000, immutable"
+    Cache-Control = "public, max-age=86400, stale-while-revalidate=2592000"
 
 # v0.9.1 — CSS/JS получают тот же long-cache что и /assets/. Без cache-bust
 # в именах файлов используем stale-while-revalidate: 1 день hot cache,

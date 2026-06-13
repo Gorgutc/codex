@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 — Page not found · Codex Studio</title>
+  <meta name="robots" content="noindex, follow">
+  <meta name="theme-color" content="#212121">
+  <meta name="color-scheme" content="dark light">
+  <link rel="icon" type="image/x-icon" href="/assets/favicon/favicon.ico">
+  <!-- E-19/F-05: branded 404. CSP-safe: no inline script and no on* handlers, so
+       the strict .htaccess CSP applies with no new script hash. Root-absolute
+       asset paths (a 404 can resolve at any depth). Reuses the site's brand CSS. -->
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600&display=swap">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/reset.css">
+  <link rel="stylesheet" href="/css/shared.css">
+  <style>
+    .nf {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-3);
+      padding: var(--space-8);
+      text-align: center;
+    }
+    .nf__code {
+      font-family: var(--font-display);
+      font-weight: 600;
+      line-height: 0.9;
+      letter-spacing: -0.02em;
+      font-size: clamp(4.5rem, 20vw, 10rem);
+      color: var(--color-text);
+    }
+    .nf__title {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(1.25rem, 4vw, 2rem);
+      color: var(--color-text);
+    }
+    .nf__text {
+      color: var(--color-text-muted);
+      max-width: 46ch;
+      margin: 0;
+    }
+    .nf__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      justify-content: center;
+      margin-top: var(--space-3);
+    }
+    .nf__link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-2) var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-tag);
+      color: var(--color-text);
+      text-decoration: none;
+      font-family: var(--font-body);
+      transition: border-color 160ms var(--ease-out), color 160ms var(--ease-out);
+    }
+    .nf__link:hover,
+    .nf__link:focus-visible {
+      border-color: var(--color-accent-text);
+      color: var(--color-accent-text);
+    }
+  </style>
+</head>
+<body data-theme="dark">
+  <main class="nf">
+    <p class="nf__code">404</p>
+    <h1 class="nf__title">Page not found</h1>
+    <p class="nf__text" lang="en">The page you are looking for doesn’t exist or has moved.</p>
+    <p class="nf__text" lang="ru">Запрашиваемая страница не существует или была перемещена.</p>
+    <div class="nf__actions">
+      <a class="nf__link" href="/">← Portfolio</a>
+      <a class="nf__link" href="/free-assets.html">Free Assets →</a>
+    </div>
+  </main>
+</body>
+</html>
