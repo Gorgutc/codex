@@ -306,8 +306,11 @@ function caseLocalesSection(i18n) {
     if (!fa.includes('"primaryImageOfPage": "https://codex.promo/assets/img/og-free-assets-aaaaaaaa.jpg"')) {
       fail('the FA WebPage primary image must follow ogImages.fa');
     }
-    if (!fa.includes('"thumbnailUrl": "https://codex.promo/assets/img/og-free-assets-aaaaaaaa.jpg"')) {
-      fail('FA ItemList thumbnail fallbacks must follow ogImages.fa');
+    // E-05: a thumb-less curated entry no longer borrows the page OG image as a
+    // dishonest thumbnail, so the cache-busted FA OG must NOT appear as any
+    // thumbnailUrl (it stays the WebPage primaryImageOfPage, asserted above).
+    if (fa.includes('"thumbnailUrl": "https://codex.promo/assets/img/og-free-assets-aaaaaaaa.jpg"')) {
+      fail('a thumb-less FA ItemList entry must NOT fall back to the OG image as its thumbnailUrl');
     }
     const sitemap = sandbox.readOut('sitemap.xml');
     if (!sitemap.includes('<image:loc>https://codex.promo/assets/img/og-image-aaaaaaaa.jpg</image:loc>')) {
@@ -518,11 +521,12 @@ function faTagCardsSection(html) {
     const boltEntry = faData.slice(faData.indexOf("'bolt-cluster'"), faData.indexOf("'terra-base'"));
     if (!boltEntry.includes("model: 'orbital-mk-ii'")) fail('fa-data must emit the custom model base verbatim');
 
-    // JSON-LD: the orbital thumbnail falls back to the FA OG image.
+    // E-05: JSON-LD honesty — a thumb:null item carries NO thumbnailUrl at all
+    // (no dishonest fallback to the page OG image).
     const html = sandbox.readOut('free-assets.html');
     const jsonLdOrbital = html.slice(html.indexOf('#orbital-mk-ii'), html.indexOf('#vega-shell'));
-    if (!jsonLdOrbital.includes('"thumbnailUrl": "https://codex.promo/assets/img/og-free-assets.jpg"')) {
-      fail('the JSON-LD thumbnail of a thumb:null item must fall back to the FA OG image');
+    if (jsonLdOrbital.includes('"thumbnailUrl"')) {
+      fail('the JSON-LD entry of a thumb:null item must omit thumbnailUrl entirely');
     }
     console.log('FA media conventions: null and custom base names emitted correctly');
   } finally {

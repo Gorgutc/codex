@@ -840,6 +840,19 @@ body::after {
   gap: var(--space-3);
 }
 
+/* A1-20 — empty-state shown only when an active filter combination yields zero
+   matches (body.filter-empty is toggled in applyFilters). Hidden otherwise so it
+   never intrudes on the populated grid; reuses existing spacing/colour tokens. */
+.cards-empty {
+  display: none;
+  padding: var(--space-4) var(--space-3);
+  color: var(--color-text-faint);
+  line-height: 1.5;
+}
+body.filter-empty .cards-empty {
+  display: block;
+}
+
 /* ═══════════════════════════════════
    WORK CARD
    Структура для tilt-эффекта:

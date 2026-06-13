@@ -128,6 +128,7 @@ const ogImageUrl = page =>
 // FILTER_TEST_KEY). Деградации (нет второй категории, скрыта SEO-категория
 // каталога) не валят прогон, а громко помечаются detail «skipped: …».
 const CONTENT_FREE_ASSETS = readContentJson('free-assets.json');
+const CONTENT_I18N_UI = readContentJson('i18n-ui.json');
 const FA_VISIBLE_CATEGORIES = (CONTENT_FREE_ASSETS.categories || [])
   .filter(cat => cat && cat.enabled !== false)
   .map(cat => ({
@@ -1121,14 +1122,14 @@ async function testIndex(BASE) {
     const ui = window.I18N_DATA && window.I18N_DATA.UI_STRINGS;
     if (!ui || !ui.en || !ui.ru) return { ok: false, reason: 'no en/ru' };
     const required = ['aria', 'title', 'btn', 'pill', 'preloader', 'filter',
-                      'tabs', 'footer', 'toggle', 'theme', 'copy', 'chip', 'fs',
-                      'bp', 'viz'];
+                      'tabs', 'footer', 'toggle', 'theme', 'copy', 'count',
+                      'empty', 'fs', 'bp', 'viz'];
     const missingEn = required.filter(k => !ui.en[k]);
     const missingRu = required.filter(k => !ui.ru[k]);
     return { ok: missingEn.length === 0 && missingRu.length === 0, missingEn, missingRu };
   });
   add('index', 'B2-UI_STRINGS-namespaces', uiShape.ok,
-      uiShape.ok ? 'all 15 namespaces × en+ru' : JSON.stringify(uiShape));
+      uiShape.ok ? 'all 16 namespaces × en+ru' : JSON.stringify(uiShape));
 
   // B3 — CARDS_LOCALES.ru keys match EXPECTED_IDS (количество — из content/).
   const cardsLocaleShape = await page.evaluate((expected) => {
@@ -1734,9 +1735,21 @@ async function testFreeAssets(BASE) {
         countText: document.getElementById('fa-view-count')?.textContent || ''
       };
     });
+    // E-12/A2-02: the lang toggle switched the page to RU, so #fa-view-count is
+    // now rendered in RU (the count i18n fix — previously it stayed stale EN).
+    // Expected string derives from content/i18n-ui.json (ru.count.assets plural
+    // form for the visible game count + ru.count.assetsGameSuffix), using the same
+    // CLDR rule (Intl.PluralRules) the runtime applies — the persistence check
+    // stays strict and content-derived while following the i18n fix.
+    const ruCount = (CONTENT_I18N_UI.ru && CONTENT_I18N_UI.ru.count) || {};
+    const ruAssetsForms = ruCount.assets || {};
+    const ruCat = new Intl.PluralRules('ru').select(FA_SWITCH_GAME_COUNT);
+    const ruAssetsTmpl = ruAssetsForms[ruCat] || ruAssetsForms.other || ruAssetsForms.many || '';
+    const expectedRuCount = String(ruAssetsTmpl).split('{n}').join(String(FA_SWITCH_GAME_COUNT))
+      + String(ruCount.assetsGameSuffix || '');
     add('fa', 'N4-game-persists-after-lang-switch',
-        gameAfterLangSwitch.total === FA_SWITCH_COUNT && gameAfterLangSwitch.visible === FA_SWITCH_GAME_COUNT && gameCountRe.test(gameAfterLangSwitch.countText),
-        `${FA_SWITCH_KEY} total=${gameAfterLangSwitch.total} (expected(content) ${FA_SWITCH_COUNT}), visible=${gameAfterLangSwitch.visible} (expected(content) ${FA_SWITCH_GAME_COUNT}), count="${gameAfterLangSwitch.countText}"`);
+        gameAfterLangSwitch.total === FA_SWITCH_COUNT && gameAfterLangSwitch.visible === FA_SWITCH_GAME_COUNT && gameAfterLangSwitch.countText === expectedRuCount,
+        `${FA_SWITCH_KEY} total=${gameAfterLangSwitch.total} (expected(content) ${FA_SWITCH_COUNT}), visible=${gameAfterLangSwitch.visible} (expected(content) ${FA_SWITCH_GAME_COUNT}), count="${gameAfterLangSwitch.countText}" (expected(content) "${expectedRuCount}")`);
     await page.click('#lang-toggle'); await page.waitForTimeout(200);
   } else {
     add('fa', 'N4-game-persists-after-tag-switch', true, N4_SKIP, true);

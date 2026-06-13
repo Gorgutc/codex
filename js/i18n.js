@@ -22,6 +22,11 @@
 
   let currentLang = DEFAULT_LANG;
   let lastAppliedLang = null;
+  // A2-05 — true once the language is settled by an explicit signal (a ?lang URL
+  // or a toggle click). While false the first paint is provisional; a late
+  // geo/navigator result may still apply, but once true it must never override
+  // the visitor's explicit choice.
+  let userSettled = false;
 
   function getCIS() {
     const d = window.I18N_DATA;
@@ -354,7 +359,7 @@
     });
   }
 
-  function applyLang(lang) {
+  function applyLang(lang, provisional) {
     if (!isValidLang(lang)) lang = DEFAULT_LANG;
     const changed = lastAppliedLang !== lang;
     currentLang = lang;
@@ -365,10 +370,21 @@
     applyMetaAttrs();
     overlayCases(lang);
     overlayFA(lang);
-    updateURL(lang);
-    if (changed) propagateLangToLinks(lang);
     updateToggleLabels(lang);
+    // A2-05 — record the painted language even on the provisional first paint, so
+    // that when geo settles to the SAME language the settle re-stamps the URL/links
+    // without re-dispatching a no-op i18n:changed (which would needlessly rebuild an
+    // open case ~1s after load). The provisional paint translates the DOM but does
+    // NOT stamp ?lang into the URL or links — a visitor who clicks a link before geo
+    // resolves is not locked into the provisional EN by a stray ?lang=en; stamping
+    // happens only once the language settles.
     lastAppliedLang = lang;
+    if (provisional) return;
+    updateURL(lang);
+    // Unconditional on settle/toggle: the first non-provisional apply must stamp
+    // links even when the settled language equals the provisional one (changed is
+    // false in that case), so EN links still carry ?lang=en.
+    propagateLangToLinks(lang);
     if (changed) {
       try {
         window.dispatchEvent(new CustomEvent('i18n:changed', { detail: { lang: lang } }));
@@ -416,6 +432,7 @@
     const btn = document.getElementById('lang-toggle');
     if (!btn) return;
     btn.addEventListener('click', function () {
+      userSettled = true;                 // A2-05 — explicit choice wins over late geo
       applyLang(currentLang === 'ru' ? 'en' : 'ru');
     });
   }
@@ -423,17 +440,23 @@
   function init() {
     const urlLang = readLangFromURL();
     if (urlLang) {
+      userSettled = true;                 // A2-05 — explicit ?lang choice settles
       applyLang(urlLang);
       bindToggle();
       return;
     }
-    // Первый рендер всегда EN (быстрый FCP, нет мигания).
-    applyLang(DEFAULT_LANG);
+    // Первый рендер всегда EN (быстрый FCP, нет мигания) — provisional, без
+    // штампа URL/ссылок (A2-05).
+    applyLang(DEFAULT_LANG, true);
     bindToggle();
-    // Асинхронно: geo → fallback на navigator.language → final lang.
+    // Асинхронно: geo → fallback на navigator.language → settle (тут штампуем
+    // URL + ссылки). Если пользователь успел переключить язык за время детекта
+    // (userSettled), поздний geo НЕ перетирает его выбор.
     detectFromGeo().then(function (geoLang) {
+      if (userSettled) return;
       if (geoLang === null) geoLang = detectFromNavigator();
-      if (geoLang && geoLang !== currentLang) applyLang(geoLang);
+      if (!geoLang) geoLang = DEFAULT_LANG;
+      applyLang(geoLang);
     });
   }
 
@@ -457,10 +480,31 @@
     return s;
   }
 
+  // Phase 4b [E-12/A1-12/A2-02] — pluralised count helper. UI_STRINGS[lang].<key>
+  // is a forms object { one, few, many, other }; we pick the CLDR plural category
+  // for n via Intl.PluralRules (en → one/other, ru → one/few/many) and substitute
+  // '{n}'. Falls back across forms, and to tFmt() if the key is a plain string —
+  // so a missing Intl impl degrades to the 'other' form rather than throwing.
+  function tCount(key, n) {
+    const d = uiDict();
+    let forms = getKey(d[currentLang], key);
+    if (!forms || typeof forms !== 'object') forms = getKey(d[DEFAULT_LANG], key);
+    if (!forms || typeof forms !== 'object') return tFmt(key, { n: n });
+    let cat = 'other';
+    try { cat = new Intl.PluralRules(currentLang).select(n); } catch (_) { /* silent */ }
+    let tmpl = forms[cat];
+    if (typeof tmpl !== 'string') tmpl = forms.other;
+    if (typeof tmpl !== 'string') tmpl = forms.many;
+    if (typeof tmpl !== 'string') tmpl = forms.one;
+    if (typeof tmpl !== 'string') return tFmt(key, { n: n });
+    return tmpl.split('{n}').join(String(n));
+  }
+
   window.I18N = {
     getLang: getLang,
     t: t,
     tFmt: tFmt,
+    tCount: tCount,
     applyLang: applyLang,
     isValidLang: isValidLang,
     SUPPORTED_LANGS: SUPPORTED_LANGS.slice(),

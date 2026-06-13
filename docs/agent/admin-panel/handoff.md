@@ -45,10 +45,17 @@ F6 (релизный гейт). Реестр находок и триаж:
 | R0 | Глобальное ревью: 7 потоков, реестр находок, триаж deferred | готово (PR #45) |
 | F1 | Контракт: генератор, verify-frozen, golden, валидатор | готово (PR #46, merged) |
 | F2 | Security: XSS-фиксы, админ-зеркало валидации, заголовки/CSP | готово (PR #47, merged) |
-| F3 | Рантайм сайта: js/css/HTML фиксы по реестру | готово (draft PR #48) |
-| F4 | SEO, i18n RU, a11y, deploy readiness, 404 | в работе (draft PR #49, ~6/9 chunk'ов) |
-| F5 | Deferred-фичи: Vimeo hash, FA-превью, manual-order, чистка ассетов, motion-поля | не начата |
+| F3 | Рантайм сайта: js/css/HTML фиксы по реестру | готово (PR #48, merged) |
+| F4 | SEO, i18n RU, a11y, deploy readiness, 404 | влито частично (PR #49 merged на 6/9 chunk'ов); хвост вынесен в F4-tail |
+| F4-tail | Остаток F4: count→i18n (E-12/A1-12/A2-02), fs-aria (A1-13), empty-state (A1-20/A2-03), удаление `chip.remove`, A2-05, A1-17, E-05, E-15 | готово (draft PR, ветка `codex/prod-f4-seo-i18n-tail`) |
+| F5 | Deferred-фичи: Vimeo hash, FA-превью, manual-order, чистка ассетов, motion-поля, admin-замена логотипа | не начата |
 | F6 | Релизный гейт: quality:all, 5-сек тест, прод-чек, go/no-go | не начата |
+
+> Сверка с git (2026-06-13, Сессия 5): PR #48 (F3) и PR #49 (F4) **смержены в main**
+> (`6330cbf`, `f81e579`). PR #49 влит на отметке 6/9 chunk'ов — между обновлением
+> handoff (`2bb42fd`) и мержем новых коммитов не было, значит хвост F4 (8 пунктов
+> выше) попал в main **незавершённым**. Кампания продолжается итерациями F4-tail →
+> F5 → F6 стопкой stacked draft PR.
 
 ## Шаги владельца (требуют ручного участия)
 
@@ -142,6 +149,67 @@ F6 (релизный гейт). Реестр находок и триаж:
   под старыми именами) — отдельная maintenance-задача (итерация E).
 
 ## Журнал сессий
+
+### 2026-06-13 — Сессия 5 (Claude Code): F4-tail — завершение хвоста F4
+
+Ветка `codex/prod-f4-seo-i18n-tail` от main (F1–F4 влиты). Закрыты все 8
+оставшихся пунктов F4 (журнал F4 выше, раздел «Осталось в F4»). Оркестрация:
+3 постоянных фоновых агента-стража на Opus 4.8 (spec-guardian / code-reviewer /
+cleanliness) + workflow `f4-tail-code-review` (7 finder-углов → verify) + Codex
+adversarial (`codex exec review --uncommitted`). `verify-frozen` 135→**135**
+(чек `B2-UI_STRINGS-namespaces` 15→16 namespaces; `N4-game-persists-after-lang-switch`
+теперь сверяет content-derived RU-строку).
+
+Отгружено (батчами, verify после каждого):
+
+- **count→i18n** (E-12/A1-12/A2-02 + часть A2-06/E-11): новый namespace `count.*`
+  с плюрал-формами `{one,few,many,other}` (en+ru, leaf-parity), хелпер
+  `I18N.tCount(key,n)` через `Intl.PluralRules` (en→one/other, ru→one/few/many);
+  `updateCount` (main.js) ветвится FA→«categories» / index→«projects» и
+  пересчитывается на `i18n:changed`; `faCountText` (free-assets.js) у обоих
+  сеттеров `#fa-view-count`, рефреш на смене языка через `applyGameFilter`.
+  EN-вывод байт-в-байт. verify N4-after-lang-switch обновлён под RU.
+- **empty-state i18n** (A1-20/A2-03): namespace `empty.*`; видимый `.cards-empty`
+  на index (вне GEN-региона, CSS `body.filter-empty`, БЕЗ `role=status` —
+  озвучивает `#cards-count`), FA `setGridEmptyState` через i18n.
+- **fs-aria** (A1-13): `refreshFsLabels()` переводит aria/ title fullscreen-кнопок
+  (close/prev/next/zoom×4) при создании оверлея и на `i18n:changed`; ключи
+  `fs.zoom*`.
+- **chip.remove**: мёртвый ключ удалён (трассирован — кнопка-крестик chip'а
+  внутри `aria-hidden`, без aria-label), `chip` убран из B2-namespaces.
+- **A2-05**: провизорный первый рендер не штампует `?lang` в URL/ссылки до
+  settle; `userSettled` блокирует поздний geo от перетирания явного выбора.
+- **A1-17**: смена языка при открытом кейсе сохраняет 2D-позицию скролла
+  (`opts.langRefresh`); 3D/blueprint-панель пересобирается (её aria-лейблы
+  ставятся императивно через `I18N.t`, rebuild нужен для перевода).
+- **E-05**: FA JSON-LD больше не подставляет OG-картинку как `thumbnailUrl` у
+  ассетов без обложки (omit вместо faOg); тесты content-visibility 8/13
+  инвертированы. `numberOfItems`=25 оставлен по дизайну (A2-15 принято).
+- **E-15**: дропдаун-фильтр `role="listbox"`→`role="group"`, `aria-multiselectable`
+  и `role="option"` сняты (нативные чекбоксы — интерактив внутри option был
+  нарушением ARIA); статичные панели + генератор `filterOptionLine`.
+
+Ревью-итог: spec-guardian / cleanliness — NO FINDINGS; code-reviewer — 0 high/med
+(2 low). Workflow + Codex нашли и **исправлены**: (1) лишний `i18n:changed` на
+EN→EN geo-settle (редизайн `applyLang`: `lastAppliedLang` ставится и в provisional,
+dispatch только при реальной смене, ссылки штампуются безусловно на settle);
+(2) empty-state `role=status` с display-toggle не озвучивался → снят (озвучивает
+счётчик); (3) langRefresh сбрасывал scroll на 3D/blueprint-вкладке → restore
+только при `currentViz==='2d'`; (4) **Codex P2** — langRefresh замораживал
+JS-лейблы 3D/blueprint → rebuild возвращён (A1-17 сужен до сохранения скролла).
+
+Принятые ограничения: blueprint title-block при langRefresh берёт перевод из
+rebuild (как и 3D); ремаунт 3D при смене языка НА 3D-вкладке сохранён намеренно
+(лейблы `viz.*` ставятся через `I18N.t`, не `data-i18n-attr` — декаплинг отложен).
+`numberOfItems`=25 (SEO-призрак, документировано). Stale `aria-multiselectable`
+в `references/claude-original/` не трогаем (AGENTS.md: архив stale-when-conflicting).
+
+Гейты: `codex:ship` exit 0 (verify 135/135, plugin, governance, parity,
+content:check, golden 2/2, verify-fatal); `test:content-validate` (8/13 обновлены),
+`site-smoke` 6/6 (axe a11y-бюджет чист), `test:admin` (preview через `applyLang`)
+4/4. Golden пересобран дважды (i18n-словарь + `.cards-empty` markup).
+
+Следующий шаг: draft PR F4-tail, затем F5 (`codex/prod-f5-deferred`, stacked).
 
 ### 2026-06-13 — Сессия 4, продолжение: F4 — SEO/i18n RU/a11y/deploy (в работе)
 
