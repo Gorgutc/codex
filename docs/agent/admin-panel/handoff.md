@@ -45,7 +45,7 @@ F6 (релизный гейт). Реестр находок и триаж:
 | R0 | Глобальное ревью: 7 потоков, реестр находок, триаж deferred | готово (PR #45) |
 | F1 | Контракт: генератор, verify-frozen, golden, валидатор | готово (PR #46, merged) |
 | F2 | Security: XSS-фиксы, админ-зеркало валидации, заголовки/CSP | готово (PR #47, merged) |
-| F3 | Рантайм сайта: js/css/HTML фиксы по реестру | готово (draft PR, ветка `codex/prod-f3-site-runtime`) |
+| F3 | Рантайм сайта: js/css/HTML фиксы по реестру | готово (draft PR #48) |
 | F4 | SEO, i18n RU, a11y, deploy readiness, 404 | не начата |
 | F5 | Deferred-фичи: Vimeo hash, FA-превью, manual-order, чистка ассетов, motion-поля | не начата |
 | F6 | Релизный гейт: quality:all, 5-сек тест, прод-чек, go/no-go | не начата |

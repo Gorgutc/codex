@@ -865,6 +865,18 @@ window.CARDS_DATA = ` +
 
 /* ── js/fa-data.js ───────────────────────────────────────────────────────── */
 
+// A2-01/E-02/F-03: human-readable archive size from the real byte count (honest
+// contentSize / Download label). Deterministic, no locale formatting.
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  const kb = bytes / 1024;
+  if (kb < 1024) return (kb < 10 ? kb.toFixed(1) : String(Math.round(kb))) + ' KB';
+  const mb = kb / 1024;
+  if (mb < 1024) return (mb < 10 ? mb.toFixed(1) : String(Math.round(mb))) + ' MB';
+  const gb = mb / 1024;
+  return (gb < 10 ? gb.toFixed(1) : String(Math.round(gb))) + ' GB';
+}
+
 function buildFaDataJs(content) {
   const data = {};
   for (const category of visibleFaCategories(content)) {
@@ -877,8 +889,13 @@ function buildFaDataJs(content) {
       out.desc = item.desc.en;
       out.badge = item.badge;
       out.contents = item.contents;
-      out.size = item.size;
       out.file = item.file;
+      // A2-01/E-02/F-03: archive presence (computed from downloads/ at generate
+      // time) drives the runtime Download-button visibility; size from the REAL
+      // file when present (stub → "412 B"), else the content size as fallback.
+      const faArchivePath = path.join(ROOT, 'downloads', String(item.file || ''));
+      out.hasFile = fs.existsSync(faArchivePath);
+      out.size = out.hasFile ? formatBytes(fs.statSync(faArchivePath).size) : item.size;
       out.bg = item.bg;
       return out;
     });
@@ -1448,12 +1465,18 @@ function buildFaJsonLdRegion(content) {
       `          "name": ${j(copy.name)},`,
       `          "description": ${j(copy.description)},`,
       `          "encodingFormat": [${copy.encodingFormat.map(j).join(', ')}],`,
-      `          "contentSize": ${j(item.size)},`,
       '          "license": "https://creativecommons.org/publicdomain/zero/1.0/",',
       '          "isAccessibleForFree": true,',
       `          "thumbnailUrl": ${j(thumbBase ? absoluteAssetUrl(`./assets/cards/${thumbBase}.svg`) : faOg)}${hasDownload ? ',' : ''}`
     ];
-    if (hasDownload) lines.push(`          "contentUrl": ${j(`https://codex.promo/downloads/${item.file}`)}`);
+    // A2-01/E-02/F-03: contentSize + contentUrl only when the archive really
+    // exists in downloads/ — honest structured data (no fabricated "48 MB" for a
+    // missing/stub file). contentSize derived from the real byte count.
+    if (hasDownload) {
+      const faArchiveBytes = fs.statSync(path.join(ROOT, 'downloads', item.file)).size;
+      lines.push(`          "contentSize": ${j(formatBytes(faArchiveBytes))},`);
+      lines.push(`          "contentUrl": ${j(`https://codex.promo/downloads/${item.file}`)}`);
+    }
     lines.push('        }', '      }');
     return lines.join('\n');
   });

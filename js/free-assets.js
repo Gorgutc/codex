@@ -250,22 +250,29 @@ function createAssetBody(asset) {
   });
   contents.appendChild(list);
 
-  var download = el('button', 'fa-card__download');
-  download.type = 'button';
-  download.dataset.file = asset.file;
-  download.dataset.title = asset.title;
-  download.dataset.size = asset.size;
-  download.setAttribute('aria-label', 'Download ' + asset.title);
-  setDownloadLabel(download, 'Download — ' + asset.size);
-  download.addEventListener('click', handleDownload);
-
-  return append(el('div', 'fa-card__body'),
+  var body = append(el('div', 'fa-card__body'),
     meta,
     el('h2', 'fa-card__title', asset.title),
     el('p', 'fa-card__desc', asset.desc),
-    contents,
-    download
+    contents
   );
+
+  // A2-01/E-02/F-03: Download-кнопку рендерим только если архив реально лежит в
+  // downloads/ (генератор кладёт asset.hasFile). У 21/25 ассетов файла нет —
+  // кнопка раньше 404'ила; теперь её просто нет (auto-enable при появлении архива).
+  if (asset.hasFile) {
+    var download = el('button', 'fa-card__download');
+    download.type = 'button';
+    download.dataset.file = asset.file;
+    download.dataset.title = asset.title;
+    download.dataset.size = asset.size;
+    download.setAttribute('aria-label', 'Download ' + asset.title);
+    setDownloadLabel(download, 'Download — ' + asset.size);
+    download.addEventListener('click', handleDownload);
+    body.appendChild(download);
+  }
+
+  return body;
 }
 
 function createAssetCard(asset, reducedMotion) {
