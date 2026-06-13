@@ -573,6 +573,13 @@ function validateMetaImages(violations, metaStrings) {
       );
     }
   }
+  // E-06: Organization.logo — square brand asset (>=112x112), validated like the
+  // og images (present on disk + image extension) but with no basename convention.
+  const orgLogo = images.orgLogo;
+  checkAssetFile(violations, `${where}: ogImages.orgLogo`, orgLogo);
+  if (isNonEmptyString(orgLogo) && !/\.(jpg|jpeg|png|webp)$/i.test(orgLogo)) {
+    violations.push(`${where}: ogImages.orgLogo must be a .jpg/.jpeg/.png/.webp image ("${orgLogo}")`);
+  }
   // og:locale is emitted verbatim and pinned by verify-frozen.js A6-og-locale
   // (en_US|ru_RU): a free-form locale passes the generic non-empty check and
   // only fails at verify time with auto-revert (prod-review F1, finding D-04).
@@ -865,6 +872,18 @@ window.CARDS_DATA = ` +
 
 /* ── js/fa-data.js ───────────────────────────────────────────────────────── */
 
+// A2-01/E-02/F-03: human-readable archive size from the real byte count (honest
+// contentSize / Download label). Deterministic, no locale formatting.
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  const kb = bytes / 1024;
+  if (kb < 1024) return (kb < 10 ? kb.toFixed(1) : String(Math.round(kb))) + ' KB';
+  const mb = kb / 1024;
+  if (mb < 1024) return (mb < 10 ? mb.toFixed(1) : String(Math.round(mb))) + ' MB';
+  const gb = mb / 1024;
+  return (gb < 10 ? gb.toFixed(1) : String(Math.round(gb))) + ' GB';
+}
+
 function buildFaDataJs(content) {
   const data = {};
   for (const category of visibleFaCategories(content)) {
@@ -877,8 +896,13 @@ function buildFaDataJs(content) {
       out.desc = item.desc.en;
       out.badge = item.badge;
       out.contents = item.contents;
-      out.size = item.size;
       out.file = item.file;
+      // A2-01/E-02/F-03: archive presence (computed from downloads/ at generate
+      // time) drives the runtime Download-button visibility; size from the REAL
+      // file when present (stub → "412 B"), else the content size as fallback.
+      const faArchivePath = path.join(ROOT, 'downloads', String(item.file || ''));
+      out.hasFile = fs.existsSync(faArchivePath);
+      out.size = out.hasFile ? formatBytes(fs.statSync(faArchivePath).size) : item.size;
       out.bg = item.bg;
       return out;
     });
@@ -1243,6 +1267,9 @@ function buildHeadMetaRegion(content, page) {
       '',
       `  <meta name="description" data-i18n-meta="index.description" content="${a(m.description)}">`,
       '  <link rel="canonical" href="https://codex.promo/">',
+      '  <link rel="alternate" hreflang="x-default" href="https://codex.promo/">',
+      '  <link rel="alternate" hreflang="en"        href="https://codex.promo/">',
+      '  <link rel="alternate" hreflang="ru"        href="https://codex.promo/?lang=ru">',
       '',
       '  <!-- OpenGraph (absolute URLs required by crawlers) -->',
       '  <meta property="og:url"             content="https://codex.promo/">',
@@ -1260,7 +1287,8 @@ function buildHeadMetaRegion(content, page) {
       '  <meta name="twitter:card"           content="summary_large_image">',
       `  <meta name="twitter:title"          data-i18n-meta="index.twitterTitle" content="${a(m.twitterTitle)}">`,
       `  <meta name="twitter:description"    data-i18n-meta="index.twitterDescription" content="${a(m.twitterDescription)}">`,
-      `  <meta name="twitter:image"          content="${og}">`
+      `  <meta name="twitter:image"          content="${og}">`,
+      `  <meta name="twitter:image:alt"      data-i18n-meta="index.ogImageAlt" content="${a(m.ogImageAlt)}">`
     ].join('\n');
   }
   return [
@@ -1268,6 +1296,9 @@ function buildHeadMetaRegion(content, page) {
     '',
     `  <meta name="description" data-i18n-meta="fa.description" content="${a(m.description)}">`,
     '  <link rel="canonical" href="https://codex.promo/free-assets.html">',
+    '  <link rel="alternate" hreflang="x-default" href="https://codex.promo/free-assets.html">',
+    '  <link rel="alternate" hreflang="en"        href="https://codex.promo/free-assets.html">',
+    '  <link rel="alternate" hreflang="ru"        href="https://codex.promo/free-assets.html?lang=ru">',
     '',
     '  <!-- v0.4 [B5]: OpenGraph (absolute URLs required by crawlers) -->',
     '  <meta property="og:url"             content="https://codex.promo/free-assets.html">',
@@ -1285,7 +1316,8 @@ function buildHeadMetaRegion(content, page) {
     '  <meta name="twitter:card"           content="summary_large_image">',
     `  <meta name="twitter:title"          data-i18n-meta="fa.twitterTitle" content="${a(m.twitterTitle)}">`,
     `  <meta name="twitter:description"    data-i18n-meta="fa.twitterDescription" content="${a(m.twitterDescription)}">`,
-    `  <meta name="twitter:image"          content="${og}">`
+    `  <meta name="twitter:image"          content="${og}">`,
+    `  <meta name="twitter:image:alt"      data-i18n-meta="fa.ogImageAlt" content="${a(m.ogImageAlt)}">`
   ].join('\n');
 }
 
@@ -1316,7 +1348,7 @@ function organizationJsonLd(content) {
     '    "name": "Codex Studio",',
     '    "alternateName": "Codex",',
     '    "url": "https://codex.promo/",',
-    `    "logo": ${j(absoluteAssetUrl(content.metaStrings.ogImages.index))},`,
+    `    "logo": ${j(absoluteAssetUrl(content.metaStrings.ogImages.orgLogo))},`,
     '    "description": "Remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender.",',
     '    "sameAs": [',
     '      "https://t.me/WhiteCatWeb"',
@@ -1448,12 +1480,18 @@ function buildFaJsonLdRegion(content) {
       `          "name": ${j(copy.name)},`,
       `          "description": ${j(copy.description)},`,
       `          "encodingFormat": [${copy.encodingFormat.map(j).join(', ')}],`,
-      `          "contentSize": ${j(item.size)},`,
       '          "license": "https://creativecommons.org/publicdomain/zero/1.0/",',
       '          "isAccessibleForFree": true,',
       `          "thumbnailUrl": ${j(thumbBase ? absoluteAssetUrl(`./assets/cards/${thumbBase}.svg`) : faOg)}${hasDownload ? ',' : ''}`
     ];
-    if (hasDownload) lines.push(`          "contentUrl": ${j(`https://codex.promo/downloads/${item.file}`)}`);
+    // A2-01/E-02/F-03: contentSize + contentUrl only when the archive really
+    // exists in downloads/ — honest structured data (no fabricated "48 MB" for a
+    // missing/stub file). contentSize derived from the real byte count.
+    if (hasDownload) {
+      const faArchiveBytes = fs.statSync(path.join(ROOT, 'downloads', item.file)).size;
+      lines.push(`          "contentSize": ${j(formatBytes(faArchiveBytes))},`);
+      lines.push(`          "contentUrl": ${j(`https://codex.promo/downloads/${item.file}`)}`);
+    }
     lines.push('        }', '      }');
     return lines.join('\n');
   });
@@ -1522,30 +1560,45 @@ function contentLastmod() {
 // first generation must be byte-identical to the hand-written sitemap.
 function buildSitemapXml(content) {
   const images = content.metaStrings.ogImages;
+  // E-01: each logical page gets an EN/x-default <url> AND a ?lang=ru <url>, both
+  // carrying reciprocal xhtml:link alternates so the RU variant is crawl-
+  // discoverable (owner decision: index RU). The EN block stays FIRST with its
+  // image:image so the F1-sitemap-* regex (loc + image:loc in the same <url>,
+  // negative-lookahead on </url>) keeps matching the EN image.
+  const pages = [
+    { base: 'https://codex.promo/', img: absoluteAssetUrl(images.index), title: 'Codex Studio — 3D design portfolio', changefreq: 'weekly', priority: '1.0' },
+    { base: 'https://codex.promo/free-assets.html', img: absoluteAssetUrl(images.fa), title: 'Codex Studio — Free 3D assets catalog', changefreq: 'monthly', priority: '0.7' }
+  ];
+  const ruHref = (base) => base + (base.includes('?') ? '&' : '?') + 'lang=ru';
+  const altLinks = (base) => [
+    `    <xhtml:link rel="alternate" hreflang="x-default" href="${base}"/>`,
+    `    <xhtml:link rel="alternate" hreflang="en" href="${base}"/>`,
+    `    <xhtml:link rel="alternate" hreflang="ru" href="${ruHref(base)}"/>`
+  ];
+  const urlBlock = (loc, page) => [
+    '  <url>',
+    `    <loc>${loc}</loc>`,
+    `    <lastmod>${contentLastmod()}</lastmod>`,
+    `    <changefreq>${page.changefreq}</changefreq>`,
+    `    <priority>${page.priority}</priority>`,
+    ...altLinks(page.base),
+    '    <image:image>',
+    `      <image:loc>${page.img}</image:loc>`,
+    `      <image:title>${page.title}</image:title>`,
+    '    </image:image>',
+    '  </url>'
+  ];
+  const urls = [];
+  for (const page of pages) {
+    urls.push(...urlBlock(page.base, page));          // EN/x-default first
+    urls.push(...urlBlock(ruHref(page.base), page));  // ?lang=ru variant
+  }
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
-    '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
-    '  <url>',
-    '    <loc>https://codex.promo/</loc>',
-    `    <lastmod>${contentLastmod()}</lastmod>`,
-    '    <changefreq>weekly</changefreq>',
-    '    <priority>1.0</priority>',
-    '    <image:image>',
-    `      <image:loc>${absoluteAssetUrl(images.index)}</image:loc>`,
-    '      <image:title>Codex Studio — 3D design portfolio</image:title>',
-    '    </image:image>',
-    '  </url>',
-    '  <url>',
-    '    <loc>https://codex.promo/free-assets.html</loc>',
-    `    <lastmod>${contentLastmod()}</lastmod>`,
-    '    <changefreq>monthly</changefreq>',
-    '    <priority>0.7</priority>',
-    '    <image:image>',
-    `      <image:loc>${absoluteAssetUrl(images.fa)}</image:loc>`,
-    '      <image:title>Codex Studio — Free 3D assets catalog</image:title>',
-    '    </image:image>',
-    '  </url>',
+    '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"',
+    '        xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    ...urls,
     '</urlset>',
     ''
   ].join('\n');

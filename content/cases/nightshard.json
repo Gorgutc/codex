@@ -64,7 +64,7 @@
       {
         "label": {
           "en": "Texture sheets",
-          "ru": "Texture sheets"
+          "ru": "Текстурные карты"
         },
         "desc": {
           "en": "Albedo, roughness, metalness, normal and AO maps. Baked from 8M-poly high source.",

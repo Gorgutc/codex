@@ -301,6 +301,22 @@ function runStaticChecks() {
           : `linked=${faContentUrls.length} (expected(content) ${FA_CURATED_DOWNLOADS})`,
       missingFaDownloads.length === 0 && FA_CURATED_DOWNLOADS === 0);
 
+  // A2-01/E-02/F-03: honest contentSize — a size is advertised on exactly the
+  // curated JSON-LD models whose archive exists in downloads/, and every sized
+  // model also carries a downloads/ contentUrl (no size-without-archive). Mirror
+  // of F1-jsonld-contenturl-files; skips (pass) on a fully degraded catalog.
+  const faModels = faJsonLdNodes
+    .flatMap(node => Array.isArray(node.itemListElement) ? node.itemListElement.map(entry => entry && entry.item) : [])
+    .filter(Boolean);
+  const faSized = faModels.filter(model => typeof model.contentSize === 'string' && model.contentSize.trim());
+  const faSizedHasUrl = faSized.every(model => /https:\/\/codex\.promo\/downloads\//.test(String(model.contentUrl || '')));
+  add('static', 'F1-jsonld-contentsize-files',
+      faSized.length === FA_CURATED_DOWNLOADS && faSizedHasUrl,
+      FA_CURATED_DOWNLOADS === 0
+        ? 'skipped: no curated assets with archives in downloads/'
+        : `sized=${faSized.length} (expected(content) ${FA_CURATED_DOWNLOADS})`,
+      FA_CURATED_DOWNLOADS === 0);
+
   // Fix #3 (XSS/visibility batch): keep the FA_JSONLD_COPY_IDS mirror honest.
   // The emitted ItemList fragments (#<id>) must equal the copy-filtered curated
   // ids in content order. If the generator's FA_JSONLD_COPY gains/loses a key

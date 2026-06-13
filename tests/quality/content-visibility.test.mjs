@@ -288,7 +288,8 @@ function caseLocalesSection(i18n) {
     const meta = sandbox.readJson('meta.json');
     meta.ogImages = {
       index: './assets/img/og-image-aaaaaaaa.jpg',
-      fa: './assets/img/og-free-assets-aaaaaaaa.jpg'
+      fa: './assets/img/og-free-assets-aaaaaaaa.jpg',
+      orgLogo: './assets/favicon/apple-touch-icon.png'
     };
     sandbox.writeJson('meta.json', meta);
 
@@ -296,8 +297,10 @@ function caseLocalesSection(i18n) {
     if (result.status !== 0) fail('--write must succeed after a cache-busted ogImages update', result.output);
 
     const html = sandbox.readOut('index.html');
-    if (!html.includes('"logo": "https://codex.promo/assets/img/og-image-aaaaaaaa.jpg"')) {
-      fail('the Organization logo must follow ogImages.index');
+    // E-06: Organization.logo follows ogImages.orgLogo (a dedicated square brand
+    // asset), NOT the cache-busted index OG image.
+    if (!html.includes('"logo": "https://codex.promo/assets/favicon/apple-touch-icon.png"')) {
+      fail('the Organization logo must follow ogImages.orgLogo');
     }
     const fa = sandbox.readOut('free-assets.html');
     if (!fa.includes('"primaryImageOfPage": "https://codex.promo/assets/img/og-free-assets-aaaaaaaa.jpg"')) {

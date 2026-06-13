@@ -25,8 +25,9 @@ var FA_DATA = {
         '4K PBR textures',
         'Normal map'
       ],
-      size: '48 MB',
       file: 'orbital-mk-ii.zip',
+      hasFile: true,
+      size: '412 B',
       bg: 'linear-gradient(135deg,#1e2d3d 0,#2a3a4a 100%)'
     },
     {
@@ -41,8 +42,9 @@ var FA_DATA = {
         'Modular pieces',
         '4K textures'
       ],
-      size: '93 MB',
       file: 'vega-shell.zip',
+      hasFile: true,
+      size: '355 B',
       bg: 'linear-gradient(135deg,#1a2030 0,#252e40 100%)'
     },
     {
@@ -57,8 +59,9 @@ var FA_DATA = {
         '2K textures',
         'Wire renders'
       ],
-      size: '55 MB',
       file: 'ironclad-frame.zip',
+      hasFile: true,
+      size: '359 B',
       bg: 'linear-gradient(135deg,#1c2428 0,#28343a 100%)'
     },
     {
@@ -74,8 +77,9 @@ var FA_DATA = {
         'GeoNodes setup',
         '2K textures'
       ],
-      size: '31 MB',
       file: 'bolt-cluster.zip',
+      hasFile: true,
+      size: '357 B',
       bg: 'linear-gradient(135deg,#1e2428 0,#2a3038 100%)'
     },
     {
@@ -91,8 +95,9 @@ var FA_DATA = {
         'GeoNodes',
         '4K tileable textures'
       ],
-      size: '182 MB',
       file: 'terra-base.zip',
+      hasFile: true,
+      size: '354 B',
       bg: 'linear-gradient(135deg,#1c2030 0,#28303e 100%)'
     },
     {
@@ -108,8 +113,9 @@ var FA_DATA = {
         '3 skin variants',
         '4K PBR'
       ],
-      size: '103 MB',
       file: 'shard-cannon.zip',
+      hasFile: true,
+      size: '358 B',
       bg: 'linear-gradient(135deg,#1a1a2a 0,#252535 100%)'
     },
     {
@@ -125,8 +131,9 @@ var FA_DATA = {
         'Emissive variant',
         '4K PBR'
       ],
-      size: '76 MB',
       file: 'wraith-blade.zip',
+      hasFile: true,
+      size: '358 B',
       bg: 'linear-gradient(135deg,#1e1a28 0,#2a2438 100%)'
     },
     {
@@ -142,8 +149,9 @@ var FA_DATA = {
         '2K textures',
         'README'
       ],
-      size: '67 MB',
       file: 'apex-frame.zip',
+      hasFile: true,
+      size: '412 B',
       bg: 'linear-gradient(135deg,#202428 0,#2c3034 100%)'
     }
   ],
@@ -161,8 +169,9 @@ var FA_DATA = {
         '4K textures',
         'Render settings'
       ],
-      size: '112 MB',
       file: 'corten-series.zip',
+      hasFile: true,
+      size: '412 B',
       bg: 'linear-gradient(135deg,#2a2018 0,#3a2e22 100%)'
     },
     {
@@ -177,8 +186,9 @@ var FA_DATA = {
         'Material lib',
         '4K renders'
       ],
-      size: '74 MB',
       file: 'lumen-one.zip',
+      hasFile: true,
+      size: '356 B',
       bg: 'linear-gradient(135deg,#1e2428 0,#2c3640 100%)'
     },
     {
@@ -193,8 +203,9 @@ var FA_DATA = {
         'Studio rig',
         '4K textures'
       ],
-      size: '88 MB',
       file: 'flux-capsule.zip',
+      hasFile: true,
+      size: '358 B',
       bg: 'linear-gradient(135deg,#1e2030 0,#282a40 100%)'
     },
     {
@@ -210,8 +221,9 @@ var FA_DATA = {
         'Compositor',
         '4K renders'
       ],
-      size: '118 MB',
       file: 'echo-shell.zip',
+      hasFile: true,
+      size: '355 B',
       bg: 'linear-gradient(135deg,#1e2024 0,#282830 100%)'
     },
     {
@@ -227,8 +239,9 @@ var FA_DATA = {
         'Night lighting',
         '4K renders'
       ],
-      size: '145 MB',
       file: 'prism-lab.zip',
+      hasFile: true,
+      size: '356 B',
       bg: 'linear-gradient(135deg,#1c2030 0,#282a40 100%)'
     }
   ],
@@ -245,8 +258,9 @@ var FA_DATA = {
         '4K PBR textures',
         'AO map'
       ],
-      size: '89 MB',
       file: 'nightshard.zip',
+      hasFile: true,
+      size: '412 B',
       bg: 'linear-gradient(135deg,#1a1a2a 0,#252535 100%)'
     },
     {
@@ -261,8 +275,9 @@ var FA_DATA = {
         '4K PBR textures',
         'LOD 0–2'
       ],
-      size: '61 MB',
       file: 'recon-drone.zip',
+      hasFile: true,
+      size: '357 B',
       bg: 'linear-gradient(135deg,#1c2030 0,#28303e 100%)'
     },
     {
@@ -278,8 +293,9 @@ var FA_DATA = {
         'Emissive variant',
         '4K PBR'
       ],
-      size: '76 MB',
       file: 'wraith-blade.zip',
+      hasFile: true,
+      size: '358 B',
       bg: 'linear-gradient(135deg,#1e1a28 0,#2a2438 100%)'
     },
     {
@@ -295,8 +311,9 @@ var FA_DATA = {
         '3 skin variants',
         '4K PBR'
       ],
-      size: '103 MB',
       file: 'shard-cannon.zip',
+      hasFile: true,
+      size: '358 B',
       bg: 'linear-gradient(135deg,#1a1a2a 0,#252535 100%)'
     }
   ],
@@ -313,8 +330,9 @@ var FA_DATA = {
         'Fur groom',
         '4K textures'
       ],
-      size: '156 MB',
       file: 'nyx-panther.zip',
+      hasFile: true,
+      size: '358 B',
       bg: 'linear-gradient(135deg,#1a1816 0,#2a2520 100%)'
     },
     {
@@ -329,8 +347,9 @@ var FA_DATA = {
         'Swim cycle',
         '4K textures'
       ],
-      size: '128 MB',
       file: 'drift-koi.zip',
+      hasFile: true,
+      size: '357 B',
       bg: 'linear-gradient(135deg,#161e24 0,#1f2a34 100%)'
     },
     {
@@ -345,8 +364,9 @@ var FA_DATA = {
         'Rig',
         '4K textures'
       ],
-      size: '97 MB',
       file: 'glint-owl.zip',
+      hasFile: true,
+      size: '355 B',
       bg: 'linear-gradient(135deg,#1a1a22 0,#262632 100%)'
     }
   ],
@@ -363,8 +383,9 @@ var FA_DATA = {
         'MP4 render',
         '4K output'
       ],
-      size: '340 MB',
       file: 'helix-reveal.zip',
+      hasFile: true,
+      size: '357 B',
       bg: 'linear-gradient(135deg,#1a2233 0,#26304a 100%)'
     },
     {
@@ -379,8 +400,9 @@ var FA_DATA = {
         'MP4 render',
         'HDRI'
       ],
-      size: '210 MB',
       file: 'arc-motion.zip',
+      hasFile: true,
+      size: '357 B',
       bg: 'linear-gradient(135deg,#1f1a2a 0,#2a2438 100%)'
     }
   ],
@@ -397,8 +419,9 @@ var FA_DATA = {
         '.f3d source',
         'Assembly notes'
       ],
-      size: '38 MB',
       file: 'mech-link.zip',
+      hasFile: true,
+      size: '357 B',
       bg: 'linear-gradient(135deg,#1d232a 0,#2a3138 100%)'
     },
     {
@@ -413,8 +436,9 @@ var FA_DATA = {
         'Parametric notes',
         'Renders'
       ],
-      size: '29 MB',
       file: 'flex-spine.zip',
+      hasFile: true,
+      size: '357 B',
       bg: 'linear-gradient(135deg,#21272d 0,#2e353c 100%)'
     },
     {
@@ -429,8 +453,9 @@ var FA_DATA = {
         '.step',
         'Tech docs'
       ],
-      size: '33 MB',
       file: 'cad-strut.zip',
+      hasFile: true,
+      size: '356 B',
       bg: 'linear-gradient(135deg,#1f2429 0,#2b3138 100%)'
     }
   ]

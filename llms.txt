@@ -35,21 +35,26 @@ views:
 
 Full list: see the sidebar on https://codex.promo/
 
+## Free Assets
+
+`free-assets.html` is a free CC0 3D-asset catalog: hard surface,
+game-ready, product, organic, animation, and CAD models, each
+downloadable as a ZIP archive. Browse the catalog at
+https://codex.promo/free-assets.html
+
 ## Technical
 
 - Hand-written HTML + CSS + vanilla JavaScript. No framework.
 - Typography: Clash Display + General Sans (Fontshare).
 - Animation: GSAP 3 (ScrollTrigger, SplitText) self-hosted in `js/vendor/`.
 - Accessibility: WCAG 2.1 AA target, `prefers-reduced-motion` honored,
-  44px touch targets. Current verification budget allows one known
-  index axe issue; free-assets is axe-clean.
+  44px touch targets. Both index and free-assets pass automated axe checks.
 - Sitemap: https://codex.promo/sitemap.xml
 - Robots: https://codex.promo/robots.txt
 
 ## Contact
 
 - Telegram: https://t.me/WhiteCatWeb
-- ArtStation / Behance: pending real profile URLs
 
 ## Usage permissions
 
@@ -59,4 +64,4 @@ case texts or reusing imagery.
 
 ## Last updated
 
-2026-04-19
+2026-06-13

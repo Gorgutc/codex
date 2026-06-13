@@ -29,6 +29,11 @@
   RedirectMatch 404 ^/(package\.json|package-lock\.json|cspell\.json|netlify\.toml|lefthook\.yml|lighthouserc\.cjs|verify-frozen\.js|eslint\.config\.mjs|stylelint\.config\.mjs|dependency-cruiser\.config\.cjs|playwright\.config\.mjs|knip\.json)$
 </IfModule>
 
+# ── E-19/F-05: branded error page (served for real 404s AND the RedirectMatch
+# 404 rules above; Beget honors ErrorDocument host-wide). 404.html is CSP-safe
+# (no inline script), so the strict CSP below applies cleanly. ──
+ErrorDocument 404 /404.html
+
 # ── C-04: security headers ───────────────────────────────────────────────
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"

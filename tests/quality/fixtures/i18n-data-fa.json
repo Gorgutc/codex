@@ -227,74 +227,74 @@
       }
     },
     "ru": {
-      "skipToContent": "Skip to content",
+      "skipToContent": "Перейти к содержимому",
       "aria": {
-        "projectsNavigator": "Projects navigator",
-        "freeAssetsNavigator": "Free assets navigator",
-        "sidebarFooter": "Sidebar footer",
-        "preloaderLoading": "Loading",
-        "codexBackFirst": "Codex — back to first project",
-        "codexBackPortfolio": "Codex — back to portfolio",
-        "codexHome": "Codex — home",
-        "contactTelegram": "Contact via Telegram",
-        "langToggleEn": "Switch language to English",
-        "langToggleRu": "Switch language to Russian",
-        "switchToLight": "Switch to light theme",
-        "switchToDark": "Switch to dark theme",
-        "hideProjectsPanel": "Hide projects panel",
-        "hideCategoriesPanel": "Hide categories panel",
-        "filterByDiscipline": "Filter by discipline",
-        "filterByCategory": "Filter by category",
-        "disciplines": "Disciplines",
-        "categories": "Categories",
-        "projectList": "Project list",
-        "assetCategories": "Asset categories",
-        "visualizationMode": "Visualization mode",
-        "projectNavigation": "Project navigation",
-        "projectGallery": "Project gallery",
-        "projectBlueprint": "Project blueprint",
-        "project3dViewer": "Project 3D viewer",
-        "projectCaseStudy": "Project case study",
-        "backToProjects": "Back to projects",
-        "backToCategories": "Back to categories",
-        "prevProject": "Previous project",
-        "nextProject": "Next project",
-        "copyLink": "Copy link to this project",
-        "exportBlueprintSvg": "Export blueprint as SVG",
-        "openBlueprintFullscreen": "Open blueprint fullscreen",
-        "backToPortfolio": "Back to Portfolio",
-        "freeAssetsView": "Free assets",
+        "projectsNavigator": "Навигатор по проектам",
+        "freeAssetsNavigator": "Навигатор по бесплатным ассетам",
+        "sidebarFooter": "Подвал боковой панели",
+        "preloaderLoading": "Загрузка",
+        "codexBackFirst": "Codex — к первому проекту",
+        "codexBackPortfolio": "Codex — назад в портфолио",
+        "codexHome": "Codex — на главную",
+        "contactTelegram": "Связаться через Telegram",
+        "langToggleEn": "Переключить язык на английский",
+        "langToggleRu": "Переключить язык на русский",
+        "switchToLight": "Переключить на светлую тему",
+        "switchToDark": "Переключить на тёмную тему",
+        "hideProjectsPanel": "Скрыть панель проектов",
+        "hideCategoriesPanel": "Скрыть панель категорий",
+        "filterByDiscipline": "Фильтр по дисциплине",
+        "filterByCategory": "Фильтр по категории",
+        "disciplines": "Дисциплины",
+        "categories": "Категории",
+        "projectList": "Список проектов",
+        "assetCategories": "Категории ассетов",
+        "visualizationMode": "Режим визуализации",
+        "projectNavigation": "Навигация по проекту",
+        "projectGallery": "Галерея проекта",
+        "projectBlueprint": "Чертёж проекта",
+        "project3dViewer": "3D-просмотр проекта",
+        "projectCaseStudy": "Кейс проекта",
+        "backToProjects": "Назад к проектам",
+        "backToCategories": "Назад к категориям",
+        "prevProject": "Предыдущий проект",
+        "nextProject": "Следующий проект",
+        "copyLink": "Скопировать ссылку на проект",
+        "exportBlueprintSvg": "Экспортировать чертёж в SVG",
+        "openBlueprintFullscreen": "Открыть чертёж на полный экран",
+        "backToPortfolio": "Назад в портфолио",
+        "freeAssetsView": "Бесплатные ассеты",
         "downloadTerms": "Условия скачивания"
       },
       "title": {
-        "contactTelegram": "Contact · Telegram",
-        "toggleTheme": "Toggle theme",
-        "switchLanguage": "Switch language",
-        "copyLink": "Copy link to this project",
-        "interactive3d": "Interactive 3D viewer",
-        "technicalBlueprint": "Technical blueprint view",
-        "prevProjectKey": "Previous project (←)",
-        "nextProjectKey": "Next project (→)",
-        "fullscreen": "Fullscreen",
-        "backToPortfolio": "Back to Portfolio",
-        "gameSwitchTitle": "Filter the current category to game-ready assets only (does not switch category)"
+        "contactTelegram": "Контакт · Telegram",
+        "toggleTheme": "Переключить тему",
+        "switchLanguage": "Переключить язык",
+        "copyLink": "Скопировать ссылку на проект",
+        "interactive3d": "Интерактивный 3D-просмотр",
+        "technicalBlueprint": "Технический чертёж",
+        "prevProjectKey": "Предыдущий проект (←)",
+        "nextProjectKey": "Следующий проект (→)",
+        "fullscreen": "Полный экран",
+        "backToPortfolio": "Назад в портфолио",
+        "gameSwitchTitle": "Отфильтровать текущую категорию только до game-ready ассетов (не меняет категорию)"
       },
       "btn": {
-        "contact": "Contact",
-        "hideProjects": "Hide projects",
-        "hideCategories": "Hide categories",
-        "enterSite": "ENTER SITE",
+        "contact": "Контакт",
+        "hideProjects": "Скрыть проекты",
+        "hideCategories": "Скрыть категории",
+        "enterSite": "ВОЙТИ НА САЙТ",
         "copyLink": "СКОПИРОВАТЬ",
-        "exportSvg": "Export SVG",
-        "gameAssetsOnly": "Game assets only",
-        "gameSwitchHint": "Filters the current category to game-ready assets only",
-        "backProjects": "Projects",
-        "backCategories": "Categories"
+        "exportSvg": "Экспорт SVG",
+        "gameAssetsOnly": "Только game-ready",
+        "gameSwitchHint": "Фильтрует текущую категорию только до game-ready ассетов",
+        "backProjects": "Проекты",
+        "backCategories": "Категории"
       },
       "pill": {
-        "contact": "Contact",
+        "contact": "Контакт",
         "freeAssets": "Free Assets",
-        "portfolio": "Portfolio"
+        "portfolio": "Портфолио"
       },
       "preloader": {
         "studio": "CODEX_STUDIO",
@@ -303,16 +303,16 @@
         "initializing": "INITIALIZING ASSETS"
       },
       "filter": {
-        "placeholderDiscipline": "Filter by discipline",
-        "placeholderCategory": "Filter by category",
-        "all": "All",
+        "placeholderDiscipline": "Фильтр по дисциплине",
+        "placeholderCategory": "Фильтр по категории",
+        "all": "Все",
         "hardSurface": "Hard Surface",
-        "product": "Product",
+        "product": "Продукт",
         "productViz": "Product Viz",
         "organic": "Organic",
-        "prototyping": "Prototyping",
-        "animations": "Animations",
-        "animation": "Animation",
+        "prototyping": "Прототипирование",
+        "animations": "Анимации",
+        "animation": "Анимация",
         "gameAssets": "Game Assets",
         "cad": "CAD"
       },
@@ -393,51 +393,51 @@
         "hardSurface": {
           "title": "Hard Surface",
           "cat": "Hard Surface",
-          "desc": "Props, weapons, armour. AAA-ready topology.",
+          "desc": "Пропы, оружие, броня. AAA-ready топология.",
           "format": ".blend .fbx",
           "count": "8 assets",
-          "alt": "Hard Surface assets preview"
+          "alt": "Превью Hard Surface ассетов"
         },
         "product": {
           "title": "Product Visualization",
           "cat": "Product Viz",
-          "desc": "Studio scenes, lighting rigs, camera setups.",
+          "desc": "Студийные сцены, световые риги, настройки камер.",
           "format": ".blend",
           "count": "5 assets",
-          "alt": "Product Viz preview"
+          "alt": "Превью Product Viz"
         },
         "game": {
           "title": "Game-Ready",
           "cat": "Game Assets",
-          "desc": "Optimised props with LODs and 4K PBR maps.",
+          "desc": "Оптимизированные пропы с LOD и 4K PBR-картами.",
           "format": ".fbx LOD 0–2",
           "count": "4 assets",
-          "alt": "Game Assets preview",
+          "alt": "Превью Game Assets",
           "badge": "Game"
         },
         "organic": {
           "title": "Organic",
           "cat": "Organic",
-          "desc": "Sculpted creatures, fur grooms, rigs.",
+          "desc": "Скульпт-существа, груминг шерсти, риги.",
           "format": ".blend rig",
           "count": "3 assets",
-          "alt": "Organic preview"
+          "alt": "Превью Organic"
         },
         "animation": {
           "title": "Animation",
           "cat": "Animation",
-          "desc": "Turntables, reveal loops, camera paths.",
+          "desc": "Тёрнтейблы, reveal-лупы, пути камер.",
           "format": ".blend .mp4",
           "count": "2 assets",
-          "alt": "Animation preview"
+          "alt": "Превью Animation"
         },
         "cad": {
           "title": "CAD",
           "cat": "CAD",
-          "desc": "Parametric assemblies, print-ready geometry.",
+          "desc": "Параметрические сборки, geometry под печать.",
           "format": ".blend .step .stl",
           "count": "3 assets",
-          "alt": "CAD preview"
+          "alt": "Превью CAD"
         }
       }
     }
@@ -469,26 +469,26 @@
     },
     "ru": {
       "index": {
-        "title": "Codex — 3D Design Studio · Hard Surface & Product Visualization",
-        "description": "Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.",
-        "ogTitle": "Codex — 3D Design Studio",
-        "ogDescription": "Hard surface modeling, product viz, and 3D prototyping for global clients. Remote. Detail-driven. Blender-native.",
+        "title": "Codex — студия 3D-дизайна · Hard Surface и продуктовая визуализация",
+        "description": "Codex — удалённая студия 3D-дизайна: hard surface моделирование, продуктовая визуализация и game-ready ассеты. Сделано в Blender. Работаем по всему миру.",
+        "ogTitle": "Codex — студия 3D-дизайна",
+        "ogDescription": "Hard surface моделирование, продуктовая визуализация и 3D-прототипирование для клиентов по всему миру. Удалённо. Внимание к деталям. Blender-native.",
         "ogSiteName": "Codex Studio",
-        "ogImageAlt": "Codex Studio — 3D design portfolio",
+        "ogImageAlt": "Codex Studio — портфолио 3D-дизайна",
         "ogLocale": "ru_RU",
-        "twitterTitle": "Codex — 3D Design Studio",
-        "twitterDescription": "Hard surface modeling, product viz, and 3D prototyping for global clients."
+        "twitterTitle": "Codex — студия 3D-дизайна",
+        "twitterDescription": "Hard surface моделирование, продуктовая визуализация и 3D-прототипирование для клиентов по всему миру."
       },
       "fa": {
-        "title": "Free 3D Assets — Codex Studio · Hard Surface, Game-Ready, CC0",
-        "description": "Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0.",
-        "ogTitle": "Free 3D Assets — Codex Studio",
-        "ogDescription": "Hard surface, game-ready, and product 3D assets. Free for personal and commercial use.",
+        "title": "Бесплатные 3D-ассеты — Codex Studio · Hard Surface, Game-Ready, CC0",
+        "description": "Бесплатные 3D-ассеты от Codex Studio. Hard surface модели, game-ready пропы и продуктовые рендеры. Бесплатно для личных и коммерческих проектов по лицензии CC0.",
+        "ogTitle": "Бесплатные 3D-ассеты — Codex Studio",
+        "ogDescription": "Hard surface, game-ready и продуктовые 3D-ассеты. Бесплатно для личного и коммерческого использования.",
         "ogSiteName": "Codex Studio",
-        "ogImageAlt": "Codex Studio — Free 3D Assets",
+        "ogImageAlt": "Codex Studio — бесплатные 3D-ассеты",
         "ogLocale": "ru_RU",
-        "twitterTitle": "Free 3D Assets — Codex Studio",
-        "twitterDescription": "Hard surface, game-ready, and product 3D assets. Free for personal and commercial use."
+        "twitterTitle": "Бесплатные 3D-ассеты — Codex Studio",
+        "twitterDescription": "Hard surface, game-ready и продуктовые 3D-ассеты. Бесплатно для личного и коммерческого использования."
       }
     }
   },
@@ -1506,7 +1506,7 @@
           "body": "Все hero-ассеты доставлены как 6K master-рендеры плюс производные кропы под Shopify, Amazon и paid-social. Color-profile под brand Pantone."
         },
         "inline": {
-          "title": "Containment",
+          "title": "Сдерживание поля",
           "body": "Анимированный shader на ядре читает кастомный gradient-текстуру — без vertex morph, без sim-кеша. Идёт 240 FPS на mid-range GPU."
         }
       },
@@ -1518,7 +1518,7 @@
             "desc": "Hero-оружие под TPS-action. 4K PBR-текстуры, оптимизация под real-time."
           },
           {
-            "label": "Texture sheets",
+            "label": "Текстурные карты",
             "desc": "Albedo, roughness, metalness, normal и AO. Запечены с 8M-poly high-source."
           },
           {
@@ -1819,7 +1819,7 @@
             "desc": "Крупный план bolt-pattern. Retopology-пасс подготовлен для manufacturing-review."
           },
           {
-            "label": "Motion study",
+            "label": "Исследование движения",
             "desc": "Скетч range-of-motion для pivoting-arm. Preview constraint-solver."
           },
           {
@@ -1827,12 +1827,12 @@
             "desc": "Диаграмма деталей под производственное планирование. Допуски размечены в исходном DWG."
           },
           {
-            "label": "Material preview",
+            "label": "Превью материала",
             "desc": "KeyShot-пасс — brushed steel и anodized aluminium-сэмплы."
           }
         ],
         "text": {
-          "title": "CAD production study",
+          "title": "CAD-исследование для продакшена",
           "body": "Параметрический link-chain кейс для CAD-handoff, проверки допусков и render-ready топологии в CAD-категории."
         },
         "inline": {
@@ -1865,7 +1865,7 @@
           }
         ],
         "text": {
-          "title": "Kinematic CAD study",
+          "title": "Кинематический CAD-этюд",
           "body": "Параметрическая spine-система: один driver-угол сгибает каждое ребро, render studies подготовлены под stand и motion-review."
         },
         "inline": {

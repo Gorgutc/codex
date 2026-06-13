@@ -114,7 +114,7 @@
     "inline": {
       "title": {
         "en": "Containment",
-        "ru": "Containment"
+        "ru": "Сдерживание поля"
       },
       "body": {
         "en": "Animated shader on the core reads a custom gradient texture — no vertex morph, no simulation cache. Runs at 240 FPS on mid-range GPUs.",
