@@ -49,7 +49,7 @@ F6 (релизный гейт). Реестр находок и триаж:
 | F4 | SEO, i18n RU, a11y, deploy readiness, 404 | влито частично (PR #49 merged на 6/9 chunk'ов); хвост вынесен в F4-tail |
 | F4-tail | Остаток F4: count→i18n (E-12/A1-12/A2-02), fs-aria (A1-13), empty-state (A1-20/A2-03), удаление `chip.remove`, A2-05, A1-17, E-05, E-15 | готово (PR #50, merged) |
 | F5 | Deferred-фичи: FA-превью админки, Vimeo privacy-hash, motion layout/playback, og-размеры, admin-логотип, скрипт чистки сирот (manual-order — accepted, не трогаем frozen `buildItems`) | готово (draft PR #51, ветка `codex/prod-f5-deferred`) |
-| F6 | Релизный гейт: quality:all, 5-сек тест, прод-чек, go/no-go | в работе |
+| F6 | Релизный гейт: quality:all, 5-сек тест, прод-чек, go/no-go | готово (draft PR, ветка `codex/prod-f6-release-gate`; вердикт — **код GO**, релиз gated на деплое владельца) |
 
 > Сверка с git (2026-06-14, Сессия 6): F4-tail доведён до конца в Сессии 5 и
 > **смержен в main через PR #50** (`7391c82` merge, `9caf06a` feat) — остаток F4
@@ -222,6 +222,42 @@ layout/playback-валидаторы); eslint чисто. Контент не м
 Следующий шаг: F6 (`codex/prod-f6-release-gate`, stacked на F5) — quality:all,
 5-сек тест, lighthouse, прод-чек, go/no-go. Живые проверки CSP/`.htaccess`/превью
 админки — только после ручного деплоя владельца (нет прод-доступа у агента).
+
+### 2026-06-14 — Сессия 6, продолжение: F6 — релизный гейт
+
+Ветка `codex/prod-f6-release-gate` (draft PR, stacked на F5 #51). Полный
+go/no-go отчёт — `docs/agent/prod-review/release-gate.md`. **Вердикт: код GO.**
+
+Прогон `quality:all` поймал **релизный блокер** (для того гейт и нужен):
+`check:a11y` (pa11y/axe 4.11) дал `aria-prohibited-attr` на `free-assets.html` —
+`<footer class="site-footer" aria-label=…>` внутри `<aside>` стал безролевым
+после E-14 (F4 сняла `role="contentinfo"`), а `aria-label` на безролевом
+элементе запрещён. **Не из F5** (F5 не трогала shipped-HTML) — pre-existing на
+main, всплыл на релизном гейте (F6-A11Y-01). Фикс: `role="group"` обеим
+страницам (group — не landmark, разрешает `aria-label`, без проблемы вложенности
+E-14). После фикса check:a11y 0/0, verify 135/135, test:visual без диффов.
+
+Итог гейтов (на F6 с фиксом): `verify` **135/135**; `codex:ship` exit 0;
+`test:admin` 21/21; `test:browser` 6/6; `test:visual` 4/4; `check:a11y` index 0/0
+/ FA 0/0; `check:lighthouse` index perf=83 a11y=95 seo=100 / FA perf=78 a11y=100
+seo=100 (оба PASS, LCP 4.2/5.5s, CLS 0); knip/jscpd/deps/audit чисто. 5-сек:
+shipped-страницы не менялись (кроме footer role — рендер тот же).
+
+**Release gated на действиях владельца** (агент не может): (1) ручной деплой
+репо→Beget — без него `.htaccess`/CSP (F2) не живые; (2) живая проверка
+заголовков/CSP/`/admin/` no-store/404/info-disclosure после деплоя; (3) контент —
+RU-тексты кейсов (сейчас RU=EN), реальные ZIP-архивы и OG/логотип через админку,
+по желанию `clean-orphan-assets.mjs --delete` (5 сирот); (4) OAuth App только при
+возврате на Netlify; (5) мерж стопки draft PR F5 #51 → F6.
+
+Оркестрация F6: workflow `quality:all` (фоном) + точечные перезапуски затронутых
+гейтов после фикса; ревью footer-фикса — verify-frozen + test:visual + a11y
+(shipped-HTML, не GEN-регион; verify-frozen footer-role/aria не пинит, только
+pills count). Технота: lighthouse/pa11y/visual гоняют локальный Chromium —
+работает (EPERM не воспроизвёлся).
+
+Следующий шаг: ревью F6-диффа (footer + report) + Codex adversarial; затем
+draft PR F6, мерж стопки владельцем. **Кампания pre-production закрыта** (R0→F6).
 
 ### 2026-06-13 — Сессия 5 (Claude Code): F4-tail — завершение хвоста F4
 
