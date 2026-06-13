@@ -1560,30 +1560,45 @@ function contentLastmod() {
 // first generation must be byte-identical to the hand-written sitemap.
 function buildSitemapXml(content) {
   const images = content.metaStrings.ogImages;
+  // E-01: each logical page gets an EN/x-default <url> AND a ?lang=ru <url>, both
+  // carrying reciprocal xhtml:link alternates so the RU variant is crawl-
+  // discoverable (owner decision: index RU). The EN block stays FIRST with its
+  // image:image so the F1-sitemap-* regex (loc + image:loc in the same <url>,
+  // negative-lookahead on </url>) keeps matching the EN image.
+  const pages = [
+    { base: 'https://codex.promo/', img: absoluteAssetUrl(images.index), title: 'Codex Studio — 3D design portfolio', changefreq: 'weekly', priority: '1.0' },
+    { base: 'https://codex.promo/free-assets.html', img: absoluteAssetUrl(images.fa), title: 'Codex Studio — Free 3D assets catalog', changefreq: 'monthly', priority: '0.7' }
+  ];
+  const ruHref = (base) => base + (base.includes('?') ? '&' : '?') + 'lang=ru';
+  const altLinks = (base) => [
+    `    <xhtml:link rel="alternate" hreflang="x-default" href="${base}"/>`,
+    `    <xhtml:link rel="alternate" hreflang="en" href="${base}"/>`,
+    `    <xhtml:link rel="alternate" hreflang="ru" href="${ruHref(base)}"/>`
+  ];
+  const urlBlock = (loc, page) => [
+    '  <url>',
+    `    <loc>${loc}</loc>`,
+    `    <lastmod>${contentLastmod()}</lastmod>`,
+    `    <changefreq>${page.changefreq}</changefreq>`,
+    `    <priority>${page.priority}</priority>`,
+    ...altLinks(page.base),
+    '    <image:image>',
+    `      <image:loc>${page.img}</image:loc>`,
+    `      <image:title>${page.title}</image:title>`,
+    '    </image:image>',
+    '  </url>'
+  ];
+  const urls = [];
+  for (const page of pages) {
+    urls.push(...urlBlock(page.base, page));          // EN/x-default first
+    urls.push(...urlBlock(ruHref(page.base), page));  // ?lang=ru variant
+  }
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
-    '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
-    '  <url>',
-    '    <loc>https://codex.promo/</loc>',
-    `    <lastmod>${contentLastmod()}</lastmod>`,
-    '    <changefreq>weekly</changefreq>',
-    '    <priority>1.0</priority>',
-    '    <image:image>',
-    `      <image:loc>${absoluteAssetUrl(images.index)}</image:loc>`,
-    '      <image:title>Codex Studio — 3D design portfolio</image:title>',
-    '    </image:image>',
-    '  </url>',
-    '  <url>',
-    '    <loc>https://codex.promo/free-assets.html</loc>',
-    `    <lastmod>${contentLastmod()}</lastmod>`,
-    '    <changefreq>monthly</changefreq>',
-    '    <priority>0.7</priority>',
-    '    <image:image>',
-    `      <image:loc>${absoluteAssetUrl(images.fa)}</image:loc>`,
-    '      <image:title>Codex Studio — Free 3D assets catalog</image:title>',
-    '    </image:image>',
-    '  </url>',
+    '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"',
+    '        xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    ...urls,
     '</urlset>',
     ''
   ].join('\n');
