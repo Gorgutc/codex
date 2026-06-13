@@ -573,6 +573,13 @@ function validateMetaImages(violations, metaStrings) {
       );
     }
   }
+  // E-06: Organization.logo — square brand asset (>=112x112), validated like the
+  // og images (present on disk + image extension) but with no basename convention.
+  const orgLogo = images.orgLogo;
+  checkAssetFile(violations, `${where}: ogImages.orgLogo`, orgLogo);
+  if (isNonEmptyString(orgLogo) && !/\.(jpg|jpeg|png|webp)$/i.test(orgLogo)) {
+    violations.push(`${where}: ogImages.orgLogo must be a .jpg/.jpeg/.png/.webp image ("${orgLogo}")`);
+  }
   // og:locale is emitted verbatim and pinned by verify-frozen.js A6-og-locale
   // (en_US|ru_RU): a free-form locale passes the generic non-empty check and
   // only fails at verify time with auto-revert (prod-review F1, finding D-04).
@@ -1260,6 +1267,9 @@ function buildHeadMetaRegion(content, page) {
       '',
       `  <meta name="description" data-i18n-meta="index.description" content="${a(m.description)}">`,
       '  <link rel="canonical" href="https://codex.promo/">',
+      '  <link rel="alternate" hreflang="x-default" href="https://codex.promo/">',
+      '  <link rel="alternate" hreflang="en"        href="https://codex.promo/">',
+      '  <link rel="alternate" hreflang="ru"        href="https://codex.promo/?lang=ru">',
       '',
       '  <!-- OpenGraph (absolute URLs required by crawlers) -->',
       '  <meta property="og:url"             content="https://codex.promo/">',
@@ -1277,7 +1287,8 @@ function buildHeadMetaRegion(content, page) {
       '  <meta name="twitter:card"           content="summary_large_image">',
       `  <meta name="twitter:title"          data-i18n-meta="index.twitterTitle" content="${a(m.twitterTitle)}">`,
       `  <meta name="twitter:description"    data-i18n-meta="index.twitterDescription" content="${a(m.twitterDescription)}">`,
-      `  <meta name="twitter:image"          content="${og}">`
+      `  <meta name="twitter:image"          content="${og}">`,
+      `  <meta name="twitter:image:alt"      data-i18n-meta="index.ogImageAlt" content="${a(m.ogImageAlt)}">`
     ].join('\n');
   }
   return [
@@ -1285,6 +1296,9 @@ function buildHeadMetaRegion(content, page) {
     '',
     `  <meta name="description" data-i18n-meta="fa.description" content="${a(m.description)}">`,
     '  <link rel="canonical" href="https://codex.promo/free-assets.html">',
+    '  <link rel="alternate" hreflang="x-default" href="https://codex.promo/free-assets.html">',
+    '  <link rel="alternate" hreflang="en"        href="https://codex.promo/free-assets.html">',
+    '  <link rel="alternate" hreflang="ru"        href="https://codex.promo/free-assets.html?lang=ru">',
     '',
     '  <!-- v0.4 [B5]: OpenGraph (absolute URLs required by crawlers) -->',
     '  <meta property="og:url"             content="https://codex.promo/free-assets.html">',
@@ -1302,7 +1316,8 @@ function buildHeadMetaRegion(content, page) {
     '  <meta name="twitter:card"           content="summary_large_image">',
     `  <meta name="twitter:title"          data-i18n-meta="fa.twitterTitle" content="${a(m.twitterTitle)}">`,
     `  <meta name="twitter:description"    data-i18n-meta="fa.twitterDescription" content="${a(m.twitterDescription)}">`,
-    `  <meta name="twitter:image"          content="${og}">`
+    `  <meta name="twitter:image"          content="${og}">`,
+    `  <meta name="twitter:image:alt"      data-i18n-meta="fa.ogImageAlt" content="${a(m.ogImageAlt)}">`
   ].join('\n');
 }
 
@@ -1333,7 +1348,7 @@ function organizationJsonLd(content) {
     '    "name": "Codex Studio",',
     '    "alternateName": "Codex",',
     '    "url": "https://codex.promo/",',
-    `    "logo": ${j(absoluteAssetUrl(content.metaStrings.ogImages.index))},`,
+    `    "logo": ${j(absoluteAssetUrl(content.metaStrings.ogImages.orgLogo))},`,
     '    "description": "Remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender.",',
     '    "sameAs": [',
     '      "https://t.me/WhiteCatWeb"',

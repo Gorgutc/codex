@@ -1,7 +1,8 @@
 {
   "ogImages": {
     "index": "./assets/img/og-image.jpg",
-    "fa": "./assets/img/og-free-assets.jpg"
+    "fa": "./assets/img/og-free-assets.jpg",
+    "orgLogo": "./assets/favicon/apple-touch-icon.png"
   },
   "structuredData": {
     "featuredWorks": [
