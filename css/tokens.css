@@ -4,6 +4,7 @@
 ═══════════════════════════════════ */
 :root,
 [data-theme="dark"] {
+  color-scheme: dark;
   /* Surface */
   --color-bg:               #212121;
   --color-surface:          #2a2a2a;
@@ -123,6 +124,7 @@
 
 /* Light mode (v0.13.8 — усилены divider/border/surface-offset для видимости; текстовые токены не трогаем) */
 [data-theme="light"] {
+  color-scheme: light;
   --color-bg:              #f5f5f5;
   --color-surface:         #ffffff;
   --color-surface-2:       #ebebeb;  /* было #f0f0f0 — 1.05:1 vs bg, карточка сливалась → 1.09:1 (декоративный стек, не UI-line) */

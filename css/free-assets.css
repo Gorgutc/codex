@@ -361,6 +361,22 @@
   }
 }
 
+/* prod-review F3 (B-07/B-14): visually-hidden live-region для скринридеров.
+   Announcer (.media-fs__announcer) создаётся main.js на ОБЕИХ страницах, но
+   FA-сабсет .media-fs не наследовал sr-only из portfolio-case.css. Паттерн
+   зеркалит shared .sr-only. */
+.media-fs__announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Badge */
 .fa-card__badge {
   position: absolute;
@@ -442,7 +458,8 @@
     color 160ms var(--ease-out),
     background 160ms var(--ease-out);
 }
-.fa-card:hover .fa-card__hint {
+.fa-card:hover .fa-card__hint,
+.fa-card:focus-within .fa-card__hint {
   background: var(--color-primary-highlight);
   border-color: var(--color-primary);
   color: var(--color-text);
@@ -705,9 +722,8 @@
 
 /* ── Mobile: show fa-view when sidebar is collapsed ── */
 @media (max-width: 767px) {
-  /* Default: show sidebar (layout), hide main-area (asset view) */
-  .main-area { display: none; }
-
+  /* prod-review F3 (B-15): дубль удалён — .main-area{display:none} уже приходит
+     из shared.css (тот же @media max-width:767px, грузится раньше на FA). */
   /* When collapsed: main-area is vertical column — bar on top, fa-view fills rest */
   body.cards-collapsed .main-area {
     display: flex;

@@ -716,7 +716,9 @@
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--color-primary);
+  /* prod-review F3 (B-16): текстовый акцент через WCAG-токен (было
+     --color-primary — 3.1:1 dark / 4.07:1 light, ниже AA для мелкого caps). */
+  color: var(--color-accent-text);
   margin: 0;
 }
 .case-text__meta {
@@ -898,10 +900,6 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
-.bp-export-btn[disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 .bp-export-btn__icon {
   width: 14px;
   height: 14px;
@@ -909,7 +907,7 @@
   color: currentColor;
 }
 .bp-export-btn__label { line-height: 1; }
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .bp-export-btn { min-height: 44px; padding: 10px 14px; }
 }
 
@@ -1274,7 +1272,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: var(--space-5);
+  padding: var(--space-6);
   text-align: center;
 }
 .case-3d__fallback-icon {

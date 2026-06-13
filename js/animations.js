@@ -398,6 +398,13 @@ if (typeof SplitText !== 'undefined') {
       // Сохраняем оригинал для скринридера — SplitText оборачивает буквы в <span>.
       // Обновляем каждый раз, т.к. при next/prev-кейсе main.js меняет textContent.
       caseTitle.setAttribute('aria-label', caseTitle.textContent.trim());
+      // v0.x [A2-13]: при быстрой next/prev-навигации предыдущий gsap.from(chars)
+      // ещё активен и тикает по осиротевшим char-спанам. Убиваем прошлый твин
+      // перед созданием нового SplitText.
+      if (caseTitle.__charsTween) {
+        caseTitle.__charsTween.kill();
+        caseTitle.__charsTween = null;
+      }
       // ВАЖНО: НЕ вызываем __split.revert() — main.js уже заменил textContent,
       // старые чар-спаны удалены. revert() вернул бы старый текст и перезаписал
       // только что поставленный. Новый SplitText сплитит текущий текст с нуля.
@@ -407,7 +414,7 @@ if (typeof SplitText !== 'undefined') {
         wordsClass: 'case-title__word'
       });
       caseTitle.__split = split;
-      gsap.from(split.chars, {
+      caseTitle.__charsTween = gsap.from(split.chars, {
         yPercent: 100,
         opacity: 0,
         duration: 0.7,
@@ -416,6 +423,7 @@ if (typeof SplitText !== 'undefined') {
         onComplete: function () {
           // Очищаем inline-стили, но split оставляем — revert при следующем открытии
           gsap.set(split.chars, { clearProps: 'transform,opacity' });
+          caseTitle.__charsTween = null;
         }
       });
     }
@@ -524,17 +532,33 @@ if (typeof SplitText !== 'undefined') {
     if (!typewriterEls.length) return;
     var CHAR_DELAY = 30;
     typewriterEls.forEach(function (el) {
-      var original = el.textContent;
-      if (!original) return;
-      el.textContent = '';
+      if (!el.textContent) return;
+      // v0.x [A2-12] (+review F3): pause/clear/capture ВНУТРИ IO — в момент
+      // начала печати. Пока узел off-screen, он остаётся переводимым (walker
+      // обновит footer.statsIndex при смене языка), поэтому печатается уже
+      // актуальный язык — без вспышки старого и без «залипания» в паузе
+      // у нераскрытого футера. data-i18n-pause держим только на время самой
+      // печати (тот же контракт, что у COPY-LINK); по завершении снимаем паузу
+      // и переприменяем язык — чтобы смена в середине печати доехала переводом.
       var io = new IntersectionObserver(function (entries, obs) {
         entries.forEach(function (entry) {
           if (!entry.isIntersecting) return;
           obs.unobserve(entry.target);
+          var original = el.textContent;
+          if (!original) return;
+          el.setAttribute('data-i18n-pause', '');
+          el.textContent = '';
           var i = 0;
           (function step() {
             el.textContent = original.slice(0, i);
-            if (i++ < original.length) setTimeout(step, CHAR_DELAY);
+            if (i++ < original.length) {
+              setTimeout(step, CHAR_DELAY);
+            } else {
+              el.removeAttribute('data-i18n-pause');
+              if (window.I18N && typeof window.I18N.applyLang === 'function') {
+                window.I18N.applyLang(window.I18N.getLang());
+              }
+            }
           })();
         });
       }, { threshold: 0.1 });
