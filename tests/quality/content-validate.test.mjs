@@ -62,6 +62,9 @@ try {
   const orbital = readJson('cases/orbital-mk-ii.json');
   orbital.case.motionBlocks[0].src = './assets/cases/orbital-mk-ii/missing-loop.webm'; // not on disk
   orbital.case.motionBlocks[1].vimeoId = 'not-digits'; // invalid Vimeo id
+  orbital.case.motionBlocks[1].vimeoHash = 'bad hash!'; // F5: invalid privacy hash (non-alphanumeric)
+  orbital.case.motionBlocks[2].layout = 'tall'; // F5: layout not in {wide,half}
+  orbital.case.motionBlocks[3].playback = 'loud'; // F5: playback not in {ambient,controlled}
   writeJson('cases/orbital-mk-ii.json', orbital);
 
   const ui = readJson('i18n-ui.json');
@@ -101,6 +104,9 @@ try {
     'must not contain ".." segments',
     'missing-loop.webm',
     'must be a string of digits ("not-digits")',
+    'must be a string of alphanumeric characters ("bad hash!")',
+    'layout: must be "wide" or "half" ("tall")',
+    'playback: must be "ambient" or "controlled" ("loud")',
     'key "skipToContent" exists in en but not in ru',
     'duplicate id',
     'file name does not match id "apex-frame"',

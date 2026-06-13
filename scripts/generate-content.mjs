@@ -245,8 +245,21 @@ function validateMotionBlock(violations, where, block) {
     if (typeof block.vimeoId !== 'string' || !/^\d+$/.test(block.vimeoId)) {
       violations.push(`${where}.vimeoId: must be a string of digits ("${block.vimeoId}")`);
     }
+    // F5: optional privacy hash for unlisted videos (vimeo.com/<id>/<hash>). Same
+    // alphanumeric shape the runtime safeVimeoHash (/^[a-z0-9]+$/i) accepts.
+    if ('vimeoHash' in block && (typeof block.vimeoHash !== 'string' || !/^[A-Za-z0-9]+$/.test(block.vimeoHash))) {
+      violations.push(`${where}.vimeoHash: must be a string of alphanumeric characters ("${block.vimeoHash}")`);
+    }
   } else {
     violations.push(`${where}.source: must be "local" or "vimeo" ("${block.source}")`);
+  }
+  // F5: layout/playback are now editable in admin → enforce the strict enums the
+  // renderer consumes (layout drives wide/half rows, playback drives controls).
+  if ('layout' in block && block.layout !== 'wide' && block.layout !== 'half') {
+    violations.push(`${where}.layout: must be "wide" or "half" ("${block.layout}")`);
+  }
+  if ('playback' in block && block.playback !== 'ambient' && block.playback !== 'controlled') {
+    violations.push(`${where}.playback: must be "ambient" or "controlled" ("${block.playback}")`);
   }
   if ('poster' in block) checkAssetFile(violations, `${where}.poster`, block.poster);
   if (!hasLocalePair(block.label) || !hasLocalePair(block.desc)) {
@@ -799,7 +812,7 @@ function applySparse(target, diff) {
 /* ── js/cards-data.js ────────────────────────────────────────────────────── */
 
 const MEDIA_FORMATS = ['wide', 'tall', 'tall', 'wide', 'tall'];
-const MOTION_KEYS = ['source', 'layout', 'playback', 'src', 'vimeoId', 'poster', 'title'];
+const MOTION_KEYS = ['source', 'layout', 'playback', 'src', 'vimeoId', 'vimeoHash', 'poster', 'title'];
 
 function buildCaseEntry(c) {
   const cs = c.case;

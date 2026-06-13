@@ -66,7 +66,27 @@
       warnBytes: 200 * KB,
       warnText: 'тяжелее 200 КБ — превью в соцсетях будет грузиться медленнее',
       blockBytes: 2 * MB,
-      blockText: 'OG-изображения тяжелее 2 МБ не публикуем'
+      blockText: 'OG-изображения тяжелее 2 МБ не публикуем',
+      // F5: целевые размеры превью для мягкой проверки соотношения сторон.
+      ogWidth: 1200,
+      ogHeight: 630,
+      dimTolerance: 0.04
+    },
+    // F5: логотип организации (Organization.logo / JSON-LD) — КВАДРАТНЫЙ брендовый
+    // ассет. Целевых OG-размеров у правила НЕТ намеренно, поэтому проверка
+    // соотношения сторон ~1200×630 для логотипа не выполняется (см. stageMedia).
+    orgLogo: {
+      exts: ['jpg', 'jpeg', 'png', 'webp'],
+      mimes: ['image/jpeg', 'image/png', 'image/webp'],
+      accept: '.jpg,.jpeg,.png,.webp',
+      formatLabel: 'JPG, PNG или WebP',
+      warnBytes: 200 * KB,
+      warnText: 'тяжелее 200 КБ — логотип будет грузиться медленнее',
+      blockBytes: 2 * MB,
+      blockText: 'логотип тяжелее 2 МБ не публикуем',
+      // F5: логотип ожидается квадратным → мягкая проверка соотношения сторон.
+      square: true,
+      dimTolerance: 0.1
     },
     video: {
       exts: ['webm'],
@@ -404,6 +424,27 @@
   //                      free-assets: имя файла без папки и расширения —
   //                      конвенция thumb/model в content/free-assets.json).
   // Возвращает { assetPath, objectURL, size, warning|null, unchanged }.
+  // F5: читает реальные пиксельные размеры картинки из её байтов (Image-декод),
+  // тихо возвращает null при ошибке декода — предупреждение никогда не блокирует.
+  function readImageDimensions(mime, bytes) {
+    return new Promise((resolve) => {
+      try {
+        const url = URL.createObjectURL(new Blob([bytes], { type: mime || '' }));
+        const img = new Image();
+        img.onload = () => {
+          const w = img.naturalWidth;
+          const h = img.naturalHeight;
+          URL.revokeObjectURL(url);
+          resolve({ width: w, height: h });
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+        img.src = url;
+      } catch (_e) {
+        resolve(null);
+      }
+    });
+  }
+
   async function stageMedia(filePath, dotPath, kind, namingPath, currentPath, file, valueMode) {
     const rule = MEDIA_RULES[kind];
     const ext = assertUploadAllowed(rule, file);
@@ -442,14 +483,36 @@
       size: file.size,
       objectURL
     });
+    let warning = file.size > rule.warnBytes ? 'Файл ' + formatBytes(file.size) + ' — ' + rule.warnText + '.' : null;
+    // F5: для слотов с ЦЕЛЕВЫМ размером (OG-картинки) читаем реальные пиксели и
+    // мягко предупреждаем, если соотношение далеко от целевого ~1200×630 (превью
+    // в соцсетях обрежется). Не блокирует публикацию. У квадратного логотипа
+    // (rule.orgLogo) целевых размеров нет → проверка соотношения не выполняется.
+    if (rule.ogWidth && rule.ogHeight) {
+      const dim = await readImageDimensions(file.type, bytes);
+      if (dim) {
+        const target = rule.ogWidth / rule.ogHeight;
+        const aspect = dim.height ? dim.width / dim.height : 0;
+        if (dim.width < 600 || !aspect || Math.abs(aspect / target - 1) > rule.dimTolerance) {
+          const dimWarn = 'Изображение ' + dim.width + '×' + dim.height + ' — рекомендуем ~' +
+            rule.ogWidth + '×' + rule.ogHeight + ' для корректного превью в соцсетях.';
+          warning = warning ? warning + ' ' + dimWarn : dimWarn;
+        }
+      }
+    } else if (rule.square) {
+      // F5: логотип организации — квадратный; мягко предупреждаем при сильном
+      // отклонении от 1:1 (не блокирует публикацию).
+      const dim = await readImageDimensions(file.type, bytes);
+      if (dim && dim.height) {
+        const aspect = dim.width / dim.height;
+        if (Math.abs(aspect - 1) > rule.dimTolerance) {
+          const dimWarn = 'Изображение ' + dim.width + '×' + dim.height + ' — рекомендуем квадратный логотип.';
+          warning = warning ? warning + ' ' + dimWarn : dimWarn;
+        }
+      }
+    }
     notify();
-    return {
-      assetPath,
-      objectURL,
-      size: file.size,
-      warning: file.size > rule.warnBytes ? 'Файл ' + formatBytes(file.size) + ' — ' + rule.warnText + '.' : null,
-      unchanged: false
-    };
+    return { assetPath, objectURL, size: file.size, warning, unchanged: false };
   }
 
   function getMediaEdit(filePath, dotPath) {
@@ -551,6 +614,18 @@
     if (/^\d+$/.test(raw)) return raw;
     const match = raw.match(/^(?:https?:\/\/)?(?:www\.)?(?:player\.)?vimeo\.com\/(?:[a-z][\w-]*\/)*?(\d+)(?:[/?#].*)?$/i);
     return match ? match[1] : '';
+  }
+
+  /* ── Vimeo privacy hash (unlisted: vimeo.com/<id>/<hash> или ?h=<hash>) ─
+     Клиентский разбор URL, без Vimeo API. Bare-id → '' (нет хеша). */
+
+  function parseVimeoHash(input) {
+    const raw = String(input || '').trim();
+    if (/^\d+$/.test(raw)) return '';
+    const pathForm = raw.match(/vimeo\.com\/\d+\/([A-Za-z0-9]+)/i);
+    if (pathForm) return pathForm[1];
+    const queryForm = raw.match(/[?&]h=([A-Za-z0-9]+)/i);
+    return queryForm ? queryForm[1] : '';
   }
 
   /* ── валидация (зеркало validateContent для редактируемых полей) ─── */
@@ -677,6 +752,15 @@
               message: where + ': Vimeo ID должен состоять только из цифр — вставьте ссылку на ролик или его ID'
             });
           }
+          // F5: приватный hash unlisted-ролика (vimeo.com/<id>/<hash>) — зеркало
+          // generate-content.mjs validateMotionBlock (/^[A-Za-z0-9]+$/).
+          if ('vimeoHash' in block && (typeof block.vimeoHash !== 'string' || !/^[A-Za-z0-9]+$/.test(block.vimeoHash))) {
+            errors.push({
+              path,
+              field: dotBase + '.vimeoHash',
+              message: where + ': приватный hash Vimeo — только латинские буквы и цифры (vimeo.com/<id>/<hash>)'
+            });
+          }
         } else if (block.source === 'local') {
           if (!isAssetPath(block.src) || !/\.webm$/i.test(block.src)) {
             errors.push({
@@ -694,6 +778,13 @@
         }
         if ('poster' in block && !isAssetPath(block.poster)) {
           errors.push({ path, field: dotBase + '.poster', message: where + ': постер должен лежать внутри ./assets/' });
+        }
+        // F5: layout/playback теперь редактируются → строгие enum (зеркало генератора).
+        if ('layout' in block && block.layout !== 'wide' && block.layout !== 'half') {
+          errors.push({ path, field: dotBase + '.layout', message: where + ': раскладка должна быть «wide» (широкий ряд) или «half» (половина)' });
+        }
+        if ('playback' in block && block.playback !== 'ambient' && block.playback !== 'controlled') {
+          errors.push({ path, field: dotBase + '.playback', message: where + ': режим воспроизведения должен быть «ambient» (фон) или «controlled» (с управлением)' });
         }
       });
     }
@@ -1081,6 +1172,16 @@
           });
         }
       }
+      // F5: логотип организации (Organization.logo) ОБЯЗАТЕЛЕН — JSON-LD генератора
+      // разыменовывает ogImages.orgLogo безусловно. Путь внутри ./assets/ и
+      // растровый формат, без конвенции имени (зеркало validateMetaImages).
+      if (!isAssetPath(images.orgLogo) || !/\.(jpg|jpeg|png|webp)$/i.test(images.orgLogo)) {
+        errors.push({
+          path,
+          field: 'ogImages.orgLogo',
+          message: 'Логотип организации: нужен JPG, PNG или WebP внутри ./assets/'
+        });
+      }
       // prod-review F2 (C-MIRROR D-04): зеркало enum-проверки ogLocale.
       for (const lang of ['en', 'ru']) {
         for (const page of ['index', 'fa']) {
@@ -1273,6 +1374,7 @@
     getEffectiveValue,
     mediaPendingCount,
     parseVimeoId,
+    parseVimeoHash,
     // итерация G: превью
     previewDraft
   };

@@ -1091,7 +1091,7 @@
         ]),
         el('p', {
           className: 'hint',
-          text: 'Предпросмотр для Free Assets пока не поддерживается — проверяйте изменения на сайте после публикации.'
+          text: 'Нажмите «Предпросмотр» вверху — каталог соберётся с черновиком (видимость, порядок, тексты). Замена 3D-превью и постеров видна только после публикации.'
         }),
         el('p', {
           className: 'hint',
@@ -1416,7 +1416,7 @@
         ]),
         el('p', {
           className: 'hint',
-          text: 'Предпросмотр для Free Assets пока не поддерживается — проверяйте изменения на сайте после публикации.'
+          text: 'Нажмите «Предпросмотр» вверху — каталог соберётся с черновиком (видимость, порядок, тексты). Замена 3D-превью и постеров видна только после публикации.'
         }),
         el('div', {}, sections)
       ])
@@ -1437,6 +1437,25 @@
     ]);
   }
 
+  // F5: строгий enum-<select> для motion-полей (layout/playback), редактируемых
+  // владельцем. data-field позволяет inline-ошибке валидатора привязаться к полю.
+  function enumSelect(path, dotBase, field, current, fallback, options) {
+    const select = el('select', { 'data-field': path + '::' + dotBase + '.' + field },
+      options.map((o) => el('option', { value: o.value, text: o.text })));
+    // Легаси/ручной out-of-enum значение: добавляем его опцией, чтобы <select> не
+    // показывал молча первый вариант (UI-vs-state ложь) — владелец видит реальное
+    // значение, валидатор его пометит. На чистом контенте эта ветка спит.
+    if (current && !options.some((o) => o.value === current)) {
+      select.appendChild(el('option', { value: current, text: current + ' — недопустимо' }));
+    }
+    select.value = current || fallback;
+    select.addEventListener('change', () => {
+      State.setValue(path, dotBase + '.' + field, select.value);
+      clearFieldError(select);
+    });
+    return el('div', {}, [el('label', { text: field }), select]);
+  }
+
   /* ── motion-блок: источник local/vimeo, файлы, Vimeo ID ──────────── */
 
   function vimeoIdField(path, dotBase) {
@@ -1448,6 +1467,7 @@
 
     function showParsed(raw) {
       const parsed = State.parseVimeoId(raw);
+      const hash = State.parseVimeoHash(raw);
       if (!raw.trim()) {
         confirmLine.hidden = true;
         return parsed;
@@ -1455,7 +1475,7 @@
       confirmLine.hidden = false;
       if (parsed) {
         confirmLine.classList.remove('vimeo-confirm--bad');
-        confirmLine.textContent = 'Распознан ID: ' + parsed;
+        confirmLine.textContent = 'Распознан ID: ' + parsed + (hash ? ' · приватный hash: ' + hash : '');
       } else {
         confirmLine.classList.add('vimeo-confirm--bad');
         confirmLine.textContent = 'Не похоже на Vimeo ID или ссылку vimeo.com';
@@ -1464,8 +1484,20 @@
     }
 
     input.addEventListener('input', () => {
-      const parsed = showParsed(input.value);
-      State.setValue(path, dotBase + '.vimeoId', parsed || input.value.trim());
+      const raw = input.value;
+      const parsed = showParsed(raw);
+      State.setValue(path, dotBase + '.vimeoId', parsed || raw.trim());
+      // F5: приватный hash (unlisted) пишем/чистим ТОЛЬКО при вводе URL vimeo.com.
+      // Ввод голого ID hash НЕ трогает: опечатка в цифрах не должна безвозвратно
+      // терять hash. Смена источника на local чистит hash (см. sourceSelect). Это
+      // оставляет узкий край (другой unlisted-ролик голым ID сохранит старый hash),
+      // но unlisted всегда вставляют ПОЛНОЙ ссылкой vimeo.com/<id>/<hash>, где
+      // ветка ниже корректно переустановит/снимет hash.
+      if (/vimeo\.com/i.test(raw)) {
+        const hash = State.parseVimeoHash(raw);
+        if (hash) State.setValue(path, dotBase + '.vimeoHash', hash);
+        else if (State.getValue(path, dotBase + '.vimeoHash')) State.deleteValue(path, dotBase + '.vimeoHash');
+      }
       clearFieldError(input);
     });
     showParsed(input.value);
@@ -1474,7 +1506,7 @@
     wrap.appendChild(input);
     wrap.appendChild(confirmLine);
     wrap.appendChild(
-      el('p', { className: 'hint', text: 'Подойдёт любая ссылка vimeo.com или просто цифровой ID ролика.' })
+      el('p', { className: 'hint', text: 'Подойдёт любая ссылка vimeo.com или цифровой ID. Для unlisted-ролика вставьте полную ссылку vimeo.com/<id>/<hash> — приватный hash распознается автоматически.' })
     );
     return wrap;
   }
@@ -1494,13 +1526,29 @@
       sourceSelect.value = block.source === 'vimeo' ? 'vimeo' : 'local';
       sourceSelect.addEventListener('change', () => {
         State.setValue(path, dotBase + '.source', sourceSelect.value);
+        // F5: блок либо local, либо vimeo. Чистим поля ДРУГОГО источника, чтобы
+        // приватный Vimeo hash/ID не утёк в публичный cards-data на local-блоке
+        // (оба валидатора проверяют vimeoHash только в ветке source==='vimeo' —
+        // без чистки stale hash прошёл бы), а мёртвый src не висел на vimeo-блоке.
+        if (sourceSelect.value === 'local') {
+          if (State.getValue(path, dotBase + '.vimeoId') !== undefined) State.deleteValue(path, dotBase + '.vimeoId');
+          if (State.getValue(path, dotBase + '.vimeoHash') !== undefined) State.deleteValue(path, dotBase + '.vimeoHash');
+        } else if (State.getValue(path, dotBase + '.src') !== undefined) {
+          State.deleteValue(path, dotBase + '.src');
+        }
         renderBlock();
       });
 
       const tech = el('div', { className: 'motion-block__tech' }, [
         el('div', {}, [el('label', { text: 'source' }), sourceSelect]),
-        readOnlyTech('layout', block.layout || '', 'Управляется раскладкой сайта — не редактируется'),
-        readOnlyTech('playback', block.playback || '', 'Управляется раскладкой сайта — не редактируется')
+        enumSelect(path, dotBase, 'layout', block.layout, 'wide', [
+          { value: 'wide', text: 'wide — широкий ряд' },
+          { value: 'half', text: 'half — половина ряда' }
+        ]),
+        enumSelect(path, dotBase, 'playback', block.playback, 'ambient', [
+          { value: 'ambient', text: 'ambient — фон без управления' },
+          { value: 'controlled', text: 'controlled — кнопка play/pause' }
+        ])
       ]);
       if (block.title) {
         tech.appendChild(readOnlyTech('title', block.title, 'Технический заголовок Vimeo-плеера'));
@@ -1935,6 +1983,26 @@
         );
       }
       sections.push(section);
+    }
+    // F5: логотип организации (Organization.logo / JSON-LD) — одна загрузка, вне
+    // постраничного цикла (ogImages.orgLogo — единое поле, не per-page).
+    const orgLogoPath = entry.draft.ogImages && entry.draft.ogImages.orgLogo;
+    if (orgLogoPath) {
+      sections.push(
+        el('section', { className: 'editor-section' }, [
+          el('h2', { text: 'Логотип организации' }),
+          dropZone({
+            filePath: path,
+            dotPath: 'ogImages.orgLogo',
+            kind: 'orgLogo',
+            namingPath: orgLogoPath,
+            currentPath: orgLogoPath,
+            preview: 'image',
+            label: 'Логотип (Organization.logo в JSON-LD)',
+            hint: 'Квадратная брендовая иконка · JPG, PNG или WebP · до 200 КБ'
+          })
+        ])
+      );
     }
     els.app.replaceChildren(
       el('section', {}, [
