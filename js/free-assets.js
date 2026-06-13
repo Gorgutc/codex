@@ -105,6 +105,21 @@ function catLabelForTag(tag) {
   return (label && label.textContent.trim()) || tag;
 }
 
+// E-12/A2-02 — pluralised, i18n-driven asset count for the FA view. EN output is
+// byte-identical to the previous literal ('N assets' [+ ' (game-only)' when the
+// game filter is on]); RU follows plural rules via I18N.tCount. The inline
+// fallback covers the pre-i18n window before window.I18N is ready.
+function faCountText(n, gameOnly) {
+  var I18N = window.I18N;
+  var base = (I18N && I18N.tCount)
+    ? I18N.tCount('count.assets', n)
+    : n + ' asset' + (n !== 1 ? 's' : '');
+  var suffix = gameOnly
+    ? ((I18N && I18N.t) ? I18N.t('count.assetsGameSuffix') : ' (game-only)')
+    : '';
+  return base + suffix;
+}
+
 function updateHeader(tag) {
   var assets = faData()[tag] || [];
   var catLabel = catLabelForTag(tag);
@@ -112,7 +127,7 @@ function updateHeader(tag) {
   var cntEl  = document.getElementById('fa-view-count');
   var titEl  = document.getElementById('fa-view-title');
   if (catEl) catEl.textContent = catLabel;
-  if (cntEl) cntEl.textContent = assets.length + ' asset' + (assets.length !== 1 ? 's' : '');
+  if (cntEl) cntEl.textContent = faCountText(assets.length, false);
   if (titEl) titEl.textContent = catLabel;
 }
 
@@ -483,7 +498,7 @@ function applyGameFilter() {
 
   var cntEl = document.getElementById('fa-view-count');
   if (cntEl) {
-    cntEl.textContent = visible + ' asset' + (visible !== 1 ? 's' : '') + (on ? ' (game-only)' : '');
+    cntEl.textContent = faCountText(visible, on);
   }
 }
 
@@ -501,9 +516,12 @@ function setGridEmptyState(grid, isEmpty, gameOnly) {
     node.setAttribute('role', 'status');
     grid.appendChild(node);
   }
+  // A2-03/A2-09 — empty-state message routed through i18n (RU follows the active
+  // language); EN fallback stays byte-identical for the pre-i18n window.
+  var I18N = window.I18N;
   node.textContent = gameOnly
-    ? 'No game-ready assets in this category yet.'
-    : 'No assets in this category yet.';
+    ? ((I18N && I18N.t) ? I18N.t('empty.assetsGame') : 'No game-ready assets in this category yet.')
+    : ((I18N && I18N.t) ? I18N.t('empty.assets') : 'No assets in this category yet.');
 }
 
 function rebindGameSwitch() {
@@ -631,6 +649,11 @@ document.addEventListener('DOMContentLoaded', function() {
         descEl.textContent = assets[i].desc;
       }
     }
+    // E-12/A2-02/A2-03 — refresh the asset count and any grid empty-state in the
+    // new language. applyGameFilter recomputes the visible count and re-sets
+    // #fa-view-count + the empty-state from i18n; it is idempotent on the current
+    // filter/hidden state, so DOM, scroll and GLB previews are preserved.
+    if (typeof applyGameFilter === 'function') applyGameFilter();
   });
 
   // v0.4 [N4]: rebind game-switch ПОСЛЕ main.js (который тоже слушает DOMContentLoaded).

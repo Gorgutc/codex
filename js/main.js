@@ -360,7 +360,17 @@
   ══════════════════════════════════ */
   function updateCount(n) {
     if (!countEl) return;
-    countEl.textContent = n + (n === 1 ? ' project' : ' projects');
+    // E-12/A1-12/A2-02 — pluralised, page-aware count routed through i18n. The FA
+    // sidebar lists categories ('N categories'); the portfolio lists projects
+    // ('N projects'). I18N.tCount follows the active language + RU plural rules;
+    // EN output stays byte-identical to the previous literal, and the inline
+    // fallback covers the pre-i18n window before I18N is ready.
+    var I18N = window.I18N;
+    var isFA = !!document.getElementById('fa-grid');
+    var key = isFA ? 'count.categories' : 'count.projects';
+    countEl.textContent = (I18N && I18N.tCount)
+      ? I18N.tCount(key, n)
+      : n + (isFA ? (n === 1 ? ' category' : ' categories') : (n === 1 ? ' project' : ' projects'));
   }
 
   /* ══════════════════════════════════
@@ -1218,6 +1228,13 @@
     }
 
     currentCaseId = id;
+    // A1-17 — a language refresh (i18n:changed) re-opens the SAME case in place so
+    // the translated 2D copy is rebuilt; we preserve the 2D reading position across
+    // the swap (captured here, restored after buildItems). The 3D/blueprint panes
+    // are still rebuilt below: their control aria-labels/titles (viz.*, bp.*) are
+    // set imperatively via I18N.t at build time, so a rebuild is required to
+    // retranslate them — skipping it would freeze those labels in the old language.
+    var __langScroll = (opts.langRefresh && caseScroll && currentViz === '2d') ? caseScroll.scrollTop : 0;
     blueprintBuiltFor = null;                       // v0.10 — сброс кэша blueprint
     model3dBuiltFor = null;                         // v0.11 — сброс кэша 3D
 
@@ -1232,8 +1249,15 @@
     // В некоторых touch-сценариях расчёт scrollTop=0 перекрывался momentum-скроллом,
     // поэтому дублируем через rAF для надёжности. Desktop-логика не затронута.
     var isMobileSwitch = window.matchMedia('(max-width: 767px)').matches;
+    // A1-17 — keep the reading position only on the 2D tab, where #case-scroll is the
+    // visible pane. On the 3D/blueprint tabs #case-scroll is hidden, so its scrollTop
+    // is not the user's position there — fall through to the normal reset path.
+    var __langKeepScroll = opts.langRefresh && currentViz === '2d';
     if (caseScroll) {
-      if (currentViz === '2d') {
+      if (__langKeepScroll) {
+        caseScroll.scrollTop = __langScroll;
+        pendingScrollReset = false;
+      } else if (currentViz === '2d') {
         caseScroll.scrollTop = 0;
         pendingScrollReset = false;
       } else {
@@ -1242,7 +1266,7 @@
         }
         pendingScrollReset = true;
       }
-      if (isMobileSwitch) {
+      if (isMobileSwitch && !__langKeepScroll) {
         // дубль-reset после layout — защита от momentum-scroll на iOS/Android touch-устройствах
         requestAnimationFrame(function () {
           if (caseScroll) caseScroll.scrollTop = 0;
@@ -1252,6 +1276,9 @@
 
     // v0.10 — обновляем счётчик + перерисовываем blueprint если активна
     updateNavCounter();
+    // The active 3D/blueprint pane is rebuilt here even on a language refresh so its
+    // imperatively-set control labels (viz.*, bp.*) get retranslated — A1-17 keeps
+    // the 2D reading position but deliberately does NOT skip this rebuild.
     if (currentViz === 'blueprints') {
       renderBlueprints(id);
     } else if (currentViz === '3d') {
@@ -3568,7 +3595,9 @@
      чтобы не было scrollIntoView и анимаций (visually instantaneous swap). */
   window.addEventListener('i18n:changed', function () {
     if (currentCaseId && typeof openCase === 'function') {
-      openCase(currentCaseId, { skipHashSync: true, initial: true });
+      // A1-17 — re-open in place to apply translated 2D copy without resetting the
+      // scroll position or remounting the 3D viewer.
+      openCase(currentCaseId, { skipHashSync: true, initial: true, langRefresh: true });
     }
     // Phase 4a — refresh aria/labels на JS-driven toggles (state-dependent).
     // Cards-toggle: читаем текущий collapsed-state из body class.
@@ -3584,6 +3613,17 @@
       var fb  = isLight ? 'Switch to dark theme' : 'Switch to light theme';
       __tb.setAttribute('aria-label', (I18N && I18N.t) ? I18N.t(key) : fb);
     }
+    // E-12/A1-12/A2-02 — the count word + plural depend on language (and the page:
+    // 'projects' on index, 'categories' on FA). Recompute the visible count and
+    // re-render it so the label follows the language even when no filter changed.
+    if (countEl) {
+      var __visibleCount = 0;
+      cards.forEach(function (c) { if (!c.hidden) __visibleCount++; });
+      updateCount(__visibleCount);
+    }
+    // A1-13 — refresh fullscreen control labels if the overlay was already built,
+    // so its aria-labels/titles track the language instead of freezing.
+    if (typeof refreshFsLabels === 'function') refreshFsLabels();
   });
 
   /* v0.2.3 [П2] — кнопка COPY LINK (desktop + mobile).
@@ -3708,6 +3748,28 @@
     return btn;
   }
 
+  // A1-13 — re-resolve the fullscreen control labels from i18n. Called when the
+  // overlay is built and again on i18n:changed, so aria-labels/titles follow the
+  // active language instead of freezing on the first-open language. The literal
+  // labels passed at button creation remain as the pre-I18N fallback.
+  function refreshFsLabels() {
+    var I18N = window.I18N;
+    if (!I18N || !I18N.t) return;
+    function set(btn, key, withTitle) {
+      if (!btn) return;
+      var s = I18N.t(key);
+      btn.setAttribute('aria-label', s);
+      if (withTitle) btn.setAttribute('title', s);
+    }
+    set(fsCloseBtn, 'fs.closeFullscreen', true);
+    set(fsPrev, 'fs.previousImage', false);
+    set(fsNext, 'fs.nextImage', false);
+    set(fsZoomOutBtn, 'fs.zoomOut', true);
+    set(fsZoomFitBtn, 'fs.zoomFit', true);
+    set(fsZoomActualBtn, 'fs.zoomActual', true);
+    set(fsZoomInBtn, 'fs.zoomIn', true);
+  }
+
   function ensureFsOverlay() {
     if (fsOverlay) return fsOverlay;
     fsOverlay = document.createElement('div');
@@ -3795,6 +3857,7 @@
     fsOverlay.appendChild(fsAnnouncer);
     fsOverlay.appendChild(fsStage);
     document.body.appendChild(fsOverlay);
+    refreshFsLabels();   // A1-13 — initial control labels in the active language
 
     // Backdrop click: в gallery/blueprint — навигация по половинам, иначе — close.
     fsOverlay.addEventListener('click', function (e) {

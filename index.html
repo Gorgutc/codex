@@ -323,33 +323,33 @@
         <!-- v0.2.1 [П1] — Mobile overlay: перехватывает клики/touch по всему экрану кроме dropdown.
              На desktop (≥768px) — display:none (не влияет). Активируется через [data-open="true"]. -->
         <div class="tags-dropdown__overlay" id="tags-dropdown-overlay" aria-hidden="true"></div>
-        <div class="tags-dropdown__panel" id="tags-dropdown-panel" role="listbox" aria-multiselectable="true" data-i18n-attr="aria-label:aria.disciplines" aria-label="Disciplines" hidden>
+        <div class="tags-dropdown__panel" id="tags-dropdown-panel" role="group" data-i18n-attr="aria-label:aria.disciplines" aria-label="Disciplines" hidden>
           <!-- CODEX:GEN filters BEGIN -->
-          <label class="tags-dropdown__option" role="option">
+          <label class="tags-dropdown__option">
             <input type="checkbox" class="tags-dropdown__checkbox" data-filter="all" data-i18n-attr="aria-label:filter.all" aria-label="All">
             <span class="tags-dropdown__label" data-i18n="filter.all">All</span>
           </label>
-          <label class="tags-dropdown__option" role="option">
+          <label class="tags-dropdown__option">
             <input type="checkbox" class="tags-dropdown__checkbox" data-filter="hard-surface" data-i18n-attr="aria-label:filter.hardSurface" aria-label="Hard Surface">
             <span class="tags-dropdown__label" data-i18n="filter.hardSurface">Hard Surface</span>
           </label>
-          <label class="tags-dropdown__option" role="option">
+          <label class="tags-dropdown__option">
             <input type="checkbox" class="tags-dropdown__checkbox" data-filter="product" data-i18n-attr="aria-label:filter.product" aria-label="Product">
             <span class="tags-dropdown__label" data-i18n="filter.product">Product</span>
           </label>
-          <label class="tags-dropdown__option" role="option">
+          <label class="tags-dropdown__option">
             <input type="checkbox" class="tags-dropdown__checkbox" data-filter="organic" data-i18n-attr="aria-label:filter.organic" aria-label="Organic">
             <span class="tags-dropdown__label" data-i18n="filter.organic">Organic</span>
           </label>
-          <label class="tags-dropdown__option" role="option">
+          <label class="tags-dropdown__option">
             <input type="checkbox" class="tags-dropdown__checkbox" data-filter="prototyping" data-i18n-attr="aria-label:filter.prototyping" aria-label="Prototyping">
             <span class="tags-dropdown__label" data-i18n="filter.prototyping">Prototyping</span>
           </label>
-          <label class="tags-dropdown__option" role="option">
+          <label class="tags-dropdown__option">
             <input type="checkbox" class="tags-dropdown__checkbox" data-filter="animations" data-i18n-attr="aria-label:filter.animations" aria-label="Animations">
             <span class="tags-dropdown__label" data-i18n="filter.animations">Animations</span>
           </label>
-          <label class="tags-dropdown__option" role="option">
+          <label class="tags-dropdown__option">
             <input type="checkbox" class="tags-dropdown__checkbox" data-filter="cad" data-i18n-attr="aria-label:filter.cad" aria-label="CAD">
             <span class="tags-dropdown__label" data-i18n="filter.cad">CAD</span>
           </label>
@@ -616,6 +616,15 @@
           </div>
         </a>
         <!-- CODEX:GEN cards-grid END -->
+
+        <!-- A1-20 — empty-state for a filter combination with zero matches. Hidden
+             by default; shown via body.filter-empty (set in applyFilters). The zero
+             state is announced to assistive tech by the #cards-count aria-live region
+             ("0 projects"); this <p> is the visible explanation for sighted users and
+             carries NO role=status — toggling display on a static-text live region is
+             not reliably announced (NVDA/JAWS/VoiceOver). data-i18n keeps it bilingual.
+             Lives outside the GEN region so content:generate never rewrites it. -->
+        <p class="cards-empty" data-i18n="empty.projects">No projects match these filters yet.</p>
 
       </div><!-- /cards-list -->
     </div><!-- /cards-scroll -->

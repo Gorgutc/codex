@@ -624,6 +624,41 @@ Download у ассетов без файла, llms.txt, JSON-LD numberOfItems, O
 twitter:image:alt, manifest-иконки, кастомный 404, a11y (E-14/E-15), + перенесённые
 A1-12/A1-13/A1-17/A2-05/A2-02/A2-06/A2-15, empty-state i18n, chip.remove cleanup.
 
+## Итерация F4-tail — остаток F4 (2026-06-13)
+
+Ветка `codex/prod-f4-seo-i18n-tail` (PR #49/F4 влит в main на 6/9 chunk'ов;
+хвост закрыт здесь). Детали — `docs/agent/admin-panel/handoff.md`, «Сессия 5».
+Оркестрация: 3 фоновых стража Opus 4.8, workflow `f4-tail-code-review` (7 углов)
+и Codex adversarial.
+
+**Закрыто (fixed F4-tail):**
+
+- **E-12 / A1-12 / A2-02** (+ часть **A2-06 / E-11**): счётчики через i18n —
+  namespace `count.*` (плюрал `Intl.PluralRules`), `tCount`/`faCountText`,
+  FA-ветка «categories», пересчёт на смене языка. EN байт-в-байт.
+- **A1-20 / A2-03**: видимый empty-state (index `.cards-empty` + FA
+  `setGridEmptyState`) через namespace `empty.*`. Озвучивание — `#cards-count`
+  aria-live (без `role=status` на статичном тексте — анти-паттерн).
+- **A1-13**: i18n + refresh aria/title fullscreen-кнопок (`refreshFsLabels`,
+  ключи `fs.zoom*`).
+- **A2-05**: провизорный рендер не штампует `?lang` до settle; `userSettled`-гард.
+- **A1-17**: смена языка при открытом кейсе сохраняет 2D-scroll (`langRefresh`);
+  3D/blueprint пересобирается для перевода aria-лейблов.
+- **E-05**: FA JSON-LD `thumbnailUrl` опускается у ассетов без обложки (нет
+  OG-фолбэка); тесты content-visibility 8/13.
+- **E-15**: дропдаун `role="listbox"`→`role="group"`, сняты `aria-multiselectable`
+  и `role="option"` (нативные чекбоксы).
+- **chip.remove**: мёртвый ключ удалён, `chip` убран из B2-namespaces.
+
+**Принято / не чинится:** **A2-15** (`numberOfItems`=25 — SEO-призрак, дизайн);
+blueprint title-block переводится через rebuild; ремаунт 3D при смене языка
+на 3D-вкладке сохранён (лейблы `viz.*` через `I18N.t`, декаплинг отложен).
+
+**Ревью-фиксы (workflow + Codex):** лишний `i18n:changed` на EN→EN geo-settle
+(редизайн `applyLang`); empty-state `role=status` снят; `langRefresh` scroll
+только на 2D; **Codex P2** — `langRefresh` замораживал JS-лейблы 3D/blueprint →
+rebuild возвращён (A1-17 сужен до сохранения scroll).
+
 ## Окружение
 
 - **ENV-01** (fixed): в worktree не был выполнен `npm install` —

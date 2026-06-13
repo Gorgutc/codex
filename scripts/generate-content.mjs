@@ -1093,8 +1093,11 @@ function filterI18nKey(key) {
 function filterOptionLine(key, i18nKey, label, count) {
   const k = escapeHtmlAttr(key);
   const i18n = escapeHtmlAttr(i18nKey);
+  // E-15: the dropdown is a group of native checkboxes, not an ARIA listbox — a
+  // role="option" must not wrap an interactive control. The panel carries
+  // role="group" + aria-label; each row is a plain <label> around its checkbox.
   const lines = [
-    '          <label class="tags-dropdown__option" role="option">',
+    '          <label class="tags-dropdown__option">',
     `            <input type="checkbox" class="tags-dropdown__checkbox" data-filter="${k}" data-i18n-attr="aria-label:${i18n}" aria-label="${escapeHtmlAttr(label)}">`,
     `            <span class="tags-dropdown__label" data-i18n="${i18n}">${escapeHtmlText(label)}</span>`
   ];
@@ -1470,29 +1473,41 @@ function buildFaJsonLdRegion(content) {
     const copy = FA_JSONLD_COPY[item.id];
     const thumbBase = faEffectiveBase(item, 'thumb');
     const hasDownload = fs.existsSync(path.join(ROOT, 'downloads', item.file));
+    // Build the "item" object's properties as a list joined with commas, so the
+    // optional members (thumbnailUrl, contentSize, contentUrl) compose without
+    // trailing-comma juggling.
+    const itemProps = [
+      '          "@type": "3DModel"',
+      `          "name": ${j(copy.name)}`,
+      `          "description": ${j(copy.description)}`,
+      `          "encodingFormat": [${copy.encodingFormat.map(j).join(', ')}]`,
+      '          "license": "https://creativecommons.org/publicdomain/zero/1.0/"',
+      '          "isAccessibleForFree": true'
+    ];
+    // E-05: advertise a thumbnailUrl only when the asset has a real cover SVG. An
+    // asset with thumb:null no longer borrows the page OG image as a dishonest
+    // thumbnail — it simply carries no thumbnailUrl.
+    if (thumbBase) {
+      itemProps.push(`          "thumbnailUrl": ${j(absoluteAssetUrl(`./assets/cards/${thumbBase}.svg`))}`);
+    }
+    // A2-01/E-02/F-03: contentSize + contentUrl only when the archive really
+    // exists in downloads/ — honest structured data (no fabricated "48 MB" for a
+    // missing/stub file). contentSize derived from the real byte count.
+    if (hasDownload) {
+      const faArchiveBytes = fs.statSync(path.join(ROOT, 'downloads', item.file)).size;
+      itemProps.push(`          "contentSize": ${j(formatBytes(faArchiveBytes))}`);
+      itemProps.push(`          "contentUrl": ${j(`https://codex.promo/downloads/${item.file}`)}`);
+    }
     const lines = [
       '      {',
       '        "@type": "ListItem",',
       `        "position": ${i + 1},`,
       `        "url": ${j(`https://codex.promo/free-assets.html#${item.id}`)},`,
       '        "item": {',
-      '          "@type": "3DModel",',
-      `          "name": ${j(copy.name)},`,
-      `          "description": ${j(copy.description)},`,
-      `          "encodingFormat": [${copy.encodingFormat.map(j).join(', ')}],`,
-      '          "license": "https://creativecommons.org/publicdomain/zero/1.0/",',
-      '          "isAccessibleForFree": true,',
-      `          "thumbnailUrl": ${j(thumbBase ? absoluteAssetUrl(`./assets/cards/${thumbBase}.svg`) : faOg)}${hasDownload ? ',' : ''}`
+      itemProps.join(',\n'),
+      '        }',
+      '      }'
     ];
-    // A2-01/E-02/F-03: contentSize + contentUrl only when the archive really
-    // exists in downloads/ — honest structured data (no fabricated "48 MB" for a
-    // missing/stub file). contentSize derived from the real byte count.
-    if (hasDownload) {
-      const faArchiveBytes = fs.statSync(path.join(ROOT, 'downloads', item.file)).size;
-      lines.push(`          "contentSize": ${j(formatBytes(faArchiveBytes))},`);
-      lines.push(`          "contentUrl": ${j(`https://codex.promo/downloads/${item.file}`)}`);
-    }
-    lines.push('        }', '      }');
     return lines.join('\n');
   });
   return organizationJsonLd(content)

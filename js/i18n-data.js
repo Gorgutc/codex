@@ -138,8 +138,31 @@
         label: 'COPY LINK',
         copied: 'COPIED ✓'
       },
-      chip: {
-        remove: 'Remove'
+      count: {
+        projects: {
+          one: '{n} project',
+          few: '{n} projects',
+          many: '{n} projects',
+          other: '{n} projects'
+        },
+        categories: {
+          one: '{n} category',
+          few: '{n} categories',
+          many: '{n} categories',
+          other: '{n} categories'
+        },
+        assets: {
+          one: '{n} asset',
+          few: '{n} assets',
+          many: '{n} assets',
+          other: '{n} assets'
+        },
+        assetsGameSuffix: ' (game-only)'
+      },
+      empty: {
+        projects: 'No projects match these filters yet.',
+        assets: 'No assets in this category yet.',
+        assetsGame: 'No game-ready assets in this category yet.'
       },
       fs: {
         fullscreenView: 'Fullscreen view',
@@ -150,7 +173,11 @@
         blueprintViewer: 'Blueprint viewer',
         imagePrefix: 'Image',
         blueprintPrefix: 'Blueprint',
-        ofWord: 'of'
+        ofWord: 'of',
+        zoomOut: 'Zoom out',
+        zoomFit: 'Fit to screen',
+        zoomActual: 'Actual size',
+        zoomIn: 'Zoom in'
       },
       motion: {
         play: 'PLAY',
@@ -353,8 +380,31 @@
         label: 'СКОПИРОВАТЬ',
         copied: 'СКОПИРОВАНО ✓'
       },
-      chip: {
-        remove: 'Убрать'
+      count: {
+        projects: {
+          one: '{n} проект',
+          few: '{n} проекта',
+          many: '{n} проектов',
+          other: '{n} проектов'
+        },
+        categories: {
+          one: '{n} категория',
+          few: '{n} категории',
+          many: '{n} категорий',
+          other: '{n} категорий'
+        },
+        assets: {
+          one: '{n} ассет',
+          few: '{n} ассета',
+          many: '{n} ассетов',
+          other: '{n} ассетов'
+        },
+        assetsGameSuffix: ' (только game)'
+      },
+      empty: {
+        projects: 'Под эти фильтры пока нет проектов.',
+        assets: 'В этой категории пока нет ассетов.',
+        assetsGame: 'В этой категории пока нет game-ready ассетов.'
       },
       fs: {
         fullscreenView: 'Полноэкранный режим',
@@ -365,7 +415,11 @@
         blueprintViewer: 'Просмотр чертежа',
         imagePrefix: 'Изображение',
         blueprintPrefix: 'Чертёж',
-        ofWord: 'из'
+        ofWord: 'из',
+        zoomOut: 'Уменьшить',
+        zoomFit: 'Вписать в экран',
+        zoomActual: 'Реальный размер',
+        zoomIn: 'Увеличить'
       },
       motion: {
         play: 'PLAY',
