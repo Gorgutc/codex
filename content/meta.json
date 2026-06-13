@@ -50,26 +50,26 @@
   },
   "ru": {
     "index": {
-      "title": "Codex — 3D Design Studio · Hard Surface & Product Visualization",
-      "description": "Codex is a remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender. Available worldwide.",
-      "ogTitle": "Codex — 3D Design Studio",
-      "ogDescription": "Hard surface modeling, product viz, and 3D prototyping for global clients. Remote. Detail-driven. Blender-native.",
+      "title": "Codex — студия 3D-дизайна · Hard Surface и продуктовая визуализация",
+      "description": "Codex — удалённая студия 3D-дизайна: hard surface моделирование, продуктовая визуализация и game-ready ассеты. Сделано в Blender. Работаем по всему миру.",
+      "ogTitle": "Codex — студия 3D-дизайна",
+      "ogDescription": "Hard surface моделирование, продуктовая визуализация и 3D-прототипирование для клиентов по всему миру. Удалённо. Внимание к деталям. Blender-native.",
       "ogSiteName": "Codex Studio",
-      "ogImageAlt": "Codex Studio — 3D design portfolio",
+      "ogImageAlt": "Codex Studio — портфолио 3D-дизайна",
       "ogLocale": "ru_RU",
-      "twitterTitle": "Codex — 3D Design Studio",
-      "twitterDescription": "Hard surface modeling, product viz, and 3D prototyping for global clients."
+      "twitterTitle": "Codex — студия 3D-дизайна",
+      "twitterDescription": "Hard surface моделирование, продуктовая визуализация и 3D-прототипирование для клиентов по всему миру."
     },
     "fa": {
-      "title": "Free 3D Assets — Codex Studio · Hard Surface, Game-Ready, CC0",
-      "description": "Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders. Free for personal and commercial use under CC0.",
-      "ogTitle": "Free 3D Assets — Codex Studio",
-      "ogDescription": "Hard surface, game-ready, and product 3D assets. Free for personal and commercial use.",
+      "title": "Бесплатные 3D-ассеты — Codex Studio · Hard Surface, Game-Ready, CC0",
+      "description": "Бесплатные 3D-ассеты от Codex Studio. Hard surface модели, game-ready пропы и продуктовые рендеры. Бесплатно для личных и коммерческих проектов по лицензии CC0.",
+      "ogTitle": "Бесплатные 3D-ассеты — Codex Studio",
+      "ogDescription": "Hard surface, game-ready и продуктовые 3D-ассеты. Бесплатно для личного и коммерческого использования.",
       "ogSiteName": "Codex Studio",
-      "ogImageAlt": "Codex Studio — Free 3D Assets",
+      "ogImageAlt": "Codex Studio — бесплатные 3D-ассеты",
       "ogLocale": "ru_RU",
-      "twitterTitle": "Free 3D Assets — Codex Studio",
-      "twitterDescription": "Hard surface, game-ready, and product 3D assets. Free for personal and commercial use."
+      "twitterTitle": "Бесплатные 3D-ассеты — Codex Studio",
+      "twitterDescription": "Hard surface, game-ready и продуктовые 3D-ассеты. Бесплатно для личного и коммерческого использования."
     }
   }
 }

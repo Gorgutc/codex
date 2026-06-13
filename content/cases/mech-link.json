@@ -74,7 +74,7 @@
       {
         "label": {
           "en": "Motion study",
-          "ru": "Motion study"
+          "ru": "Исследование движения"
         },
         "desc": {
           "en": "Range-of-motion sketch for the pivoting arm. Constraint solver preview.",
@@ -94,7 +94,7 @@
       {
         "label": {
           "en": "Material preview",
-          "ru": "Material preview"
+          "ru": "Превью материала"
         },
         "desc": {
           "en": "KeyShot pass — brushed steel and anodized aluminium swatches.",
@@ -105,7 +105,7 @@
     "text": {
       "title": {
         "en": "CAD production study",
-        "ru": "CAD production study"
+        "ru": "CAD-исследование для продакшена"
       },
       "body": {
         "en": "Parametric link-chain case focused on CAD handoff, tolerance review, and render-ready topology for the CAD category.",
