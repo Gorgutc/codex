@@ -47,15 +47,16 @@ F6 (релизный гейт). Реестр находок и триаж:
 | F2 | Security: XSS-фиксы, админ-зеркало валидации, заголовки/CSP | готово (PR #47, merged) |
 | F3 | Рантайм сайта: js/css/HTML фиксы по реестру | готово (PR #48, merged) |
 | F4 | SEO, i18n RU, a11y, deploy readiness, 404 | влито частично (PR #49 merged на 6/9 chunk'ов); хвост вынесен в F4-tail |
-| F4-tail | Остаток F4: count→i18n (E-12/A1-12/A2-02), fs-aria (A1-13), empty-state (A1-20/A2-03), удаление `chip.remove`, A2-05, A1-17, E-05, E-15 | готово (draft PR, ветка `codex/prod-f4-seo-i18n-tail`) |
-| F5 | Deferred-фичи: Vimeo hash, FA-превью, manual-order, чистка ассетов, motion-поля, admin-замена логотипа | не начата |
-| F6 | Релизный гейт: quality:all, 5-сек тест, прод-чек, go/no-go | не начата |
+| F4-tail | Остаток F4: count→i18n (E-12/A1-12/A2-02), fs-aria (A1-13), empty-state (A1-20/A2-03), удаление `chip.remove`, A2-05, A1-17, E-05, E-15 | готово (PR #50, merged) |
+| F5 | Deferred-фичи: FA-превью админки, Vimeo privacy-hash, motion layout/playback, og-размеры, admin-логотип, скрипт чистки сирот (manual-order — accepted, не трогаем frozen `buildItems`) | готово (draft PR #51, ветка `codex/prod-f5-deferred`) |
+| F6 | Релизный гейт: quality:all, 5-сек тест, прод-чек, go/no-go | в работе |
 
-> Сверка с git (2026-06-13, Сессия 5): PR #48 (F3) и PR #49 (F4) **смержены в main**
-> (`6330cbf`, `f81e579`). PR #49 влит на отметке 6/9 chunk'ов — между обновлением
-> handoff (`2bb42fd`) и мержем новых коммитов не было, значит хвост F4 (8 пунктов
-> выше) попал в main **незавершённым**. Кампания продолжается итерациями F4-tail →
-> F5 → F6 стопкой stacked draft PR.
+> Сверка с git (2026-06-14, Сессия 6): F4-tail доведён до конца в Сессии 5 и
+> **смержен в main через PR #50** (`7391c82` merge, `9caf06a` feat) — остаток F4
+> (8 пунктов) теперь в main полностью. F5 реализована в Сессии 6 (draft PR #51).
+> Незакрытым остаётся F6 (релизный гейт). NB: пока шла Сессия 6, CI запушил
+> bot-коммит `922843a chore(content): regenerate site [content-publish]` (только
+> sitemap lastmod) — F5 перебазирована на него.
 
 ## Шаги владельца (требуют ручного участия)
 
@@ -149,6 +150,78 @@ F6 (релизный гейт). Реестр находок и триаж:
   под старыми именами) — отдельная maintenance-задача (итерация E).
 
 ## Журнал сессий
+
+### 2026-06-14 — Сессия 6 (Claude Code): F5 — deferred-фичи
+
+Ветка `codex/prod-f5-deferred` (draft PR #51, на актуальном main `922843a`).
+**Журнал-фикс:** статус-таблица показывала F4-tail как «draft PR», но git
+подтвердил мерж через PR #50 (`7391c82`) — поправлено (см. «Сверка с git»).
+
+**Найденный WIP.** В заброшенном worktree `objective-kapitsa-41e68c` (ветка
+`codex/prod-f5-deferred`) лежал НЕзакоммиченный WIP прошлой сессии: 4 из 5 фич F5
+(Vimeo hash, og-размеры, motion enum, замена логотипа) + новый
+`scripts/clean-orphan-assets.mjs`. Консолидирован в свой worktree через патч
+(чужой worktree не тронут), доделана пятая фича (FA-превью), всё отревьюено.
+
+Отгружено (одним коммитом, по реестру deferred-триажа 2026-06-12):
+
+- **FA-превью админки** (новое, `admin/js/preview.js`): грид рендерит
+  `free-assets.js` из `window.FA_DATA` → подменяем `fa-data.js`+`i18n-data.js`
+  черновиком, пересобираем статичные `fa-filters` + `fa-tag-cards` (видимость+
+  порядок). `admin/index.html` грузит `fa-data.js`; обе заглушки «превью не
+  поддерживается» заменены. Медиа: закоммиченные base-имена honored; pending-
+  загрузки и состояние Download/архива отражают ОПУБЛИКОВАННЫЙ каталог (баннер
+  предупреждает) — pending-blob нельзя показать без правки frozen `free-assets.js`.
+  Новый тест `admin-preview.spec.mjs` (FA: скрытая категория выпадает, грид).
+- **Vimeo privacy-hash** (WIP+правки): `MOTION_KEYS`+='vimeoHash' (генератор и
+  preview-зеркало), `parseVimeoHash`, UI, оба валидатора; рантайм `safeVimeoHash`
+  уже потреблял. `sourceSelect` чистит vimeo-поля при переключении на local
+  (анти-leak приватного hash в публичный cards-data).
+- **motion layout/playback**: enum-`<select>` (`wide`/`half`, `ambient`/
+  `controlled`) вместо read-only, строгие enum в обоих валидаторах; out-of-enum
+  легаси-значение показывается опцией «недопустимо» (не прячется молча).
+- **og-размеры**: чтение пикселей при загрузке, мягкое предупреждение (соцкарта
+  ~1200×630; логотип — отдельное правило `orgLogo`, квадратная проверка).
+- **admin-логотип**: `ogImages.orgLogo` upload-слот на «Мета-тегах» (kind
+  `orgLogo`, без ложного 1200×630-предупреждения); валидатор сделан безусловным
+  (зеркало генератора — JSON-LD разыменовывает orgLogo всегда).
+- **чистка сирот** (`scripts/clean-orphan-assets.mjs`): аудит неиспользуемых
+  файлов `assets/`+`downloads/` (dry-run по умолчанию, защищённый `--delete` —
+  требует чистого дерева, кап 50%/каталог, path-confine). Reference-set из
+  content + ВСЕХ html/js/css (walk по `js/` — ловит HDR в 3D-вьювере) + иконки
+  manifest; false-orphan самотест. Dry-run: 5 настоящих легаси-сирот (85.7 КБ) —
+  оставлены владельцу на ручной `--delete` (триаж: «maintenance-скрипт, ручной
+  запуск»). Не удаляю в PR.
+
+**manual-order seeded-старт / чередование рядов: ACCEPTED** (решение владельца
+2026-06-14) — трогает frozen-тестируемый `buildItems`, итерация F осознанно его
+отвергла; превью (итерация G) и так показывает итоговую раскладку. Не делаем.
+
+**Оркестрация (Opus 4.8):** 3 агента-стража (spec/frozen → SAFE; корректность;
+чистота) + workflow `f5-code-review` (7 finder-углов → verify, 22 находки) +
+Codex adversarial (`codex:rescue`). Все находки затриажены и исправлены:
+(1) **мой же фикс vimeoHash дал регрессию** — удалял hash при опечатке в bare-ID
+безвозвратно (workflow CONFIRMED) → откатан к URL-gated логике + sourceSelect-
+чистка; (2) FA-превью игнорировало закоммиченные draft-правки base-имён
+(preview-fidelity дрейф, 3 ревьюера) → `assignFaMedia` переписан: черновик
+главный, только pending-blob падает на published; (3) enumSelect прятал
+out-of-enum; (4) orphan-скрипт: scan не покрывал весь `js/`, manifest-relative
+иконки, dirty-check только assets/downloads → расширено; (5) orgLogo:
+безусловная валидация + квадратная проверка + честный баннер download/архива.
+
+Гейты: `codex:ship` exit 0 (verify-frozen **135/135**, plugin 37/37, governance 0,
+parity, content:check байт-в-байт, golden 2/2, verify-fatal); `test:admin` 21/21
+(вкл. новый FA-превью); `test:content-validate` (orphan-самотест + vimeoHash/
+layout/playback-валидаторы); eslint чисто. Контент не менялся → golden без
+пересъёмки.
+
+Технота: worktree без `node_modules` — junction на основной репо (как F3);
+`@cspell/dict-ru_ru` отсутствовал в общем node_modules → `npm install --no-save`
+(ENV-01, lock не тронут).
+
+Следующий шаг: F6 (`codex/prod-f6-release-gate`, stacked на F5) — quality:all,
+5-сек тест, lighthouse, прод-чек, go/no-go. Живые проверки CSP/`.htaccess`/превью
+админки — только после ручного деплоя владельца (нет прод-доступа у агента).
 
 ### 2026-06-13 — Сессия 5 (Claude Code): F4-tail — завершение хвоста F4
 
