@@ -46,7 +46,7 @@ F6 (релизный гейт). Реестр находок и триаж:
 | F1 | Контракт: генератор, verify-frozen, golden, валидатор | готово (PR #46, merged) |
 | F2 | Security: XSS-фиксы, админ-зеркало валидации, заголовки/CSP | готово (PR #47, merged) |
 | F3 | Рантайм сайта: js/css/HTML фиксы по реестру | готово (draft PR #48) |
-| F4 | SEO, i18n RU, a11y, deploy readiness, 404 | не начата |
+| F4 | SEO, i18n RU, a11y, deploy readiness, 404 | в работе (draft PR #49, ~6/9 chunk'ов) |
 | F5 | Deferred-фичи: Vimeo hash, FA-превью, manual-order, чистка ассетов, motion-поля | не начата |
 | F6 | Релизный гейт: quality:all, 5-сек тест, прод-чек, go/no-go | не начата |
 
@@ -142,6 +142,54 @@ F6 (релизный гейт). Реестр находок и триаж:
   под старыми именами) — отдельная maintenance-задача (итерация E).
 
 ## Журнал сессий
+
+### 2026-06-13 — Сессия 4, продолжение: F4 — SEO/i18n RU/a11y/deploy (в работе)
+
+Ветка `codex/prod-f4-seo-i18n` (stacked на F3 PR #48), **draft PR #49**.
+План — 4 агента Opus 4.8 (`f4-plan` workflow). Детерминированная инфра
+применялась батчами, gate-green коммиты + push, verify-frozen 134→**135**
+(новый чек `F1-jsonld-contentsize-files`).
+
+Отгружено (коммиты на ветке):
+
+- **Download-hiding + честный размер** (A2-01/E-02/F-03): генератор кладёт
+  `hasFile` в FA_DATA + `formatBytes`, JSON-LD contentSize/contentUrl только
+  при наличии архива; рантайм `free-assets.js` скрывает кнопку при `!hasFile`.
+- **SEO-мета**: hreflang x-default/en/ru (оба head), twitter:image:alt
+  (reuse ogImageAlt), Organization.logo → `ogImages.orgLogo`
+  (apple-touch-icon + валидатор), llms.txt refresh.
+- **sitemap RU**: `?lang=ru` URL + xhtml:link alternates (EN-блок первый —
+  F1-sitemap-* regex зелён).
+- **a11y/deploy**: сняты role=banner/contentinfo (E-14); CSP-safe `404.html`,
+  `.htaccess ErrorDocument`, netlify redirect→/404.html, и /assets cache
+  downgrade (E-18).
+- **RU-перевод** (translation-workflow, 5 агентов): meta 18 строк + i18n-ui
+  83 ключа; тексты кейсов УЖЕ были переведены (E-13). EN-база нетронута
+  (golden cards-data без изменений). NB: i18n-ui-агент по ошибке правил файл
+  ОСНОВНОГО репо — перенесён в worktree, основной восстановлен.
+- **Placeholder-архивы** (запрос владельца): 19 ZIP-заглушек (README внутри)
+  для отсутствовавших файлов → все 25 ассетов показывают рабочий Download,
+  честные размеры; владелец заменит реальными позже (через админку).
+
+Скрытый баг, пойман и исправлен: E-06-валидатор orgLogo ломал self-тест
+`content-visibility` (он НЕ в pre-commit/pre-push, только quality:deep) —
+фикстура дополнена orgLogo + ассерт logo→orgLogo.
+
+**Осталось в F4** (доделать в #49; спеки — в прогоне `f4-plan` workflow):
+экстернализация count-строк (E-12/A1-12/A2-02: «N projects/assets», FA
+«categories») + fs-zoom-лейблы (A1-13) + empty-state i18n + удаление
+dead-ключа `chip.remove` (+ убрать `chip` из B2-namespaces в verify-frozen);
+A2-05 (provisional-lang URL); A1-17 (lang-refresh openCase); E-05 (FA-JSON-LD
+thumbnail honesty + тест content-visibility сценарии 8/13); E-15
+(listbox/option). Затем ревью-workflow + `/code-review` + Codex adversarial.
+
+**Новый запрос владельца (→ F5/admin):** добавить в админку **замену
+логотипа** (сейчас нельзя). `ogImages.orgLogo` теперь content-поле
+(meta.json) — нужен upload-слот на экране «Мета-теги» (admin/js/ui.js +
+state.js, тот же media-flow, что у OG-картинок). **E-08** (manifest-иконки
+192/512/maskable) остаётся отложенным — нет исходной брендовой иконки в этих
+размерах (есть 16/32/180); как появится — генерируем (или после
+admin-замены логотипа владелец зальёт сам).
 
 ### 2026-06-13 — Сессия 4 (Claude Code): F3 — рантайм сайта
 
