@@ -705,6 +705,30 @@ governance 0, parity, content:check байт-в-байт, golden 2/2, verify-fat
 `test:admin` 21/21 (новый FA-превью); `test:content-validate` (orphan-самотест +
 vimeoHash/layout/playback). Контент не менялся → golden без пересъёмки.
 
+## Итерация F6 — релизный гейт (2026-06-14)
+
+Ветка `codex/prod-f6-release-gate` (draft PR, stacked на F5 #51). Полный отчёт
+go/no-go — `release-gate.md`. **Вердикт: код GO**; релиз gated на ручном деплое
+владельца + живой проверке + наполнении контента (агент не может).
+
+**F6-A11Y-01 (fixed)** — релизный блокер, пойманный гейтом: `check:a11y`
+(pa11y/axe 4.11) дал `aria-prohibited-attr` на `free-assets.html` —
+`<footer class="site-footer" aria-label="Sidebar footer">` внутри `<aside>`.
+После E-14 (F4 сняла `role="contentinfo"`) footer безролевой, `aria-label` на нём
+запрещён (и не озвучивается). **Не из F5** (F5 не трогала shipped-HTML),
+pre-existing на main. Фикс: `role="group"` обеим страницам (group — не landmark,
+разрешает `aria-label`, без вложенности landmark'ов E-14). После: check:a11y 0/0,
+verify 135/135, test:visual без диффов.
+
+**Прогон (на F6 с фиксом):** verify **135/135**; codex:ship exit 0; test:admin
+21/21; test:browser 6/6; test:visual 4/4; check:a11y index 0/0 / FA 0/0;
+lighthouse index perf=83 a11y=95 seo=100 / FA perf=78 a11y=100 seo=100 (PASS,
+LCP 4.2/5.5s, CLS 0); knip/jscpd/deps/audit чисто.
+
+**Pending (владелец):** деплой репо→Beget; живая проверка CSP/`.htaccess`/`/admin/`
+no-store/404/info-disclosure; RU-тексты кейсов; реальные ZIP+OG/логотип через
+админку; `clean-orphan-assets.mjs --delete` (5 сирот); мерж стопки F5#51→F6.
+
 ## Окружение
 
 - **ENV-01** (fixed): в worktree не был выполнен `npm install` —
