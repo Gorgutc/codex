@@ -659,6 +659,52 @@ blueprint title-block переводится через rebuild; ремаунт 
 только на 2D; **Codex P2** — `langRefresh` замораживал JS-лейблы 3D/blueprint →
 rebuild возвращён (A1-17 сужен до сохранения scroll).
 
+## Итерация F5 — deferred-фичи (2026-06-14)
+
+Ветка `codex/prod-f5-deferred` (draft PR #51, на main `922843a`). Закрыт
+deferred-лист (триаж выше), кроме помеченного внешней инфраструктурой/решением
+владельца. Консолидирован незакоммиченный WIP прошлой сессии из worktree
+`objective-kapitsa-41e68c` + доделана FA-превью. Подробности — `handoff.md`,
+«Сессия 6».
+
+**Закрыто (fixed F5):**
+
+- **FA не входит в превью** → FA-превью в `admin/js/preview.js` (зеркало
+  генератора: `fa-data`/`i18n-data` подмена + пересборка `fa-filters`/
+  `fa-tag-cards`). Медиа из опубликованного FA_DATA для pending/download (баннер
+  предупреждает), закоммиченные base-имена honored.
+- **Vimeo privacy-hash** → end-to-end (генератор `MOTION_KEYS`, admin, оба
+  валидатора; рантайм уже умел). `sourceSelect` чистит vimeo-поля на local.
+- **layout/playback motion-блоков в админке** → enum-`<select>` + строгие enum.
+- **og:image размеры не проверяются** → чтение пикселей + мягкое предупреждение
+  (соцкарта ~1200×630; логотип — квадрат).
+- **admin-замена логотипа** (запрос владельца F4) → `ogImages.orgLogo` upload-слот,
+  безусловная валидация (зеркало генератора).
+- **Чистка осиротевших ассетов** → `scripts/clean-orphan-assets.mjs` (dry-run +
+  защищённый `--delete`). Найдено 5 легаси-сирот (85.7 КБ) — владельцу на ручной
+  запуск (НЕ удалено в PR, триаж «ручной запуск»).
+
+**Accepted (не делаем):** manual-order seeded-старт и чередование рядов
+(решение владельца 2026-06-14) — трогают frozen `buildItems`, итерация F осознанно
+отвергла; превью закрывает чёрный ящик раскладки.
+
+**Deferred (внешняя инфра/решение владельца):** ZIP-аплоад (нужен S3/R2), Vimeo
+автозагрузка (Vimeo API), откат через UI, GitHub App вместо OAuth scope.
+
+**Ревью F5 (3 агента-стража Opus 4.8 + workflow `/code-review` 7 углов + Codex
+adversarial):** все находки исправлены ДО мержа. Главные: регрессия моего же
+vimeoHash-фикса (потеря hash при опечатке bare-ID) → откат к URL-gated +
+sourceSelect-чистка; preview-fidelity дрейф `assignFaMedia` (игнорировал
+закоммиченные draft-base) → переписан (черновик главный, pending-blob → published);
+enumSelect прятал out-of-enum; orphan-scan не покрывал весь `js/`/manifest-иконки,
+dirty-check только assets/downloads → расширены; orgLogo валидация безусловной +
+квадрат + честный баннер.
+
+**Гейты F5:** `codex:ship` exit 0 (verify-frozen **135/135**, plugin 37/37,
+governance 0, parity, content:check байт-в-байт, golden 2/2, verify-fatal);
+`test:admin` 21/21 (новый FA-превью); `test:content-validate` (orphan-самотест +
+vimeoHash/layout/playback). Контент не менялся → golden без пересъёмки.
+
 ## Окружение
 
 - **ENV-01** (fixed): в worktree не был выполнен `npm install` —

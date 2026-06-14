@@ -152,3 +152,39 @@ test('превью: черновик в iframe — RU-заголовок, скр
   await expect(page.locator('#preview-overlay')).toBeHidden();
   await expect(page.locator('#draft-indicator')).toBeVisible();
 });
+
+test('превью Free Assets (F5): скрытая категория выпадает, грид рендерит черновик', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await expect(page.locator('#topbar')).toBeVisible();
+
+  // 1. Экран Free Assets + черновик: выключаем категорию «organic»
+  await page.click('a[href="#/free-assets"]');
+  await expect(page.locator('#fa-cat-list')).toBeVisible();
+  const HIDDEN_CAT = 'organic';
+  await page.uncheck(`[data-fa-category-toggle="${HIDDEN_CAT}"]`);
+  await expect(page.locator(`.fa-cat[data-fa-category="${HIDDEN_CAT}"]`)).toHaveClass(/fa-cat--off/);
+  await expect(page.locator('#draft-indicator')).toBeVisible();
+
+  // 2. Предпросмотр: настоящий free-assets.html в same-origin iframe
+  await page.click('#preview-btn');
+  await expect(page.locator('#preview-overlay')).toBeVisible();
+  await expect(page.locator('#preview-banner')).toContainText('Free Assets');
+
+  const frame = page.frameLocator('#preview-frame');
+  // Обзор категорий: видимая категория есть, скрытая выпала
+  await expect(frame.locator('a.tag-card[data-tag="hard-surface"]')).toBeAttached();
+  await expect(frame.locator(`a.tag-card[data-tag="${HIDDEN_CAT}"]`)).toHaveCount(0);
+  // Дропдаун фильтров пересобран без скрытой категории
+  await expect(frame.locator(`#tags-dropdown-panel [data-filter="${HIDDEN_CAT}"]`)).toHaveCount(0);
+  // Грид ассетов отрисован из черновичного FA_DATA (стартовая категория)
+  await expect(frame.locator('#fa-grid .fa-card').first()).toBeAttached();
+
+  // 3. «Закрыть» возвращает админку, черновик каталога не потерян
+  await page.click('#preview-close');
+  await expect(page.locator('#preview-overlay')).toBeHidden();
+  await expect(page.locator('#draft-indicator')).toBeVisible();
+});

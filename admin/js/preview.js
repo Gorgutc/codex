@@ -34,10 +34,11 @@
 
   const State = window.AdminState;
   const SETTINGS_PATH = 'content/settings.json';
+  const FA_PATH = 'content/free-assets.json';
   // Зеркало generate-content.mjs: формат слота задан позицией (2 wide + 3 tall),
   // в runtime-запись motion-блока попадают только эти ключи.
   const MEDIA_FORMATS = ['wide', 'tall', 'tall', 'wide', 'tall'];
-  const MOTION_KEYS = ['source', 'layout', 'playback', 'src', 'vimeoId', 'poster', 'title'];
+  const MOTION_KEYS = ['source', 'layout', 'playback', 'src', 'vimeoId', 'vimeoHash', 'poster', 'title'];
 
   const els = {
     openBtn: document.getElementById('preview-btn'),
@@ -49,10 +50,12 @@
     langRu: document.getElementById('preview-lang-ru'),
     vpDesktop: document.getElementById('preview-vp-desktop'),
     vpMobile: document.getElementById('preview-vp-mobile'),
-    close: document.getElementById('preview-close')
+    close: document.getElementById('preview-close'),
+    banner: document.getElementById('preview-banner')
   };
 
   let desiredLang = 'en';
+  const defaultBanner = els.banner ? els.banner.textContent : '';
 
   function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -204,6 +207,27 @@
     return 'filter.' + String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
   }
 
+  // Один <label>-option tags-dropdown (зеркало filterOptionLine генератора;
+  // E-15: без role="option" — option не должен оборачивать интерактив). Общий
+  // для index-фильтров и FA-фильтров (последние добавляют счётчик-span).
+  function tagsDropdownOption(doc, key, i18nKey, label) {
+    const labelEl = doc.createElement('label');
+    labelEl.className = 'tags-dropdown__option';
+    const input = doc.createElement('input');
+    input.setAttribute('type', 'checkbox');
+    input.className = 'tags-dropdown__checkbox';
+    input.setAttribute('data-filter', key);
+    input.setAttribute('data-i18n-attr', 'aria-label:' + i18nKey);
+    input.setAttribute('aria-label', label || '');
+    const span = doc.createElement('span');
+    span.className = 'tags-dropdown__label';
+    span.setAttribute('data-i18n', i18nKey);
+    span.textContent = label || '';
+    labelEl.appendChild(input);
+    labelEl.appendChild(span);
+    return labelEl;
+  }
+
   // Чекбоксы фильтров пересобираются целиком: выключенная категория
   // исчезает, включённая обратно — появляется (в порядке settings.filters).
   function rebuildFilters(doc, model) {
@@ -212,22 +236,7 @@
     for (const label of Array.from(panel.querySelectorAll('label.tags-dropdown__option'))) label.remove();
     for (const filter of model.filters) {
       if (!filter || filter.enabled === false) continue;
-      const label = doc.createElement('label');
-      label.className = 'tags-dropdown__option';
-      label.setAttribute('role', 'option');
-      const input = doc.createElement('input');
-      input.setAttribute('type', 'checkbox');
-      input.className = 'tags-dropdown__checkbox';
-      input.setAttribute('data-filter', filter.key);
-      input.setAttribute('data-i18n-attr', 'aria-label:' + filterI18nKey(filter.key));
-      input.setAttribute('aria-label', filter.label);
-      const span = doc.createElement('span');
-      span.className = 'tags-dropdown__label';
-      span.setAttribute('data-i18n', filterI18nKey(filter.key));
-      span.textContent = filter.label;
-      label.appendChild(input);
-      label.appendChild(span);
-      panel.appendChild(label);
+      panel.appendChild(tagsDropdownOption(doc, filter.key, filterI18nKey(filter.key), filter.label));
     }
   }
 
@@ -374,6 +383,290 @@
     return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
   }
 
+  /* ═══ FREE ASSETS preview (F5) ══════════════════════════════════════════
+     Та же стратегия, что и у index-превью, но для free-assets.html: грид
+     ассетов рендерит js/free-assets.js из window.FA_DATA, поэтому подмена
+     fa-data.js + i18n-data.js черновиком пересобирает каталог; статичный
+     dropdown fa-filters и обзор fa-tag-cards пересобираются из черновика
+     (видимость + порядок). Медиа (thumb/model) берём из ОПУБЛИКОВАННОГО
+     FA_DATA — закоммиченные cache-bust-файлы резолвятся, а pending-загрузка
+     (ещё не на сервере) в превью НЕ видна (об этом говорит баннер). */
+
+  function isFaRoute() {
+    return /^#\/free-assets/.test(window.location.hash || '');
+  }
+
+  // Зеркала generate-content.mjs: faEffectiveBase / faTagKey / faFilterI18nKey.
+  function faTagKey(key) {
+    return 'faTag.' + String(key).replace(/-([a-z])/g, (_m, ch) => ch.toUpperCase());
+  }
+  const FA_FILTER_I18N_SUFFIX = { product: 'productViz', game: 'gameAssets' };
+  function faFilterI18nKey(key) {
+    if (FA_FILTER_I18N_SUFFIX[key]) return 'filter.' + FA_FILTER_I18N_SUFFIX[key];
+    return filterI18nKey(key);
+  }
+
+  // content/free-assets.json (черновик, иначе опубликованный) → видимые
+  // категории с видимыми ассетами (зеркало visibleFaCategories генератора).
+  async function collectFaModel() {
+    let content = State.hasDraft(FA_PATH) ? State.previewDraft(FA_PATH) : null;
+    if (!content) {
+      const res = await fetch('../content/free-assets.json', { cache: 'no-cache' });
+      if (!res.ok) throw new Error('Не удалось загрузить free-assets.json (' + res.status + ')');
+      content = await res.json();
+    }
+    const categories = Array.isArray(content.categories) ? content.categories : [];
+    return categories
+      .filter((c) => c !== null && typeof c === 'object' && c.enabled !== false)
+      .map((c) => ({
+        key: c.key,
+        tagCard: c.tagCard,
+        items: (Array.isArray(c.items) ? c.items : []).filter(
+          (it) => it !== null && typeof it === 'object' && it.enabled !== false
+        )
+      }))
+      .filter((c) => c.items.length > 0);
+  }
+
+  // id → опубликованная запись FA_DATA (плоско по категориям). Опубликованное
+  // медиа указывает на закоммиченные cache-bust-файлы; базовое имя pending-
+  // загрузки 404'ило бы, поэтому медиа превью всегда отсюда.
+  function publishedFaById() {
+    const map = {};
+    const pub = window.FA_DATA || {};
+    for (const key of Object.keys(pub)) {
+      for (const item of pub[key] || []) map[item.id] = item;
+    }
+    return map;
+  }
+
+  // Медиа FA-ассета в превью. Черновик — главный (точно как генератор: thumb/model
+  // эмитятся `if (key in item)` его значением): явное base-имя honored, null
+  // выключает превью, отсутствие ключа → runtime берёт id-default. ИСКЛЮЧЕНИЕ:
+  // pending-загрузка (previewDraft подставляет blob: вместо ещё не существующего
+  // на сервере cache-bust-файла) — показываем СТАРОЕ закоммиченное медиа (pub),
+  // иначе ./assets/cards/blob:….svg сломался бы (баннер про это предупреждает).
+  function assignFaMedia(entry, key, item, pub) {
+    if (key in item && item[key] === null) { entry[key] = null; return; }  // черновик выключил превью
+    if (key in item && typeof item[key] === 'string') {
+      if (/^blob:/i.test(item[key])) {                                     // pending-загрузка (нет на сервере)
+        if (pub && key in pub) entry[key] = pub[key];                      // → старый закоммиченный файл
+        // иначе ключа нет → runtime id-default
+      } else {
+        entry[key] = item[key];                                           // закоммиченное base-имя — верно черновику
+      }
+      return;
+    }
+    // черновик опустил ключ → runtime id-default (точно как генератор)
+  }
+
+  // видимая модель → window.FA_DATA для превью (зеркало buildFaDataJs). hasFile/
+  // size берём из ОПУБЛИКОВАННОЙ записи: их даёт fs.existsSync(downloads/<file>) на
+  // генерации, что браузер синхронно не повторит. Поэтому правка имени архива
+  // (`file`) и состояние кнопки Download в превью отражают опубликованный каталог —
+  // баннер про это предупреждает. Остальные поля — из черновика.
+  function buildFaDataForPreview(visible) {
+    const pubById = publishedFaById();
+    const out = {};
+    for (const cat of visible) {
+      out[cat.key] = cat.items.map((item) => {
+        const pub = pubById[item.id];
+        const entry = { id: item.id };
+        assignFaMedia(entry, 'thumb', item, pub);
+        assignFaMedia(entry, 'model', item, pub);
+        entry.cat = item.cat;
+        entry.title = item.title;
+        entry.desc = (item.desc && item.desc.en) || '';
+        entry.badge = item.badge;
+        entry.contents = item.contents;
+        entry.file = item.file;
+        entry.hasFile = pub ? !!pub.hasFile : false;
+        entry.size = pub ? pub.size : item.size;
+        entry.bg = item.bg;
+        return entry;
+      });
+    }
+    return out;
+  }
+
+  function buildFaLocalesForPreview(visible) {
+    const en = {};
+    const ru = {};
+    for (const cat of visible) {
+      for (const item of cat.items) {
+        en[item.id] = { desc: (item.desc && item.desc.en) || '' };
+        ru[item.id] = { desc: (item.desc && item.desc.ru) || '' };
+      }
+    }
+    return { en, ru };
+  }
+
+  // Бейджи faTag.<camel>.count управляются i18n (data-i18n) — пересчитываем их
+  // из видимых счётчиков черновика, ровно как uiStringsWithCounts на генерации,
+  // чтобы счётчики обзора совпали с показанным каталогом.
+  function applyFaCounts(uiStrings, visible) {
+    for (const lang of ['en', 'ru']) {
+      const faTag = uiStrings[lang] && uiStrings[lang].faTag;
+      if (!faTag || typeof faTag !== 'object') continue;
+      for (const cat of visible) {
+        const camel = faTagKey(cat.key).slice('faTag.'.length);
+        if (faTag[camel] && typeof faTag[camel] === 'object') faTag[camel].count = cat.items.length + ' assets';
+      }
+    }
+  }
+
+  // window.I18N_DATA для FA-превью: словари UI/меты из черновиков, FA-описания из
+  // черновика, пересчитанные FA-счётчики. CARDS/CASE-локали переносятся из
+  // опубликованного payload (FA-страница их не использует).
+  function buildFaI18nData(visible) {
+    const out = deepClone(window.I18N_DATA || {});
+    const uiDraft = State.previewDraft('content/i18n-ui.json');
+    const ui = uiDraft ? deepClone(uiDraft) : deepClone(out.UI_STRINGS || {});
+    applyFaCounts(ui, visible);
+    out.UI_STRINGS = ui;
+    const metaDraft = State.previewDraft('content/meta.json');
+    if (metaDraft) out.META_STRINGS = { en: metaDraft.en, ru: metaDraft.ru };
+    out.FA_LOCALES = buildFaLocalesForPreview(visible);
+    return out;
+  }
+
+  // FA-option = базовый tags-dropdown option (общий хелпер) + счётчик видимых.
+  function faFilterOption(doc, key, i18nKey, label, count) {
+    const labelEl = tagsDropdownOption(doc, key, i18nKey, label);
+    const countEl = doc.createElement('span');
+    countEl.className = 'tags-dropdown__option-count';
+    countEl.id = 'opt-count-' + key;
+    countEl.textContent = String(count);
+    labelEl.appendChild(countEl);
+    return labelEl;
+  }
+
+  function rebuildFaFilters(doc, visible, enFilter) {
+    const panel = doc.getElementById('tags-dropdown-panel');
+    if (!panel) return;
+    for (const label of Array.from(panel.querySelectorAll('label.tags-dropdown__option'))) label.remove();
+    panel.appendChild(faFilterOption(doc, 'all', 'filter.all', enFilter.all, visible.length));
+    for (const cat of visible) {
+      const i18nKey = faFilterI18nKey(cat.key);
+      panel.appendChild(faFilterOption(doc, cat.key, i18nKey, enFilter[i18nKey.slice('filter.'.length)], cat.items.length));
+    }
+  }
+
+  // Tag-card с нуля (зеркало buildFaTagCardsRegion) — для вновь включённой
+  // категории, которой опубликованная страница никогда не рендерила. Текстовые
+  // узлы несут data-i18n-ключи; in-frame i18n-walker заполнит их на load.
+  function buildTagCard(doc, cat, index, enFilter) {
+    const key = cat.key;
+    const camel = faTagKey(key).slice('faTag.'.length);
+    const tag = cat.tagCard || {};
+    const gameAsset = tag.gameAsset === true;
+    const label = enFilter[faFilterI18nKey(key).slice('filter.'.length)] || '';
+    const a = doc.createElement('a');
+    a.className = index === 0 ? 'tag-card tag-card--active work-card' : 'tag-card work-card';
+    a.id = 'tag-' + key;
+    a.setAttribute('href', '#' + key);
+    a.setAttribute('data-tag', key);
+    a.setAttribute('data-category', key);
+    a.setAttribute('data-game-asset', gameAsset ? 'true' : 'false');
+    const thumb = doc.createElement('div');
+    thumb.className = 'tag-card__thumb work-card__thumb';
+    thumb.setAttribute('data-label', label);
+    const img = doc.createElement('img');
+    img.setAttribute('src', './assets/cards/' + (tag.thumb || key) + '.svg');
+    img.setAttribute('data-i18n-attr', 'alt:faTag.' + camel + '.alt');
+    img.setAttribute('alt', '');
+    img.setAttribute('loading', index === 0 ? 'eager' : 'lazy');
+    if (index === 0) img.setAttribute('fetchpriority', 'high');
+    img.setAttribute('decoding', 'async');
+    img.setAttribute('width', '800');
+    img.setAttribute('height', '600');
+    thumb.appendChild(img);
+    if (gameAsset) {
+      const badge = doc.createElement('span');
+      badge.className = 'work-card__badge';
+      badge.setAttribute('data-i18n', 'faTag.' + camel + '.badge');
+      thumb.appendChild(badge);
+    }
+    const count = doc.createElement('span');
+    count.className = 'tag-card__count-badge';
+    count.setAttribute('data-i18n', 'faTag.' + camel + '.count');
+    count.textContent = cat.items.length + ' assets';
+    thumb.appendChild(count);
+    const info = doc.createElement('div');
+    info.className = 'tag-card__info work-card__info';
+    const meta = doc.createElement('div');
+    meta.className = 'tag-card__meta work-card__meta';
+    const catSpan = doc.createElement('span');
+    catSpan.className = 'tag-card__cat work-card__cat';
+    catSpan.setAttribute('data-i18n', 'faTag.' + camel + '.cat');
+    const tail = doc.createElement('span');
+    tail.className = 'tag-card__meta-tail work-card__meta-tail';
+    const format = doc.createElement('span');
+    format.className = 'tag-card__format work-card__year';
+    format.setAttribute('data-i18n', 'faTag.' + camel + '.format');
+    const hint = doc.createElement('span');
+    hint.className = 'tag-card__hint work-card__hint';
+    hint.setAttribute('aria-hidden', 'true');
+    hint.textContent = '↗';
+    tail.appendChild(format);
+    tail.appendChild(hint);
+    meta.appendChild(catSpan);
+    meta.appendChild(tail);
+    const title = doc.createElement('h2');
+    title.className = 'tag-card__title work-card__title';
+    title.setAttribute('data-i18n', 'faTag.' + camel + '.title');
+    const desc = doc.createElement('p');
+    desc.className = 'tag-card__desc work-card__desc';
+    desc.setAttribute('data-i18n', 'faTag.' + camel + '.desc');
+    info.appendChild(meta);
+    info.appendChild(title);
+    info.appendChild(desc);
+    a.appendChild(thumb);
+    a.appendChild(info);
+    return a;
+  }
+
+  // Обзор fa-tag-cards: переиспользуем карточки опубликованной страницы (полная
+  // i18n-fidelity), переупорядоченные под черновик и обрезанные до видимых
+  // категорий; свежую карточку строим только для категории, которой
+  // опубликованная страница не рендерила.
+  function rebuildFaTagCards(doc, visible, enFilter) {
+    const list = doc.getElementById('cards-list');
+    if (!list) return;
+    const existing = new Map();
+    for (const card of Array.from(list.querySelectorAll('a.tag-card[data-tag]'))) {
+      existing.set(card.getAttribute('data-tag'), card);
+      card.remove();
+    }
+    visible.forEach((cat, index) => {
+      let card = existing.get(cat.key);
+      if (!card) card = buildTagCard(doc, cat, index, enFilter);
+      card.classList.toggle('tag-card--active', index === 0);
+      list.appendChild(card);
+    });
+  }
+
+  async function buildFreeAssetsPreviewHtml() {
+    const visible = await collectFaModel();
+    const i18nData = buildFaI18nData(visible);
+    const enUi = (i18nData.UI_STRINGS && i18nData.UI_STRINGS.en) || {};
+    const enFilter = (enUi.filter && typeof enUi.filter === 'object' && enUi.filter) || {};
+    const res = await fetch('../free-assets.html', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('Не удалось загрузить free-assets.html (' + res.status + ')');
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+
+    const baseEl = doc.createElement('base');
+    baseEl.setAttribute('href', new URL('../', window.location.href).href);
+    doc.head.insertBefore(baseEl, doc.head.firstChild);
+
+    rebuildFaFilters(doc, visible, enFilter);
+    rebuildFaTagCards(doc, visible, enFilter);
+    replaceDataScript(doc, '/fa-data.js', inlineDataScript(doc, 'FA_DATA', buildFaDataForPreview(visible)));
+    replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', i18nData));
+
+    return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+  }
+
   /* ── оверлей: открытие/закрытие, язык, ширина экрана ───────────────── */
 
   function applyLangInFrame() {
@@ -398,14 +691,23 @@
     els.vpMobile.classList.toggle('is-active', mode === 'mobile');
   }
 
+  function setBanner(isFa) {
+    if (!els.banner) return;
+    els.banner.textContent = isFa
+      ? 'Предпросмотр черновика каталога Free Assets: видимость, порядок, тексты и base-имена медиа — из черновика. Загрузка новых файлов (3D-превью, постеры) и состояние Download/размер архива отражают ОПУБЛИКОВАННЫЙ каталог — проверяйте их после публикации.'
+      : defaultBanner;
+  }
+
   async function open() {
+    const fa = isFaRoute();
     els.overlay.hidden = false;
     document.body.classList.add('preview-open');
+    setBanner(fa);
     els.loading.textContent = 'Собираем предпросмотр…';
     els.loading.hidden = false;
     els.close.focus();
     try {
-      els.frame.srcdoc = await buildPreviewHtml();
+      els.frame.srcdoc = fa ? await buildFreeAssetsPreviewHtml() : await buildPreviewHtml();
     } catch (error) {
       els.loading.textContent = 'Не удалось собрать предпросмотр: ' + (error && error.message ? error.message : error);
     }

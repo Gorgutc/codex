@@ -38,6 +38,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { buildReferenceSet, findOrphans } from '../../scripts/clean-orphan-assets.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const generatorPath = path.join(root, 'scripts', 'generate-content.mjs');
@@ -633,6 +634,31 @@ function faTagCardsSection(html) {
   } finally {
     sandbox.cleanup();
   }
+}
+
+/* 18 (F5) — orphan-asset audit: the reference set must cover every live naming
+ *      convention so that live files are NEVER reported as orphans. */
+{
+  const referenceSet = buildReferenceSet();
+  const liveFiles = [
+    './assets/models/experimental/dino.glb',   // case modelSrc (experimental dir)
+    './assets/models/free/orbital-mk-ii.glb',  // FA mini-3d model (faEffectiveBase)
+    './assets/cards/orbital-mk-ii.svg',        // card / FA thumb
+    './assets/cases/orbital-mk-ii/01.svg',     // case slide (explicit or default)
+    './assets/cases/orbital-mk-ii/02.png',     // explicit case slide src
+    './assets/img/og-image.jpg',               // meta ogImages.index
+    './assets/favicon/apple-touch-icon.png'    // meta ogImages.orgLogo
+  ];
+  const missing = liveFiles.filter((p) => !referenceSet.has(p));
+  if (missing.length) fail('orphan audit: live files missing from the reference set (would be FALSE orphans): ' + missing.join(', '));
+
+  const orphans = findOrphans(referenceSet);
+  const orphanPaths = new Set(orphans.map((o) => o.path));
+  const falseOrphans = liveFiles.filter((p) => orphanPaths.has(p));
+  if (falseOrphans.length) fail('orphan audit: live files reported as orphans: ' + falseOrphans.join(', '));
+  const protectedFlagged = orphans.filter((o) => /\.md$/i.test(o.path) || /site\.webmanifest$/i.test(o.path));
+  if (protectedFlagged.length) fail('orphan audit: protected files reported as orphans: ' + protectedFlagged.map((o) => o.path).join(', '));
+  console.log('orphan audit: reference set complete (no false orphans for live content)');
 }
 
 console.log('iteration F/G/H visibility/layoutMode/jsonld/free-assets generator semantics verified');
