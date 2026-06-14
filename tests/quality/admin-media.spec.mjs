@@ -16,8 +16,10 @@
  *      не попадает в черновик.
  */
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { hash8, startStaticServer, mockGitHub } from './fixtures/admin-harness.mjs';
+import { ROOT, hash8, startStaticServer, mockGitHub } from './fixtures/admin-harness.mjs';
 
 const CASE_PATH = 'content/cases/orbital-mk-ii.json';
 const THUMB_INPUT = `[data-media="${CASE_PATH}::card.thumb"]`;
@@ -30,6 +32,13 @@ const PNG_BUFFER = Buffer.concat([
 ]);
 const GLB_BUFFER = Buffer.concat([Buffer.from('676c5446', 'hex'), crypto.randomBytes(8192)]);
 
+const META_PATH = 'content/meta.json';
+const HEADER_LOGO_INPUT = `[data-media="${META_PATH}::headerLogo.src"]`;
+const SVG_BUFFER = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 24"><rect width="120" height="24"/></svg>',
+  'utf8'
+);
+
 const ctx = startStaticServer();
 
 async function openCaseEditor(page) {
@@ -40,6 +49,22 @@ async function openCaseEditor(page) {
   await expect(page.locator('#topbar')).toBeVisible();
   await page.click('a[href="#/case/orbital-mk-ii"]');
   await expect(page.locator(THUMB_INPUT)).toBeAttached();
+}
+
+async function openMetaEditor(page) {
+  // Ускоряем опрос вердикта конвейера публикации (как в кейс-тесте выше), иначе
+  // ожидание success-тоста упирается в дефолтный длинный интервал поллинга.
+  await page.addInitScript(() => {
+    window.ADMIN_POLL_INTERVAL_MS = 25;
+    window.ADMIN_POLL_TIMEOUT_MS = 3000;
+  });
+  await page.goto(`${ctx.base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await expect(page.locator('#topbar')).toBeVisible();
+  await page.click('a[href="#/meta"]');
+  await expect(page.locator(HEADER_LOGO_INPUT)).toBeAttached();
 }
 
 test('замена миниатюры и GLB: hash-пути, бинарные blob’ы, без удалений', async ({ page }) => {
@@ -144,4 +169,101 @@ test('изображение тяжелее жёсткого лимита бло
   await expect(cardSection.locator('.drop-zone__badge')).toBeHidden();
   await expect(page.locator('#media-warning')).toBeHidden();
   await expect(page.locator('#draft-indicator')).toBeHidden();
+});
+
+test('логотип в шапке: загрузка SVG, hash-путь, публикация в meta.json, без удалений', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await openMetaEditor(page);
+
+  const section = page.locator('.editor-section', { hasText: 'Логотип в шапке сайта' });
+  // По умолчанию (src=null): нет pending-бейджа и нет кнопки «убрать».
+  await expect(section.locator('.drop-zone__badge')).toBeHidden();
+  await expect(section.getByRole('button', { name: /Убрать логотип/ })).toHaveCount(0);
+
+  // Загрузка SVG → pending-бейдж, blob-превью, появляется кнопка «убрать».
+  await page.setInputFiles(HEADER_LOGO_INPUT, { name: 'logo.svg', mimeType: 'image/svg+xml', buffer: SVG_BUFFER });
+  await expect(section.locator('.drop-zone__badge')).toBeVisible();
+  await expect(section.locator('.drop-zone__preview')).toHaveAttribute('src', /^blob:/);
+  await expect(section.getByRole('button', { name: /Убрать логотип/ })).toBeVisible();
+
+  const newLogoPath = `assets/img/header-logo-${hash8(SVG_BUFFER)}.svg`;
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  await expect(page.locator('#publish-files')).toContainText(newLogoPath);
+  await expect(page.locator('#publish-files')).not.toContainText('удал');
+  await page.click('#publish-confirm');
+  await expect(page.locator('.toast--success')).toContainText('Опубликовано');
+
+  // Tree: meta.json + бинарный blob логотипа, без единой tree-entry с sha: null.
+  const treePaths = calls.tree.map((e) => e.path);
+  expect(treePaths).toContain(META_PATH);
+  expect(treePaths).toContain(newLogoPath);
+  expect(calls.tree.every((e) => e.sha !== null)).toBe(true);
+
+  // meta.json-черновик ссылается на новый cache-bust-путь; blob — base64 SVG.
+  const blobBySha = new Map(calls.blobs.map((b) => [b.sha, b]));
+  const metaEntry = calls.tree.find((e) => e.path === META_PATH);
+  const metaJson = JSON.parse(Buffer.from(blobBySha.get(metaEntry.sha).content, 'base64').toString('utf8'));
+  expect(metaJson.headerLogo.src).toBe(`./${newLogoPath}`);
+  const logoEntry = calls.tree.find((e) => e.path === newLogoPath);
+  expect(blobBySha.get(logoEntry.sha).content).toBe(SVG_BUFFER.toString('base64'));
+});
+
+test('логотип в шапке: «убрать» возвращает текст и очищает черновик', async ({ page }) => {
+  await mockGitHub(page);
+  await openMetaEditor(page);
+
+  const section = page.locator('.editor-section', { hasText: 'Логотип в шапке сайта' });
+  await page.setInputFiles(HEADER_LOGO_INPUT, { name: 'logo.png', mimeType: 'image/png', buffer: PNG_BUFFER });
+  await expect(section.locator('.drop-zone__badge')).toBeVisible();
+
+  // «Убрать логотип» → бейдж и кнопка исчезают, индикатор черновика гаснет.
+  await section.getByRole('button', { name: /Убрать логотип/ }).click();
+  await expect(section.locator('.drop-zone__badge')).toBeHidden();
+  await expect(section.getByRole('button', { name: /Убрать логотип/ })).toHaveCount(0);
+  await expect(page.locator('#draft-indicator')).toBeHidden();
+});
+
+test('логотип в шапке: «убрать» закоммиченный логотип публикует headerLogo.src=null', async ({ page }) => {
+  const COMMITTED_LOGO = './assets/favicon/apple-touch-icon.png';
+  const calls = await mockGitHub(page);
+  // Подменяем ответ Contents API для meta.json так, будто логотип уже ОПУБЛИКОВАН
+  // (src задан). Иначе база на диске несёт src:null, и «убрать» был бы net-zero —
+  // ничего бы не публиковалось. Маршрут регистрируется ПОСЛЕ mockGitHub → имеет
+  // приоритет для этого URL (Playwright матчит маршруты в обратном порядке).
+  await page.route('**/repos/Gorgutc/codex/contents/content/meta.json**', (route) => {
+    const meta = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/meta.json'), 'utf8'));
+    meta.headerLogo = { src: COMMITTED_LOGO };
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        type: 'file',
+        encoding: 'base64',
+        sha: 'sha-content/meta.json',
+        content: Buffer.from(JSON.stringify(meta, null, 2)).toString('base64')
+      })
+    });
+  });
+  await openMetaEditor(page);
+
+  const section = page.locator('.editor-section', { hasText: 'Логотип в шапке сайта' });
+  // Логотип закоммичен → кнопка «убрать» видна сразу, без загрузки.
+  await expect(section.getByRole('button', { name: /Убрать логотип/ })).toBeVisible();
+
+  // «Убрать» → setValue(null) расходится с базой → черновик грязный → публикация.
+  await section.getByRole('button', { name: /Убрать логотип/ }).click();
+  await expect(page.locator('#draft-indicator')).toBeVisible();
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  await page.click('#publish-confirm');
+  await expect(page.locator('.toast--success')).toContainText('Опубликовано');
+
+  // Опубликованный meta.json несёт headerLogo.src=null (генератор вернёт текст «CODEX»).
+  const blobBySha = new Map(calls.blobs.map((b) => [b.sha, b]));
+  const metaEntry = calls.tree.find((e) => e.path === META_PATH);
+  expect(metaEntry).toBeTruthy();
+  const metaJson = JSON.parse(Buffer.from(blobBySha.get(metaEntry.sha).content, 'base64').toString('utf8'));
+  expect(metaJson.headerLogo.src).toBe(null);
 });

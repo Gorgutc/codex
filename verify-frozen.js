@@ -251,6 +251,55 @@ function runStaticChecks() {
   const threeVendorOK = threeVendorFiles.every(f => fs.existsSync(path.join(ROOT, 'js', 'vendor', f)));
   add('static', 'A7-three-vendor-files-present', threeVendorOK, threeVendorFiles.join(', '));
 
+  // Header logo (admin-editable via content/meta.json → headerLogo.src). Each of the
+  // four <a class="logo"> wrappers (index + fa, sidebar + mobile case-bar) carries a
+  // CODEX:GEN region whose inner content is either the historical "CODEX" wordmark
+  // (src unset) or an <img class="logo__img"> (src set). Frozen: the four markers must
+  // exist in both pages, and the emitted inner content must match the committed state,
+  // so an admin logo swap can never silently leave a page on the wrong branch. The
+  // dormant branch is announced as skipped (not FAIL) per the 0-FAIL contract.
+  const headerLogoMarkers = [
+    '<!-- CODEX:GEN header-logo BEGIN -->',
+    '<!-- CODEX:GEN header-logo END -->',
+    '<!-- CODEX:GEN header-logo-mobile BEGIN -->',
+    '<!-- CODEX:GEN header-logo-mobile END -->'
+  ];
+  add('static', 'HEADER-LOGO-regions-present',
+      headerLogoMarkers.every(m => indexHTML.includes(m) && faHTML.includes(m)),
+      'header-logo + header-logo-mobile GEN markers present in both pages');
+  const headerLogoSrc = (CONTENT_META && CONTENT_META.headerLogo && CONTENT_META.headerLogo.src) || '';
+  const logoImgRe = /<img class="logo__img" src="([^"]*)"[^>]*>/g;
+  // The generator emits src through escapeHtmlAttr, so the HTML attribute is HTML-encoded
+  // (e.g. & → &amp;). Decode the captured value before comparing to the raw JSON src, or a
+  // path containing &/</>/" would false-FAIL a byte-correct page (decode &amp; LAST).
+  const decodeAttr = (s) =>
+    s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+  const logoImgSrcs = (html) => [...html.matchAll(logoImgRe)].map((m) => decodeAttr(m[1]));
+  const indexImgs = logoImgSrcs(indexHTML);
+  const faImgs = logoImgSrcs(faHTML);
+  const textFallbackRe = /<span class="logo__text">CODEX<\/span>/g;
+  const indexText = (indexHTML.match(textFallbackRe) || []).length;
+  const faText = (faHTML.match(textFallbackRe) || []).length;
+  if (typeof headerLogoSrc === 'string' && headerLogoSrc !== '') {
+    const matchesSrc = (s) => s === headerLogoSrc;
+    // Extension set MUST stay in sync with scripts/generate-content.mjs (validateHeaderLogo)
+    // and admin/js/state.js (MEDIA_RULES.headerLogo.exts + the validateDraft mirror): a
+    // divergence FAILs verify on a logo the admin/generator accepted (pipeline auto-reverts).
+    const onDisk = /^\.\/assets\/.+\.(svg|png|webp)$/i.test(headerLogoSrc) &&
+      fs.existsSync(path.join(ROOT, headerLogoSrc.replace(/^\.\//, '')));
+    add('static', 'HEADER-LOGO-img',
+        indexImgs.length === 2 && faImgs.length === 2 &&
+          indexImgs.every(matchesSrc) && faImgs.every(matchesSrc) &&
+          onDisk && indexText === 0 && faText === 0,
+        `src=${headerLogoSrc} imgs=index:${indexImgs.length},fa:${faImgs.length} onDisk=${onDisk}`);
+    add('static', 'HEADER-LOGO-text-fallback', true, 'skipped: header logo image is set', true);
+  } else {
+    add('static', 'HEADER-LOGO-text-fallback',
+        indexText === 2 && faText === 2 && indexImgs.length === 0 && faImgs.length === 0,
+        `logo__text index:${indexText},fa:${faText}; logo__img index:${indexImgs.length},fa:${faImgs.length}`);
+    add('static', 'HEADER-LOGO-img', true, 'skipped: header logo uses text wordmark', true);
+  }
+
   const sitemapPath = path.join(ROOT, 'sitemap.xml');
   const robotsPath = path.join(ROOT, 'robots.txt');
   const sitemap = fs.existsSync(sitemapPath) ? fs.readFileSync(sitemapPath, 'utf8') : '';

@@ -86,6 +86,13 @@ const FA_TAG_CARDS_BEGIN = '<!-- CODEX:GEN fa-tag-cards BEGIN -->';
 const FA_TAG_CARDS_END = '<!-- CODEX:GEN fa-tag-cards END -->';
 const JSONLD_BEGIN = '<!-- CODEX:GEN jsonld BEGIN -->';
 const JSONLD_END = '<!-- CODEX:GEN jsonld END -->';
+// Header logo: two distinct marker pairs per page (replaceRegion rewrites only the
+// FIRST match of a given marker, and each page has a sidebar logo + a mobile case-bar
+// logo). All four regions render the same buildHeaderLogoRegion output.
+const HEADER_LOGO_BEGIN = '<!-- CODEX:GEN header-logo BEGIN -->';
+const HEADER_LOGO_END = '<!-- CODEX:GEN header-logo END -->';
+const HEADER_LOGO_MOBILE_BEGIN = '<!-- CODEX:GEN header-logo-mobile BEGIN -->';
+const HEADER_LOGO_MOBILE_END = '<!-- CODEX:GEN header-logo-mobile END -->';
 
 /* ── content loading ─────────────────────────────────────────────────────── */
 
@@ -565,6 +572,27 @@ const OG_BASENAME = {
   fa: new RegExp('^[.][/]assets[/]img[/]og-free-assets(-[0-9a-f]{8})?[.](jpg|jpeg|png|webp)$')
 };
 
+// Header logo (content/meta.json → headerLogo.src) is OPTIONAL and INDEPENDENT of
+// ogImages.orgLogo: absent / null / "" means the page keeps the "CODEX" text wordmark.
+// When set it must be an on-disk asset under ./assets/ with an image extension —
+// SVG IS allowed here (the header logo can be vector), unlike the raster-only orgLogo.
+// No basename convention is pinned (verify-frozen does not freeze the logo filename).
+function validateHeaderLogo(violations, metaStrings) {
+  const where = 'content/meta.json';
+  const headerLogo = metaStrings && metaStrings.headerLogo;
+  if (headerLogo === undefined || headerLogo === null) return;
+  if (typeof headerLogo !== 'object' || Array.isArray(headerLogo)) {
+    violations.push(`${where}: "headerLogo" must be an object like { "src": null } or { "src": "./assets/..." }`);
+    return;
+  }
+  const src = headerLogo.src;
+  if (src === undefined || src === null || src === '') return;
+  checkAssetFile(violations, `${where}: headerLogo.src`, src);
+  if (isNonEmptyString(src) && !/\.(svg|png|webp)$/i.test(src)) {
+    violations.push(`${where}: headerLogo.src must be a .svg/.png/.webp image ("${src}")`);
+  }
+}
+
 function validateMetaImages(violations, metaStrings) {
   const where = 'content/meta.json';
   const images = metaStrings && metaStrings.ogImages;
@@ -718,6 +746,7 @@ function validateContent(content) {
   checkLocaleParity(violations, 'content/i18n-ui.json', uiStrings);
   checkLocaleParity(violations, 'content/meta.json', metaStrings);
   validateMetaImages(violations, metaStrings);
+  validateHeaderLogo(violations, metaStrings);
   validateStructuredData(violations, metaStrings, fileIds);
   validateFreeAssets(violations, freeAssets);
 
@@ -1638,6 +1667,35 @@ function detectEol(text) {
   return text.includes('\r\n') ? '\r\n' : '\n';
 }
 
+// Inner content of every <a class="logo"> wrapper. Unset src → the historical
+// "CODEX" wordmark, emitted byte-identically (with the caller's exact indent) so the
+// first generation is a no-op. Set src → an <img class="logo__img"> carrying all five
+// attributes verify-frozen's D3 check requires (alt/width/height/loading/decoding);
+// alt="CODEX" reuses the wordmark text. `indent` is supplied by replaceHeaderLogoRegion.
+// width/height are the wordmark's ~5:1 default box, used ONLY as the pre-load aspect hint:
+// CSS (.logo__img) sizes the image by a fixed height with width:auto, so a logo far from 5:1
+// settles its WIDTH on load (height is CSS-fixed → no vertical CLS). We do not read real
+// dimensions here on purpose — that would re-introduce the SVG-unsafe image decode.
+function buildHeaderLogoRegion(content, indent) {
+  const src = content.metaStrings && content.metaStrings.headerLogo && content.metaStrings.headerLogo.src;
+  if (isNonEmptyString(src)) {
+    return [
+      `${indent}<img class="logo__img" src="${escapeHtmlAttr(src)}" alt="CODEX" width="120" height="24" loading="eager" decoding="async">`
+    ];
+  }
+  return [`${indent}<span class="logo__text">CODEX</span>`];
+}
+
+// Render a header-logo region, deriving the body indent from the region's own BEGIN-marker
+// line instead of a hardcoded column (the four logos sit at different depths: 10/12/10/10).
+// Deriving keeps generation self-healing — if the logo markup is ever re-indented, the
+// emitted line tracks its marker, so content:check stays a no-op.
+function replaceHeaderLogoRegion(html, filePath, begin, end, content) {
+  const beginLine = html.split('\n').find((line) => line.trim() === begin);
+  const indent = beginLine ? (beginLine.match(/^[ \t]*/) || [''])[0] : '';
+  return replaceRegion(html, filePath, begin, end, buildHeaderLogoRegion(content, indent));
+}
+
 function buildTargets(content) {
   const indexRaw = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const indexEol = detectEol(indexRaw);
@@ -1646,6 +1704,8 @@ function buildTargets(content) {
   indexNext = replaceRegion(indexNext, 'index.html', JSONLD_BEGIN, JSONLD_END, buildIndexJsonLdRegion(content));
   indexNext = replaceRegion(indexNext, 'index.html', FILTERS_BEGIN, FILTERS_END, buildFiltersRegion(content));
   indexNext = replaceRegion(indexNext, 'index.html', GRID_BEGIN, GRID_END, buildGridRegion(content));
+  indexNext = replaceHeaderLogoRegion(indexNext, 'index.html', HEADER_LOGO_BEGIN, HEADER_LOGO_END, content);
+  indexNext = replaceHeaderLogoRegion(indexNext, 'index.html', HEADER_LOGO_MOBILE_BEGIN, HEADER_LOGO_MOBILE_END, content);
 
   const faRaw = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
   const faEol = detectEol(faRaw);
@@ -1660,6 +1720,8 @@ function buildTargets(content) {
     FA_TAG_CARDS_END,
     buildFaTagCardsRegion(content)
   );
+  faNext = replaceHeaderLogoRegion(faNext, 'free-assets.html', HEADER_LOGO_BEGIN, HEADER_LOGO_END, content);
+  faNext = replaceHeaderLogoRegion(faNext, 'free-assets.html', HEADER_LOGO_MOBILE_BEGIN, HEADER_LOGO_MOBILE_END, content);
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');
   const sitemapEol = fs.existsSync(sitemapPath) ? detectEol(fs.readFileSync(sitemapPath, 'utf8')) : '\n';

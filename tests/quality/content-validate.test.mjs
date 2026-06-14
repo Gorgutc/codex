@@ -77,6 +77,10 @@ try {
   freeAssets.categories[0].items[1].contents = []; // empty contents list
   writeJson('free-assets.json', freeAssets);
 
+  const meta = readJson('meta.json');
+  meta.headerLogo = { src: './assets/img/header-logo.gif' }; // header logo: extension not allowed
+  writeJson('meta.json', meta);
+
   // A copied case file whose name no longer matches its id.
   copyFileSync(path.join(tempDir, 'cases', 'apex-frame.json'), path.join(tempDir, 'cases', 'zz-mismatch.json'));
 
@@ -110,7 +114,8 @@ try {
     'key "skipToContent" exists in en but not in ru',
     'duplicate id',
     'file name does not match id "apex-frame"',
-    'duplicate case id "apex-frame"'
+    'duplicate case id "apex-frame"',
+    'headerLogo.src must be a .svg/.png/.webp image'
   ];
   const unreported = expectedViolations.filter((needle) => !broken.output.includes(needle));
   if (unreported.length > 0) {

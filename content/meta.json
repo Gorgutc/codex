@@ -4,6 +4,9 @@
     "fa": "./assets/img/og-free-assets.jpg",
     "orgLogo": "./assets/favicon/apple-touch-icon.png"
   },
+  "headerLogo": {
+    "src": null
+  },
   "structuredData": {
     "featuredWorks": [
       {

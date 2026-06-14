@@ -636,6 +636,44 @@ function faTagCardsSection(html) {
   }
 }
 
+/* (header logo) — admin-editable site header logo: a set src emits an
+ *      <img class="logo__img"> (all five D3 attrs) on both pages and both case-bars;
+ *      a null src keeps the byte-identical "CODEX" text wordmark in all four spots. */
+{
+  const sandbox = makeSandbox('header-logo');
+  try {
+    const meta = sandbox.readJson('meta.json');
+
+    // src set → 2 logo <img> per page (sidebar + mobile case-bar), no text wordmark.
+    meta.headerLogo = { src: './assets/favicon/apple-touch-icon.png' };
+    sandbox.writeJson('meta.json', meta);
+    const set = sandbox.run('--write');
+    if (set.status !== 0) fail('header logo: generator must accept a valid headerLogo.src', set.output);
+    const imgRe = /<img class="logo__img" src="[^"]+" alt="CODEX" width="120" height="24" loading="eager" decoding="async">/g;
+    for (const page of ['index.html', 'free-assets.html']) {
+      const html = sandbox.readOut(page);
+      const imgs = html.match(imgRe) || [];
+      if (imgs.length !== 2) fail(`header logo: ${page} must emit 2 logo <img> (sidebar + mobile), got ${imgs.length}`, html);
+      if (/<span class="logo__text">CODEX<\/span>/.test(html)) fail(`header logo: ${page} kept the text wordmark while a logo image is set`, html);
+    }
+
+    // src null → byte-identical "CODEX" wordmark in all four spots, no logo <img>.
+    meta.headerLogo = { src: null };
+    sandbox.writeJson('meta.json', meta);
+    const unset = sandbox.run('--write');
+    if (unset.status !== 0) fail('header logo: generator must accept null headerLogo.src', unset.output);
+    for (const page of ['index.html', 'free-assets.html']) {
+      const html = sandbox.readOut(page);
+      const spans = html.match(/<span class="logo__text">CODEX<\/span>/g) || [];
+      if (spans.length !== 2) fail(`header logo: ${page} must restore 2 "CODEX" wordmarks when src is null, got ${spans.length}`, html);
+      if (/<img class="logo__img" src=/.test(html)) fail(`header logo: ${page} emitted a logo <img> when src is null`, html);
+    }
+    console.log('header logo: set src emits <img class="logo__img"> on both pages; null restores the CODEX wordmark');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
 /* 18 (F5) — orphan-asset audit: the reference set must cover every live naming
  *      convention so that live files are NEVER reported as orphans. */
 {

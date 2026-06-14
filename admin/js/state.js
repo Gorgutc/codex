@@ -88,6 +88,20 @@
       square: true,
       dimTolerance: 0.1
     },
+    // Логотип в шапке сайта (видимый wordmark). Широкий брендовый ассет, НЕ квадратный,
+    // поэтому без ogWidth/square → readImageDimensions не вызывается → SVG безопасен
+    // (new Image() отдаёт 0×0 для многих SVG). Вектор ИЛИ растр; одна картинка на обе
+    // темы. Набор расширений совпадает с генератором и verify-frozen (svg/png/webp).
+    headerLogo: {
+      exts: ['svg', 'png', 'webp'],
+      mimes: ['image/svg+xml', 'image/png', 'image/webp'],
+      accept: '.svg,.png,.webp',
+      formatLabel: 'SVG, PNG или WebP',
+      warnBytes: 200 * KB,
+      warnText: 'тяжелее 200 КБ — логотип в шапке будет грузиться медленнее',
+      blockBytes: 2 * MB,
+      blockText: 'логотип тяжелее 2 МБ не публикуем'
+    },
     video: {
       exts: ['webm'],
       mimes: ['video/webm'],
@@ -1181,6 +1195,36 @@
           field: 'ogImages.orgLogo',
           message: 'Логотип организации: нужен JPG, PNG или WebP внутри ./assets/'
         });
+      }
+      // Логотип в шапке (headerLogo) — НЕОБЯЗАТЕЛЕН и независим от orgLogo: отсутствие или
+      // { src: null/'' } оставляет текстовый логотип «CODEX». Полное зеркало
+      // validateHeaderLogo генератора: сначала тип контейнера (объект), затем путь и
+      // расширение (svg/png/webp — синхронно с генератором и verify-frozen). Любое
+      // расхождение → админка опубликует коммит, который конвейер content-publish откатит.
+      if (
+        draft.headerLogo !== undefined &&
+        draft.headerLogo !== null &&
+        (typeof draft.headerLogo !== 'object' || Array.isArray(draft.headerLogo))
+      ) {
+        errors.push({
+          path,
+          field: 'headerLogo',
+          message: 'Логотип в шапке: headerLogo должен быть объектом { "src": … }'
+        });
+      } else {
+        const headerLogoSrc = draft.headerLogo && draft.headerLogo.src;
+        if (
+          headerLogoSrc !== undefined &&
+          headerLogoSrc !== null &&
+          headerLogoSrc !== '' &&
+          (!isAssetPath(headerLogoSrc) || !/\.(svg|png|webp)$/i.test(headerLogoSrc))
+        ) {
+          errors.push({
+            path,
+            field: 'headerLogo.src',
+            message: 'Логотип в шапке: нужен SVG, PNG или WebP внутри ./assets/'
+          });
+        }
       }
       // prod-review F2 (C-MIRROR D-04): зеркало enum-проверки ogLocale.
       for (const lang of ['en', 'ru']) {

@@ -216,17 +216,16 @@
       <!-- ROW 1: LOGO + TOGGLE -->
       <div class="header-top">
 
-        <!-- ┌─────────────────────────────────────────────┐
-             │ LOGO. Замена на SVG:                        │
-             │  1. Удалить <span class="logo__text">…</span>│
-             │  2. Вставить <svg class="logo__svg"…/>      │
-             │  3. Высота задаётся .logo__svg в main.css    │
-             └─────────────────────────────────────────────┘ -->
+        <!-- LOGO. Управляется из админки: content/meta.json → headerLogo.src.
+             Пусто (null) → текстовый логотип «CODEX»; задана картинка → <img class="logo__img">.
+             Внутренность <a class="logo"> между маркерами CODEX:GEN header-logo генерируется
+             scripts/generate-content.mjs — НЕ редактировать вручную. Размер — в css/shared.css. -->
         <!-- v0.14.0 [16] — клик по логотипу открывает первый кейс (аналогично initial load).
              href="#" + JS preventDefault, минует смену URL-хеша. -->
         <a href="#" class="logo" id="logo-home" data-i18n-attr="aria-label:aria.codexBackFirst" aria-label="Codex — back to first project">
+          <!-- CODEX:GEN header-logo BEGIN -->
           <span class="logo__text">CODEX</span>
-          <!-- <svg class="logo__svg" viewBox="0 0 120 24" aria-hidden="true">…</svg> -->
+          <!-- CODEX:GEN header-logo END -->
         </a>
 
         <div class="header-top__controls">
@@ -691,7 +690,9 @@
       <div class="case-mobile-bar" aria-hidden="false">
         <div class="case-mobile-bar__row">
           <a href="#" class="logo case-mobile-bar__logo" data-i18n-attr="aria-label:aria.codexHome" aria-label="Codex — home">
+            <!-- CODEX:GEN header-logo-mobile BEGIN -->
             <span class="logo__text">CODEX</span>
+            <!-- CODEX:GEN header-logo-mobile END -->
           </a>
           <!-- v0.3 [П1] — mobile: .case-back и .case-share--mobile объединены
                в единый блок с gap=space-2 (паритет с .case-view__tabs),
