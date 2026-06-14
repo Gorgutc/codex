@@ -340,6 +340,33 @@
     }
   }
 
+  // Логотип в шапке (зеркало buildHeaderLogoRegion): задан headerLogo.src → <img
+  // class="logo__img">, пусто → текст «CODEX». previewDraft подставляет blob: вместо ещё
+  // не загруженного cache-bust-пути, поэтому стейдж-загрузка видна в превью. Применяем
+  // ТОЛЬКО когда meta-черновик загружен — иначе оставляем опубликованный HTML как есть.
+  function applyHeaderLogo(doc, metaDraft) {
+    if (!metaDraft) return;
+    const src = metaDraft.headerLogo && metaDraft.headerLogo.src;
+    for (const link of Array.from(doc.querySelectorAll('a.logo'))) {
+      if (src) {
+        const img = doc.createElement('img');
+        img.className = 'logo__img';
+        img.setAttribute('src', src);
+        img.setAttribute('alt', 'CODEX');
+        img.setAttribute('width', '120');
+        img.setAttribute('height', '24');
+        img.setAttribute('loading', 'eager');
+        img.setAttribute('decoding', 'async');
+        link.replaceChildren(img);
+      } else {
+        const span = doc.createElement('span');
+        span.className = 'logo__text';
+        span.textContent = 'CODEX';
+        link.replaceChildren(span);
+      }
+    }
+  }
+
   // Скрипт с данными черновика (CARDS_DATA/I18N_DATA текущего черновика).
   function inlineDataScript(doc, globalName, value) {
     // Blob-URL вместо inline-script: строгий admin-CSP (script-src без
@@ -377,6 +404,7 @@
 
     rebuildFilters(doc, model);
     applyGrid(doc, model);
+    applyHeaderLogo(doc, State.previewDraft('content/meta.json'));
     replaceDataScript(doc, '/cards-data.js', inlineDataScript(doc, 'CARDS_DATA', buildCardsData(model)));
     replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', buildI18nData(model)));
 
@@ -661,6 +689,7 @@
 
     rebuildFaFilters(doc, visible, enFilter);
     rebuildFaTagCards(doc, visible, enFilter);
+    applyHeaderLogo(doc, State.previewDraft('content/meta.json'));
     replaceDataScript(doc, '/fa-data.js', inlineDataScript(doc, 'FA_DATA', buildFaDataForPreview(visible)));
     replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', i18nData));
 

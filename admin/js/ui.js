@@ -2004,6 +2004,59 @@
         ])
       );
     }
+    // Логотип в шапке сайта (видимый wordmark, заменяет текст «CODEX»). Независим от
+    // orgLogo. Рендерим всегда — даже когда не задан — чтобы можно было загрузить первый
+    // логотип из пустого состояния; кнопка «убрать» возвращает текстовый логотип. Слот
+    // dropZone строится один раз (его внутренний render() сам обновляет превью/бейдж);
+    // отдельно держим хост кнопки «убрать» и синхронизируем только его при стейдже —
+    // без пересборки drop-зоны и потери фокуса у file-input при загрузке.
+    const headerLogoSection = el('section', { className: 'editor-section' });
+    const headerLogoZone = el('div');
+    const headerLogoClearHost = el('div');
+    function buildHeaderLogoZone() {
+      headerLogoZone.replaceChildren(
+        dropZone({
+          filePath: path,
+          dotPath: 'headerLogo.src',
+          kind: 'headerLogo',
+          namingPath: './assets/img/header-logo.svg',
+          currentPath: (entry.draft.headerLogo && entry.draft.headerLogo.src) || null,
+          preview: 'image',
+          label: 'Логотип в шапке (заменяет текст «CODEX»)',
+          hint: 'SVG, PNG или WebP · широкий формат · до 200 КБ · пусто = текст «CODEX»',
+          onStaged: syncHeaderLogoClear
+        })
+      );
+    }
+    function syncHeaderLogoClear() {
+      const currentSrc = (entry.draft.headerLogo && entry.draft.headerLogo.src) || null;
+      const staged = Boolean(State.getMediaEdit(path, 'headerLogo.src'));
+      if (!currentSrc && !staged) {
+        headerLogoClearHost.replaceChildren();
+        return;
+      }
+      if (headerLogoClearHost.firstChild) return; // кнопка уже показана
+      const clearBtn = el('button', {
+        type: 'button',
+        className: 'btn btn--ghost',
+        text: 'Убрать логотип (вернуть текст «CODEX»)'
+      });
+      clearBtn.addEventListener('click', () => {
+        State.discardMediaEdit(path, 'headerLogo.src');
+        State.setValue(path, 'headerLogo.src', null);
+        buildHeaderLogoZone(); // пересобрать drop-зону, чтобы убрать превью загруженного
+        syncHeaderLogoClear();
+      });
+      headerLogoClearHost.replaceChildren(clearBtn);
+    }
+    headerLogoSection.replaceChildren(
+      el('h2', { text: 'Логотип в шапке сайта' }),
+      headerLogoZone,
+      headerLogoClearHost
+    );
+    buildHeaderLogoZone();
+    syncHeaderLogoClear();
+    sections.push(headerLogoSection);
     els.app.replaceChildren(
       el('section', {}, [
         el('div', { className: 'view-head' }, [

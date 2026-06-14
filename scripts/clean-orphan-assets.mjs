@@ -104,6 +104,9 @@ function addContentRefs(set) {
   addRef(set, og.index);
   addRef(set, og.fa);
   addRef(set, og.orgLogo);
+  // Header logo (admin-editable, content/meta.json → headerLogo.src; null when the
+  // "CODEX" wordmark is used). Without this an uploaded header logo is a false orphan.
+  if (meta.headerLogo && meta.headerLogo.src) addRef(set, meta.headerLogo.src);
 
   // site.webmanifest icons use manifest-relative paths (e.g. "./favicon-32.png")
   // that the assets/downloads regex cannot see — resolve them against the

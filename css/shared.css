@@ -403,6 +403,17 @@ body::after {
   color: var(--color-text);
   line-height: 1;
 }
+/* Admin-uploadable header logo (content/meta.json → headerLogo.src). Height tracks the
+   wordmark token so the image matches the text logo's optical size in both the sidebar
+   and the mobile case-bar; width is intrinsic. One image serves both themes (no
+   filter/invert — owner decision), so no theme-specific rule. */
+.logo__img {
+  display: block;
+  width: auto;
+  height: var(--text-xl);
+  max-width: 160px;
+  object-fit: contain;
+}
 /* ═══════════════════════════════════
    CARDS TOGGLE — кнопка Hide / Show
 ═══════════════════════════════════ */

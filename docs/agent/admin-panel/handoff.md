@@ -151,6 +151,68 @@ F6 (релизный гейт). Реестр находок и триаж:
 
 ## Журнал сессий
 
+### 2026-06-14 — Сессия 7 (Claude Code): админ-логотип в шапке сайта
+
+Запрос владельца: в админке дать менять **видимый логотип в шапке** (там стоит
+текст «CODEX»; менялись только favicon и SEO-логотип `orgLogo`). Это НЕ `orgLogo`
+из F5 (тот — Organization JSON-LD / apple-touch-icon, SEO-значок). Ветка от
+актуального main (`8204c28`, F5 влита PR #51).
+
+Решения владельца (уточнены в начале сессии вопросом): загрузка картинки
+(SVG/PNG/WebP) заменяет текст; одна картинка на обе темы; независимый ассет (не
+связан с `orgLogo`); во всех 4 местах (index + free-assets, сайдбар + мобильная
+шапка кейса); пусто = текст «CODEX»; есть кнопка «убрать».
+
+Реализация (канонический конвейер content → генератор → verify-frozen → админка):
+
+- **content**: новое верхнеуровневое поле `meta.json` → `headerLogo.src`
+  (string|null, по умолчанию null = текст). Независимо от `ogImages.orgLogo`.
+- **генератор**: 4 GEN-региона (`header-logo` ×2 + `header-logo-mobile` ×2)
+  внутри `<a class="logo">`; `buildHeaderLogoRegion` рисует `<img class="logo__img">`
+  (все 5 D3-атрибутов, `alt="CODEX"`) при заданном src либо текст-fallback при
+  пустом (байт-в-байт = текущий span, первая генерация — no-op);
+  `replaceHeaderLogoRegion` выводит отступ из BEGIN-маркера (self-healing, без
+  magic-чисел); `validateHeaderLogo` (тип контейнера, путь в `./assets/`,
+  расширение svg/png/webp).
+- **verify-frozen**: skip-aware чек HEADER-LOGO (маркеры в обеих страницах;
+  src задан → 2 `<img>` с совпадающим src + файл на диске; пусто → 2 текст-span);
+  сравнение src декодит HTML-сущности (генератор эмитит через escapeHtmlAttr).
+- **админка**: media-kind `headerLogo` (svg/png/webp, БЕЗ dimension-rule →
+  SVG-safe), слот на экране «Мета-теги» + кнопка «Убрать логотип»; зеркало
+  валидации (тип контейнера + расширение, синхронно с генератором и verify);
+  `preview.js` показывает стейдж-логотип; CSS `.logo__img` (высота = `--text-xl`).
+- **тесты**: content-validate (негатив — расширение), content-visibility (позитив:
+  img/текст в 4 местах), admin-media (загрузка SVG → публикация; «убрать» staged;
+  «убрать» закоммиченный → `src=null`), orphan-audit (`addRef`).
+
+Оркестрация (Opus 4.8): workflow `logo-understand` (5 карт + синтез) → реализация
+→ 3 агента-стража (ТЗ/frozen, корректность, чистота — все SHIP) → workflow
+`logo-code-review` (7 углов → verify, 17 агентов, 8 находок) → Codex adversarial
+(`codex:codex-rescue`; Codex был заавторизован, 9 находок, 3 self-FP). Все
+подтверждённые исправлены: (1) verify-frozen сравнивал RAW src с HTML-escaped →
+декод сущностей; (2) `onStaged` пересобирал dropZone (потеря фокуса) → отдельный
+хост кнопки; (3) magic-отступы → вывод из маркера; (4) preview не показывал
+логотип → инъекция; (5) 4-я копия extension-set без cross-ref → комментарий;
+(6) зеркало валидации без guard типа контейнера → добавлен; (7) сообщение/regex
+расхождение (jpg) → сужено до svg/png/webp везде.
+
+Принятые ограничения (документировано): гонка «убрать во время незавершённой
+загрузки» может зафиксировать стейдж (под-секундное окно, как у FA-reset; диалог
+публикации показывает реальный файл) — системное поведение media-слоёв, generic-код
+не трогаем; `width/height` логотипа фиксированы 120×24 (~5:1, hint до загрузки;
+высота фиксируется CSS → нет вертикального CLS) — реальные размеры не читаем
+намеренно (SVG-safe); `%`-энкодинг в пути даёт 404 (fs не декодит URL), не XSS;
+стейл `currentPath` после публикации без ремаунта — общий паттерн всех meta-слотов
+(orgLogo/OG), не регрессия.
+
+Гейты: `codex:ship` exit 0 (plugin 37/37, governance 0, parity 19/19,
+content:check байт-в-байт, golden 2/2 без пересъёмки, verify-fatal, verify-frozen
+**137/138, 0 FAIL, 1 SKIPPED**); `quality:fast` зелёный; `test:admin` 24/24.
+Технота окружения: worktree без `node_modules` → junction на основной репо (как
+F3); `@cspell/dict-ru_ru` отсутствовал → `npm install --no-save` (ENV-01).
+
+Следующий шаг: draft PR ветки в main; затем продолжение кампании (F6, релизный гейт).
+
 ### 2026-06-14 — Сессия 6 (Claude Code): F5 — deferred-фичи
 
 Ветка `codex/prod-f5-deferred` (draft PR #51, на актуальном main `922843a`).
