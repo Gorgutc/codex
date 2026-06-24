@@ -154,7 +154,7 @@ const shippedRuntimeFiles = [
   'js/vendor/codex-three-viewer.js',
 ];
 const storageViolations = shippedRuntimeFiles.filter((rel) => /(localStorage|sessionStorage)\s*(?:\.|\[)/.test(read(rel)));
-check('runtime: no browser storage access', storageViolations.length === 0, storageViolations.join(', '));
+check('public runtime: no browser storage access', storageViolations.length === 0, storageViolations.join(', '));
 
 if (exists('.github/workflows/quality.yml')) {
   const workflow = read('.github/workflows/quality.yml');

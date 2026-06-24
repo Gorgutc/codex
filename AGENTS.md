@@ -9,7 +9,8 @@ The audit/orchestration layer under `.codex/`, `.agents/skills/`, and `docs/agen
 
 - Site: Codex Studio, a static 3D design portfolio and free-assets catalog.
 - Stack: vanilla HTML, CSS, and classic JavaScript.
-- Runtime: no framework, no bundler, no build step, no Tailwind, no React/Vue/Svelte, no cookies, no `localStorage`, no `sessionStorage`.
+- Public runtime: no framework, no bundler, no build step, no Tailwind, no React/Vue/Svelte, no cookies, no `localStorage`, no `sessionStorage`.
+- Admin panel exception: `admin/` may use tab-scoped `sessionStorage` for PAT/session and draft autosave only; do not extend that storage model to the public pages.
 - Pages: `index.html` and `free-assets.html`.
 - Verification: `npm run verify`; success means the command exits cleanly and reports `0 FAIL`, without relying on a historical pass total.
 - Publish flow: every task goes to a `codex/*` branch, is pushed to GitHub, and gets a draft PR.

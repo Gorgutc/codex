@@ -17,7 +17,7 @@ description: Use for Codex Studio HTML, CSS, or vanilla JS generation, review, r
 
 - Vanilla HTML/CSS/JS only.
 - Classic scripts only; no `defer`, no `type="module"` for first-party page scripts.
-- No browser storage.
+- No browser storage in the public shipped runtime; the admin panel `sessionStorage` exception is governed by `codex-studio-admin-rules`.
 - Keep `model-data.js` and `<model-viewer>` lazy-loaded.
 - Keep bilingual i18n intact; Russian UI is expected after runtime language switching.
 - Do not add new `font-size: Npx`; respect the frozen budget.

@@ -25,6 +25,22 @@ const PAGES = [
   { path: '/free-assets.html', title: /Free 3D Assets/i, axeBudget: 0 }
 ];
 
+function formatAxeViolations(violations) {
+  if (violations.length === 0) return 'No axe violations.';
+  return violations
+    .map((violation) => {
+      const nodes = violation.nodes
+        .map((node) => {
+          const target = Array.isArray(node.target) ? node.target.join(' ') : String(node.target);
+          const summary = String(node.failureSummary || '').replace(/\s+/g, ' ').trim();
+          return `target=${target}; failureSummary=${summary || 'n/a'}`;
+        })
+        .join(' | ');
+      return `${violation.id} impact=${violation.impact || 'unknown'} ${nodes}`;
+    })
+    .join('\n');
+}
+
 const MIME = {
   '.css': 'text/css',
   '.glb': 'model/gltf-binary',
@@ -103,7 +119,7 @@ for (const pageInfo of PAGES) {
   test(`${pageInfo.path} stays inside the axe accessibility budget`, async ({ page }) => {
     await page.goto(`${base}${pageInfo.path}`, { waitUntil: 'networkidle' });
     const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
-    expect(result.violations.length).toBeLessThanOrEqual(pageInfo.axeBudget);
+    expect(result.violations.length, formatAxeViolations(result.violations)).toBeLessThanOrEqual(pageInfo.axeBudget);
   });
 }
 

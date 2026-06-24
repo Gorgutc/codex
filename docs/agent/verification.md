@@ -35,7 +35,7 @@ npm run test:admin
 npm run test:visual
 ```
 
-`quality:governance` protects active instructions, package scripts, script-order policy, no-storage/no-import-map constraints, and shared-runtime drift.
+`quality:governance` protects active instructions, package scripts, script-order policy, public-runtime no-storage/no-import-map constraints, and shared-runtime drift.
 
 `content:check` validates the editable content layer (`content/**`) and proves the generated targets (`js/cards-data.js`, `js/fa-data.js`, `js/i18n-data.js`, the `index.html` GEN region) match it byte-for-byte after EOL normalization. It runs inside `quality:fast` and `codex:ship`.
 

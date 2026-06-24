@@ -18,7 +18,7 @@
 
 - CSS tokens first, page CSS split by responsibility.
 - Global JS and custom events instead of module imports.
-- DOM and URL state, no browser storage.
+- Public runtime uses DOM and URL state, with no browser storage. The `admin/` panel may use tab-scoped `sessionStorage` for PAT/session and draft autosave.
 - Bilingual i18n through data files and runtime walker.
 - Static-host deployment.
 
