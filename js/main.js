@@ -59,8 +59,8 @@
      • Tracks first 12 work-card SVGs via image.decode() (or load/error
        fallback) and tweens counter + bar via GSAP (0.4s, power2.out).
      • Soft timeout 2.5s → force-tween to 100%. After 4s — show SKIP.
-     • Exit: hold 100% for 200ms, then clip-path inset(0 0 100% 0) +
-       opacity 0 (duration 0.9, expo.inOut). On complete: overlay
+     • Exit: hold 100% for 200ms, then clip-path inset(0 0 100% 0)
+       (duration 0.9, expo.inOut). On complete: overlay
        removed, html.is-loading cleared, Lenis state resynced.
      • prefers-reduced-motion → 50ms instant cut, no GSAP tweens.
   ══════════════════════════════════════════════════════════════════ */
@@ -142,7 +142,6 @@
           if (reduced || typeof gsap === 'undefined') { cleanup(); return; }
           gsap.to(overlay, {
             clipPath: 'inset(0 0 100% 0)',
-            opacity: 0,
             duration: 0.9,
             ease: 'expo.inOut',
             onComplete: cleanup

@@ -1792,7 +1792,7 @@ html.is-loading body > .cursor {
   overflow: hidden;
   /* Explicit inset() start so GSAP can interpolate to inset(0 0 100% 0) on exit. */
   clip-path: inset(0 0 0% 0);
-  will-change: clip-path, opacity;
+  will-change: clip-path;
 }
 
 .preloader__readout {
