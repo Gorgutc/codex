@@ -9,7 +9,7 @@ description: Use for Codex Studio images, SVG cards and case slides, GLB models,
 
 - Portfolio IDs couple cards, case slides, GLB models, i18n data, and tests.
 - Do not edit `js/model-data.js` by hand unless the user explicitly asks; it is large inline GLB data and is lazy-loaded.
-- Runtime GLB handling and `<model-viewer>` are lazy. Current app logic loads model-viewer from Google APIs, not legacy jsdelivr docs.
+- Runtime GLB handling and `<model-viewer>` are lazy. Current app logic loads the self-hosted model-viewer bundle through `js/shared-runtime.js`, not Google APIs or legacy jsdelivr docs.
 - Downloads may be placeholders until the user supplies real archives; do not treat placeholder archives as dead runtime code without user confirmation.
 - OG images are page-specific: index uses `og-image.jpg`, free assets uses `og-free-assets.jpg`.
 
