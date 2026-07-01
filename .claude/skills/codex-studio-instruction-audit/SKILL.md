@@ -18,6 +18,6 @@ description: Use for Codex Studio instruction, skill, hook, agent, runbook, AGEN
 - Claims that `.claude` is inactive or that Codex is the only harness; command lists missing `sync:harness` / `check:parity`.
 - `56/56` vs current suite output.
 - English-only claims vs bilingual i18n.
-- CDN/jsdelivr claims vs vendored runtime libraries and Google model-viewer loading.
+- CDN/jsdelivr/Google model-viewer claims vs vendored runtime libraries and self-hosted model-viewer loading.
 - Preloader absence claims vs current anti-flicker/preloader code.
 - Absolute bans that are now frozen budgets, such as legacy `px` font-size.
