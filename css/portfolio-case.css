@@ -1207,7 +1207,7 @@
 }
 
 /* ═══════════════════════════════════
-   3D VIEW (v0.11) — Google <model-viewer>
+   3D VIEW (v0.11) — self-hosted Three viewer + lazy <model-viewer> fallback
    Размеры и отступы точно как у Blueprints.
 ═══════════════════════════════════ */
 .case-3d {
