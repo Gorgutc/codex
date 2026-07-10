@@ -1,0 +1,1221 @@
+/* Codex Specimen OS — optional Technical Explorer skin. */
+
+html[data-design="specimen"] body {
+  --specimen-header: 72px;
+  --specimen-rail: clamp(17rem, 21vw, 20rem);
+  --specimen-dossier: clamp(20rem, 29vw, 27rem);
+  --specimen-bg: var(--color-bg);
+  --specimen-panel: var(--color-surface);
+  --specimen-panel-raised: var(--color-surface-2);
+  --specimen-line: var(--color-divider);
+  --specimen-line-strong: var(--color-border);
+  --specimen-accent: var(--color-primary);
+  --specimen-muted: var(--color-text-muted);
+  --specimen-accent-text: var(--color-accent-text-strong);
+  background: var(--specimen-bg);
+  color: var(--color-text);
+}
+
+html[data-design="specimen"] body::before {
+  opacity: 0.16;
+}
+
+html[data-design="specimen"] .layout {
+  background: var(--specimen-bg);
+}
+
+html[data-design="specimen"] :is(a, button):focus-visible {
+  outline: 2px solid var(--specimen-accent);
+  outline-offset: 3px;
+}
+
+/* Shared system-bar treatment for portfolio Home and Case. */
+html[data-design="specimen"] body.specimen-index-page .layout {
+  display: block;
+  height: 100dvh;
+}
+
+html[data-design="specimen"] body.specimen-index-page .sidebar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 90;
+  width: 100%;
+  height: var(--specimen-header);
+  border: 0;
+  border-bottom: 1px solid var(--specimen-line);
+  background: var(--specimen-bg);
+  overflow: visible;
+  transform: none;
+  pointer-events: auto;
+}
+
+html[data-design="specimen"] body.specimen-index-page .sidebar > :not(.site-header) {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-index-page .site-header {
+  width: 100%;
+  height: 100%;
+  padding: 0 clamp(1rem, 2.4vw, 2.5rem);
+  display: flex;
+  justify-content: center;
+  background: var(--specimen-bg);
+}
+
+html[data-design="specimen"] body.specimen-index-page .site-header > :not(.header-top) {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-index-page .header-top {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+html[data-design="specimen"] body.specimen-index-page .header-top::after {
+  content: "SPECIMEN OS / PROJECT EXPLORER";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--specimen-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+html[data-design="specimen"] body.specimen-index-page .logo {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  color: var(--color-text);
+}
+
+html[data-design="specimen"] body.specimen-index-page .header-top__controls {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  margin-left: auto;
+}
+
+html[data-design="specimen"] body.specimen-index-page .cards-toggle {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-index-page :is(.contact-btn, .lang-toggle, .theme-toggle) {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-design="specimen"] body.specimen-index-page .main-area {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background: var(--specimen-bg);
+  overflow: hidden;
+}
+
+/* Home: project index / inspection stage / technical dossier. */
+html[data-design="specimen"] .specimen-home {
+  position: absolute;
+  inset: var(--specimen-header) 0 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: var(--specimen-rail) minmax(25rem, 1fr) var(--specimen-dossier);
+  min-height: 0;
+  background: var(--specimen-bg);
+}
+
+html[data-design="specimen"] .specimen-home[hidden] {
+  display: none;
+}
+
+html[data-design="specimen"] .specimen-kicker {
+  color: var(--specimen-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+}
+
+html[data-design="specimen"] .specimen-index {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--specimen-line);
+  background: var(--specimen-bg);
+}
+
+html[data-design="specimen"] .specimen-index__head {
+  min-height: 64px;
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--specimen-line);
+}
+
+html[data-design="specimen"] .specimen-index__mobile-toggle {
+  display: none;
+}
+
+html[data-design="specimen"] .specimen-index__count {
+  color: var(--specimen-accent-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-design="specimen"] .specimen-filters {
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--specimen-line);
+}
+
+html[data-design="specimen"] .specimen-filter {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--specimen-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+html[data-design="specimen"] .specimen-filter:is(:hover, .is-active) {
+  border-color: var(--specimen-accent);
+  color: var(--color-text);
+  background: var(--color-primary-highlight);
+}
+
+html[data-design="specimen"] .specimen-projects {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--specimen-line-strong) transparent;
+}
+
+html[data-design="specimen"] .specimen-project {
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--specimen-line);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+html[data-design="specimen"] .specimen-project[hidden] {
+  display: none;
+}
+
+html[data-design="specimen"] .specimen-project:is(:hover, :focus-visible, .is-selected) {
+  color: var(--color-text);
+  background: var(--specimen-panel);
+}
+
+html[data-design="specimen"] .specimen-project.is-selected {
+  box-shadow: 3px 0 0 var(--specimen-accent) inset;
+}
+
+html[data-design="specimen"] .specimen-project__number,
+html[data-design="specimen"] .specimen-project__year {
+  color: var(--specimen-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-design="specimen"] .specimen-project__name {
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-design="specimen"] .specimen-stage {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-4);
+  display: grid;
+  grid-template-rows: 40px minmax(0, 1fr) 40px;
+  background: var(--specimen-panel);
+}
+
+html[data-design="specimen"] .specimen-stage__top,
+html[data-design="specimen"] .specimen-stage__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--specimen-line);
+  padding: 0 var(--space-3);
+}
+
+html[data-design="specimen"] .specimen-stage__top {
+  border-bottom: 0;
+}
+
+html[data-design="specimen"] .specimen-stage__foot {
+  border-top: 0;
+}
+
+html[data-design="specimen"] .specimen-stage__status,
+html[data-design="specimen"] .specimen-stage__coordinate,
+html[data-design="specimen"] .specimen-stage__hint {
+  color: var(--specimen-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+}
+
+html[data-design="specimen"] .specimen-stage__status {
+  color: var(--specimen-accent-text);
+}
+
+html[data-design="specimen"] .specimen-stage__media {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--specimen-line);
+  background: var(--specimen-bg);
+  overflow: hidden;
+}
+
+html[data-design="specimen"] .specimen-stage__image {
+  width: 100%;
+  height: 100%;
+  padding: clamp(0.5rem, 1.5vw, 1.5rem);
+  display: block;
+  object-fit: contain;
+  filter: saturate(0.92) contrast(1.04);
+}
+
+@media (min-width: 768px) {
+  html[data-design="specimen"] .specimen-stage__image {
+    width: 120%;
+    max-width: none;
+    padding: var(--space-2);
+  }
+}
+
+html[data-design="specimen"] .specimen-dossier {
+  min-width: 0;
+  padding: clamp(1.25rem, 2.5vw, 2.5rem);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--specimen-line);
+  background: var(--specimen-bg);
+  overflow-y: auto;
+}
+
+html[data-design="specimen"] .specimen-dossier__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+html[data-design="specimen"] .specimen-dossier__number,
+html[data-design="specimen"] .specimen-dossier__category {
+  color: var(--specimen-accent-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+html[data-design="specimen"] .specimen-dossier__title {
+  margin: clamp(2rem, 6vh, 5rem) 0 var(--space-4);
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 4.2vw, 5.5rem);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  overflow-wrap: anywhere;
+}
+
+html[data-design="specimen"] .specimen-dossier__description {
+  max-width: 34ch;
+  margin: 0 0 var(--space-8);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+html[data-design="specimen"] .specimen-dossier__table,
+html[data-design="specimen"] .specimen-case-dossier__facts {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  margin: 0;
+  border-top: 1px solid var(--specimen-line);
+}
+
+html[data-design="specimen"] .specimen-dossier__table :is(dt, dd),
+html[data-design="specimen"] .specimen-case-dossier__facts :is(dt, dd) {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--specimen-line);
+  font-size: var(--text-xs);
+}
+
+html[data-design="specimen"] .specimen-dossier__table dt,
+html[data-design="specimen"] .specimen-case-dossier__facts dt {
+  color: var(--specimen-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+html[data-design="specimen"] .specimen-dossier__table dd,
+html[data-design="specimen"] .specimen-case-dossier__facts dd {
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+html[data-design="specimen"] .specimen-dossier__open {
+  min-height: 48px;
+  margin-top: auto;
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--specimen-accent);
+  background: var(--color-primary-highlight);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+
+html[data-design="specimen"] .specimen-dossier__open:hover {
+  background: var(--specimen-accent);
+  color: var(--color-text);
+}
+
+html[data-design="specimen"] .specimen-dossier__links {
+  padding-top: var(--space-4);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+html[data-design="specimen"] .specimen-dossier__links a {
+  color: var(--specimen-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+
+html[data-design="specimen"] .specimen-dossier__links a:hover {
+  color: var(--color-text);
+}
+
+/* Case: fixed media stage with a scrollable technical dossier. */
+html[data-design="specimen"] body.specimen-home-active #case-view {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-case-active #case-view {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+  background: var(--specimen-bg);
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-mobile-bar {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-view__header {
+  position: absolute;
+  inset: var(--specimen-header) 0 0 auto;
+  z-index: 12;
+  width: var(--specimen-dossier);
+  padding: clamp(1.25rem, 2.5vw, 2.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--space-6);
+  border-left: 1px solid var(--specimen-line);
+  background: var(--specimen-bg);
+  overflow-y: auto;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-view__left {
+  width: 100%;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-view__meta {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--specimen-line);
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-view__title {
+  margin-top: var(--space-8);
+  font-size: clamp(2.5rem, 4.2vw, 5.5rem);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  overflow-wrap: anywhere;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-view__actions {
+  width: 100%;
+  align-items: stretch;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-view__tabs {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-content: stretch;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-view__tablist {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-tab {
+  width: 100%;
+  padding: 0 var(--space-2);
+  justify-content: center;
+  border-radius: 0;
+  font-family: var(--font-mono);
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-view__tabs > .case-nav {
+  width: 100%;
+  height: 40px;
+  justify-content: space-between;
+  border-radius: 0;
+  background: transparent;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-nav__counter {
+  flex: 1;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-share--desktop {
+  width: 100%;
+  justify-content: center;
+  border-radius: 0;
+  font-family: var(--font-mono);
+}
+
+html[data-design="specimen"] .specimen-case-dossier {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+html[data-design="specimen"] .specimen-case-dossier__label {
+  color: var(--specimen-accent-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+}
+
+html[data-design="specimen"] .specimen-case-dossier__description {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+html[data-design="specimen"] .specimen-case-home {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--specimen-line-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+html[data-design="specimen"] .specimen-case-home:hover {
+  border-color: var(--specimen-accent);
+  color: var(--color-text);
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-progress {
+  position: absolute;
+  top: var(--specimen-header);
+  left: 0;
+  right: var(--specimen-dossier);
+  z-index: 15;
+  width: auto;
+  height: 2px;
+  margin: 0;
+  background: var(--specimen-line);
+}
+
+html[data-design="specimen"] body.specimen-index-page :is(.case-scroll, .case-3d, .case-blueprints) {
+  position: absolute;
+  inset: var(--specimen-header) var(--specimen-dossier) 0 0;
+  width: auto;
+  height: auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
+  background: var(--specimen-panel);
+}
+
+html[data-design="specimen"] body.specimen-index-page :is(.case-3d, .case-blueprints)[hidden] {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-scroll {
+  overflow-y: auto;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-scroll__track {
+  gap: var(--space-6);
+  padding: 0 0 var(--space-12);
+}
+
+html[data-design="specimen"] body.specimen-index-page .specimen-case-hero {
+  order: -1;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-row {
+  gap: var(--space-4);
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-item__media,
+html[data-design="specimen"] body.specimen-index-page .case-text {
+  border: 1px solid var(--specimen-line);
+  border-radius: 0;
+  background-color: var(--specimen-bg);
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-item__caption {
+  padding: var(--space-3) 0 0;
+  border-top: 0;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-item__caption-label,
+html[data-design="specimen"] body.specimen-index-page .case-text__eyebrow {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-scroll-hint {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-index-page .case-3d__canvas,
+html[data-design="specimen"] body.specimen-index-page .case-blueprints__canvas,
+html[data-design="specimen"] body.specimen-index-page .case-blueprints__page-canvas {
+  border-radius: 0;
+  background-color: var(--specimen-bg);
+}
+
+/* Free Assets: category rail plus dense technical catalog. */
+html[data-design="specimen"] body.specimen-fa-page .layout {
+  grid-template-columns: var(--specimen-rail) minmax(0, 1fr);
+  height: 100dvh;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .sidebar {
+  width: var(--specimen-rail);
+  border-color: var(--specimen-line);
+  background: var(--specimen-bg);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .site-header {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--specimen-line);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .cards-toggle {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page :is(.contact-btn, .lang-toggle, .theme-toggle, .tags-dropdown__trigger) {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .cards-scroll {
+  padding: 0;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .cards-list {
+  gap: 0;
+  padding: 0;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .tag-card {
+  min-height: 64px;
+  display: block;
+  border: 0;
+  border-bottom: 1px solid var(--specimen-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .tag-card:is(:hover, .tag-card--active) {
+  background: var(--specimen-panel);
+  box-shadow: 3px 0 0 var(--specimen-accent) inset;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .tag-card__thumb {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .tag-card__info {
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  display: grid;
+  align-content: center;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .tag-card__desc {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .tag-card__title {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .site-footer {
+  border-top: 1px solid var(--specimen-line);
+  background: var(--specimen-bg);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .main-area {
+  display: flex;
+  width: auto;
+  min-width: 0;
+  height: 100dvh;
+  background: var(--specimen-bg);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .case-mobile-bar {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-view {
+  padding: clamp(1.25rem, 2.8vw, 3rem);
+  gap: var(--space-4);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-view__header {
+  min-height: 128px;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--specimen-line);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-view__title {
+  font-size: clamp(2.5rem, 5vw, 5.5rem);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-view__cat {
+  color: var(--specimen-accent-text);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-view__count {
+  color: var(--specimen-muted);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-trust__item {
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-trust__item::before {
+  border-radius: 0;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-scroll {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: 0 0 var(--space-12);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-card {
+  border-color: var(--specimen-line);
+  border-radius: 0;
+  background: var(--specimen-bg);
+  box-shadow: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-card:hover {
+  border-color: var(--specimen-accent);
+  background: var(--specimen-bg);
+  box-shadow: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-card::before {
+  display: none;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-card__thumb {
+  border-bottom: 1px solid var(--specimen-line);
+  background: var(--specimen-panel-raised);
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-card__thumb img {
+  object-fit: contain;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-card__body {
+  padding: var(--space-4);
+}
+
+html[data-design="specimen"] body.specimen-fa-page :is(.fa-card__hint, .fa-card__download, .fa-card__badge, .fa-card__state) {
+  border-radius: 0;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-card__download {
+  min-height: 2.75rem;
+  height: auto;
+  font-family: var(--font-mono);
+  background: transparent;
+}
+
+html[data-design="specimen"] body.specimen-fa-page .fa-card__contents-item {
+  border-radius: 0;
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 1180px) {
+  html[data-design="specimen"] .specimen-home {
+    grid-template-columns: clamp(15rem, 25vw, 18rem) minmax(22rem, 1fr) clamp(18rem, 28vw, 22rem);
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .fa-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  html[data-design="specimen"] .specimen-home {
+    grid-template-columns: minmax(14rem, 0.8fr) minmax(0, 1.4fr);
+  }
+
+  html[data-design="specimen"] .specimen-dossier {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: min(54vw, 24rem);
+    max-height: 52%;
+    border-top: 1px solid var(--specimen-line);
+  }
+
+  html[data-design="specimen"] .specimen-dossier__title {
+    margin-top: var(--space-6);
+    font-size: clamp(2.25rem, 6vw, 4rem);
+  }
+}
+
+@media (max-width: 767px) {
+  html[data-design="specimen"] body {
+    --specimen-header: 64px;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .sidebar {
+    display: flex;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .site-header {
+    display: flex;
+    padding: 0 var(--space-4);
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .logo {
+    min-height: 2.75rem;
+    align-items: center;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page.cards-collapsed .sidebar {
+    pointer-events: auto;
+    background: var(--specimen-bg);
+  }
+
+  html[data-design="specimen"] body.specimen-index-page.cards-collapsed .sidebar > .site-header,
+  html[data-design="specimen"] body.specimen-index-page.cards-collapsed :is(
+    .logo,
+    .header-top__controls,
+    .lang-toggle,
+    .theme-toggle
+  ) {
+    display: flex;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .header-top::after {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .contact-btn__label {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .main-area,
+  html[data-design="specimen"] body.specimen-index-page.cards-collapsed .main-area {
+    display: flex;
+    padding: 0;
+  }
+
+  html[data-design="specimen"] .specimen-home {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  html[data-design="specimen"] .specimen-home[hidden] {
+    display: none;
+  }
+
+  html[data-design="specimen"] .specimen-stage {
+    order: 1;
+    flex: 0 0 auto;
+    min-height: 48vh;
+    padding: var(--space-3);
+  }
+
+  html[data-design="specimen"] .specimen-stage__hint {
+    display: none;
+  }
+
+  html[data-design="specimen"] .specimen-dossier {
+    order: 3;
+    flex: 0 0 auto;
+    position: static;
+    width: auto;
+    max-height: none;
+    border-top: 1px solid var(--specimen-line);
+    border-left: 0;
+  }
+
+  html[data-design="specimen"] .specimen-dossier__title {
+    margin: var(--space-6) 0 var(--space-3);
+    font-size: clamp(2.5rem, 15vw, 4.5rem);
+  }
+
+  html[data-design="specimen"] .specimen-dossier__open {
+    margin-top: var(--space-8);
+  }
+
+  html[data-design="specimen"] .specimen-dossier__links a {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  html[data-design="specimen"] .specimen-index {
+    order: 2;
+    flex: 0 0 auto;
+    border-top: 1px solid var(--specimen-line);
+    border-right: 0;
+  }
+
+  html[data-design="specimen"] .specimen-index__head {
+    display: none;
+  }
+
+  html[data-design="specimen"] .specimen-index__mobile-toggle {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0 var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 0;
+    border-bottom: 1px solid var(--specimen-line);
+    border-radius: 0;
+    background: var(--specimen-bg);
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+  }
+
+  html[data-design="specimen"] .specimen-index:not(.is-expanded) :is(.specimen-filters, .specimen-projects) {
+    display: none;
+  }
+
+  html[data-design="specimen"] .specimen-projects {
+    max-height: 48vh;
+    overflow-y: auto;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-view__header {
+    position: absolute;
+    inset: var(--specimen-header) 0 auto;
+    width: 100%;
+    max-height: 43vh;
+    padding: var(--space-4);
+    gap: var(--space-3);
+    border-left: 0;
+    border-bottom: 1px solid var(--specimen-line);
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-view__title {
+    margin-top: var(--space-4);
+    font-size: clamp(2.25rem, 13vw, 4rem);
+  }
+
+  html[data-design="specimen"] .specimen-case-dossier__label,
+  html[data-design="specimen"] .specimen-case-dossier__description,
+  html[data-design="specimen"] .specimen-case-dossier__facts {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-view__actions {
+    flex-wrap: wrap;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-share.case-share--desktop {
+    order: 3;
+    display: inline-flex;
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-view__tablist > :is(
+    #case-tab-2d,
+    #case-tab-3d
+  ) {
+    width: 2.75rem;
+    height: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-view__tablist > #case-tab-bp,
+  html[data-design="specimen"] body.specimen-index-page .case-view__tabs > .case-nav {
+    height: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-view__tabs > .case-nav > .case-nav__btn {
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-progress {
+    top: calc(var(--specimen-header) + 43vh);
+    right: 0;
+  }
+
+  html[data-design="specimen"] body.specimen-index-page :is(.case-scroll, .case-3d, .case-blueprints) {
+    inset: calc(var(--specimen-header) + 43vh) 0 0;
+    padding: var(--space-3);
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-row,
+  html[data-design="specimen"] body.specimen-index-page .case-row--tall-2,
+  html[data-design="specimen"] body.specimen-index-page .case-row--tall-text,
+  html[data-design="specimen"] body.specimen-index-page .case-row--motion-halves {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  html[data-design="specimen"] body.specimen-index-page .case-row--tall-text > :is(.case-item--tall, .case-item--text-inline) {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .layout {
+    display: block;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .sidebar {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 60;
+    width: 100%;
+    height: 11rem;
+    display: flex;
+    transform: none;
+    pointer-events: auto;
+    background: var(--specimen-bg);
+    border-bottom: 1px solid var(--specimen-line);
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .site-header {
+    height: 6.75rem;
+    padding: 0 var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    justify-content: flex-start;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .header-top {
+    flex: 0 0 4rem;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .logo {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .header-top__controls {
+    display: flex;
+    margin-left: auto;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .contact-btn {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .site-header > :not(.header-top),
+  html[data-design="specimen"] body.specimen-fa-page .site-footer {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .site-header > .sidebar__row {
+    min-height: 2.75rem;
+    display: flex;
+    flex: 0 0 2.75rem;
+    border-top: 1px solid var(--specimen-line);
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .game-switch {
+    min-height: 2.75rem;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .cards-toggle {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .cards-scroll {
+    display: block;
+    flex: 0 0 68px;
+    width: 100%;
+    height: 68px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    border-top: 1px solid var(--specimen-line);
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .cards-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .cards-list {
+    width: max-content;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .tag-card {
+    width: 10rem;
+    min-height: 67px;
+    flex: 0 0 10rem;
+    border-right: 1px solid var(--specimen-line);
+    border-bottom: 0;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .tag-card__info {
+    min-height: 67px;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .tag-card__meta {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .main-area,
+  html[data-design="specimen"] body.specimen-fa-page.cards-collapsed .main-area {
+    position: fixed;
+    inset: 11rem 0 0;
+    display: flex;
+    width: 100%;
+    height: auto;
+    padding: 0;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .case-mobile-bar {
+    display: none;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .fa-view {
+    padding: var(--space-4);
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .fa-view__header {
+    min-height: auto;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .fa-view__title {
+    font-size: clamp(2.5rem, 14vw, 4.5rem);
+    word-spacing: 0.08em;
+  }
+
+  html[data-design="specimen"] body.specimen-fa-page .fa-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-design="specimen"] *,
+  html[data-design="specimen"] *::before,
+  html[data-design="specimen"] *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

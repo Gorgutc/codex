@@ -234,9 +234,6 @@
   // На free-assets.html cards-data.js не подключается — CARDS_DATA остаётся
   // пустым объектом, case-view там не активируется (нет .work-card[data-id]).
   window.CARDS_DATA = CARDS_DATA;
-  if (window.I18N && typeof window.I18N.applyLang === 'function' && typeof window.I18N.getLang === 'function') {
-    window.I18N.applyLang(window.I18N.getLang());
-  }
 
   /* ══════════════════════════════════════════════════════════════════
      Seeded shuffle (Mulberry32) — детерминированный порядок на каждый кейс.
@@ -904,6 +901,33 @@
     });
   }
 
+  // Design Lab variants keep the Case DOM mounted while their Home is visible.
+  // Expose a narrow lifecycle boundary so hidden Vimeo/video/WebGL work cannot
+  // continue, and so reopening the same hash can resume 2D media even when the
+  // legacy hash handler correctly skips rebuilding the same case id.
+  function leaveCaseRuntime() {
+    leaveFullscreenRuntime();
+    if (currentViz !== '2d') setViz('2d');
+    stopCaseMotionBlocks();
+    Array.prototype.slice.call(caseTrack ? caseTrack.querySelectorAll('video') : []).forEach(function (video) {
+      try { video.pause(); } catch (_) { /* no-op */ }
+    });
+    model3dMountToken++;
+    model3dBuiltFor = null;
+    destroy3D();
+  }
+
+  function resumeCaseRuntime() {
+    if (currentViz !== '2d') return;
+    initCaseMotionBlocks();
+    if (prefersReducedMotion()) return;
+    Array.prototype.slice.call(caseTrack ? caseTrack.querySelectorAll('video[autoplay]:not(.case-motion__video)') : [])
+      .forEach(function (video) {
+        var playPromise = video.play && video.play();
+        if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(function () {});
+      });
+  }
+
   /* Full-width text block (intro) — v0.9: eyebrow + meta (role / year / tools)
      v0.13.8: external link button (ArtStation для game-ассетов, Behance для остальных). */
   function textFullHTML(text, meta) {
@@ -1370,6 +1394,9 @@
     // v0.8.1 [H1] — при открытом fs-overlay стрелки управляют только галереей
     // (см. navGallery handler ниже). Иначе кейс листался под фуллскрином.
     if (fsOverlay && fsOverlay.classList.contains('is-open')) return;
+    // Optional Design Lab Home states own their arrow keys. The legacy case
+    // navigator must remain dormant until an actual Case is visible.
+    if (document.querySelector('[data-design-home]:not([hidden])')) return;
     // На мобильном стрелки работают только когда case-view виден (sidebar свернут)
     var isMobile = window.matchMedia('(max-width: 767px)').matches;
     if (isMobile && !document.body.classList.contains('cards-collapsed')) return;
@@ -3281,13 +3308,18 @@
   }
 
   // Экспорт для animations.js
-  window.CodexCase = { openCase: openCase };
+  window.CodexCase = {
+    openCase: openCase,
+    leaveCase: leaveCaseRuntime,
+    resumeCase: resumeCaseRuntime
+  };
 
   /* v0.14.0 [16] — клик по логотипу CODEX открывает первый видимый кейс
      (аналогично initial-load). Используем ту же логику, что и авто-инициализация. */
   var logoHome = document.getElementById('logo-home');
   if (logoHome) {
     logoHome.addEventListener('click', function (e) {
+      if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       // cards — NodeList, конвертируем в Array для .find
       // A1-18 — берём первую карту, не скрытую ФИЛЬТРОМ (hidden-атрибут).
@@ -3636,10 +3668,26 @@
   // конфликтует между desktop/mobile share-кнопками (review F3).
   function copyCaseLink(button) {
     if (!currentCaseId) return;
-    var origin = window.location.origin;
-    // file:// выдаёт origin='null' — фолбэк на href
-    if (!origin || origin === 'null') origin = '';
-    var url = origin + window.location.pathname + '#' + currentCaseId;
+    // Preserve the allowlisted Design Lab/language query and replace only the
+    // case fragment. This also works for file:// previews where origin is null.
+    var url;
+    try {
+      var shareUrl = new URL(window.location.href);
+      var safeQuery = new URLSearchParams();
+      var designMode = window.CodexDesign && window.CodexDesign.mode;
+      var language = shareUrl.searchParams.get('lang');
+      if (designMode === 'specimen' || designMode === 'chamber') {
+        safeQuery.set('design', designMode);
+      }
+      if (language === 'en' || language === 'ru') safeQuery.set('lang', language);
+      shareUrl.username = '';
+      shareUrl.password = '';
+      shareUrl.search = safeQuery.toString();
+      shareUrl.hash = currentCaseId;
+      url = shareUrl.toString();
+    } catch (_error) {
+      url = window.location.href.split(/[?#]/)[0] + '#' + encodeURIComponent(currentCaseId);
+    }
 
     function showCopied() {
       if (!button) return;
@@ -3707,6 +3755,7 @@
      gallery img клонируется контент в .media-fs__stage.
      ════════════════════════════════════════════ */
   var fsOverlay = null, fsStage = null, fsCloseBtn = null;
+  var fsCloseToken = 0;
   var fsPrev = null, fsNext = null, fsCounter = null, fsAnnouncer = null;
   var fsZoomBar = null, fsZoomOutBtn = null, fsZoomFitBtn = null, fsZoomActualBtn = null, fsZoomInBtn = null;
   // v0.8.2: fsOriginalEl удалён — задумывался для video time-sync, но
@@ -4037,8 +4086,9 @@
     releaseFocusTrap();
     clearFsCursorZones();
     var prevFocus = fsPreviousFocus;
+    var closeToken = ++fsCloseToken;
     setTimeout(function () {
-      if (fsOverlay && !fsOverlay.classList.contains('is-open')) {
+      if (closeToken === fsCloseToken && fsOverlay && !fsOverlay.classList.contains('is-open')) {
         fsOverlay.hidden = true;
         if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
           try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
@@ -4052,6 +4102,34 @@
         }
       }
     }, 220);
+  }
+
+  function leaveFullscreenRuntime() {
+    if (!fsOverlay) return;
+    fsCloseToken++;
+    if (typeof gsap !== 'undefined') {
+      gsap.killTweensOf(fsOverlay);
+      if (fsStage) gsap.killTweensOf(fsStage.children);
+    }
+    fsOverlay.classList.remove('is-open');
+    fsOverlay.style.opacity = '';
+    fsOverlay.hidden = true;
+    document.documentElement.style.overflow = '';
+    releaseFocusTrap();
+    clearFsCursorZones();
+    if (fsStage) {
+      Array.prototype.slice.call(fsStage.querySelectorAll('video')).forEach(function (video) {
+        try { video.pause(); } catch (_) { /* no-op */ }
+      });
+    }
+    if (fsThreeViewer && typeof fsThreeViewer.dispose === 'function') {
+      try { fsThreeViewer.dispose(); } catch (_) { /* no-op */ }
+    }
+    fsThreeViewer = null;
+    while (fsStage && fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
+    releaseFsImageZoom();
+    restoreFsContext();
+    updateLenisState();
   }
 
   /* ─── v0.20.0 — Gallery FLIP, navigation, focus trap, swipe ────────── */

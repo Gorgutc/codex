@@ -79,14 +79,19 @@ function freePort() {
 function pagePath(rawUrl) {
   try {
     const parsed = new URL(rawUrl);
-    return parsed.pathname || '/index.html';
+    return `${parsed.pathname || '/index.html'}${parsed.search}${parsed.hash}`;
   } catch (_) {
     return rawUrl.replace(/^https?:\/\/localhost/i, '') || '/index.html';
   }
 }
 
 function slugFor(page) {
-  return page.replace(/^\//, '').replace(/\.html$/, '').replace(/[^a-z0-9-]+/gi, '-') || 'index';
+  return (
+    page
+      .replace(/^\//, '')
+      .replace(/\.html$/, '')
+      .replace(/[^a-z0-9-]+/gi, '-') || 'index'
+  );
 }
 
 function score(category) {
@@ -100,7 +105,7 @@ function assertionsFor(lhr) {
     const level = Array.isArray(rule) ? rule[0] : 'warn';
     const options = Array.isArray(rule) ? rule[1] || {} : {};
     const minScore = typeof options.minScore === 'number' ? options.minScore : 0;
-    const actual = category ? lhr.categories[category]?.score ?? 0 : 0;
+    const actual = category ? (lhr.categories[category]?.score ?? 0) : 0;
     return {
       key,
       category,
@@ -118,11 +123,7 @@ const { server, base } = await startServer();
 const chromePort = await freePort();
 const browser = await chromium.launch({
   headless: true,
-  args: [
-    `--remote-debugging-port=${chromePort}`,
-    '--no-sandbox',
-    '--disable-dev-shm-usage'
-  ]
+  args: [`--remote-debugging-port=${chromePort}`, '--no-sandbox', '--disable-dev-shm-usage']
 });
 
 let failures = 0;
@@ -175,16 +176,14 @@ try {
 
     console.log(
       `[PASS] ${currentPath} ` +
-      `perf=${row.performance} a11y=${row.accessibility} best=${row.bestPractices} seo=${row.seo} ` +
-      `FCP=${row.fcp} LCP=${row.lcp} TBT=${row.tbt} CLS=${row.cls}`
+        `perf=${row.performance} a11y=${row.accessibility} best=${row.bestPractices} seo=${row.seo} ` +
+        `FCP=${row.fcp} LCP=${row.lcp} TBT=${row.tbt} CLS=${row.cls}`
     );
     checks
       .filter((check) => !check.ok)
       .forEach((check) => {
         const label = check.level === 'error' ? 'FAIL' : 'WARN';
-        console.log(
-          `  [${label}] ${check.key}: score=${check.actual.toFixed(2)} min=${check.minScore.toFixed(2)}`
-        );
+        console.log(`  [${label}] ${check.key}: score=${check.actual.toFixed(2)} min=${check.minScore.toFixed(2)}`);
       });
   }
 } finally {

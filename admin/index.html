@@ -60,9 +60,14 @@
         Это предпросмотр черновика — на сайте изменения появятся после публикации.
       </p>
       <div class="preview-overlay__controls">
+        <div class="preview-overlay__group preview-overlay__group--design" role="group" aria-label="Дизайн предпросмотра">
+          <button type="button" class="btn preview-toggle is-active" id="preview-design-original" aria-pressed="true">Original</button>
+          <button type="button" class="btn preview-toggle" id="preview-design-specimen" aria-pressed="false">Specimen OS</button>
+          <button type="button" class="btn preview-toggle" id="preview-design-chamber" aria-pressed="false">Black Chamber</button>
+        </div>
         <div class="preview-overlay__group" role="group" aria-label="Язык предпросмотра">
-          <button type="button" class="btn preview-toggle is-active" id="preview-lang-en">EN</button>
-          <button type="button" class="btn preview-toggle" id="preview-lang-ru">RU</button>
+          <button type="button" class="btn preview-toggle is-active" id="preview-lang-en" aria-pressed="true">EN</button>
+          <button type="button" class="btn preview-toggle" id="preview-lang-ru" aria-pressed="false">RU</button>
         </div>
         <div class="preview-overlay__group" role="group" aria-label="Ширина экрана предпросмотра">
           <button type="button" class="btn preview-toggle is-active" id="preview-vp-desktop">Десктоп</button>

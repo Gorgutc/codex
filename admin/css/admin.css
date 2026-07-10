@@ -1121,12 +1121,17 @@ body.preview-open {
   overflow: hidden;
 }
 
+.preview-overlay__group--design {
+  flex-wrap: nowrap;
+}
+
 .preview-toggle {
   border: 0;
   border-radius: 0;
 }
 
-.preview-toggle.is-active {
+.preview-toggle.is-active,
+.preview-toggle[aria-pressed="true"] {
   background: var(--a-primary);
   color: #fff;
 }

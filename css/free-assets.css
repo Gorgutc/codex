@@ -157,6 +157,11 @@
     background 200ms var(--ease-out),
     box-shadow 240ms var(--ease-out);
 }
+
+.fa-card[hidden] {
+  display: none;
+}
+
 .fa-card::before {
   content: "";
   position: absolute;
@@ -290,6 +295,11 @@
   pointer-events: none;
   transition: opacity 200ms var(--ease-out);
 }
+
+.media-fs[hidden] {
+  display: none;
+}
+
 .media-fs.is-open {
   opacity: 1;
   pointer-events: auto;
