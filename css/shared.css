@@ -1780,6 +1780,45 @@ html.is-loading body > .cursor {
   visibility: hidden;
 }
 
+/* Hybrid is assembled by two ordered opt-in runtimes after DOMContentLoaded.
+   Keep Original from flashing between preloader exit and adapter readiness;
+   design-loader.js changes pending to ready or bounded fail-open fallback. */
+html[data-design="hybrid"][data-design-runtime-state="pending"] body > .layout,
+html[data-design="hybrid"][data-design-runtime-state="pending"] body > .cursor {
+  visibility: hidden;
+}
+
+.design-runtime-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--color-bg);
+  color: var(--color-text);
+  letter-spacing: 0.08em;
+}
+
+.design-runtime-gate[hidden] {
+  display: none;
+}
+
+.design-runtime-gate__wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.design-runtime-gate__status {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 .preloader {
   position: fixed;
   inset: 0;

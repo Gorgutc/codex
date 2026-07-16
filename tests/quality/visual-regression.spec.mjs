@@ -21,7 +21,7 @@ const MIME = {
   '.txt': 'text/plain',
   '.webmanifest': 'application/manifest+json',
   '.xml': 'application/xml',
-  '.zip': 'application/zip',
+  '.zip': 'application/zip'
 };
 
 let server;
@@ -48,9 +48,8 @@ function serve(req, res) {
 }
 
 async function waitForPageReady(page) {
-  await page.waitForFunction(() =>
-    !document.documentElement.classList.contains('is-loading') &&
-    !document.querySelector('#preloader')
+  await page.waitForFunction(
+    () => !document.documentElement.classList.contains('is-loading') && !document.querySelector('#preloader')
   );
   await page.evaluate(() => (document.fonts ? document.fonts.ready : Promise.resolve()));
   await page.addStyleTag({
@@ -63,12 +62,51 @@ async function waitForPageReady(page) {
         scroll-behavior: auto !important;
       }
       .cursor { display: none !important; }
-    `,
+    `
   });
   await page.waitForTimeout(80);
 }
 
-async function prepare(page, routePath, viewport) {
+async function waitForHybridHomeReady(page) {
+  await page.waitForFunction(() => {
+    const root = document.documentElement;
+    const home = document.querySelector('[data-design-home="hybrid"]');
+    const activeImage = home?.querySelector('.chamber-home__image--active');
+    const visible = (selector) => {
+      const element = document.querySelector(selector);
+      if (!element || element.hidden || element.getClientRects().length === 0) return false;
+      const style = getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    };
+
+    return root.getAttribute('data-design-runtime-state') === 'ready'
+      && root.getAttribute('data-design-runtime-ready') === 'hybrid'
+      && root.getAttribute('data-design-surface') === 'home'
+      && root.classList.contains('design-chamber-home')
+      && home
+      && !home.hidden
+      && home.getAttribute('data-active-project') === 'orbital-mk-ii'
+      && !home.hasAttribute('data-transition-state')
+      && home.getAttribute('aria-busy') !== 'true'
+      && activeImage
+      && activeImage.complete
+      && activeImage.naturalWidth > 0
+      && visible('.chamber-home__pager')
+      && visible('.chamber-home__foot')
+      && visible('.chamber-home__index-button.is-active')
+      && visible('.chamber-home__assets');
+  });
+
+  await page.evaluate(async () => {
+    const activeImage = document.querySelector('.chamber-home__image--active');
+    if (activeImage && typeof activeImage.decode === 'function') {
+      await activeImage.decode().catch(() => {});
+    }
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+}
+
+async function prepare(page, routePath, viewport, query = 'lang=en') {
   await page.setViewportSize(viewport);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   // model-viewer is blocked so FA mini previews stay as static thumbs in the
@@ -76,7 +114,7 @@ async function prepare(page, routePath, viewport) {
   // local vendor path is blocked too (the CDN pattern stays for older refs).
   await page.route('https://ajax.googleapis.com/ajax/libs/model-viewer/**', (route) => route.abort('blockedbyclient'));
   await page.route('**/js/vendor/model-viewer.min.js*', (route) => route.abort('blockedbyclient'));
-  await page.goto(`${base}${routePath}?lang=en`, { waitUntil: 'networkidle' });
+  await page.goto(`${base}${routePath}?${query}`, { waitUntil: 'networkidle' });
   await waitForPageReady(page);
 }
 
@@ -102,7 +140,7 @@ test.describe('visual regression baselines', () => {
     await expect(page).toHaveScreenshot('index-desktop-first-viewport.png', {
       animations: 'disabled',
       fullPage: false,
-      maxDiffPixelRatio: 0.015,
+      maxDiffPixelRatio: 0.015
     });
   });
 
@@ -113,7 +151,7 @@ test.describe('visual regression baselines', () => {
     await expect(page).toHaveScreenshot('index-mobile-sidebar.png', {
       animations: 'disabled',
       fullPage: false,
-      maxDiffPixelRatio: 0.015,
+      maxDiffPixelRatio: 0.015
     });
   });
 
@@ -124,7 +162,7 @@ test.describe('visual regression baselines', () => {
     await expect(page).toHaveScreenshot('free-assets-desktop-grid.png', {
       animations: 'disabled',
       fullPage: false,
-      maxDiffPixelRatio: 0.015,
+      maxDiffPixelRatio: 0.015
     });
   });
 
@@ -135,7 +173,36 @@ test.describe('visual regression baselines', () => {
     await expect(page).toHaveScreenshot('free-assets-mobile-sidebar.png', {
       animations: 'disabled',
       fullPage: false,
-      maxDiffPixelRatio: 0.015,
+      maxDiffPixelRatio: 0.015
+    });
+  });
+
+  test('Hybrid R2 Home desktop first viewport', async ({ page }) => {
+    await prepare(page, '/index.html', { width: 1440, height: 1024 }, 'design=hybrid&lang=en');
+    await waitForHybridHomeReady(page);
+    await expect(page.locator('[data-design-home="hybrid"]')).toBeVisible();
+    await expect(page.locator('[data-design-home="hybrid"]')).toHaveAttribute('data-active-project', 'orbital-mk-ii');
+    await expect(page.locator('.chamber-home__image--active')).toBeVisible();
+    await expect(page.locator('.chamber-home__pager')).toBeVisible();
+    await expect(page.locator('.chamber-home__foot')).toBeVisible();
+    await expect(page).toHaveScreenshot('hybrid-home-desktop-1440x1024.png', {
+      animations: 'disabled',
+      fullPage: false,
+      maxDiffPixelRatio: 0.015
+    });
+  });
+
+  test('Hybrid R2 Home mobile first viewport', async ({ page }) => {
+    await prepare(page, '/index.html', { width: 390, height: 844 }, 'design=hybrid&lang=en');
+    await waitForHybridHomeReady(page);
+    await expect(page.locator('[data-design-home="hybrid"]')).toBeVisible();
+    await expect(page.locator('.chamber-home__image--active')).toBeVisible();
+    await expect(page.locator('.chamber-home__pager-button')).toHaveCount(2);
+    await expect(page.locator('.chamber-home__foot')).toBeVisible();
+    await expect(page).toHaveScreenshot('hybrid-home-mobile-390x844.png', {
+      animations: 'disabled',
+      fullPage: false,
+      maxDiffPixelRatio: 0.015
     });
   });
 });

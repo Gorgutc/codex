@@ -1,17 +1,20 @@
 /*
  * CODEX BLACK CHAMBER
- * Alternative full-site presentation layer. Loaded after the existing page
- * runtime and deliberately delegates cases, 3D, blueprints, filters, previews,
- * downloads, i18n and sharing to their current owners.
+ * Reusable Black Chamber presentation layer. Chamber starts every surface;
+ * the Hybrid adapter starts only the approved Home capability. Cases, 3D,
+ * blueprints, filters, previews, downloads, i18n and sharing stay delegated to
+ * their existing runtime owners.
  */
 (function () {
   'use strict';
 
   var design = window.CodexDesign;
-  if (!design || design.mode !== 'chamber') return;
+  if (!design || (design.mode !== 'chamber' && design.mode !== 'hybrid')) return;
 
   var initialHash = decodeHash(design.initialHash || window.location.hash);
   var isFreeAssets = !!document.getElementById('fa-grid');
+  var runtime = null;
+  var started = false;
 
   function decodeHash(hash) {
     var value = String(hash || '').replace(/^#/, '');
@@ -78,9 +81,22 @@
   }
 
   function dispatchRender(view, id) {
+    if (runtime && runtime.mode === 'hybrid') {
+      document.documentElement.setAttribute('data-design-runtime-ready', runtime.mode);
+      document.dispatchEvent(new CustomEvent('codex:design-runtime-ready', {
+        detail: { mode: runtime.mode, view: view, id: id || null }
+      }));
+    }
     document.dispatchEvent(new CustomEvent('codex:design-render', {
-      detail: { mode: 'chamber', view: view, id: id || null }
+      detail: { mode: runtime ? runtime.mode : design.mode, view: view, id: id || null }
     }));
+  }
+
+  function setDesignSurface(surface) {
+    if (!runtime || runtime.mode !== 'hybrid') return;
+    var root = document.documentElement;
+    root.setAttribute('data-design-surface', surface);
+    root.classList.toggle('design-chamber-home', surface === 'home');
   }
 
   function projectCards() {
@@ -122,18 +138,22 @@
     var projects = cards.map(projectFromCard);
     var ids = projects.map(function (project) { return project.id; });
     var activeIndex = Math.max(0, ids.indexOf('orbital-mk-ii'));
-    var homeIntent = !initialHash;
+    var homeIntent = ids.indexOf(initialHash) === -1;
     var routeFocus = false;
     var lastShownCaseId = '';
     var home = buildHome(projects);
+    setDesignSurface(homeIntent ? 'home' : 'case');
     main.insertBefore(home.root, caseView);
 
-    var back = make('button', 'chamber-case-back');
-    back.type = 'button';
-    back.dataset.designBack = '';
-    back.textContent = localCopy('Back to projects', 'Назад к проектам');
-    back.setAttribute('aria-label', translated('aria.backToProjects', back.textContent));
-    caseView.insertBefore(back, caseView.firstChild);
+    var back = document.getElementById('case-back');
+    if (runtime.casePresentation) {
+      back = make('button', 'chamber-case-back');
+      back.type = 'button';
+      back.textContent = localCopy('Back to projects', 'Назад к проектам');
+      back.setAttribute('aria-label', translated('aria.backToProjects', back.textContent));
+      caseView.insertBefore(back, caseView.firstChild);
+    }
+    if (back) back.dataset.designBack = '';
 
     document.querySelectorAll('.chamber-page-portfolio .logo').forEach(function (logo) {
       logo.dataset.designBack = '';
@@ -143,8 +163,7 @@
       projects = projectCards().map(projectFromCard);
       ids = projects.map(function (project) { return project.id; });
       if (activeIndex >= projects.length) activeIndex = 0;
-      home.refresh(projects);
-      home.render(activeIndex, false);
+      activeIndex = home.refresh(projects, activeIndex);
     }
 
     function validProject(id) {
@@ -173,16 +192,25 @@
       });
     }
 
+    function setHybridMobileSidebar(collapsed) {
+      if (runtime.mode !== 'hybrid' || !window.matchMedia('(max-width: 767px)').matches) return;
+      if (window.CodexCase && typeof window.CodexCase.setSidebarCollapsed === 'function') {
+        window.CodexCase.setSidebarCollapsed(collapsed);
+      }
+    }
+
     function showHome(options) {
       options = options || {};
       homeIntent = true;
+      setHybridMobileSidebar(false);
+      setDesignSurface('home');
       home.root.hidden = false;
       caseView.hidden = true;
       caseView.setAttribute('aria-hidden', 'true');
       document.body.classList.add('chamber-route-home');
       document.body.classList.remove('chamber-route-case', 'chamber-case-scrolled');
       stopOptInMedia();
-      home.render(activeIndex, false);
+      if (!options.keepHomeRender) home.render(activeIndex, false);
       if (options.focus) home.focusHeading();
       dispatchRender('home');
     }
@@ -229,12 +257,15 @@
       var shouldResetCasePosition = enteringFromHome || lastShownCaseId !== id;
       homeIntent = false;
       activeIndex = ids.indexOf(id);
+      home.cancel();
+      setHybridMobileSidebar(true);
+      setDesignSurface('case');
       home.root.hidden = true;
       caseView.hidden = false;
       caseView.removeAttribute('aria-hidden');
       document.body.classList.add('chamber-route-case');
       document.body.classList.remove('chamber-route-home', 'chamber-case-scrolled');
-      decorateCase(id);
+      if (runtime.casePresentation) decorateCase(id);
       if (shouldResetCasePosition) {
         if (caseScroll) caseScroll.scrollTop = 0;
         window.scrollTo(0, 0);
@@ -295,6 +326,7 @@
     }
 
     home.onSelect(function (index) {
+      if (index === activeIndex) return;
       activeIndex = index;
       home.render(activeIndex, true);
     });
@@ -358,10 +390,12 @@
     });
 
     window.addEventListener('i18n:changed', function () {
-      back.textContent = localCopy('Back to projects', 'Назад к проектам');
-      back.setAttribute('aria-label', translated('aria.backToProjects', back.textContent));
+      if (runtime.casePresentation && back) {
+        back.textContent = localCopy('Back to projects', 'Назад к проектам');
+        back.setAttribute('aria-label', translated('aria.backToProjects', back.textContent));
+      }
       refreshProjects();
-      if (homeIntent) showHome();
+      if (homeIntent) showHome({ keepHomeRender: true });
     });
 
     /* main.js opens the first case on a zero-delay timer. Run after that timer so
@@ -382,16 +416,25 @@
 
   function buildHome(projects) {
     var root = make('section', 'chamber-home');
-    root.dataset.designHome = 'chamber';
+    root.dataset.designHome = runtime.mode;
     root.setAttribute('aria-labelledby', 'chamber-home-title');
 
     var media = make('div', 'chamber-home__media');
     var image = make('img', 'chamber-home__image');
     image.loading = 'eager';
     image.decoding = 'async';
+    var incomingImage = null;
+    if (runtime.stableMotion) {
+      image.classList.add('chamber-home__image--active');
+      incomingImage = make('img', 'chamber-home__image');
+      incomingImage.loading = 'eager';
+      incomingImage.decoding = 'async';
+      incomingImage.hidden = true;
+      incomingImage.setAttribute('aria-hidden', 'true');
+    }
     var shade = make('div', 'chamber-home__shade');
     shade.setAttribute('aria-hidden', 'true');
-    append(media, image, shade);
+    append(media, image, incomingImage, shade);
 
     var rail = make('nav', 'chamber-home__rail');
     rail.setAttribute('aria-label', localCopy('Project index', 'Индекс проектов'));
@@ -433,6 +476,15 @@
     var openHandler = function () {};
     var activeIndex = 0;
     var projectList = projects;
+    var requestedIndex = 0;
+    var committedIndex = -1;
+    var transitionGeneration = 0;
+    var transitionRunning = false;
+    var transitionSourceIndex = -1;
+    var reversalFrame = 0;
+    var activeImage = image;
+    var standbyImage = incomingImage;
+    var motionWaiters = [];
 
     function rebuildIndex() {
       list.replaceChildren();
@@ -462,44 +514,280 @@
       assets.textContent = translated('pill.freeAssets', 'Free Assets');
     }
 
-    function render(index, animate) {
-      if (!projectList.length) return;
-      activeIndex = (index + projectList.length) % projectList.length;
-      var project = projectList[activeIndex];
-      root.classList.toggle('is-changing', !!animate &&
-        !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      title.textContent = project.title;
-      description.textContent = project.description;
-      meta.textContent = [project.category, project.year].filter(Boolean).join(' · ');
-      counter.textContent = String(activeIndex + 1).padStart(2, '0') + ' / ' +
-        String(projectList.length).padStart(2, '0');
-      view.href = '#' + encodeURIComponent(project.id);
-      view.dataset.designOpenProject = project.id;
-      media.dataset.label = project.title;
-      if (project.imageSrc) {
-        image.hidden = false;
-        image.src = project.imageSrc;
-        image.alt = project.imageAlt || project.title;
-        image.width = Number(project.imageWidth) || 800;
-        image.height = Number(project.imageHeight) || 600;
-      } else {
-        image.hidden = true;
-        image.removeAttribute('src');
-        image.alt = '';
-      }
+    function normalizeIndex(index) {
+      return (index + projectList.length) % projectList.length;
+    }
+
+    function updateSelection(index, shouldScroll) {
       list.querySelectorAll('.chamber-home__index-button').forEach(function (button, buttonIndex) {
-        var selected = buttonIndex === activeIndex;
+        var selected = buttonIndex === index;
         button.classList.toggle('is-active', selected);
         if (selected) button.setAttribute('aria-current', 'true');
         else button.removeAttribute('aria-current');
       });
+      if (shouldScroll) {
+        var activeButton = list.querySelector('.chamber-home__index-button.is-active');
+        if (activeButton) activeButton.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    }
+
+    function setImageSource(layer, project) {
+      if (!layer) return;
+      if (project.imageSrc) {
+        layer.hidden = false;
+        if (layer.getAttribute('src') !== project.imageSrc) layer.src = project.imageSrc;
+        layer.alt = project.imageAlt || project.title;
+        layer.width = Number(project.imageWidth) || 800;
+        layer.height = Number(project.imageHeight) || 600;
+      } else {
+        layer.hidden = true;
+        layer.removeAttribute('src');
+        layer.alt = '';
+      }
+    }
+
+    function commitCopy(index) {
+      var project = projectList[index];
+      root.dataset.activeProject = project.id;
+      title.textContent = project.title;
+      description.textContent = project.description;
+      meta.textContent = [project.category, project.year].filter(Boolean).join(' · ');
+      updateRouteControls(runtime.stableMotion ? requestedIndex : index);
+      media.dataset.label = project.title;
+    }
+
+    function updateRouteControls(index) {
+      var project = projectList[index];
+      counter.textContent = String(index + 1).padStart(2, '0') + ' / ' +
+        String(projectList.length).padStart(2, '0');
+      view.href = '#' + encodeURIComponent(project.id);
+      view.dataset.designOpenProject = project.id;
+    }
+
+    function renderLegacy(index, animate) {
+      activeIndex = normalizeIndex(index);
+      var project = projectList[activeIndex];
+      root.dataset.requestedProject = project.id;
+      root.classList.toggle('is-changing', !!animate &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      commitCopy(activeIndex);
+      setImageSource(image, project);
+      updateSelection(activeIndex, animate);
       if (animate) {
         requestAnimationFrame(function () {
           requestAnimationFrame(function () { root.classList.remove('is-changing'); });
         });
-        var activeButton = list.querySelector('.chamber-home__index-button.is-active');
-        if (activeButton) activeButton.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }
+    }
+
+    function nextFrame() {
+      return new Promise(function (resolve) { requestAnimationFrame(resolve); });
+    }
+
+    function delay(milliseconds) {
+      return new Promise(function (resolve) {
+        var waiter = { id: 0, resolve: resolve };
+        waiter.id = window.setTimeout(function () {
+          motionWaiters = motionWaiters.filter(function (entry) { return entry !== waiter; });
+          resolve();
+        }, milliseconds);
+        motionWaiters.push(waiter);
+      });
+    }
+
+    function cancelMotionWaiters() {
+      motionWaiters.splice(0).forEach(function (waiter) {
+        window.clearTimeout(waiter.id);
+        waiter.resolve();
+      });
+    }
+
+    function cancelScheduledReversal() {
+      if (!reversalFrame) return;
+      window.cancelAnimationFrame(reversalFrame);
+      reversalFrame = 0;
+    }
+
+    function prepareImage(layer, project) {
+      setImageSource(layer, project);
+      if (!project.imageSrc || typeof layer.decode !== 'function') return Promise.resolve();
+      return layer.decode().catch(function () {
+        if (layer.complete) return undefined;
+        return new Promise(function (resolve) {
+          layer.addEventListener('load', resolve, { once: true });
+          layer.addEventListener('error', resolve, { once: true });
+        });
+      });
+    }
+
+    function clearStableMotion() {
+      transitionGeneration += 1;
+      transitionRunning = false;
+      transitionSourceIndex = -1;
+      cancelScheduledReversal();
+      cancelMotionWaiters();
+      root.classList.remove('is-transitioning', 'is-content-changing');
+      root.removeAttribute('data-transition-state');
+      root.removeAttribute('aria-busy');
+      if (standbyImage) {
+        standbyImage.classList.remove('chamber-home__image--active');
+        standbyImage.hidden = true;
+        standbyImage.setAttribute('aria-hidden', 'true');
+      }
+      if (activeImage) {
+        activeImage.hidden = false;
+        activeImage.classList.add('chamber-home__image--active');
+        activeImage.removeAttribute('aria-hidden');
+      }
+    }
+
+    function commitDirect(index) {
+      clearStableMotion();
+      requestedIndex = normalizeIndex(index);
+      activeIndex = requestedIndex;
+      committedIndex = requestedIndex;
+      setImageSource(activeImage, projectList[committedIndex]);
+      commitCopy(committedIndex);
+      updateSelection(committedIndex, false);
+    }
+
+    async function reverseStableMotion(sourceIndex) {
+      reversalFrame = 0;
+      transitionGeneration += 1;
+      var generation = transitionGeneration;
+      cancelMotionWaiters();
+      transitionRunning = true;
+      root.classList.add('is-transitioning', 'is-content-changing');
+      root.setAttribute('data-transition-state', 'reversing');
+      root.setAttribute('aria-busy', 'true');
+      activeImage.hidden = false;
+      activeImage.removeAttribute('aria-hidden');
+      standbyImage.setAttribute('aria-hidden', 'true');
+      activeImage.classList.add('chamber-home__image--active');
+      standbyImage.classList.remove('chamber-home__image--active');
+
+      await delay(180);
+      if (generation !== transitionGeneration) return;
+      commitCopy(sourceIndex);
+      root.classList.remove('is-content-changing');
+
+      /* The image scale is the longest Hybrid transition (720ms). Keep the
+         motion owner active for its full duration so a following request can
+         never reverse an in-flight transform after will-change is removed. */
+      await delay(540);
+      if (generation !== transitionGeneration) return;
+      standbyImage.hidden = true;
+      committedIndex = sourceIndex;
+      transitionSourceIndex = -1;
+      root.classList.remove('is-transitioning', 'is-content-changing');
+      root.removeAttribute('data-transition-state');
+      root.removeAttribute('aria-busy');
+      transitionRunning = false;
+
+      if (requestedIndex !== committedIndex) {
+        root.setAttribute('aria-busy', 'true');
+        transitionGeneration += 1;
+        runStableMotion(transitionGeneration);
+      }
+    }
+
+    function scheduleStableReversal(sourceIndex) {
+      if (reversalFrame) return;
+      var generation = transitionGeneration;
+      reversalFrame = window.requestAnimationFrame(function () {
+        reversalFrame = 0;
+        if (generation !== transitionGeneration || !transitionRunning ||
+            requestedIndex !== sourceIndex ||
+            root.getAttribute('data-transition-state') !== 'crossfade') return;
+        reverseStableMotion(sourceIndex);
+      });
+    }
+
+    async function runStableMotion(generation) {
+      transitionRunning = true;
+      while (generation === transitionGeneration && requestedIndex !== committedIndex) {
+        var targetIndex = requestedIndex;
+        var targetProject = projectList[targetIndex];
+        transitionSourceIndex = committedIndex;
+        root.setAttribute('data-transition-state', 'decoding');
+        standbyImage.classList.remove('chamber-home__image--active');
+        standbyImage.hidden = false;
+        await prepareImage(standbyImage, targetProject);
+        if (generation !== transitionGeneration) break;
+        if (targetIndex !== requestedIndex) {
+          standbyImage.hidden = true;
+          continue;
+        }
+
+        root.classList.add('is-transitioning', 'is-content-changing');
+        root.setAttribute('data-transition-state', 'crossfade');
+        await nextFrame();
+        if (generation !== transitionGeneration) break;
+        standbyImage.removeAttribute('aria-hidden');
+        activeImage.setAttribute('aria-hidden', 'true');
+        standbyImage.classList.add('chamber-home__image--active');
+        activeImage.classList.remove('chamber-home__image--active');
+
+        await delay(180);
+        if (generation !== transitionGeneration) break;
+        commitCopy(targetIndex);
+        root.classList.remove('is-content-changing');
+
+        /* 180ms content phase + 540ms settle phase matches the CSS transform's
+           full 720ms. data-transition-state remains authoritative until then. */
+        await delay(540);
+        if (generation !== transitionGeneration) break;
+        activeImage.hidden = true;
+        var previousImage = activeImage;
+        activeImage = standbyImage;
+        standbyImage = previousImage;
+        committedIndex = targetIndex;
+        transitionSourceIndex = -1;
+        root.classList.remove('is-transitioning');
+        root.removeAttribute('data-transition-state');
+      }
+      if (generation === transitionGeneration) {
+        transitionRunning = false;
+        if (requestedIndex === committedIndex) {
+          root.classList.remove('is-transitioning', 'is-content-changing');
+          root.removeAttribute('data-transition-state');
+          root.removeAttribute('aria-busy');
+          standbyImage.classList.remove('chamber-home__image--active');
+          standbyImage.hidden = true;
+          standbyImage.setAttribute('aria-hidden', 'true');
+        }
+      }
+    }
+
+    function renderStable(index, animate) {
+      requestedIndex = normalizeIndex(index);
+      activeIndex = requestedIndex;
+      root.dataset.requestedProject = projectList[requestedIndex].id;
+      updateSelection(requestedIndex, animate);
+      updateRouteControls(requestedIndex);
+      if (!animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches || committedIndex < 0) {
+        commitDirect(requestedIndex);
+        return;
+      }
+      if (transitionRunning) {
+        if (requestedIndex === transitionSourceIndex &&
+            root.getAttribute('data-transition-state') === 'crossfade') {
+          scheduleStableReversal(transitionSourceIndex);
+        } else {
+          cancelScheduledReversal();
+        }
+        return;
+      }
+      if (requestedIndex === committedIndex) return;
+      root.setAttribute('aria-busy', 'true');
+      transitionGeneration += 1;
+      runStableMotion(transitionGeneration);
+    }
+
+    function render(index, animate) {
+      if (!projectList.length) return;
+      if (runtime.stableMotion) renderStable(index, animate);
+      else renderLegacy(index, animate);
     }
 
     previous.addEventListener('click', function () {
@@ -517,10 +805,36 @@
     return {
       root: root,
       render: render,
-      refresh: function (nextProjects) {
+      refresh: function (nextProjects, fallbackIndex) {
+        var nextIndex = normalizeIndex(fallbackIndex);
+        var previousCommittedId = committedIndex >= 0 && projectList[committedIndex]
+          ? projectList[committedIndex].id
+          : '';
+        var hadPendingSelection = runtime.stableMotion && requestedIndex !== committedIndex;
+        if (runtime.stableMotion) clearStableMotion();
         projectList = nextProjects;
+        if (nextIndex >= projectList.length) nextIndex = 0;
+        activeIndex = nextIndex;
+        requestedIndex = nextIndex;
         rebuildIndex();
         updateLabels();
+
+        if (runtime.stableMotion && hadPendingSelection && previousCommittedId) {
+          committedIndex = projectList.findIndex(function (project) {
+            return project.id === previousCommittedId;
+          });
+          if (committedIndex < 0) committedIndex = 0;
+          setImageSource(activeImage, projectList[committedIndex]);
+          commitCopy(committedIndex);
+          renderStable(nextIndex, true);
+        } else {
+          commitDirect(nextIndex);
+        }
+        return nextIndex;
+      },
+      cancel: function () {
+        if (runtime.stableMotion) clearStableMotion();
+        else root.classList.remove('is-changing');
       },
       onSelect: function (handler) { selectHandler = handler; },
       onOpen: function (handler) { openHandler = handler; },
@@ -569,8 +883,43 @@
     requestAnimationFrame(decorateGrid);
   }
 
-  onReady(function () {
-    if (isFreeAssets) initFreeAssets();
-    else initPortfolio();
-  });
+  function start(options) {
+    options = options || {};
+    var mode = String(options.mode || design.mode);
+    var root = document.documentElement;
+    if (started || mode !== design.mode || root.getAttribute('data-design') !== mode ||
+        (mode === 'hybrid' && root.getAttribute('data-design-runtime-state') === 'fallback')) return false;
+
+    runtime = {
+      mode: mode,
+      home: options.home !== false,
+      casePresentation: options.casePresentation !== false,
+      freeAssetsPresentation: options.freeAssetsPresentation !== false,
+      stableMotion: options.stableMotion === true
+    };
+    started = true;
+
+    onReady(function () {
+      if (isFreeAssets) {
+        preserveModeLinks();
+        if (runtime.freeAssetsPresentation) initFreeAssets();
+        else dispatchRender('free-assets-fallback');
+      } else if (runtime.home) {
+        initPortfolio();
+      }
+    });
+    return true;
+  }
+
+  window.CodexChamber = Object.freeze({ start: start });
+
+  if (design.mode === 'chamber') {
+    start({
+      mode: 'chamber',
+      home: true,
+      casePresentation: true,
+      freeAssetsPresentation: true,
+      stableMotion: false
+    });
+  }
 })();

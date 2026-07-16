@@ -10,7 +10,10 @@ module.exports = {
         'http://localhost/free-assets.html?design=specimen&lang=en',
         'http://localhost/index.html?design=chamber&lang=en',
         'http://localhost/index.html?design=chamber&lang=en#orbital-mk-ii',
-        'http://localhost/free-assets.html?design=chamber&lang=en'
+        'http://localhost/free-assets.html?design=chamber&lang=en',
+        'http://localhost/index.html?design=hybrid&lang=en',
+        'http://localhost/index.html?design=hybrid&lang=en#orbital-mk-ii',
+        'http://localhost/free-assets.html?design=hybrid&lang=en'
       ],
       numberOfRuns: 1,
       settings: {

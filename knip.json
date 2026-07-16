@@ -8,6 +8,7 @@
     "js/animations.js",
     "js/cards-data.js",
     "js/design-chamber.js",
+    "js/design-hybrid.js",
     "js/design-loader.js",
     "js/design-mode.js",
     "js/design-specimen.js",

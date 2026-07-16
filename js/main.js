@@ -3311,7 +3311,8 @@
   window.CodexCase = {
     openCase: openCase,
     leaveCase: leaveCaseRuntime,
-    resumeCase: resumeCaseRuntime
+    resumeCase: resumeCaseRuntime,
+    setSidebarCollapsed: setCollapsed
   };
 
   /* v0.14.0 [16] — клик по логотипу CODEX открывает первый видимый кейс
@@ -3676,7 +3677,7 @@
       var safeQuery = new URLSearchParams();
       var designMode = window.CodexDesign && window.CodexDesign.mode;
       var language = shareUrl.searchParams.get('lang');
-      if (designMode === 'specimen' || designMode === 'chamber') {
+      if (designMode === 'specimen' || designMode === 'chamber' || designMode === 'hybrid') {
         safeQuery.set('design', designMode);
       }
       if (language === 'en' || language === 'ru') safeQuery.set('lang', language);

@@ -194,7 +194,7 @@ for (const page of ['index.html', 'free-assets.html']) {
     (html.match(/\.\/js\/design-mode\.js/g) || []).length === 1 &&
       (html.match(/\.\/js\/design-loader\.js/g) || []).length === 1
   );
-  check(`${page}: variant assets stay runtime-opt-in`, !/design-(?:specimen|chamber)\.(?:css|js)/.test(html));
+  check(`${page}: variant assets stay runtime-opt-in`, !/design-(?:specimen|chamber|hybrid)\.(?:css|js)/.test(html));
   check(
     `${page}: canonical excludes design query`,
     !/<link\s+rel=["']canonical["'][^>]+href=["'][^"']*[?&]design=/i.test(html)
@@ -206,8 +206,10 @@ const designLabAssets = [
   'js/design-loader.js',
   'js/design-specimen.js',
   'js/design-chamber.js',
+  'js/design-hybrid.js',
   'css/design-specimen.css',
-  'css/design-chamber.css'
+  'css/design-chamber.css',
+  'css/design-hybrid.css'
 ];
 check(
   'Design Lab: every routed runtime asset exists',
@@ -219,7 +221,27 @@ check(
   /design-specimen\.css/.test(read('js/design-loader.js')) &&
     /design-specimen\.js/.test(read('js/design-loader.js')) &&
     /design-chamber\.css/.test(read('js/design-loader.js')) &&
-    /design-chamber\.js/.test(read('js/design-loader.js'))
+    /design-chamber\.js/.test(read('js/design-loader.js')) &&
+    /design-hybrid\.css/.test(read('js/design-loader.js')) &&
+    /design-hybrid\.js/.test(read('js/design-loader.js'))
+);
+check(
+  'Design Lab: Hybrid foundation assets stay ordered',
+  /hybrid:\s*{\s*css:\s*\['\.\/css\/design-chamber\.css',\s*'\.\/css\/design-hybrid\.css'\],\s*js:\s*\['\.\/js\/design-chamber\.js',\s*'\.\/js\/design-hybrid\.js'\]/s.test(
+    read('js/design-loader.js')
+  )
+);
+check(
+  'Design Lab: Hybrid mode is explicitly allowlisted',
+  /valid\.hybrid\s*=\s*true/.test(read('js/design-mode.js'))
+);
+check(
+  'Design Lab: Hybrid readiness is style-gated with bounded Original fallback',
+  /data-design-runtime-state', 'pending'/.test(read('js/design-loader.js')) &&
+    /hybridPendingStyles/.test(read('js/design-loader.js')) &&
+    /setTimeout\(failOpenHybrid, 4000\)/.test(read('js/design-loader.js')) &&
+    /data-design-runtime-state', 'fallback'/.test(read('js/design-loader.js')) &&
+    /data-design-runtime-state', 'ready'/.test(read('js/design-loader.js'))
 );
 
 const freeAssetsHtml = read('free-assets.html');
@@ -231,6 +253,7 @@ const shippedRuntimeFiles = [
   'js/design-loader.js',
   'js/design-specimen.js',
   'js/design-chamber.js',
+  'js/design-hybrid.js',
   'js/main.js',
   'js/animations.js',
   'js/free-assets.js',

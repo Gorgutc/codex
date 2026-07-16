@@ -1,5 +1,5 @@
 /* Codex Design Lab: resolve the opt-in visual direction before CSS loads.
-   Public pages are always Original unless ?design=specimen|chamber is set.
+   Public pages are always Original unless ?design=specimen|chamber|hybrid is set.
    Admin srcdoc previews may provide data-design-preview on <html>. */
 (function () {
   'use strict';
@@ -8,6 +8,7 @@
   var valid = Object.create(null);
   valid.specimen = true;
   valid.chamber = true;
+  valid.hybrid = true;
   var initialHash = window.location.hash;
 
   function normalize(value) {

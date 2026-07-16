@@ -49,6 +49,7 @@
     designOriginal: document.getElementById('preview-design-original'),
     designSpecimen: document.getElementById('preview-design-specimen'),
     designChamber: document.getElementById('preview-design-chamber'),
+    designHybrid: document.getElementById('preview-design-hybrid'),
     langEn: document.getElementById('preview-lang-en'),
     langRu: document.getElementById('preview-lang-ru'),
     vpDesktop: document.getElementById('preview-vp-desktop'),
@@ -743,7 +744,8 @@
     const buttons = [
       [els.designOriginal, 'original'],
       [els.designSpecimen, 'specimen'],
-      [els.designChamber, 'chamber']
+      [els.designChamber, 'chamber'],
+      [els.designHybrid, 'hybrid']
     ];
     for (const [button, design] of buttons) {
       if (!button) continue;
@@ -800,7 +802,7 @@
   }
 
   function setDesign(design) {
-    if (!['original', 'specimen', 'chamber'].includes(design) || design === desiredDesign) return;
+    if (!['original', 'specimen', 'chamber', 'hybrid'].includes(design) || design === desiredDesign) return;
     desiredDesign = design;
     updateDesignButtons();
     if (!els.overlay.hidden) rebuildPreview();
@@ -838,6 +840,7 @@
   els.designOriginal.addEventListener('click', () => setDesign('original'));
   els.designSpecimen.addEventListener('click', () => setDesign('specimen'));
   els.designChamber.addEventListener('click', () => setDesign('chamber'));
+  els.designHybrid.addEventListener('click', () => setDesign('hybrid'));
   els.langEn.addEventListener('click', () => setLang('en'));
   els.langRu.addEventListener('click', () => setLang('ru'));
   els.vpDesktop.addEventListener('click', () => setViewport('desktop'));

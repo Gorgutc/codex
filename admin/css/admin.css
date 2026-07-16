@@ -1122,7 +1122,14 @@ body.preview-open {
 }
 
 .preview-overlay__group--design {
+  max-width: 100%;
   flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.preview-overlay__group--design .preview-toggle {
+  flex: 0 0 auto;
+  min-height: 2.75rem;
 }
 
 .preview-toggle {

@@ -422,6 +422,7 @@ function runStaticChecks() {
     'design-loader.js',
     'design-specimen.js',
     'design-chamber.js',
+    'design-hybrid.js',
     'main.js',
     'animations.js',
     'free-assets.js',
@@ -490,6 +491,7 @@ function runStaticChecks() {
     'free-assets.css': 0,
     'design-specimen.css': 0,
     'design-chamber.css': 0,
+    'design-hybrid.css': 0,
   };
   const pxFontSizeRe = /font-size:\s*\d+px/g;
   const pxViolations = [];
