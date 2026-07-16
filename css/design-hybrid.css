@@ -1,0 +1,136 @@
+/*
+ * CODEX HYBRID R2 — VIS-05.3 HOME
+ * Approved Black Chamber Home refinements. The design-chamber foundation is
+ * active only while html.design-chamber-home is present; Case and Free Assets
+ * keep their Original presentation until their dedicated implementation steps.
+ */
+
+html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home {
+  --hybrid-home-safe-inset: var(--space-12);
+  background-color: transparent;
+}
+
+html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio :is(.layout, .main-area) {
+  background-color: transparent;
+}
+
+html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio::before {
+  z-index: -1;
+  opacity: 0.06;
+  animation: none;
+  transform: none;
+}
+
+html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__content {
+  bottom: calc(clamp(7.5rem, 16vh, 10rem) + var(--hybrid-home-safe-inset));
+  left: calc(clamp(11rem, 19vw, 18rem) + var(--hybrid-home-safe-inset));
+  display: flex;
+  min-height: 16rem;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__pager {
+  top: auto;
+  right: calc(clamp(var(--space-4), 5vw, var(--space-24)) + var(--hybrid-home-safe-inset));
+  bottom: calc(clamp(7.5rem, 16vh, 10rem) + var(--hybrid-home-safe-inset));
+  flex-direction: row;
+  transform: none;
+}
+
+html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__pager-button {
+  border-right: 1px solid var(--chamber-line);
+  border-bottom: 0;
+}
+
+html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__pager-button:last-child {
+  border-right: 0;
+}
+
+html[data-design="hybrid"].design-chamber-home .chamber-home__image {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: scale(1.018);
+  transition:
+    opacity 540ms var(--ease-out),
+    transform 720ms var(--ease-out);
+}
+
+html[data-design="hybrid"].design-chamber-home .chamber-home__image--active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+html[data-design="hybrid"].design-chamber-home .chamber-home.is-transitioning .chamber-home__image,
+html[data-design="hybrid"].design-chamber-home .chamber-home.is-transitioning .chamber-home__content {
+  will-change: opacity, transform;
+}
+
+html[data-design="hybrid"].design-chamber-home .chamber-home.is-content-changing .chamber-home__content {
+  opacity: 0;
+  transform: translateY(var(--space-3));
+}
+
+@media (min-width: 1600px) {
+  html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home {
+    --hybrid-home-safe-inset: var(--space-16);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__content {
+    right: calc(var(--space-6) + var(--hybrid-home-safe-inset));
+    left: calc(clamp(9.5rem, 22vw, 13rem) + var(--hybrid-home-safe-inset));
+  }
+
+  html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__pager {
+    right: calc(var(--space-6) + var(--hybrid-home-safe-inset));
+  }
+}
+
+@media (max-width: 767px) {
+  html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home {
+    --hybrid-home-safe-inset: var(--space-6);
+  }
+
+  html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__media {
+    inset: 4.5rem var(--space-4) calc(15rem - var(--space-16));
+  }
+
+  html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__content {
+    right: var(--space-4);
+    bottom: 7.75rem;
+    left: var(--space-4);
+    min-height: 18rem;
+  }
+
+  html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio :is(
+    .chamber-home__meta,
+    .chamber-home__title,
+    .chamber-home__description
+  ) {
+    max-width: calc(100% - var(--hybrid-home-safe-inset));
+    margin-left: var(--hybrid-home-safe-inset);
+    transform: translateY(calc(-1 * var(--hybrid-home-safe-inset)));
+  }
+
+  html[data-design="hybrid"].design-chamber-home body.chamber-page-portfolio .chamber-home__pager {
+    top: auto;
+    right: var(--space-4);
+    bottom: 7.75rem;
+    flex-direction: row;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-design="hybrid"].design-chamber-home *,
+  html[data-design="hybrid"].design-chamber-home *::before,
+  html[data-design="hybrid"].design-chamber-home *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

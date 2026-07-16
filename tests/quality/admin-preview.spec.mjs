@@ -98,6 +98,75 @@ async function mockNetwork(page) {
   });
 }
 
+test('Design Lab: public URL is opt-in, canonical stays Original, links retain mode', async ({ page }) => {
+  const variantRequests = [];
+  page.on('request', (request) => {
+    if (/design-(?:specimen|chamber|hybrid)\.(?:css|js)(?:\?|$)/.test(request.url())) {
+      variantRequests.push(request.url());
+    }
+  });
+
+  await page.goto(`${base}/index.html`);
+  await expect(page.locator('html')).toHaveAttribute('data-design', 'original');
+  await expect(page.locator('[data-codex-design-asset]')).toHaveCount(0);
+  expect(variantRequests).toHaveLength(0);
+
+  await page.goto(`${base}/index.html?design=unknown`);
+  await expect(page.locator('html')).toHaveAttribute('data-design', 'original');
+  await expect(page.locator('[data-codex-design-asset]')).toHaveCount(0);
+  expect(variantRequests).toHaveLength(0);
+
+  await page.goto(`${base}/index.html?design=specimen`);
+  await expect(page.locator('html')).toHaveAttribute('data-design', 'specimen');
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://codex.promo/');
+  await expect(page.locator('link[data-codex-design-asset="style"]')).toHaveAttribute('href', /design-specimen\.css$/);
+  await expect(page.locator('script[data-codex-design-asset="runtime"]')).toHaveAttribute(
+    'src',
+    /design-specimen\.js$/
+  );
+  await expect(page.locator('a[href*="free-assets.html"]').first()).toHaveAttribute('href', /design=specimen/);
+  await expect(page.locator('a.work-card[data-id="orbital-mk-ii"]')).toHaveAttribute('href', '#orbital-mk-ii');
+  const designApi = await page.evaluate(() => ({
+    mode: window.CodexDesign && window.CodexDesign.mode,
+    initialHash: window.CodexDesign && window.CodexDesign.initialHash,
+    link: window.CodexDesign && window.CodexDesign.withMode('./free-assets.html?lang=ru#game')
+  }));
+  expect(designApi).toEqual({
+    mode: 'specimen',
+    initialHash: '',
+    link: '/free-assets.html?lang=ru&design=specimen#game'
+  });
+
+  await page.goto(`${base}/index.html?design=hybrid&lang=en`);
+  await expect(page.locator('html')).toHaveAttribute('data-design', 'hybrid');
+  await expect(page.locator('html')).toHaveAttribute('data-design-runtime-ready', 'hybrid');
+  await expect(page.locator('html')).toHaveAttribute('data-design-surface', 'home');
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://codex.promo/');
+  const hybridAssets = await page.evaluate(() => ({
+    css: Array.from(document.querySelectorAll('link[data-codex-design-asset="style"]')).map(
+      (asset) => new URL(asset.href).pathname
+    ),
+    js: Array.from(document.querySelectorAll('script[data-codex-design-asset="runtime"]')).map(
+      (asset) => new URL(asset.src).pathname
+    )
+  }));
+  expect(hybridAssets).toEqual({
+    css: ['/css/design-chamber.css', '/css/design-hybrid.css'],
+    js: ['/js/design-chamber.js', '/js/design-hybrid.js']
+  });
+  await expect(page.locator('a[href*="free-assets.html"]').first()).toHaveAttribute('href', /design=hybrid/);
+
+  await page.goto(`${base}/free-assets.html?design=chamber`);
+  await expect(page.locator('html')).toHaveAttribute('data-design', 'chamber');
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://codex.promo/free-assets.html');
+  await expect(page.locator('link[data-codex-design-asset="style"]')).toHaveAttribute('href', /design-chamber\.css$/);
+  await expect(page.locator('script[data-codex-design-asset="runtime"]')).toHaveAttribute('src', /design-chamber\.js$/);
+  await expect(page.locator('a[href*="index.html"]').first()).toHaveAttribute('href', /design=chamber/);
+});
+
 test('превью: черновик в iframe — RU-заголовок, скрытый кейс, blob-миниатюра', async ({ page }) => {
   await mockNetwork(page);
   await page.goto(`${base}/admin/`);
@@ -124,6 +193,22 @@ test('превью: черновик в iframe — RU-заголовок, скр
 
   const frame = page.frameLocator('#preview-frame');
   await expect(frame.locator('a.work-card[data-id="orbital-mk-ii"]')).toBeAttached();
+  const designToggleOrder = await page
+    .locator('.preview-overlay__group--design .preview-toggle')
+    .evaluateAll((buttons) => buttons.map((button) => button.id));
+  expect(designToggleOrder).toEqual([
+    'preview-design-original',
+    'preview-design-specimen',
+    'preview-design-chamber',
+    'preview-design-hybrid'
+  ]);
+  await expect(page.locator('#preview-design-original')).toHaveAttribute('aria-pressed', 'true');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'original');
+  await expect(frame.locator('html')).toHaveAttribute('data-design', 'original');
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('#preview-lang-en')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#preview-lang-ru')).toHaveAttribute('aria-pressed', 'false');
+  await expect(frame.locator('[data-codex-design-asset]')).toHaveCount(0);
 
   // Скрытый кейс выпал из документа превью
   await expect(frame.locator(`a.work-card[data-id="${HIDDEN_CASE}"]`)).toHaveCount(0);
@@ -141,15 +226,137 @@ test('превью: черновик в iframe — RU-заголовок, скр
 
   // 4. Переключение на RU: заголовок карточки берётся из черновичного словаря
   await page.click('#preview-lang-ru');
+  await expect(page.locator('#preview-lang-ru')).toHaveAttribute('aria-pressed', 'true');
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'ru');
   await expect(frame.locator('h2[data-i18n="card.orbital-mk-ii.title"]')).toHaveText(RU_DRAFT_TITLE);
 
   // Обратно EN — опубликованный заголовок (черновик менял только RU)
   await page.click('#preview-lang-en');
+  await expect(page.locator('#preview-lang-en')).toHaveAttribute('aria-pressed', 'true');
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'en');
   await expect(frame.locator('h2[data-i18n="card.orbital-mk-ii.title"]')).toHaveText('Orbital Mk.II');
 
-  // 5. «Закрыть» возвращает админку, черновик не потерян
+  // 5. Design Lab полностью пересобирает iframe; быстрый последний выбор побеждает.
+  await page.evaluate(() => {
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    window.__previewCreatedUrls = [];
+    window.__previewRevokedUrls = [];
+    URL.createObjectURL = (blob) => {
+      const url = create(blob);
+      window.__previewCreatedUrls.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      window.__previewRevokedUrls.push(url);
+      revoke(url);
+    };
+  });
+  let previewIndexRequests = 0;
+  let releaseStaleRequest;
+  const staleRequestGate = new Promise((resolve) => {
+    releaseStaleRequest = resolve;
+  });
+  await page.route(`${base}/index.html`, async (route) => {
+    previewIndexRequests += 1;
+    if (previewIndexRequests === 1) await staleRequestGate;
+    await route.continue();
+  });
+  await page.click('#preview-lang-ru');
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'ru');
+  await page.click('#preview-design-specimen');
+  await expect.poll(() => previewIndexRequests).toBe(1);
+  await page.click('#preview-design-chamber');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'chamber');
+  await expect(frame.locator('html')).toHaveAttribute('data-design', 'chamber');
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'ru');
+  await expect(page.locator('#preview-design-chamber')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#preview-design-specimen')).toHaveAttribute('aria-pressed', 'false');
+  await expect(frame.locator('link[data-codex-design-asset="style"]')).toHaveAttribute('href', /design-chamber\.css$/);
+  await expect(frame.locator('script[data-codex-design-asset="runtime"]')).toHaveAttribute(
+    'src',
+    /design-chamber\.js$/
+  );
+  const previewGeneration = await page.locator('#preview-frame').getAttribute('data-preview-generation');
+  await expect(frame.locator('html')).toHaveAttribute('data-preview-generation', previewGeneration);
+  await expect.poll(() => previewIndexRequests).toBeGreaterThanOrEqual(2);
+  const winnerUrlCount = await page.evaluate(() => window.__previewCreatedUrls.length);
+  expect(winnerUrlCount).toBeGreaterThan(0);
+  releaseStaleRequest();
+  await expect.poll(() => page.evaluate(() => window.__previewCreatedUrls.length)).toBeGreaterThan(winnerUrlCount);
+  await expect
+    .poll(() =>
+      page.evaluate((winnerCount) => {
+        const revoked = new Set(window.__previewRevokedUrls);
+        const stale = window.__previewCreatedUrls.slice(winnerCount);
+        return stale.length > 0 && stale.every((url) => revoked.has(url));
+      }, winnerUrlCount)
+    )
+    .toBe(true);
+  const raceLifecycle = await page.evaluate(() => {
+    const created = window.__previewCreatedUrls;
+    return {
+      created: created.length,
+      uniqueCreated: new Set(created).size
+    };
+  });
+  expect(raceLifecycle.uniqueCreated).toBe(raceLifecycle.created);
+
+  await page.click('#preview-design-hybrid');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'hybrid');
+  await expect(frame.locator('html')).toHaveAttribute('data-design', 'hybrid');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-runtime-state', 'ready');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-runtime-ready', 'hybrid');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-surface', 'home');
+  await expect(frame.locator('html')).toHaveClass(/design-chamber-home/);
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'ru');
+  await expect(page.locator('#preview-design-hybrid')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#preview-design-chamber')).toHaveAttribute('aria-pressed', 'false');
+  const hybridPreviewAssets = await frame.locator('html').evaluate(() => ({
+    css: Array.from(document.querySelectorAll('link[data-codex-design-asset="style"]')).map(
+      (asset) => new URL(asset.href).pathname
+    ),
+    js: Array.from(document.querySelectorAll('script[data-codex-design-asset="runtime"]')).map(
+      (asset) => new URL(asset.src).pathname
+    )
+  }));
+  expect(hybridPreviewAssets).toEqual({
+    css: ['/css/design-chamber.css', '/css/design-hybrid.css'],
+    js: ['/js/design-chamber.js', '/js/design-hybrid.js']
+  });
+  const hybridPreviewOrder = await frame
+    .locator('[data-design-home="hybrid"] [data-design-project]')
+    .evaluateAll((controls) => controls.map((control) => control.getAttribute('data-design-project')));
+  expect(hybridPreviewOrder).toEqual(expectedOrder);
+
+  await page.click('#preview-lang-en');
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'en');
+  await page.click('#preview-design-original');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'original');
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(frame.locator('[data-codex-design-asset]')).toHaveCount(0);
+
+  // 6. Выбор живёт только в памяти вкладки: close/open сохраняет, reload сбрасывает.
+  await page.click('#preview-design-hybrid');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'hybrid');
   await page.click('#preview-close');
   await expect(page.locator('#preview-overlay')).toBeHidden();
+  await page.click('#preview-btn');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'hybrid');
+  await expect(page.locator('#preview-design-hybrid')).toHaveAttribute('aria-pressed', 'true');
+  await page.click('#preview-close');
+  const cleanupLifecycle = await page.evaluate(() => {
+    const revoked = new Set(window.__previewRevokedUrls);
+    return window.__previewCreatedUrls.every((url) => revoked.has(url));
+  });
+  expect(cleanupLifecycle).toBe(true);
+
+  await page.reload();
+  await expect(page.locator('#topbar')).toBeVisible();
+  await page.click('#preview-btn');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'original');
+  await expect(page.locator('#preview-design-original')).toHaveAttribute('aria-pressed', 'true');
+  await page.click('#preview-close');
   await expect(page.locator('#draft-indicator')).toBeVisible();
 });
 
@@ -182,6 +389,34 @@ test('превью Free Assets (F5): скрытая категория выпа�
   await expect(frame.locator(`#tags-dropdown-panel [data-filter="${HIDDEN_CAT}"]`)).toHaveCount(0);
   // Грид ассетов отрисован из черновичного FA_DATA (стартовая категория)
   await expect(frame.locator('#fa-grid .fa-card').first()).toBeAttached();
+
+  // Design Lab доступен и для полного каталога Free Assets.
+  await page.click('#preview-design-specimen');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'specimen');
+  await expect(frame.locator('html')).toHaveAttribute('data-design', 'specimen');
+  await expect(frame.locator('link[data-codex-design-asset="style"]')).toHaveAttribute('href', /design-specimen\.css$/);
+
+  await page.click('#preview-design-hybrid');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-preview', 'hybrid');
+  await expect(frame.locator('html')).toHaveAttribute('data-design', 'hybrid');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-runtime-ready', 'hybrid');
+  await expect(frame.locator('html')).not.toHaveAttribute('data-design-surface', /.+/);
+  await expect(frame.locator('html')).not.toHaveClass(/design-chamber-home/);
+  await expect(frame.locator('body')).not.toHaveClass(/chamber-page-assets|specimen-fa-page/);
+  await expect(page.locator('#preview-design-hybrid')).toHaveAttribute('aria-pressed', 'true');
+  const hybridAssets = await frame.locator('html').evaluate(() => ({
+    css: Array.from(document.querySelectorAll('link[data-codex-design-asset="style"]')).map(
+      (asset) => new URL(asset.href).pathname
+    ),
+    js: Array.from(document.querySelectorAll('script[data-codex-design-asset="runtime"]')).map(
+      (asset) => new URL(asset.src).pathname
+    )
+  }));
+  expect(hybridAssets).toEqual({
+    css: ['/css/design-chamber.css', '/css/design-hybrid.css'],
+    js: ['/js/design-chamber.js', '/js/design-hybrid.js']
+  });
+  await expect(frame.locator('a.tag-card[data-tag="hard-surface"]')).toBeAttached();
 
   // 3. «Закрыть» возвращает админку, черновик каталога не потерян
   await page.click('#preview-close');

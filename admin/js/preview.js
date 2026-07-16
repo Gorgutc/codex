@@ -46,6 +46,10 @@
     frame: document.getElementById('preview-frame'),
     frameWrap: document.getElementById('preview-frame-wrap'),
     loading: document.getElementById('preview-loading'),
+    designOriginal: document.getElementById('preview-design-original'),
+    designSpecimen: document.getElementById('preview-design-specimen'),
+    designChamber: document.getElementById('preview-design-chamber'),
+    designHybrid: document.getElementById('preview-design-hybrid'),
     langEn: document.getElementById('preview-lang-en'),
     langRu: document.getElementById('preview-lang-ru'),
     vpDesktop: document.getElementById('preview-vp-desktop'),
@@ -55,6 +59,9 @@
   };
 
   let desiredLang = 'en';
+  let desiredDesign = 'original';
+  let rebuildGeneration = 0;
+  let activeBlobUrls = [];
   const defaultBanner = els.banner ? els.banner.textContent : '';
 
   function deepClone(value) {
@@ -368,7 +375,7 @@
   }
 
   // Скрипт с данными черновика (CARDS_DATA/I18N_DATA текущего черновика).
-  function inlineDataScript(doc, globalName, value) {
+  function inlineDataScript(doc, globalName, value, blobUrls) {
     // Blob-URL вместо inline-script: строгий admin-CSP (script-src без
     // 'unsafe-inline') блокировал inline-данные внутри srcdoc-превью
     // (кросс-ревью F2); blob: разрешён в admin/.htaccess. Эскейп '<'
@@ -376,6 +383,7 @@
     const code = 'window.' + globalName + ' = ' + JSON.stringify(value).replace(/</g, '\\u003c') + ';';
     const script = doc.createElement('script');
     script.src = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+    blobUrls.push(script.src);
     return script;
   }
 
@@ -390,11 +398,17 @@
     throw new Error('В index.html не найден <script src="…' + srcSuffix + '">');
   }
 
-  async function buildPreviewHtml() {
+  function applyDesignPreview(doc, design, generation) {
+    doc.documentElement.setAttribute('data-design-preview', design);
+    doc.documentElement.setAttribute('data-preview-generation', String(generation));
+  }
+
+  async function buildPreviewHtml(design, blobUrls, generation) {
     const model = await collectModel();
     const res = await fetch('../index.html', { cache: 'no-cache' });
     if (!res.ok) throw new Error('Не удалось загрузить index.html (' + res.status + ')');
     const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    applyDesignPreview(doc, design, generation);
 
     // <base> первым узлом head: все относительные пути документа (css, js,
     // assets, lazy model-data.js) резолвятся в реальные файлы сайта.
@@ -405,8 +419,8 @@
     rebuildFilters(doc, model);
     applyGrid(doc, model);
     applyHeaderLogo(doc, State.previewDraft('content/meta.json'));
-    replaceDataScript(doc, '/cards-data.js', inlineDataScript(doc, 'CARDS_DATA', buildCardsData(model)));
-    replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', buildI18nData(model)));
+    replaceDataScript(doc, '/cards-data.js', inlineDataScript(doc, 'CARDS_DATA', buildCardsData(model), blobUrls));
+    replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', buildI18nData(model), blobUrls));
 
     return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
   }
@@ -674,7 +688,7 @@
     });
   }
 
-  async function buildFreeAssetsPreviewHtml() {
+  async function buildFreeAssetsPreviewHtml(design, blobUrls, generation) {
     const visible = await collectFaModel();
     const i18nData = buildFaI18nData(visible);
     const enUi = (i18nData.UI_STRINGS && i18nData.UI_STRINGS.en) || {};
@@ -682,6 +696,7 @@
     const res = await fetch('../free-assets.html', { cache: 'no-cache' });
     if (!res.ok) throw new Error('Не удалось загрузить free-assets.html (' + res.status + ')');
     const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    applyDesignPreview(doc, design, generation);
 
     const baseEl = doc.createElement('base');
     baseEl.setAttribute('href', new URL('../', window.location.href).href);
@@ -690,8 +705,8 @@
     rebuildFaFilters(doc, visible, enFilter);
     rebuildFaTagCards(doc, visible, enFilter);
     applyHeaderLogo(doc, State.previewDraft('content/meta.json'));
-    replaceDataScript(doc, '/fa-data.js', inlineDataScript(doc, 'FA_DATA', buildFaDataForPreview(visible)));
-    replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', i18nData));
+    replaceDataScript(doc, '/fa-data.js', inlineDataScript(doc, 'FA_DATA', buildFaDataForPreview(visible), blobUrls));
+    replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', i18nData, blobUrls));
 
     return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
   }
@@ -701,16 +716,21 @@
   function applyLangInFrame() {
     try {
       const win = els.frame.contentWindow;
-      if (win && win.I18N && typeof win.I18N.applyLang === 'function') win.I18N.applyLang(desiredLang);
+      if (!win || !win.I18N) return;
+      if (typeof win.I18N.setLang === 'function') win.I18N.setLang(desiredLang);
+      else if (typeof win.I18N.applyLang === 'function') win.I18N.applyLang(desiredLang);
     } catch (_e) {
       /* iframe ещё не готов — язык применится по событию load */
     }
   }
 
   function setLang(lang) {
+    if (lang !== 'en' && lang !== 'ru') return;
     desiredLang = lang;
     els.langEn.classList.toggle('is-active', lang === 'en');
     els.langRu.classList.toggle('is-active', lang === 'ru');
+    els.langEn.setAttribute('aria-pressed', lang === 'en' ? 'true' : 'false');
+    els.langRu.setAttribute('aria-pressed', lang === 'ru' ? 'true' : 'false');
     applyLangInFrame();
   }
 
@@ -720,6 +740,32 @@
     els.vpMobile.classList.toggle('is-active', mode === 'mobile');
   }
 
+  function updateDesignButtons() {
+    const buttons = [
+      [els.designOriginal, 'original'],
+      [els.designSpecimen, 'specimen'],
+      [els.designChamber, 'chamber'],
+      [els.designHybrid, 'hybrid']
+    ];
+    for (const [button, design] of buttons) {
+      if (!button) continue;
+      const active = design === desiredDesign;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+  }
+
+  function revokeBlobUrls(urls) {
+    for (const url of urls) URL.revokeObjectURL(url);
+  }
+
+  function clearFrame() {
+    els.frame.removeAttribute('srcdoc');
+    els.frame.setAttribute('src', 'about:blank');
+    revokeBlobUrls(activeBlobUrls);
+    activeBlobUrls = [];
+  }
+
   function setBanner(isFa) {
     if (!els.banner) return;
     els.banner.textContent = isFa
@@ -727,40 +773,74 @@
       : defaultBanner;
   }
 
-  async function open() {
+  async function rebuildPreview() {
+    const generation = ++rebuildGeneration;
     const fa = isFaRoute();
-    els.overlay.hidden = false;
-    document.body.classList.add('preview-open');
+    const blobUrls = [];
     setBanner(fa);
     els.loading.textContent = 'Собираем предпросмотр…';
     els.loading.hidden = false;
-    els.close.focus();
     try {
-      els.frame.srcdoc = fa ? await buildFreeAssetsPreviewHtml() : await buildPreviewHtml();
+      const html = fa
+        ? await buildFreeAssetsPreviewHtml(desiredDesign, blobUrls, generation)
+        : await buildPreviewHtml(desiredDesign, blobUrls, generation);
+      if (generation !== rebuildGeneration || els.overlay.hidden) {
+        revokeBlobUrls(blobUrls);
+        return;
+      }
+
+      const previousBlobUrls = activeBlobUrls;
+      els.frame.dataset.previewGeneration = String(generation);
+      els.frame.srcdoc = html;
+      activeBlobUrls = blobUrls;
+      revokeBlobUrls(previousBlobUrls);
     } catch (error) {
+      revokeBlobUrls(blobUrls);
+      if (generation !== rebuildGeneration || els.overlay.hidden) return;
       els.loading.textContent = 'Не удалось собрать предпросмотр: ' + (error && error.message ? error.message : error);
     }
   }
 
+  function setDesign(design) {
+    if (!['original', 'specimen', 'chamber', 'hybrid'].includes(design) || design === desiredDesign) return;
+    desiredDesign = design;
+    updateDesignButtons();
+    if (!els.overlay.hidden) rebuildPreview();
+  }
+
+  async function open() {
+    els.overlay.hidden = false;
+    document.body.classList.add('preview-open');
+    updateDesignButtons();
+    els.close.focus();
+    return rebuildPreview();
+  }
+
   function close() {
+    rebuildGeneration += 1;
     els.overlay.hidden = true;
     document.body.classList.remove('preview-open');
     // Остановить GSAP/Lenis/видео внутри iframe — пустой документ.
-    els.frame.removeAttribute('srcdoc');
-    els.frame.setAttribute('src', 'about:blank');
-    els.frame.removeAttribute('src');
+    clearFrame();
     if (els.openBtn) els.openBtn.focus();
   }
 
   els.frame.addEventListener('load', () => {
     if (!els.overlay.hidden && els.frame.srcdoc) {
+      const frameGeneration = els.frame.contentDocument
+        && els.frame.contentDocument.documentElement.getAttribute('data-preview-generation');
+      if (frameGeneration !== String(rebuildGeneration)) return;
       els.loading.hidden = true;
-      if (desiredLang !== 'en') applyLangInFrame();
+      applyLangInFrame();
     }
   });
 
   els.openBtn.addEventListener('click', open);
   els.close.addEventListener('click', close);
+  els.designOriginal.addEventListener('click', () => setDesign('original'));
+  els.designSpecimen.addEventListener('click', () => setDesign('specimen'));
+  els.designChamber.addEventListener('click', () => setDesign('chamber'));
+  els.designHybrid.addEventListener('click', () => setDesign('hybrid'));
   els.langEn.addEventListener('click', () => setLang('en'));
   els.langRu.addEventListener('click', () => setLang('ru'));
   els.vpDesktop.addEventListener('click', () => setViewport('desktop'));
@@ -769,5 +849,5 @@
     if (event.key === 'Escape' && !els.overlay.hidden) close();
   });
 
-  window.AdminPreview = { open, close };
+  window.AdminPreview = { open, close, setDesign };
 })();

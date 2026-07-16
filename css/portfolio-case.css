@@ -2234,6 +2234,11 @@
   pointer-events: none;
   transition: opacity 200ms var(--ease-out);
 }
+
+.media-fs[hidden] {
+  display: none;
+}
+
 .media-fs.is-open {
   opacity: 1;
   pointer-events: auto;
@@ -2483,4 +2488,3 @@
      внутри prefers-reduced-motion (см. build_rules.md). */
   .case-3d__expo-input::-webkit-slider-thumb { transition: none !important; }
 }
-

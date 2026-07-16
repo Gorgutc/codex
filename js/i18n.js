@@ -392,6 +392,14 @@
     }
   }
 
+  // Explicit programmatic language choice (admin preview and other trusted UI).
+  // Unlike the geo/navigator settle path, this locks the choice so a late geo
+  // response cannot overwrite it.
+  function setLang(lang) {
+    userSettled = true;
+    applyLang(lang);
+  }
+
   function detectFromNavigator() {
     try {
       const langs = navigator.languages || [navigator.language || ''];
@@ -432,8 +440,7 @@
     const btn = document.getElementById('lang-toggle');
     if (!btn) return;
     btn.addEventListener('click', function () {
-      userSettled = true;                 // A2-05 — explicit choice wins over late geo
-      applyLang(currentLang === 'ru' ? 'en' : 'ru');
+      setLang(currentLang === 'ru' ? 'en' : 'ru');
     });
   }
 
@@ -506,6 +513,7 @@
     tFmt: tFmt,
     tCount: tCount,
     applyLang: applyLang,
+    setLang: setLang,
     isValidLang: isValidLang,
     SUPPORTED_LANGS: SUPPORTED_LANGS.slice(),
   };

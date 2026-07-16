@@ -418,6 +418,11 @@ function runStaticChecks() {
   // не попадают, т.к. там нет точки/bracket access после слова.
   const forbidden = /(localStorage|sessionStorage)\s*[.[]/;
   const jsFiles = [
+    'design-mode.js',
+    'design-loader.js',
+    'design-specimen.js',
+    'design-chamber.js',
+    'design-hybrid.js',
     'main.js',
     'animations.js',
     'free-assets.js',
@@ -484,6 +489,9 @@ function runStaticChecks() {
     'reset.css': 0,
     'portfolio-core.css': 0,
     'free-assets.css': 0,
+    'design-specimen.css': 0,
+    'design-chamber.css': 0,
+    'design-hybrid.css': 0,
   };
   const pxFontSizeRe = /font-size:\s*\d+px/g;
   const pxViolations = [];

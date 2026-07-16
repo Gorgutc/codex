@@ -42,7 +42,7 @@ function scriptSources(htmlRel) {
       attrs,
       src: srcValue,
       type: typeValue,
-      firstParty: !!srcValue && !/^(?:[a-z][a-z\d+.-]*:)?\/\//i.test(srcValue),
+      firstParty: !!srcValue && !/^(?:[a-z][a-z\d+.-]*:)?\/\//i.test(srcValue)
     };
   });
 }
@@ -54,33 +54,73 @@ function indexOfScript(scripts, pattern) {
 function checkScriptOrder(page, expected) {
   const scripts = scriptSources(page);
   const positions = expected.map((pattern) => indexOfScript(scripts, pattern));
-  const orderOk = positions.every((position) => position >= 0) &&
+  const orderOk =
+    positions.every((position) => position >= 0) &&
     positions.every((position, index) => index === 0 || position > positions[index - 1]);
   check(`${page}: protected script order`, orderOk, JSON.stringify(positions));
 }
 
 function checkNoFirstPartyModuleOrDefer(page) {
   const scripts = scriptSources(page);
-  const firstPartyBad = scripts.filter((script) =>
-    script.firstParty &&
-    (/\bdefer\b/i.test(script.attrs) || /\basync\b/i.test(script.attrs) || script.type === 'module')
+  const firstPartyBad = scripts.filter(
+    (script) =>
+      script.firstParty &&
+      (/\bdefer\b/i.test(script.attrs) || /\basync\b/i.test(script.attrs) || script.type === 'module')
   );
   const importMaps = scripts.filter((script) => script.type === 'importmap');
-  check(`${page}: no first-party defer/async/module scripts`, firstPartyBad.length === 0,
-    firstPartyBad.map((script) => script.src).join(', '));
-  check(`${page}: no import maps`, importMaps.length === 0,
-    importMaps.map((script) => script.src || '(inline)').join(', '));
+  check(
+    `${page}: no first-party defer/async/module scripts`,
+    firstPartyBad.length === 0,
+    firstPartyBad.map((script) => script.src).join(', ')
+  );
+  check(
+    `${page}: no import maps`,
+    importMaps.length === 0,
+    importMaps.map((script) => script.src || '(inline)').join(', ')
+  );
 }
 
 const packageJson = JSON.parse(read('package.json'));
-check('package: check:governance script exists', packageJson.scripts['check:governance'] === 'node scripts/check-governance.mjs');
-check('package: test:visual script exists', packageJson.scripts['test:visual'] === 'playwright test tests/quality/visual-regression.spec.mjs');
-check('package: test:visual:update script exists', packageJson.scripts['test:visual:update'] === 'playwright test tests/quality/visual-regression.spec.mjs --update-snapshots');
-check('package: quality:fast includes governance', /\bcheck:governance\b/.test(packageJson.scripts['quality:fast'] || ''));
-check('package: quality:governance script exists', packageJson.scripts['quality:governance'] === 'npm run check:governance');
+check(
+  'package: check:governance script exists',
+  packageJson.scripts['check:governance'] === 'node scripts/check-governance.mjs'
+);
+check(
+  'package: test:visual script exists',
+  packageJson.scripts['test:visual'] === 'playwright test tests/quality/visual-regression.spec.mjs'
+);
+check(
+  'package: test:visual:update script exists',
+  packageJson.scripts['test:visual:update'] ===
+    'playwright test tests/quality/visual-regression.spec.mjs --update-snapshots'
+);
+check(
+  'package: quality:fast includes governance',
+  /\bcheck:governance\b/.test(packageJson.scripts['quality:fast'] || '')
+);
+check(
+  'package: quality:governance script exists',
+  packageJson.scripts['quality:governance'] === 'npm run check:governance'
+);
 check('package: codex:ship includes governance', /\bcheck:governance\b/.test(packageJson.scripts['codex:ship'] || ''));
-check('package: browser smoke stays explicit', packageJson.scripts['test:browser'] === 'playwright test tests/quality/site-smoke.spec.mjs');
-check('package: visual snapshots stay out of fast hooks', !/\btest:visual\b/.test(packageJson.scripts['quality:fast'] || ''));
+check(
+  'package: browser smoke includes Design Lab explicitly',
+  packageJson.scripts['test:browser'] ===
+    'playwright test tests/quality/site-smoke.spec.mjs tests/quality/design-modes.spec.mjs'
+);
+check(
+  'package: Design Lab gate is explicit',
+  packageJson.scripts['test:design-lab'] ===
+    'playwright test tests/quality/design-modes.spec.mjs tests/quality/admin-preview.spec.mjs'
+);
+check(
+  'package: codex:ship includes Design Lab gate',
+  /\btest:design-lab\b/.test(packageJson.scripts['codex:ship'] || '')
+);
+check(
+  'package: visual snapshots stay out of fast hooks',
+  !/\btest:visual\b/.test(packageJson.scripts['quality:fast'] || '')
+);
 check('package: quality:all includes visual gate', /\btest:visual\b/.test(packageJson.scripts['quality:all'] || ''));
 
 const activeInstructionFiles = [
@@ -94,7 +134,7 @@ const activeInstructionFiles = [
   'docs/agent/instruction-audit.md',
   'docs/agent/skill-map.md',
   'docs/agent/preview-contract.md',
-  'docs/superpowers/plans/2026-05-30-remaining-industrial-editorial-refresh.md',
+  'docs/superpowers/plans/2026-05-30-remaining-industrial-editorial-refresh.md'
 ].filter(exists);
 
 const stalePassTotal = /\b(?:56|113|115)\/(?:56|113|115)\b|\b\d+\/\d+\s+PASS\b/i;
@@ -104,14 +144,23 @@ for (const rel of activeInstructionFiles) {
 
 check('AGENTS.md: documents shared-runtime order', read('AGENTS.md').includes('shared-runtime.js'));
 check('architecture.md: documents shared runtime', /shared runtime/.test(read('docs/agent/architecture.md')));
-check('technical-stack.md: documents Three-first runtime', /Three viewer first/.test(read('docs/agent/technical-stack.md')));
+check(
+  'technical-stack.md: documents Three-first runtime',
+  /Three viewer first/.test(read('docs/agent/technical-stack.md'))
+);
 check('i18n.js header: documents shared-runtime order', firstBytes('js/i18n.js').includes('shared-runtime.js'));
-check('verify-frozen.js header: no stale v0.4/count prose',
-  !/v0\.4|37\s+тест|28\s+тест/i.test(firstBytes('verify-frozen.js', 2200)));
-check('free-assets.html preloader comment: no stale zero-total claim',
-  !/total\s*={2,3}\s*0|total\s+is\s+0/i.test(firstBytes('free-assets.html', 9000)));
+check(
+  'verify-frozen.js header: no stale v0.4/count prose',
+  !/v0\.4|37\s+тест|28\s+тест/i.test(firstBytes('verify-frozen.js', 2200))
+);
+check(
+  'free-assets.html preloader comment: no stale zero-total claim',
+  !/total\s*={2,3}\s*0|total\s+is\s+0/i.test(firstBytes('free-assets.html', 9000))
+);
 
 checkScriptOrder('index.html', [
+  /design-mode\.js$/,
+  /design-loader\.js$/,
   /lenis\.min\.js$/,
   /gsap\.min\.js$/,
   /ScrollTrigger/,
@@ -120,9 +169,11 @@ checkScriptOrder('index.html', [
   /i18n\.js$/,
   /shared-runtime\.js$/,
   /main\.js$/,
-  /animations\.js$/,
+  /animations\.js$/
 ]);
 checkScriptOrder('free-assets.html', [
+  /design-mode\.js$/,
+  /design-loader\.js$/,
   /fa-data\.js$/,
   /gsap\.min\.js$/,
   /ScrollTrigger/,
@@ -132,18 +183,77 @@ checkScriptOrder('free-assets.html', [
   /shared-runtime\.js$/,
   /main\.js$/,
   /animations\.js$/,
-  /free-assets\.js$/,
+  /free-assets\.js$/
 ]);
 
 for (const page of ['index.html', 'free-assets.html']) {
   checkNoFirstPartyModuleOrDefer(page);
+  const html = read(page);
+  check(
+    `${page}: Design Lab bootstrap is singular`,
+    (html.match(/\.\/js\/design-mode\.js/g) || []).length === 1 &&
+      (html.match(/\.\/js\/design-loader\.js/g) || []).length === 1
+  );
+  check(`${page}: variant assets stay runtime-opt-in`, !/design-(?:specimen|chamber|hybrid)\.(?:css|js)/.test(html));
+  check(
+    `${page}: canonical excludes design query`,
+    !/<link\s+rel=["']canonical["'][^>]+href=["'][^"']*[?&]design=/i.test(html)
+  );
 }
+
+const designLabAssets = [
+  'js/design-mode.js',
+  'js/design-loader.js',
+  'js/design-specimen.js',
+  'js/design-chamber.js',
+  'js/design-hybrid.js',
+  'css/design-specimen.css',
+  'css/design-chamber.css',
+  'css/design-hybrid.css'
+];
+check(
+  'Design Lab: every routed runtime asset exists',
+  designLabAssets.every(exists),
+  designLabAssets.filter((file) => !exists(file)).join(', ')
+);
+check(
+  'Design Lab: exact variant asset map',
+  /design-specimen\.css/.test(read('js/design-loader.js')) &&
+    /design-specimen\.js/.test(read('js/design-loader.js')) &&
+    /design-chamber\.css/.test(read('js/design-loader.js')) &&
+    /design-chamber\.js/.test(read('js/design-loader.js')) &&
+    /design-hybrid\.css/.test(read('js/design-loader.js')) &&
+    /design-hybrid\.js/.test(read('js/design-loader.js'))
+);
+check(
+  'Design Lab: Hybrid foundation assets stay ordered',
+  /hybrid:\s*{\s*css:\s*\['\.\/css\/design-chamber\.css',\s*'\.\/css\/design-hybrid\.css'\],\s*js:\s*\['\.\/js\/design-chamber\.js',\s*'\.\/js\/design-hybrid\.js'\]/s.test(
+    read('js/design-loader.js')
+  )
+);
+check(
+  'Design Lab: Hybrid mode is explicitly allowlisted',
+  /valid\.hybrid\s*=\s*true/.test(read('js/design-mode.js'))
+);
+check(
+  'Design Lab: Hybrid readiness is style-gated with bounded Original fallback',
+  /data-design-runtime-state', 'pending'/.test(read('js/design-loader.js')) &&
+    /hybridPendingStyles/.test(read('js/design-loader.js')) &&
+    /setTimeout\(failOpenHybrid, 4000\)/.test(read('js/design-loader.js')) &&
+    /data-design-runtime-state', 'fallback'/.test(read('js/design-loader.js')) &&
+    /data-design-runtime-state', 'ready'/.test(read('js/design-loader.js'))
+);
 
 const freeAssetsHtml = read('free-assets.html');
 check('free-assets.html: no static model-viewer script', !/model-viewer\.min\.js/i.test(freeAssetsHtml));
 check('free-assets.html: no static Three script', !/three(?:\.module|\.core)?\.js/i.test(freeAssetsHtml));
 
 const shippedRuntimeFiles = [
+  'js/design-mode.js',
+  'js/design-loader.js',
+  'js/design-specimen.js',
+  'js/design-chamber.js',
+  'js/design-hybrid.js',
   'js/main.js',
   'js/animations.js',
   'js/free-assets.js',
@@ -151,15 +261,18 @@ const shippedRuntimeFiles = [
   'js/i18n-data.js',
   'js/fa-data.js',
   'js/shared-runtime.js',
-  'js/vendor/codex-three-viewer.js',
+  'js/vendor/codex-three-viewer.js'
 ];
-const storageViolations = shippedRuntimeFiles.filter((rel) => /(localStorage|sessionStorage)\s*(?:\.|\[)/.test(read(rel)));
+const storageViolations = shippedRuntimeFiles.filter((rel) =>
+  /(localStorage|sessionStorage)\s*(?:\.|\[)/.test(read(rel))
+);
 check('public runtime: no browser storage access', storageViolations.length === 0, storageViolations.join(', '));
 
 if (exists('.github/workflows/quality.yml')) {
   const workflow = read('.github/workflows/quality.yml');
-  check('CI: runs governance gate', /quality:governance|check:governance/.test(workflow));
-  check('CI: runs browser quality gate', /quality:deep|test:browser/.test(workflow));
+  const runsShip = /npm\s+run\s+codex:ship/.test(workflow);
+  check('CI: runs governance gate', runsShip || /quality:governance|check:governance/.test(workflow));
+  check('CI: runs browser quality gate', runsShip || /quality:deep|test:browser|test:design-lab/.test(workflow));
 } else {
   check('CI: workflow deferred explicitly', true, 'no .github/workflows/quality.yml');
 }
@@ -174,7 +287,7 @@ if (exists('.htaccess') && exists('admin/.htaccess')) {
   const { createHash } = await import('node:crypto');
   const cspTexts = {
     '.htaccess': read('.htaccess'),
-    'admin/.htaccess': read('admin/.htaccess'),
+    'admin/.htaccess': read('admin/.htaccess')
   };
   const requiredHashes = new Map(); // hash → описание источника
   for (const page of ['index.html', 'free-assets.html']) {
@@ -189,15 +302,17 @@ if (exists('.htaccess') && exists('admin/.htaccess')) {
       requiredHashes.set(hash, `${page} onload handler`);
     }
   }
-  check('CSP: shipped pages have hashable inline code', requiredHashes.size > 0,
-    `${requiredHashes.size} unique hash(es)`);
+  check(
+    'CSP: shipped pages have hashable inline code',
+    requiredHashes.size > 0,
+    `${requiredHashes.size} unique hash(es)`
+  );
   for (const [file, text] of Object.entries(cspTexts)) {
     const csp = text.match(/Content-Security-Policy "([^"]+)"/);
     check(`${file}: CSP header present`, !!csp);
     if (!csp) continue;
     for (const [hash, source] of requiredHashes) {
-      check(`${file}: CSP pins ${source}`, csp[1].includes(`'sha256-${hash}'`),
-        `sha256-${hash.slice(0, 12)}…`);
+      check(`${file}: CSP pins ${source}`, csp[1].includes(`'sha256-${hash}'`), `sha256-${hash.slice(0, 12)}…`);
     }
   }
 }
@@ -206,8 +321,10 @@ if (exists('.htaccess') && exists('admin/.htaccess')) {
 // missing vendor file (404s are filtered as noise), so its presence is a
 // static invariant.
 check('vendor: model-viewer.min.js self-hosted', exists('js/vendor/model-viewer.min.js'));
-check('runtime: shared-runtime loads model-viewer from vendor',
-  /js\/vendor\/model-viewer\.min\.js/.test(read('js/shared-runtime.js')));
+check(
+  'runtime: shared-runtime loads model-viewer from vendor',
+  /js\/vendor\/model-viewer\.min\.js/.test(read('js/shared-runtime.js'))
+);
 
 if (failures > 0) {
   console.error(`SUMMARY: ${failures} governance failure(s)`);

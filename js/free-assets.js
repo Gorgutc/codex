@@ -539,8 +539,10 @@ function rebindGameSwitch() {
 }
 
 /* ─── MINI MODEL PREVIEWS — lazy-load one viewer runtime ──────────────────
-   Free-assets cards intentionally show small rotating models. The runtime is
-   still loaded lazily: only when the first preview approaches the viewport. */
+   Original keeps the established near-viewport auto preview. Design Lab
+   variants stay poster-first so their always-visible mobile catalog does not
+   eagerly parse model-viewer + GLB; the same runtime still loads on preview
+   button activation. */
 function loadModelViewerScript() {
   if (!window.CodexShared || typeof window.CodexShared.loadModelViewerScript !== 'function') {
     console.warn('[FA] shared model-viewer loader missing — cards keep SVG fallback');
@@ -595,6 +597,14 @@ function ensureModelViewerObserver() {
 function observeModelViewers() {
   var previews = Array.prototype.slice.call(document.querySelectorAll('.fa-card__thumb-mv'));
   if (!previews.length) return;
+  var designMode = document.documentElement.getAttribute('data-design');
+  if (designMode === 'specimen' || designMode === 'chamber') {
+    if (modelViewerObserver) {
+      modelViewerObserver.disconnect();
+      modelViewerObserver = null;
+    }
+    return;
+  }
   if (modelViewerObserver) {
     modelViewerObserver.disconnect();
     modelViewerObserver = null;

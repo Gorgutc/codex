@@ -26,6 +26,7 @@
   --color-primary-highlight: rgba(50, 122, 174, 0.12);
   /* Accent for TEXT use (WCAG AA 4.5:1 on bg/surface). UI-only accents continue to use --color-primary. */
   --color-accent-text:      #4a94cf;
+  --color-accent-text-strong: #65a8dc;
 
   /* v0.13.8.1 — overlay-фон для 3D-контролей над canvas (тёмный в dark) */
   --color-ctrl-bg:          rgba(22, 22, 22, 0.82);
@@ -139,6 +140,7 @@
   --color-text-inverse:    #ffffff;
   --color-primary-highlight: rgba(50, 122, 174, 0.1);
   --color-accent-text:     #2a6695;
+  --color-accent-text-strong: #245f8a;
 
   /* v0.13.8.1 — overlay-фон для 3D-контролей над canvas (светлый в light, 0.88 для читаемости) */
   --color-ctrl-bg:         rgba(255, 255, 255, 0.88);

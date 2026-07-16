@@ -33,6 +33,7 @@
   <!-- CODEX:GEN head-meta END -->
 
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <script src="./js/design-mode.js"></script>
   <!-- v0.6 [Z6]: приведено к single-tag архитектуре index.html.
        JS applyTheme() в main.js обновляет content при ручном toggle —
        split с media создавал conflict (querySelector брал первый тег,
@@ -246,6 +247,7 @@
        .fa-card layout, без них основной контент FA выглядит плохо.
        Trade-off: 620ms render-blocking < FOUC на 8 cards. -->
   <link rel="stylesheet" href="./css/free-assets.css">
+  <script src="./js/design-loader.js"></script>
 </head>
 
 <body data-theme="dark">

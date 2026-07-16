@@ -20,7 +20,11 @@ npm run quality:deep
 
 Adds Knip, JSCPD, Playwright smoke tests, and Pa11y accessibility checks. Playwright axe owns the color-contrast gate; Pa11y ignores `color-contrast` because Puppeteer reports false positives on the animated transparent surfaces, and stays strict (`0` budget) for the remaining axe errors.
 
-`test:browser` is intentionally smoke-only and runs `tests/quality/site-smoke.spec.mjs`, including the free-assets preloader smoke that protects lazy tag previews from blocking page readiness. Visual baselines are a separate gate.
+`test:browser` runs the Original site smoke plus the Design Lab public-mode suite. The latter covers strict opt-in URL parsing, Home/Case navigation across all project IDs, Specimen and Chamber media lifecycles, the staged Hybrid Home capability, mobile behavior, Free Assets fallbacks, i18n, keyboard focus, and axe checks.
+
+`test:design-lab` is the focused release gate for Specimen, Chamber, the staged Hybrid capability, and the admin preview selector. It runs inside `codex:ship`, so a Design Lab regression cannot pass the mandatory push gate even when the broader deep audit is skipped. Visual baselines remain a separate gate.
+
+Pull requests to `main` run `.github/workflows/quality.yml`. The workflow installs the locked npm tree and Chromium, then executes the same mandatory `codex:ship` contract used by the local push hook. It has read-only repository permissions and does not deploy.
 
 ## Governance And Visual Gates
 
@@ -42,7 +46,7 @@ npm run check:lighthouse
 npm run quality:all
 ```
 
-Use these before major cleanup or release work. `quality:all` includes the deep audit, governance, visual snapshots, Lighthouse, and the Codex ship gate. Formatting is separate to avoid huge mechanical diffs during focused feature fixes. Lighthouse is separate because local Chrome and network conditions can add noise.
+Use these before major cleanup or release work. `quality:all` includes the deep audit, governance, visual snapshots, Lighthouse, and the Codex ship gate. Lighthouse covers Original Home/Free Assets, Specimen and Chamber Home/Case/Free Assets, plus Hybrid Home and its staged Original Case/Free Assets fallbacks. Formatting is separate to avoid huge mechanical diffs during focused feature fixes. Lighthouse is separate because local Chrome and network conditions can add noise.
 
 ## Hooks
 

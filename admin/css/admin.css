@@ -1121,12 +1121,24 @@ body.preview-open {
   overflow: hidden;
 }
 
+.preview-overlay__group--design {
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.preview-overlay__group--design .preview-toggle {
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+}
+
 .preview-toggle {
   border: 0;
   border-radius: 0;
 }
 
-.preview-toggle.is-active {
+.preview-toggle.is-active,
+.preview-toggle[aria-pressed="true"] {
   background: var(--a-primary);
   color: #fff;
 }
