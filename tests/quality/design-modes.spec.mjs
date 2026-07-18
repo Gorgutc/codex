@@ -1328,6 +1328,20 @@ test('hybrid: Free Assets uses the Black Chamber shell, equal cards, and poster-
   await modelPreviewCard.locator('.fa-card__download').click();
   expect((await download).suggestedFilename()).toBe('orbital-mk-ii.zip');
   const previewButton = modelPreviewCard.locator('.fa-card__preview-btn');
+  await page.keyboard.press('Tab');
+  await previewButton.focus();
+  await expect(previewButton).toBeFocused();
+  const previewFocus = await previewButton.evaluate((button) => {
+    const style = getComputedStyle(button);
+    return {
+      visible: button.matches(':focus-visible'),
+      width: Number.parseFloat(style.outlineWidth),
+      offset: Number.parseFloat(style.outlineOffset)
+    };
+  });
+  expect(previewFocus.visible).toBe(true);
+  expect(previewFocus.width).toBeGreaterThanOrEqual(2);
+  expect(previewFocus.offset).toBeLessThan(0);
   const viewerRequest = page.waitForRequest((request) => request.url().endsWith('/js/vendor/model-viewer.min.js'));
   await previewButton.click();
   await viewerRequest;

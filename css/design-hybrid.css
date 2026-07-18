@@ -33,7 +33,7 @@ html[data-design='hybrid'][data-design-runtime-state='ready'] body::after {
   background: linear-gradient(to bottom, transparent 0, color-mix(in srgb, var(--chamber-bg) 72%, transparent) 100%);
 }
 
-html[data-design='hybrid'][data-design-runtime-state='ready'] :is(a, button, [tabindex]):focus-visible {
+html[data-design='hybrid'][data-design-runtime-state='ready'] :is(a, button, [tabindex]):not(.fa-card__preview-btn):focus-visible {
   outline: 2px solid var(--chamber-accent);
   outline-offset: var(--space-1);
 }
@@ -114,6 +114,10 @@ html[data-design='hybrid'].design-chamber-home .chamber-home__image {
 html[data-design='hybrid'].design-chamber-home .chamber-home__image--active {
   opacity: 1;
   transform: scale(1);
+}
+
+html[data-design='hybrid'].design-chamber-home .chamber-home.is-transitioning .chamber-home__image-stack {
+  will-change: filter;
 }
 
 html[data-design='hybrid'].design-chamber-home .chamber-home.is-transitioning .chamber-home__image,
