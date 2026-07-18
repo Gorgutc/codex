@@ -953,9 +953,13 @@ test('hybrid: readiness gate prevents Original flash and fails open when the ada
   });
   await expect(page.locator('.layout')).toHaveCSS('visibility', 'visible');
   await expect(page.locator('.design-runtime-gate')).toHaveCount(0);
+  await page.locator('.chamber-home__view').click();
+  await waitForHybridCase(page, 'orbital-mk-ii');
+  await expect(page.locator('#case-scroll-track > .case-row--wide-text')).toHaveCount(1);
+  await expect(page.locator('#case-scroll-track .case-text--overlay')).toHaveCount(1);
 
   await page.route('**/js/design-hybrid.js', (route) => route.abort());
-  await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#cad-strut`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback');
   await page.waitForFunction(() => !document.documentElement.classList.contains('is-loading'));
   await expect(page.locator('.layout')).toHaveCSS('visibility', 'visible');
@@ -965,6 +969,11 @@ test('hybrid: readiness gate prevents Original flash and fails open when the ada
   await expect(page.locator('#theme-toggle')).toBeVisible();
   await expect(page.locator('html')).not.toHaveAttribute('data-design-surface', /.+/);
   await expect(page.locator('body')).not.toHaveClass(/chamber-page-|specimen-/);
+  const fallbackTallText = page.locator('.case-row--tall-text');
+  await expect(fallbackTallText).toHaveCount(1);
+  await expect(page.locator('.case-row--wide-text, .case-item--inline-stage, .case-text--overlay')).toHaveCount(0);
+  await expect(fallbackTallText.locator(':scope > .case-item')).toHaveCount(2);
+  await expect(fallbackTallText.locator(':scope > .case-item--text-inline')).toHaveCount(1);
 
   await page.unroute('**/js/design-hybrid.js');
   await page.route('**/css/design-hybrid.css', (route) => route.abort());
@@ -998,6 +1007,38 @@ test('hybrid: a loaded adapter that does not start falls back to Original within
   await expect(page.locator('.design-runtime-gate')).toHaveCount(0);
   await expect(page.locator('.layout')).toHaveCSS('visibility', 'visible');
   await expect(page.locator('[data-design-home="hybrid"]')).toHaveCount(0);
+});
+
+test('hybrid: an adapter arriving after watchdog fallback cannot reactivate the presentation', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  let releaseAdapter;
+  const adapterGate = new Promise((resolve) => {
+    releaseAdapter = resolve;
+  });
+  await page.route('**/js/design-hybrid.js', async (route) => {
+    await adapterGate;
+    await route.continue();
+  });
+
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#cad-strut`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !document.documentElement.classList.contains('is-loading'));
+  await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'pending');
+  await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback', { timeout: 6000 });
+
+  const lateAdapterResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith('/js/design-hybrid.js')
+  );
+  releaseAdapter();
+  await lateAdapterResponse;
+  await page.waitForTimeout(100);
+
+  await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback');
+  await expect(page.locator('html')).not.toHaveAttribute('data-design-surface', /.+/);
+  await expect(page.locator('body')).not.toHaveClass(/chamber-page-|specimen-/);
+  await expect(page.locator('.case-row--wide-text, .case-item--inline-stage, .case-text--overlay')).toHaveCount(0);
+  const fallbackTallText = page.locator('.case-row--tall-text');
+  await expect(fallbackTallText).toHaveCount(1);
+  await expect(fallbackTallText.locator(':scope > .case-item')).toHaveCount(2);
 });
 
 test('hybrid: Free Assets fail-open restores Original near-viewport 3D previews', async ({ page }) => {
@@ -1211,10 +1252,23 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
             row.querySelector('.case-item__media')
           )
         : [];
+      const inlineOverlays = track
+        ? Array.from(track.querySelectorAll(':scope > .case-row--wide-text .case-text--overlay'))
+        : [];
       return {
         heroCount: track ? track.querySelectorAll('.hybrid-case-hero').length : 0,
         heroIsFirstMedia: Boolean(hero && hero === mediaRows[0]),
         heroOrder: hero ? getComputedStyle(hero).order : null,
+        mediaInventoryComplete: Boolean(track && track.querySelectorAll('.case-item__media').length >= 5),
+        inlineOverlayCount: inlineOverlays.length,
+        inlineOverlaysFit: inlineOverlays.every((note) => {
+          const media = note.parentElement && note.parentElement.querySelector(':scope > .case-item__media');
+          if (!media) return false;
+          const noteRect = note.getBoundingClientRect();
+          const mediaRect = media.getBoundingClientRect();
+          return noteRect.top >= mediaRect.top - 1 && noteRect.right <= mediaRect.right + 1 &&
+            noteRect.bottom <= mediaRect.bottom + 1 && noteRect.left >= mediaRect.left - 1;
+        }),
         populatedFacts: Array.from(caseView.querySelectorAll('.hybrid-case-dossier__facts dd')).every(
           (fact) => fact.textContent.trim().length > 0
         )
@@ -1224,6 +1278,9 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
       heroCount: 1,
       heroIsFirstMedia: true,
       heroOrder: '-1',
+      mediaInventoryComplete: true,
+      inlineOverlayCount: 1,
+      inlineOverlaysFit: true,
       populatedFacts: true
     });
     await expect(page.locator('.chamber-case-back, .chamber-case-poster, .specimen-case-hero')).toHaveCount(0);
@@ -1561,6 +1618,99 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
     );
   expect(caseTargets.length).toBeGreaterThan(0);
   expect(caseTargets.filter((size) => size.width < 44 || size.height < 44)).toEqual([]);
+});
+
+test('hybrid: Case inline notes share one wide desktop stage and keep mobile flow', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+
+  for (const viewport of [
+    { width: 1440, height: 1024 },
+    { width: 1600, height: 1050 }
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${server.base}/index.html?design=hybrid&lang=en#cad-strut`, { waitUntil: 'networkidle' });
+    await waitForHybridCase(page, 'cad-strut');
+
+    const geometry = await page.locator('.case-row--wide-text').evaluate((row) => {
+      const item = row.querySelector(':scope > .case-item--inline-stage');
+      const media = item.querySelector(':scope > .case-item__media');
+      const caption = item.querySelector(':scope > .case-item__caption');
+      const note = item.querySelector(':scope > .case-text--overlay');
+      const image = media.querySelector('.case-item__img');
+      const rowRect = row.getBoundingClientRect();
+      const mediaRect = media.getBoundingClientRect();
+      const captionRect = caption.getBoundingClientRect();
+      const noteRect = note.getBoundingClientRect();
+      return {
+        mediaLeftGap: mediaRect.left - rowRect.left,
+        mediaRightGap: rowRect.right - mediaRect.right,
+        noteRightGap: mediaRect.right - noteRect.right,
+        noteBottomGap: mediaRect.bottom - noteRect.bottom,
+        noteWidth: noteRect.width,
+        noteHeight: noteRect.height,
+        noteOverflow: note.scrollHeight - note.clientHeight,
+        captionGap: captionRect.top - mediaRect.bottom,
+        itemCount: row.querySelectorAll('.case-item').length,
+        imageSrc: image.getAttribute('src'),
+        noteTitle: note.querySelector('.case-text__title').textContent.trim(),
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+      };
+    });
+
+    expect(Math.abs(geometry.mediaLeftGap)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.mediaRightGap)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.noteRightGap - 36)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.noteBottomGap - 36)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.noteWidth - 320)).toBeLessThanOrEqual(1);
+    expect(geometry.noteHeight).toBeGreaterThanOrEqual(205);
+    expect(geometry.noteOverflow).toBeLessThanOrEqual(1);
+    expect(geometry.captionGap).toBeGreaterThanOrEqual(-1);
+    expect(geometry.itemCount).toBe(1);
+    expect(geometry.imageSrc).toMatch(/\/cad-strut\/02\.svg$/);
+    expect(geometry.noteTitle).toBe('Use case');
+    expect(geometry.overflow).toBeLessThanOrEqual(1);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=ru#cad-strut`, { waitUntil: 'networkidle' });
+  await waitForHybridCase(page, 'cad-strut');
+  const mobile = await page.locator('.case-row--wide-text').evaluate((row) => {
+    const item = row.querySelector(':scope > .case-item--inline-stage');
+    const media = item.querySelector(':scope > .case-item__media');
+    const caption = item.querySelector(':scope > .case-item__caption');
+    const note = item.querySelector(':scope > .case-text--overlay');
+    const rowRect = row.getBoundingClientRect();
+    const noteRect = note.getBoundingClientRect();
+    const captionRect = caption.getBoundingClientRect();
+    return {
+      itemDisplay: getComputedStyle(item).display,
+      notePosition: getComputedStyle(note).position,
+      notePadding: Number.parseFloat(getComputedStyle(note).paddingLeft),
+      noteWidthGap: rowRect.width - noteRect.width,
+      noteFlowGap: noteRect.top - captionRect.bottom,
+      noteOverflow: note.scrollHeight - note.clientHeight,
+      mediaBeforeNote: Boolean(media.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING),
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  expect(mobile.itemDisplay).toBe('block');
+  expect(mobile.notePosition).toBe('static');
+  expect(Math.abs(mobile.notePadding - 24)).toBeLessThanOrEqual(1);
+  expect(Math.abs(mobile.noteWidthGap)).toBeLessThanOrEqual(1);
+  expect(mobile.noteFlowGap).toBeGreaterThanOrEqual(15);
+  expect(mobile.noteOverflow).toBeLessThanOrEqual(1);
+  expect(mobile.mediaBeforeNote).toBe(true);
+  expect(mobile.overflow).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await page.goto(`${server.base}/index.html?design=original&lang=en#cad-strut`, { waitUntil: 'networkidle' });
+  await expect(page.locator('#case-view')).toBeVisible();
+  await expect(page.locator('.case-row--wide-text')).toHaveCount(0);
+  await expect(page.locator('.case-row--tall-text > .case-item--text-inline')).toHaveCount(1);
+  await expect(page.locator('.case-row--tall-text .case-item__img')).toHaveAttribute(
+    'src',
+    './assets/cases/cad-strut/02.svg'
+  );
 });
 
 test('hybrid: short mobile landscape keeps Case media and Free Assets grid scrollable', async ({ page }) => {

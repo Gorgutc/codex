@@ -73,3 +73,40 @@ Each Hybrid source and runtime capture was inspected side by side at the same vi
 - `codex:ship`: pass on the final runtime/source tree, including the focused Design Lab suite and frozen verification with `0 FAIL`. No runtime/source edits follow this recorded run.
 
 final result: passed — VIS-05.4 and VIS-05.5 accepted for draft PR; Original remains default and VIS-05.6 remains open
+
+## VIS-05.6a — Hybrid Case inline media/notes overlay
+
+### Visual truth and implementation evidence
+
+- Source visual truth: `C:\Users\Maxim\AppData\Local\Temp\codex-clipboard-fb036ba0-d756-4f32-accf-5f06379fcf5f.png` (approved layout intent: wide media with Notes overlaid at the lower right).
+- Measured card contract: `C:\Users\Maxim\AppData\Local\Temp\codex-clipboard-fcfa95ae-7803-4432-b4e9-221694ea433f.png` (`320×205`, `36px` right/bottom inset).
+- Implementation capture: `tests/quality/visual-regression.spec.mjs-snapshots/hybrid-case-inline-overlay-desktop-1440x1024-win32.png`.
+- Combined reference/runtime inspection: `C:\Users\Maxim\.codex\visualizations\2026\07\10\019f4b02-da67-75b1-b45f-e277396354fa\hybrid-v05\vis-05-6a-case-inline-overlay-comparison.png`.
+- Runtime route/state: `/index.html?design=hybrid&lang=en#cad-strut`, 2D gallery, inline Notes row.
+- Geometry viewports: `1440×1024` and `1600×1050`; responsive check: `390×844` in RU.
+
+### Comparison findings and iteration history
+
+- The first implementation pass preserved the frozen `Axis diagram` media and caption instead of substituting the different `Node overview` asset shown in the layout board. This keeps case media identity/order unchanged.
+- Desktop media now spans the complete Case content row and uses the existing wide-stage `16:9` geometry.
+- The Notes card is anchored to the media border box, not to the row/caption: measured right and bottom gaps are `36px`; EN resolves to `320×205`; longer RU copy grows upward without clipping.
+- Media, caption, and Notes are one `.case-item` motion owner. The overlay therefore cannot receive a separate GSAP lift delay or visibly detach from its illustration.
+- Below `1024px`, Notes returns to normal document flow after the caption; at `390×844` it keeps `24px` padding, full row width, and no horizontal or internal overflow.
+- Final `/review` caught a fail-open edge case in the first DOM guard: `?design=hybrid` alone was not proof that the optional presentation runtime had started. The overlay branch now also requires the active Chamber portfolio runtime; an aborted adapter on a deep-linked Case retains the Original two-sibling tall-text anatomy.
+- The corrective review then reproduced a slow-start Home → first-project race: the hidden default Case could predate the active Hybrid runtime. Hybrid now rebuilds that hidden default Case before showing Home, so opening the already-current first project cannot expose stale Original anatomy.
+- Original, Specimen, Chamber, Home, Free Assets, the five media sources, deep links, 2D/3D/Blueprints lifecycle, fullscreen image semantics, and content/i18n data remain unchanged.
+- Intentional RED: the first all-case regression assumed exactly five `.case-item__media` nodes, but motion blocks increase that runtime total. The assertion was corrected to verify a complete inventory without constraining unrelated motion media; the same 18-case lifecycle suite then passed.
+- Intentional RED → GREEN: the gated-runtime test first proved the slow-start first-project path had no wide row (`0` instead of `1`), then passed after the Hybrid-only hidden Case rebuild.
+
+### Verification
+
+- Focused desktop/mobile geometry and Original isolation: passed.
+- Failed-adapter deep-link fallback anatomy and all-18 media-bound overlay checks: passed.
+- Adapter released only after the watchdog entered fallback remains Original and cannot reactivate Hybrid anatomy: passed.
+- Delayed-adapter Home → unchanged first project before any language rebuild: passed.
+- Full 18-case Hybrid navigation, media lifecycle, reduced-motion, and axe checks: passed.
+- Visual regression: `11/11` passed with the new focused baseline.
+- Frozen verifier: `0 FAIL`.
+- `npm run codex:ship`: passed, including the isolated motion gate.
+
+final result: passed — VIS-05.6a wide media/Notes overlay is ready for owner review; Original remains default and production/Sites are unchanged

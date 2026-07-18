@@ -636,6 +636,85 @@ html[data-design='hybrid'][data-design-surface='case']
   }
 }
 
+/* VIS-05.6a — the existing tall-text pair becomes one stable motion owner on
+   desktop. The frozen media item/order stays intact; only its presentation is
+   promoted to the same 16:9 stage used by a wide case illustration. */
+@media (min-width: 1024px) {
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-row--wide-text {
+    display: block;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-row--wide-text
+    > .case-item--inline-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-item--inline-stage
+    > .case-item__media {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    max-width: none;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    max-height: clamp(480px, 60vh, 1040px);
+  }
+
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-item--inline-stage
+    > .case-item__caption {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-item--inline-stage
+    > .case-text--overlay {
+    z-index: 4;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+    justify-self: end;
+    width: 320px;
+    min-height: 205px;
+    max-width: calc(100% - 72px);
+    margin: 0 36px 36px 0;
+    padding: var(--space-6);
+    background: color-mix(in srgb, var(--chamber-panel) 92%, transparent);
+  }
+}
+
+@media (max-width: 1023px) {
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-row--wide-text {
+    flex-direction: column;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-row--wide-text
+    > .case-item--inline-stage {
+    flex: 1 1 100%;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-item--inline-stage
+    > .case-text--overlay {
+    margin-top: var(--space-4);
+  }
+}
+
 @media (max-width: 767px) {
   html[data-design='hybrid'][data-design-runtime-state='ready'] {
     --hybrid-shell-header: var(--space-16);

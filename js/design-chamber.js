@@ -411,6 +411,14 @@
         ensureCaseHash(initialHash);
         showCase(initialHash);
       } else {
+        /* main.js may have prepared the default Case before the optional Hybrid
+           runtime became active. Rebuild that hidden Case once under the active
+           presentation owner so opening the same first project cannot reveal
+           the stale Original tall-text anatomy. */
+        if (runtime.mode === 'hybrid' && ids[0] &&
+            window.CodexCase && typeof window.CodexCase.openCase === 'function') {
+          window.CodexCase.openCase(ids[0], { initial: true, skipHashSync: true });
+        }
         showHome();
       }
     }, 0);

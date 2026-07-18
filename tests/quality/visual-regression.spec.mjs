@@ -298,6 +298,18 @@ test.describe('visual regression baselines', () => {
     });
   });
 
+  test('Hybrid R2 Case inline note overlay', async ({ page }) => {
+    await prepare(page, '/index.html', { width: 1440, height: 1024 }, 'design=hybrid&lang=en#cad-strut');
+    await waitForHybridCaseReady(page, 'cad-strut');
+    const row = page.locator('#case-scroll-track > .case-row--wide-text');
+    await expect(row).toHaveCount(1);
+    await row.scrollIntoViewIfNeeded();
+    await expect(row).toHaveScreenshot('hybrid-case-inline-overlay-desktop-1440x1024.png', {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.015
+    });
+  });
+
   test('Hybrid R2 Case mobile first viewport', async ({ page }) => {
     await prepare(page, '/index.html', { width: 390, height: 844 }, 'design=hybrid&lang=en#orbital-mk-ii');
     await waitForHybridCaseReady(page, 'orbital-mk-ii');
