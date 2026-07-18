@@ -820,6 +820,81 @@ test('hybrid: strict opt-in keeps canonical Original and preserves the 18-projec
   expect(internalConsoleErrors(errors)).toEqual([]);
 });
 
+test('hybrid: static image grade is isolated from lightweight transition layers', async ({ page }) => {
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
+  await waitForHybridHome(page);
+
+  const settled = await page.evaluate(() => {
+    const stack = document.querySelector('.chamber-home__image-stack');
+    const layers = Array.from(stack.querySelectorAll(':scope > .chamber-home__image-layer'));
+    const images = layers.map((layer) => layer.querySelector(':scope > .chamber-home__image'));
+    const activeLayer = layers.find((layer) => layer.classList.contains('chamber-home__image-layer--active'));
+    const activeImage = activeLayer && activeLayer.querySelector(':scope > .chamber-home__image');
+    const standbyLayer = layers.find((layer) => layer !== activeLayer);
+    const rect = (node) => {
+      const bounds = node.getBoundingClientRect();
+      return { top: bounds.top, right: bounds.right, bottom: bounds.bottom, left: bounds.left };
+    };
+    return {
+      layerCount: layers.length,
+      imagesPerLayer: layers.map((layer) => layer.querySelectorAll(':scope > .chamber-home__image').length),
+      activeLayerCount: layers.filter((layer) => layer.classList.contains('chamber-home__image-layer--active')).length,
+      activeImageCount: images.filter((image) => image.classList.contains('chamber-home__image--active')).length,
+      activePairMatches: !!activeImage && activeImage.classList.contains('chamber-home__image--active'),
+      standbyHidden: !!standbyLayer && standbyLayer.hidden && standbyLayer.querySelector('img').hidden,
+      geometry: {
+        media: rect(document.querySelector('.chamber-home__media')),
+        stack: rect(stack),
+        layer: rect(activeLayer),
+        image: rect(activeImage)
+      },
+      stackFilter: getComputedStyle(stack).filter,
+      stackTransform: getComputedStyle(stack).transform,
+      imageFilters: images.map((image) => getComputedStyle(image).filter),
+      imageTransitions: images.map((image) => getComputedStyle(image).transitionProperty),
+      layerTransitions: layers.map((layer) => getComputedStyle(layer).transitionProperty),
+      layerWillChange: layers.map((layer) => getComputedStyle(layer).willChange)
+    };
+  });
+  expect(settled.layerCount).toBe(2);
+  expect(settled.imagesPerLayer).toEqual([1, 1]);
+  expect(settled.activeLayerCount).toBe(1);
+  expect(settled.activeImageCount).toBe(1);
+  expect(settled.activePairMatches).toBe(true);
+  expect(settled.standbyHidden).toBe(true);
+  for (const surface of ['stack', 'layer', 'image']) {
+    for (const edge of ['top', 'right', 'bottom', 'left']) {
+      expect(Math.abs(settled.geometry[surface][edge] - settled.geometry.media[edge])).toBeLessThanOrEqual(1);
+    }
+  }
+  expect(settled.stackFilter).toBe('none');
+  expect(settled.stackTransform).toBe('none');
+  expect(settled.imageFilters.every((filter) => filter.includes('saturate(0.78)'))).toBe(true);
+  expect(settled.imageFilters.every((filter) => filter.includes('contrast(1.06)'))).toBe(true);
+  expect(settled.imageTransitions).toEqual(['none', 'none']);
+  expect(settled.layerTransitions.every((transition) => transition.includes('opacity'))).toBe(true);
+  expect(settled.layerTransitions.every((transition) => transition.includes('transform'))).toBe(true);
+  expect(settled.layerWillChange).toEqual(['auto', 'auto']);
+
+  const home = page.locator('[data-design-home="hybrid"]');
+  await page.locator('.chamber-home__pager-button').last().click();
+  await expect(home).toHaveAttribute('data-transition-state', 'crossfade');
+  const moving = await page.evaluate(() => ({
+    stackTransform: getComputedStyle(document.querySelector('.chamber-home__image-stack')).transform,
+    layerWillChange: Array.from(document.querySelectorAll('.chamber-home__image-layer')).map(
+      (layer) => getComputedStyle(layer).willChange
+    ),
+    imageWillChange: Array.from(document.querySelectorAll('.chamber-home__image')).map(
+      (image) => getComputedStyle(image).willChange
+    )
+  }));
+  expect(moving.stackTransform).toBe('none');
+  expect(moving.layerWillChange.every((value) => value.includes('opacity') && value.includes('transform'))).toBe(true);
+  expect(moving.imageWillChange).toEqual(['auto', 'auto']);
+  await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
+  await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
+});
+
 test('hybrid: readiness gate prevents Original flash and fails open when the adapter is unavailable', async ({
   page
 }) => {
@@ -1966,7 +2041,7 @@ test('hybrid: reduced motion Case and Free Assets surfaces have no axe violation
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
   const home = page.locator('[data-design-home="hybrid"]');
-  await expectReducedMotionStyles(page, '.chamber-home__image');
+  await expectReducedMotionStyles(page, '.chamber-home__image-layer');
   await page.locator('.chamber-home__pager-button').last().click();
   await expect(home).toHaveAttribute('data-requested-project', 'vega-shell');
   await expect(home).toHaveAttribute('data-active-project', 'vega-shell');

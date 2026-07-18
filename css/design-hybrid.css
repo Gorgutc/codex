@@ -96,14 +96,12 @@ html[data-design='hybrid'].design-chamber-home .chamber-home__image-stack {
   position: absolute;
   inset: 0;
   contain: paint;
-  filter: saturate(0.78) contrast(1.06);
 }
 
-html[data-design='hybrid'].design-chamber-home .chamber-home__image {
+html[data-design='hybrid'].design-chamber-home .chamber-home__image-layer {
   position: absolute;
   inset: 0;
   backface-visibility: hidden;
-  filter: none;
   opacity: 0;
   transform: scale(1.018);
   transition:
@@ -111,16 +109,21 @@ html[data-design='hybrid'].design-chamber-home .chamber-home__image {
     transform 720ms var(--ease-out);
 }
 
-html[data-design='hybrid'].design-chamber-home .chamber-home__image--active {
+html[data-design='hybrid'].design-chamber-home .chamber-home__image-layer--active {
   opacity: 1;
   transform: scale(1);
 }
 
-html[data-design='hybrid'].design-chamber-home .chamber-home.is-transitioning .chamber-home__image-stack {
-  transform: translateZ(0);
+html[data-design='hybrid'].design-chamber-home .chamber-home__image {
+  position: absolute;
+  inset: 0;
+  filter: saturate(0.78) contrast(1.06);
+  opacity: 1;
+  transform: none;
+  transition: none;
 }
 
-html[data-design='hybrid'].design-chamber-home .chamber-home.is-transitioning .chamber-home__image,
+html[data-design='hybrid'].design-chamber-home .chamber-home.is-transitioning .chamber-home__image-layer,
 html[data-design='hybrid'].design-chamber-home .chamber-home.is-transitioning .chamber-home__content {
   will-change: opacity, transform;
 }

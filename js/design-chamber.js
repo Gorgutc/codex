@@ -427,6 +427,8 @@
     image.decoding = 'async';
     var incomingImage = null;
     var imageStack = null;
+    var imageLayer = null;
+    var incomingImageLayer = null;
     if (runtime.stableMotion) {
       image.classList.add('chamber-home__image--active');
       incomingImage = make('img', 'chamber-home__image');
@@ -434,8 +436,13 @@
       incomingImage.decoding = 'async';
       incomingImage.hidden = true;
       incomingImage.setAttribute('aria-hidden', 'true');
+      imageLayer = make('div', 'chamber-home__image-layer chamber-home__image-layer--active');
+      incomingImageLayer = make('div', 'chamber-home__image-layer');
+      incomingImageLayer.hidden = true;
+      append(imageLayer, image);
+      append(incomingImageLayer, incomingImage);
       imageStack = make('div', 'chamber-home__image-stack');
-      append(imageStack, image, incomingImage);
+      append(imageStack, imageLayer, incomingImageLayer);
     }
     var shade = make('div', 'chamber-home__shade');
     shade.setAttribute('aria-hidden', 'true');
@@ -490,6 +497,8 @@
     var reversalFrame = 0;
     var activeImage = image;
     var standbyImage = incomingImage;
+    var activeImageLayer = imageLayer;
+    var standbyImageLayer = incomingImageLayer;
     var motionWaiters = [];
 
     function rebuildIndex() {
@@ -626,6 +635,16 @@
       });
     }
 
+    function setStableImageActive(layer, imageNode, active) {
+      if (layer) layer.classList.toggle('chamber-home__image-layer--active', active);
+      if (imageNode) imageNode.classList.toggle('chamber-home__image--active', active);
+    }
+
+    function setStableImageHidden(layer, imageNode, hidden) {
+      if (layer) layer.hidden = hidden;
+      if (imageNode) imageNode.hidden = hidden;
+    }
+
     function clearStableMotion() {
       transitionGeneration += 1;
       transitionRunning = false;
@@ -636,13 +655,13 @@
       root.removeAttribute('data-transition-state');
       root.removeAttribute('aria-busy');
       if (standbyImage) {
-        standbyImage.classList.remove('chamber-home__image--active');
-        standbyImage.hidden = true;
+        setStableImageActive(standbyImageLayer, standbyImage, false);
+        setStableImageHidden(standbyImageLayer, standbyImage, true);
         standbyImage.setAttribute('aria-hidden', 'true');
       }
       if (activeImage) {
-        activeImage.hidden = false;
-        activeImage.classList.add('chamber-home__image--active');
+        setStableImageHidden(activeImageLayer, activeImage, false);
+        setStableImageActive(activeImageLayer, activeImage, true);
         activeImage.removeAttribute('aria-hidden');
       }
     }
@@ -666,23 +685,23 @@
       root.classList.add('is-transitioning', 'is-content-changing');
       root.setAttribute('data-transition-state', 'reversing');
       root.setAttribute('aria-busy', 'true');
-      activeImage.hidden = false;
+      setStableImageHidden(activeImageLayer, activeImage, false);
       activeImage.removeAttribute('aria-hidden');
       standbyImage.setAttribute('aria-hidden', 'true');
-      activeImage.classList.add('chamber-home__image--active');
-      standbyImage.classList.remove('chamber-home__image--active');
+      setStableImageActive(activeImageLayer, activeImage, true);
+      setStableImageActive(standbyImageLayer, standbyImage, false);
 
       await delay(180);
       if (generation !== transitionGeneration) return;
       commitCopy(sourceIndex);
       root.classList.remove('is-content-changing');
 
-      /* The image scale is the longest Hybrid transition (720ms). Keep the
+      /* The lightweight layer scale is the longest Hybrid transition (720ms). Keep the
          motion owner active for its full duration so a following request can
          never reverse an in-flight transform after will-change is removed. */
       await delay(540);
       if (generation !== transitionGeneration) return;
-      standbyImage.hidden = true;
+      setStableImageHidden(standbyImageLayer, standbyImage, true);
       committedIndex = sourceIndex;
       transitionSourceIndex = -1;
       root.classList.remove('is-transitioning', 'is-content-changing');
@@ -716,12 +735,12 @@
         var targetProject = projectList[targetIndex];
         transitionSourceIndex = committedIndex;
         root.setAttribute('data-transition-state', 'decoding');
-        standbyImage.classList.remove('chamber-home__image--active');
-        standbyImage.hidden = false;
+        setStableImageActive(standbyImageLayer, standbyImage, false);
+        setStableImageHidden(standbyImageLayer, standbyImage, false);
         await prepareImage(standbyImage, targetProject);
         if (generation !== transitionGeneration) break;
         if (targetIndex !== requestedIndex) {
-          standbyImage.hidden = true;
+          setStableImageHidden(standbyImageLayer, standbyImage, true);
           continue;
         }
 
@@ -731,22 +750,25 @@
         if (generation !== transitionGeneration) break;
         standbyImage.removeAttribute('aria-hidden');
         activeImage.setAttribute('aria-hidden', 'true');
-        standbyImage.classList.add('chamber-home__image--active');
-        activeImage.classList.remove('chamber-home__image--active');
+        setStableImageActive(standbyImageLayer, standbyImage, true);
+        setStableImageActive(activeImageLayer, activeImage, false);
 
         await delay(180);
         if (generation !== transitionGeneration) break;
         commitCopy(targetIndex);
         root.classList.remove('is-content-changing');
 
-        /* 180ms content phase + 540ms settle phase matches the CSS transform's
+        /* 180ms content phase + 540ms settle phase matches the layer transform's
            full 720ms. data-transition-state remains authoritative until then. */
         await delay(540);
         if (generation !== transitionGeneration) break;
-        activeImage.hidden = true;
+        setStableImageHidden(activeImageLayer, activeImage, true);
         var previousImage = activeImage;
+        var previousImageLayer = activeImageLayer;
         activeImage = standbyImage;
         standbyImage = previousImage;
+        activeImageLayer = standbyImageLayer;
+        standbyImageLayer = previousImageLayer;
         committedIndex = targetIndex;
         transitionSourceIndex = -1;
         root.classList.remove('is-transitioning');
@@ -758,8 +780,8 @@
           root.classList.remove('is-transitioning', 'is-content-changing');
           root.removeAttribute('data-transition-state');
           root.removeAttribute('aria-busy');
-          standbyImage.classList.remove('chamber-home__image--active');
-          standbyImage.hidden = true;
+          setStableImageActive(standbyImageLayer, standbyImage, false);
+          setStableImageHidden(standbyImageLayer, standbyImage, true);
           standbyImage.setAttribute('aria-hidden', 'true');
         }
       }
