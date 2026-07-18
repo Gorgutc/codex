@@ -598,7 +598,7 @@ function observeModelViewers() {
   var previews = Array.prototype.slice.call(document.querySelectorAll('.fa-card__thumb-mv'));
   if (!previews.length) return;
   var designMode = document.documentElement.getAttribute('data-design');
-  if (designMode === 'specimen' || designMode === 'chamber') {
+  if (designMode === 'specimen' || designMode === 'chamber' || designMode === 'hybrid') {
     if (modelViewerObserver) {
       modelViewerObserver.disconnect();
       modelViewerObserver = null;

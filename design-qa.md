@@ -4,75 +4,70 @@
 
 - Specimen OS source board: Product Design session asset `exec-b1581186-447f-49cf-a20b-b465966008fc`.
 - Black Chamber source board: Product Design session asset `exec-950135b8-0dd7-4fda-a192-e58b4a1a1e06`.
-- Hybrid Home source: owner-approved R2 `hybrid-home-desktop-1440x1024.png` and `hybrid-home-mobile-390x844.png`.
-- Implementation surfaces: Home, Orbital Mk.II Case, and Free Assets for Specimen and Chamber; staged Hybrid Home with Original Case and Free Assets fallbacks.
-- Exact viewports: desktop `1440×1024`; mobile `390×844`; Hybrid wide-spacing check at `1600×1050`.
+- Hybrid R2 sources: the owner-approved Home, Orbital Mk.II Case, and Free Assets desktop/mobile boards in the Second Brain Design Lab reference folder.
+- Exact viewports: desktop `1440×1024`; mobile `390×844`; wide-spacing check `1600×1050`.
 
 ## Visual evidence
 
-The original Design Lab QA set contains twelve exact-viewport captures, two normalized source-versus-implementation boards, and one six-screen mobile contact sheet. Those session screenshots stay out of Git:
+The original Design Lab comparison captures remain session-only artifacts outside Git. Stable reviewed surfaces are protected by committed Playwright baselines:
 
-- `specimen-source-vs-implementation.png`;
-- `chamber-source-vs-implementation.png`;
-- `mobile-design-lab-contact-sheet.png`;
-- `{specimen|chamber}-{home|case|assets}-{desktop|mobile}.png`.
-
-Hybrid Home adds committed runtime regression baselines:
-
+- four Original Home/Free Assets desktop/mobile baselines;
 - `hybrid-home-desktop-1440x1024-win32.png`;
-- `hybrid-home-mobile-390x844-win32.png`.
+- `hybrid-home-mobile-390x844-win32.png`;
+- `hybrid-case-desktop-1440x1024-win32.png`;
+- `hybrid-case-mobile-390x844-win32.png`;
+- `hybrid-free-assets-desktop-1440x1024-win32.png`;
+- `hybrid-free-assets-mobile-390x844-win32.png`.
 
-Each desktop source board and its implementation were inspected in normalized views. Free Assets had no original source frame, so it was judged against the selected direction's tokens, hierarchy, typography, media treatment, and navigation language.
+Each Hybrid source and runtime capture was inspected side by side at the same viewport and state before its baseline was accepted.
 
 ## Comparison result
 
 - Specimen preserves the Technical Explorer contract: persistent project index, central media stage, dossier, blueprint motif, cobalt accents, dense metadata, and all 18 projects.
 - Chamber preserves the Cinematic Monolith contract: full-bleed poster stage, dominant project typography, restrained navigation, chapter-style Case flow, and poster-first media.
-- Hybrid Home matches R2: Black Chamber shell, horizontal desktop pager, unchanged mobile pager, continuous dark surface, and static original grain.
-- Hybrid safe insets are frozen at `48px` desktop, `64px` wide desktop, and `24px` mobile; settled anchor drift is at most `1px`.
-- The intentional desktop departures support the real 18-project catalog: Specimen keeps the full index visible; Chamber and Hybrid use the compact vertical index.
-- Home → Case → Back, previous/next, Copy Link, 2D/3D/Blueprints, EN/RU, Free Assets, and direct case hashes remain coherent in every enabled capability.
-- Mobile layouts retain readable hierarchy, no horizontal overflow, and reachable Hybrid Home controls of at least `44×44`.
-- Variant Free Assets remains poster-first. `model-viewer` and GLB load only after explicit preview activation.
+- Hybrid Home matches R2: Black Chamber shell, horizontal desktop pager, unchanged mobile pager, continuous dark surface, and original grain.
+- Hybrid Case combines Specimen anatomy with Black Chamber treatment: fixed media stage, compact dossier, coherent 2D/3D/Blueprints controls, and narrative spacing of `48px`, `64px`, and `24px`.
+- Hybrid Free Assets keeps the Chamber shell with equal Specimen cards in a responsive `3/2/2/1` grid and explicit poster-first 3D activation.
+- Hybrid Home safe insets are frozen at `48px` desktop, `64px` wide desktop, and `24px` mobile; settled anchor drift is at most `1px`.
+- Home → Case → Back, previous/next, Copy Link, 2D/3D/Blueprints, EN/RU, Free Assets, and direct hashes remain coherent.
+- Mobile has no horizontal overflow; tested visible controls meet the `44×44` target.
 
-The final independent `/review` found no remaining P0-P3 issues in the implemented surfaces. Runtime acceptance is complete for VIS-05.3; promotion to the default design remains out of scope.
+## Issues resolved during QA
 
-## Issues found and resolved during QA
-
-- Direct case deep links could leave GSAP media items transparent; the visible route now restarts the 2D reveal and has a regression assertion.
-- Variant Free Assets respected `hidden` in DOM but not in layout because card CSS overrode the browser rule; a shared explicit hidden rule now protects Original and both variants.
-- Fullscreen overlays could remain mounted when browser Back returned from Case to a Design Lab Home; route teardown now disposes video/WebGL state without restoring focus into hidden Case UI.
-- Variant Free Assets initially auto-loaded `model-viewer`, scoring `44` in Lighthouse; poster-first opt-in loading raised the scores to `74` and `73`.
-- The token-only Specimen accent refactor exposed a `4.39:1` contrast miss; the shared strong accent token restores AA and the repeated axe run passes.
-- Copy Link keeps only allowlisted `design` and `lang`, strips URL credentials, and replaces only the case fragment; Hybrid is now part of that explicit allowlist.
-- The initial Chamber poster swap changed `src` before decode and removed its state after two frames. Hybrid now has one motion owner with decode gating, rapid-input coalescing, route cancellation, fixed slots, and a direct reduced-motion path.
+- Hybrid CSS initially remained active after an optional-runtime failure. Global Hybrid tokens and controls now require `data-design-runtime-state="ready"`; fail-open restores the Original surface and visible theme control.
+- Case now has one idempotent Hybrid dossier and one first-media hero without moving the frozen media DOM or adding a second route owner.
+- The Case lifecycle regression covers 2D → Blueprints → 3D and proves teardown before returning Home.
+- Hybrid Free Assets originally lacked its own complete interaction contract. Tests now cover filter, empty state, EN/RU, download, opt-in model runtime, fullscreen cleanup, focus return, and poster-first loading.
+- The Free Assets fullscreen close target inherited `32×32` on mobile. The scoped Hybrid target is now at least `44×44`.
+- A preloader optimization experiment produced noisy Lighthouse regressions and a large formatting diff. Both were removed; the final runtime keeps the proven frozen preloader.
 
 ## Accessibility, motion, and performance
 
 - Axe: zero WCAG A/AA violations on tested Home, Case, and Free Assets surfaces.
 - Pa11y: zero errors on both Original public pages.
-- Reduced motion: explicit coverage on Specimen, Chamber, and staged Hybrid capabilities.
-- Hybrid browser contracts cover all 18 routes, EN/RU selection persistence, five sequential transitions, crossfade reversal, ten same-frame inputs, latest-input-wins, and no stuck transition classes.
-- Motion QA uses decoded two-layer crossfades, fixed anchors, CLS `0`, no observed long tasks, relative host-cadence stability, and a direct reduced-motion path. The motion stress repeat passed `5/5` with two Chromium workers.
-- Lighthouse accessibility: `100` on all eleven measured URLs; CLS: `0`.
-- Lighthouse performance: Original `86/73`; Specimen `92/81/76`; Chamber `92/80/75`; Hybrid `84/86/75` for Home/Case fallback/Free Assets fallback.
-- Opt-in SEO scores `66–69` are expected because those URLs intentionally use `noindex`; canonical Original URLs remain unchanged.
-- Free Assets LCP remains about `5.8–6.2 s`, matching the Original fixture baseline rather than introducing a Design Lab regression.
+- Reduced motion: explicit coverage on Specimen, Chamber, and all Hybrid surfaces.
+- Hybrid contracts cover all 18 routes, EN/RU persistence, ten sequential transitions, crossfade reversal, ten same-frame inputs, latest-input-wins, and no stuck transition state.
+- Motion QA uses decoded two-layer crossfades, a single color-graded media stack, fixed anchors, CLS `0`, no observed long tasks, and a direct reduced-motion path. Its dedicated one-worker gate pairs ten transitions with nearby idle controls, rejects results confidently above the 15% excess-jank budget through transition-level block resampling, and applies a 20% gross ceiling.
+- Lighthouse accessibility is `100` on all eleven measured URLs; CLS is `0`.
+- Three-run Lighthouse performance medians: Original `81/76`; Specimen `82/77/76`; Chamber `85/84/74`; Hybrid `83/80/73` for Home/Case/Free Assets. Hybrid deltas against Chamber are `-2/-4/-1`, inside the agreed five-point bound; every measured URL kept accessibility `100`, best practices `96`, and CLS `0`.
+- Opt-in SEO scores of `66` are expected because Design Lab URLs intentionally use `noindex`; canonical Original URLs remain unchanged.
 
-## Staged Hybrid boundaries
+## Current boundaries
 
-- Original remains the default and production is unchanged.
-- Hybrid Case uses the Original presentation pending VIS-05.4.
-- Hybrid Free Assets uses the Original presentation pending VIS-05.5.
-- R2 approval and Hybrid Home runtime acceptance do not promote Hybrid to the default.
+- Original remains the default design.
+- Hybrid Home, Case, and Free Assets are opt-in through `?design=hybrid`.
+- Production deployment is separate from source and draft-PR acceptance; this document does not claim that `codex.promo` has been updated.
+- VIS-05.4 and VIS-05.5 do not promote Hybrid to the default.
+- VIS-05.6 remains the owner review and polish pass before any promotion decision.
+- VIS-05.6 still owns automating the now-recorded three-run baseline with an immutable source hash and an explicit Hybrid-versus-Chamber parity assertion.
 
-## Fresh final verification — 2026-07-16
+## Fresh final verification — 2026-07-18
 
-- `test:visual`: `6/6` pass. Four Original baselines remained stable; the two Hybrid baselines were recaptured only after the frozen runtime-ready, decoded-image, visible-controls, and double-frame settle barrier.
-- `quality:deep`: pass, including static/dependency/security gates, browser `55/55`, admin `25/25`, content validation, and Pa11y `0` errors.
-- `check:lighthouse`: pass on all eleven configured URLs. Accessibility `100`, best practices `96`, CLS `0`; the intentional opt-in `noindex` URLs retain documented SEO warnings.
-- `test:design-lab` motion stress: `5/5` pass with two workers after replacing the host-frequency assumption with a relative cadence, jank-share, and no-long-task contract.
-- Independent code, frozen-contract, visual, accessibility, and motion `/review`: PASS with no P0-P3 findings.
-- `codex:ship`: pass on the final runtime/source tree, including Design Lab `52/52` and frozen verification `137 PASS`, `0 FAIL`, `1` dormant skip. No runtime/source edits follow this recorded run.
+- `test:visual`: `10/10` pass.
+- `quality:deep`: pass, including browser `56/56`, the isolated motion gate `1/1`, admin `25/25`, content validation, dependency/security/static gates, and Pa11y `0` errors.
+- `check:lighthouse`: completed on all eleven configured URLs with expected opt-in `noindex` SEO warnings; accessibility `100`, best practices `96`, and CLS `0`.
+- Hybrid lifecycle coverage includes all 18 cases, 2D/3D/Blueprints teardown, transition stress, Free Assets interaction cleanup, and the `44×44` mobile close target.
+- Independent code, frozen-contract, visual, accessibility, performance, and motion review: PASS with no P0-P2 findings. Tablet visual polish and small deadwood cleanup remain P3 follow-ups for VIS-05.6.
+- `codex:ship`: pass on the final runtime/source tree, including the focused Design Lab suite and frozen verification with `0 FAIL`. No runtime/source edits follow this recorded run.
 
-final result: VIS-05.3 runtime accepted for draft PR; Original remains default
+final result: passed — VIS-05.4 and VIS-05.5 accepted for draft PR; Original remains default and VIS-05.6 remains open

@@ -1,9 +1,9 @@
 /*
  * CODEX BLACK CHAMBER
- * Reusable Black Chamber presentation layer. Chamber starts every surface;
- * the Hybrid adapter starts only the approved Home capability. Cases, 3D,
- * blueprints, filters, previews, downloads, i18n and sharing stay delegated to
- * their existing runtime owners.
+ * Reusable Black Chamber presentation layer. Chamber owns the Design Lab route
+ * shell while Case media, filters, previews, downloads, i18n and sharing stay
+ * delegated to their existing runtime owners. Hybrid supplies narrow surface
+ * adapters without starting the independent Specimen route runtime.
  */
 (function () {
   'use strict';
@@ -266,6 +266,7 @@
       document.body.classList.add('chamber-route-case');
       document.body.classList.remove('chamber-route-home', 'chamber-case-scrolled');
       if (runtime.casePresentation) decorateCase(id);
+      if (runtime.caseAdapter) runtime.caseAdapter(id, projects[activeIndex]);
       if (shouldResetCasePosition) {
         if (caseScroll) caseScroll.scrollTop = 0;
         window.scrollTo(0, 0);
@@ -396,6 +397,7 @@
       }
       refreshProjects();
       if (homeIntent) showHome({ keepHomeRender: true });
+      else if (runtime.caseAdapter) runtime.caseAdapter(ids[activeIndex], projects[activeIndex]);
     });
 
     /* main.js opens the first case on a zero-delay timer. Run after that timer so
@@ -424,6 +426,7 @@
     image.loading = 'eager';
     image.decoding = 'async';
     var incomingImage = null;
+    var imageStack = null;
     if (runtime.stableMotion) {
       image.classList.add('chamber-home__image--active');
       incomingImage = make('img', 'chamber-home__image');
@@ -431,10 +434,13 @@
       incomingImage.decoding = 'async';
       incomingImage.hidden = true;
       incomingImage.setAttribute('aria-hidden', 'true');
+      imageStack = make('div', 'chamber-home__image-stack');
+      append(imageStack, image, incomingImage);
     }
     var shade = make('div', 'chamber-home__shade');
     shade.setAttribute('aria-hidden', 'true');
-    append(media, image, incomingImage, shade);
+    if (imageStack) append(media, imageStack, shade);
+    else append(media, image, shade);
 
     var rail = make('nav', 'chamber-home__rail');
     rail.setAttribute('aria-label', localCopy('Project index', 'Индекс проектов'));
@@ -847,6 +853,7 @@
   }
 
   function initFreeAssets() {
+    setDesignSurface('free-assets');
     document.body.classList.add('chamber-page-assets');
     preserveModeLinks();
 
@@ -895,7 +902,8 @@
       home: options.home !== false,
       casePresentation: options.casePresentation !== false,
       freeAssetsPresentation: options.freeAssetsPresentation !== false,
-      stableMotion: options.stableMotion === true
+      stableMotion: options.stableMotion === true,
+      caseAdapter: typeof options.caseAdapter === 'function' ? options.caseAdapter : null
     };
     started = true;
 

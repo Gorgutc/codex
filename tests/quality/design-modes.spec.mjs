@@ -110,6 +110,45 @@ async function waitForHybridHome(page) {
   });
 }
 
+async function waitForHybridCase(page, projectId) {
+  await page.waitForFunction((expectedProjectId) => {
+    const root = document.documentElement;
+    const caseView = document.getElementById('case-view');
+    return (
+      root.getAttribute('data-design') === 'hybrid' &&
+      root.getAttribute('data-design-runtime-state') === 'ready' &&
+      root.getAttribute('data-design-runtime-ready') === 'hybrid' &&
+      root.getAttribute('data-design-surface') === 'case' &&
+      !root.classList.contains('design-chamber-home') &&
+      document.body.classList.contains('chamber-page-portfolio') &&
+      document.body.classList.contains('chamber-route-case') &&
+      Boolean(caseView && !caseView.hidden && caseView.getAttribute('data-hybrid-case-ready') === expectedProjectId) &&
+      Boolean(caseView && caseView.querySelector('.hybrid-case-dossier')) &&
+      Boolean(caseView && caseView.querySelector('.hybrid-case-hero'))
+    );
+  }, projectId);
+}
+
+async function waitForHybridFreeAssets(page) {
+  await page.waitForFunction(() => {
+    const root = document.documentElement;
+    const grid = document.getElementById('fa-grid');
+    const cards = grid ? Array.from(grid.querySelectorAll('.fa-card')) : [];
+    const layout = document.querySelector('.layout');
+    return (
+      root.getAttribute('data-design') === 'hybrid' &&
+      root.getAttribute('data-design-runtime-state') === 'ready' &&
+      root.getAttribute('data-design-runtime-ready') === 'hybrid' &&
+      root.getAttribute('data-design-surface') === 'free-assets' &&
+      !root.classList.contains('design-chamber-home') &&
+      document.body.classList.contains('chamber-page-assets') &&
+      cards.length > 0 &&
+      cards.every((card) => Boolean(card.dataset.chamberIndex)) &&
+      Boolean(layout && getComputedStyle(layout).visibility === 'visible')
+    );
+  });
+}
+
 test('Original stays the default and unknown design values fail closed', async ({ page }) => {
   const variantRequests = [];
   page.on('request', (request) => {
@@ -810,8 +849,10 @@ test('hybrid: readiness gate prevents Original flash and fails open when the ada
   await page.evaluate(() => {
     window.__hybridReadySnapshot = null;
     new MutationObserver((records, observer) => {
-      if (records.some((record) => record.attributeName === 'data-design-runtime-state') &&
-          document.documentElement.getAttribute('data-design-runtime-state') === 'ready') {
+      if (
+        records.some((record) => record.attributeName === 'data-design-runtime-state') &&
+        document.documentElement.getAttribute('data-design-runtime-state') === 'ready'
+      ) {
         const home = document.querySelector('[data-design-home="hybrid"]');
         const caseView = document.getElementById('case-view');
         window.__hybridReadySnapshot = {
@@ -846,6 +887,9 @@ test('hybrid: readiness gate prevents Original flash and fails open when the ada
   await expect(page.locator('.design-runtime-gate')).toHaveCount(0);
   await expect(page.locator('[data-design-home="hybrid"]')).toHaveCount(0);
   await expect(page.locator('#main')).toBeVisible();
+  await expect(page.locator('#theme-toggle')).toBeVisible();
+  await expect(page.locator('html')).not.toHaveAttribute('data-design-surface', /.+/);
+  await expect(page.locator('body')).not.toHaveClass(/chamber-page-|specimen-/);
 
   await page.unroute('**/js/design-hybrid.js');
   await page.route('**/css/design-hybrid.css', (route) => route.abort());
@@ -894,9 +938,7 @@ test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog
   const navigation = page.goto(`${server.base}/index.html?design=hybrid&lang=en`, {
     waitUntil: 'domcontentloaded'
   });
-  await page.waitForFunction(() =>
-    document.documentElement.getAttribute('data-design-runtime-state') === 'pending'
-  );
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-design-runtime-state') === 'pending');
   await page.waitForTimeout(4300);
   await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'pending');
 
@@ -925,9 +967,7 @@ test('hybrid: waits for both stylesheets before starting its ordered runtimes', 
   const navigation = page.goto(`${server.base}/index.html?design=hybrid&lang=en`, {
     waitUntil: 'domcontentloaded'
   });
-  await page.waitForFunction(() =>
-    document.documentElement.getAttribute('data-design-runtime-state') === 'pending'
-  );
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-design-runtime-state') === 'pending');
   await page.waitForTimeout(150);
   expect(runtimeRequests).toEqual([]);
 
@@ -962,8 +1002,10 @@ test('hybrid: a newer crossfade request retains CTA ownership through the stale 
     const home = document.querySelector('[data-design-home="hybrid"]');
     const next = document.querySelectorAll('.chamber-home__pager-button')[1];
     new MutationObserver((records, observer) => {
-      if (records.some((record) => record.attributeName === 'data-transition-state') &&
-          home.getAttribute('data-transition-state') === 'crossfade') {
+      if (
+        records.some((record) => record.attributeName === 'data-transition-state') &&
+        home.getAttribute('data-transition-state') === 'crossfade'
+      ) {
         observer.disconnect();
         next.click();
       }
@@ -983,7 +1025,7 @@ test('hybrid: a newer crossfade request retains CTA ownership through the stale 
   );
 });
 
-test('hybrid: Home opens the Original Case and Back and share preserve the opt-in query', async ({ page }) => {
+test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve the opt-in query', async ({ page }) => {
   const errors = collectConsoleErrors(page);
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], {
     origin: new URL(server.base).origin
@@ -1014,7 +1056,8 @@ test('hybrid: Home opens the Original Case and Back and share preserve the opt-i
   const inventory = await page.evaluate(() =>
     Array.from(document.querySelectorAll('.work-card[data-id]:not(.tag-card)')).map((card) => ({
       id: card.getAttribute('data-id'),
-      title: card.querySelector('.work-card__title').textContent.trim()
+      title: card.querySelector('.work-card__title').textContent.trim(),
+      description: card.querySelector('.work-card__desc').textContent.trim()
     }))
   );
   expect(inventory).toHaveLength(18);
@@ -1023,15 +1066,46 @@ test('hybrid: Home opens the Original Case and Back and share preserve the opt-i
     const projectLink = home.locator(`[data-design-project="${project.id}"]`);
     await projectLink.click();
     await expect.poll(() => new URL(page.url()).hash).toBe(`#${project.id}`);
-    await expect(page.locator('html')).toHaveAttribute('data-design-surface', 'case');
-    await expect(page.locator('html')).not.toHaveClass(/design-chamber-home/);
+    await waitForHybridCase(page, project.id);
     await expect(home).toBeHidden();
     await expect(page.locator('#case-view')).toBeVisible();
+    await expect(page.locator('#case-view')).toHaveAttribute('data-hybrid-case-ready', project.id);
     await expect(page.locator('#case-title')).toHaveText(project.title);
     await expect(page.locator('#case-title')).toBeFocused();
+    await expect(page.locator('.hybrid-case-dossier')).toBeVisible();
+    await expect(page.locator('.hybrid-case-dossier__description')).toHaveText(project.description);
+    await expect(page.locator('.hybrid-case-dossier__facts dt')).toHaveCount(2);
+    await expect(page.locator('.hybrid-case-dossier__facts dd')).toHaveCount(2);
+    await expect(page.locator('.hybrid-case-dossier__back')).toBeVisible();
+    const caseAnatomy = await page.locator('#case-view').evaluate((caseView) => {
+      const track = caseView.querySelector('#case-scroll-track');
+      const hero = track && track.querySelector('.hybrid-case-hero');
+      const mediaRows = track
+        ? Array.from(track.querySelectorAll(':scope > .case-row')).filter((row) =>
+            row.querySelector('.case-item__media')
+          )
+        : [];
+      return {
+        heroCount: track ? track.querySelectorAll('.hybrid-case-hero').length : 0,
+        heroIsFirstMedia: Boolean(hero && hero === mediaRows[0]),
+        heroOrder: hero ? getComputedStyle(hero).order : null,
+        populatedFacts: Array.from(caseView.querySelectorAll('.hybrid-case-dossier__facts dd')).every(
+          (fact) => fact.textContent.trim().length > 0
+        )
+      };
+    });
+    expect(caseAnatomy).toEqual({
+      heroCount: 1,
+      heroIsFirstMedia: true,
+      heroOrder: '-1',
+      populatedFacts: true
+    });
     await expect(page.locator('.chamber-case-back, .chamber-case-poster, .specimen-case-hero')).toHaveCount(0);
 
     if (index === 0) {
+      await expect(page.locator('#case-tab-2d')).toBeVisible();
+      await expect(page.locator('#case-tab-3d')).toBeVisible();
+      await expect(page.locator('#case-tab-bp')).toBeVisible();
       await page.locator('#case-share-desktop').click();
       const copiedUrl = new URL(await page.evaluate(() => navigator.clipboard.readText()));
       expect(copiedUrl.searchParams.get('design')).toBe('hybrid');
@@ -1069,28 +1143,69 @@ test('hybrid: Home opens the Original Case and Back and share preserve the opt-i
   expect(internalConsoleErrors(errors)).toEqual([]);
 });
 
-test('hybrid: Free Assets keeps the Original presentation as an explicit fallback', async ({ page }) => {
+test('hybrid: Case media modes tear down before returning to Home', async ({ page }) => {
   const errors = collectConsoleErrors(page);
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
+  await waitForHybridHome(page);
+
+  const home = page.locator('[data-design-home="hybrid"]');
+  const projectLink = home.locator('[data-design-project="orbital-mk-ii"]').first();
+  await projectLink.click();
+  await waitForHybridCase(page, 'orbital-mk-ii');
+
+  await page.locator('#case-tab-bp').click();
+  await expect(page.locator('#case-tab-bp')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#case-blueprints')).toBeVisible();
+  await expect(page.locator('#case-scroll')).toBeHidden();
+
+  await page.locator('#case-tab-2d').click();
+  await expect(page.locator('#case-tab-2d')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#case-scroll')).toBeVisible();
+  await expect(page.locator('#case-blueprints')).toBeHidden();
+
+  await page.locator('#case-tab-3d').click();
+  await expect(page.locator('#case-tab-3d')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#case-3d canvas, #case-3d model-viewer')).toHaveCount(1, { timeout: 15_000 });
+
+  const backControl = page.locator('[data-design-back]:visible').first();
+  await backControl.click();
+  await expect.poll(() => new URL(page.url()).hash).toBe('');
+  await expect(home).toBeVisible();
+  await expect(page.locator('#case-tab-2d')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#case-3d')).toBeHidden();
+  await expect(page.locator('#case-3d model-viewer, #case-3d canvas')).toHaveCount(0);
+  await expect(page.locator('.media-fs')).toBeHidden();
+  await expect(page.locator('.media-fs__stage > *')).toHaveCount(0);
+  await expect(page.locator('.chamber-home__title')).toBeFocused();
+  expect(internalConsoleErrors(errors)).toEqual([]);
+});
+
+test('hybrid: Free Assets uses the Black Chamber shell, equal cards, and poster-first previews', async ({ page }) => {
+  const errors = collectConsoleErrors(page);
+  await page.setViewportSize({ width: 1440, height: 1024 });
   await page.goto(`${server.base}/free-assets.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => {
-    const root = document.documentElement;
-    return (
-      root.getAttribute('data-design-runtime-state') === 'ready' &&
-      root.getAttribute('data-design-runtime-ready') === 'hybrid' &&
-      document.querySelectorAll('#fa-grid .fa-card').length > 0 &&
-      getComputedStyle(document.querySelector('.layout')).visibility === 'visible'
-    );
-  });
+  await waitForHybridFreeAssets(page);
 
   await expect(page.locator('html')).toHaveAttribute('data-design', 'hybrid');
-  await expect(page.locator('html')).not.toHaveAttribute('data-design-surface', /.+/);
+  await expect(page.locator('html')).toHaveAttribute('data-design-surface', 'free-assets');
   await expect(page.locator('html')).not.toHaveClass(/design-chamber-home/);
-  await expect(page.locator('body')).not.toHaveClass(/chamber-page-assets|specimen-fa-page/);
+  await expect(page.locator('body')).toHaveClass(/chamber-page-assets/);
+  await expect(page.locator('body')).not.toHaveClass(/specimen-fa-page/);
   await expect(page.locator('a.tag-card[data-tag="hard-surface"]')).toBeVisible();
   await page.locator('a.tag-card[data-tag="hard-surface"]').click();
   await expect(page.locator('#fa-view')).toBeVisible();
   await expect(page.locator('#logo-back-portfolio')).toHaveAttribute('href', /design=hybrid/);
+  await expect(page.locator('#fa-grid .fa-card').first()).toHaveAttribute('data-chamber-index', '01');
+  expect(
+    await page
+      .locator('#fa-grid .fa-card')
+      .evaluateAll((cards) =>
+        cards.every((card, index) => card.dataset.chamberIndex === String(index + 1).padStart(2, '0'))
+      )
+  ).toBe(true);
+  await expect(page.locator('.fa-card__thumb-mv[data-codex-preview-enabled="true"]')).toHaveCount(0);
+  await expect(page.locator('script[src*="model-viewer.min.js"]')).toHaveCount(0);
 
   const assets = await page.evaluate(() => ({
     css: Array.from(document.querySelectorAll('link[data-codex-design-asset="style"]')).map(
@@ -1102,9 +1217,83 @@ test('hybrid: Free Assets keeps the Original presentation as an explicit fallbac
   }));
   expect(assets.css).toEqual(['/css/design-chamber.css', '/css/design-hybrid.css']);
   expect(assets.js).toEqual(['/js/design-chamber.js', '/js/design-hybrid.js']);
-  expect(
-    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-  ).toBeLessThanOrEqual(1);
+
+  await page.locator('#game-switch-label').click();
+  await expect(page.locator('#game-switch')).toBeChecked();
+  await expect(page.locator('#fa-grid .fa-grid__empty')).toBeVisible();
+  await page.locator('#game-switch-label').click();
+  await expect(page.locator('#game-switch')).not.toBeChecked();
+  await expect(page.locator('#fa-grid .fa-card:visible')).toHaveCount(8);
+
+  const englishDescription = await page.locator('#fa-grid .fa-card').first().locator('.fa-card__desc').textContent();
+  await page.locator('#lang-toggle').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
+  await expect(page.locator('#fa-grid .fa-card').first().locator('.fa-card__desc')).not.toHaveText(
+    englishDescription.trim()
+  );
+  await page.locator('#lang-toggle').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+  const geometryFixtures = [
+    { width: 1440, height: 1024, columns: 3 },
+    { width: 1024, height: 768, columns: 2 },
+    { width: 768, height: 1024, columns: 2 },
+    { width: 390, height: 844, columns: 1 }
+  ];
+  for (const fixture of geometryFixtures) {
+    await page.setViewportSize({ width: fixture.width, height: fixture.height });
+    await page.waitForFunction((expectedColumns) => {
+      const grid = document.getElementById('fa-grid');
+      return grid && getComputedStyle(grid).gridTemplateColumns.split(/\s+/).filter(Boolean).length === expectedColumns;
+    }, fixture.columns);
+    const geometry = await page.locator('#fa-grid').evaluate((grid) => {
+      const cards = Array.from(grid.querySelectorAll('.fa-card')).filter((card) => {
+        const style = getComputedStyle(card);
+        return !card.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      const widths = cards.map((card) => card.getBoundingClientRect().width);
+      return {
+        columns: getComputedStyle(grid).gridTemplateColumns.split(/\s+/).filter(Boolean).length,
+        cardCount: cards.length,
+        featuredSpans: cards.filter((card) => getComputedStyle(card).gridColumnEnd !== 'auto').length,
+        widthDelta: widths.length ? Math.max(...widths) - Math.min(...widths) : null,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+      };
+    });
+    expect(geometry.columns).toBe(fixture.columns);
+    expect(geometry.cardCount).toBeGreaterThanOrEqual(fixture.columns);
+    expect(geometry.featuredSpans).toBe(0);
+    expect(geometry.widthDelta).not.toBeNull();
+    expect(geometry.widthDelta).toBeLessThanOrEqual(1);
+    expect(geometry.overflow).toBeLessThanOrEqual(1);
+  }
+
+  const modelPreviewCards = page.locator('#fa-grid .fa-card:visible').filter({
+    has: page.locator('.fa-card__thumb-mv')
+  });
+  expect(await modelPreviewCards.count()).toBeGreaterThan(0);
+  const modelPreviewCard = modelPreviewCards.first();
+  const download = page.waitForEvent('download');
+  await modelPreviewCard.locator('.fa-card__download').click();
+  expect((await download).suggestedFilename()).toBe('orbital-mk-ii.zip');
+  const previewButton = modelPreviewCard.locator('.fa-card__preview-btn');
+  const viewerRequest = page.waitForRequest((request) => request.url().endsWith('/js/vendor/model-viewer.min.js'));
+  await previewButton.click();
+  await viewerRequest;
+  await expect(modelPreviewCard.locator('.fa-card__thumb-mv')).toHaveAttribute('data-codex-preview-enabled', 'true');
+  await expect(page.locator('script[src*="model-viewer.min.js"]')).toHaveCount(1);
+  await expect(page.locator('.media-fs')).toBeVisible();
+  const closeButton = page.locator('.media-fs__close');
+  const closeTarget = await closeButton.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  });
+  expect(closeTarget.width).toBeGreaterThanOrEqual(44);
+  expect(closeTarget.height).toBeGreaterThanOrEqual(44);
+  await closeButton.click();
+  await expect(page.locator('.media-fs')).toBeHidden();
+  await expect(page.locator('.media-fs__stage')).toBeEmpty();
+  await expect(previewButton).toBeFocused();
   expect(internalConsoleErrors(errors)).toEqual([]);
 });
 
@@ -1161,12 +1350,76 @@ test('hybrid: approved Home safe insets and mobile controls stay frozen', async 
   ).toBeLessThanOrEqual(1);
 
   await page.locator('[data-design-project="orbital-mk-ii"]').click();
-  await expect(page.locator('html')).toHaveAttribute('data-design-surface', 'case');
+  await waitForHybridCase(page, 'orbital-mk-ii');
   await expect(page.locator('body')).toHaveClass(/cards-collapsed/);
   await expect(page.locator('[data-design-back]:visible').first()).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   ).toBeLessThanOrEqual(1);
+});
+
+test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geometry', async ({ page }) => {
+  const desktopFixtures = [
+    { width: 1440, height: 1024, narrativePadding: 48 },
+    { width: 1600, height: 1050, narrativePadding: 64 }
+  ];
+
+  for (const fixture of desktopFixtures) {
+    await page.setViewportSize({ width: fixture.width, height: fixture.height });
+    await page.goto(`${server.base}/index.html?design=hybrid&lang=en#orbital-mk-ii`, {
+      waitUntil: 'networkidle'
+    });
+    await waitForHybridCase(page, 'orbital-mk-ii');
+    const geometry = await page.locator('#case-view').evaluate((caseView) => {
+      const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
+      const scroll = caseView.querySelector('.case-scroll').getBoundingClientRect();
+      const narrative = caseView.querySelector('.case-text');
+      return {
+        narrativePadding: Number.parseFloat(getComputedStyle(narrative).paddingLeft),
+        horizontalGap: header.left - scroll.right,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+      };
+    });
+    expect(Math.abs(geometry.narrativePadding - fixture.narrativePadding)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.horizontalGap)).toBeLessThanOrEqual(1);
+    expect(geometry.overflow).toBeLessThanOrEqual(1);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
+  await waitForHybridCase(page, 'orbital-mk-ii');
+  const mobileGeometry = await page.locator('#case-view').evaluate((caseView) => {
+    const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
+    const scroll = caseView.querySelector('.case-scroll').getBoundingClientRect();
+    const narrative = caseView.querySelector('.case-text');
+    return {
+      dossierHeight: header.height,
+      narrativePadding: Number.parseFloat(getComputedStyle(narrative).paddingLeft),
+      verticalGap: scroll.top - header.bottom,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  expect(Math.abs(mobileGeometry.dossierHeight - 304)).toBeLessThanOrEqual(1);
+  expect(Math.abs(mobileGeometry.narrativePadding - 24)).toBeLessThanOrEqual(1);
+  expect(Math.abs(mobileGeometry.verticalGap)).toBeLessThanOrEqual(1);
+  expect(mobileGeometry.overflow).toBeLessThanOrEqual(1);
+
+  const caseTargets = await page
+    .locator('.site-header a, .site-header button, .case-view__header button')
+    .evaluateAll((controls) =>
+      controls
+        .map((control) => {
+          const rect = control.getBoundingClientRect();
+          return {
+            target: `${control.tagName.toLowerCase()}#${control.id}.${control.className}`,
+            width: rect.width,
+            height: rect.height
+          };
+        })
+        .filter((size) => size.width > 0 && size.height > 0)
+    );
+  expect(caseTargets.length).toBeGreaterThan(0);
+  expect(caseTargets.filter((size) => size.width < 44 || size.height < 44)).toEqual([]);
 });
 
 test('hybrid: decode barrier coalesces rapid requests and commits only the latest project', async ({ page }) => {
@@ -1280,8 +1533,10 @@ test('hybrid: crossfade reversal returns smoothly without committing the stale t
       attributeFilter: ['data-active-project']
     });
     new MutationObserver((records, observer) => {
-      if (records.some((record) => record.attributeName === 'data-transition-state') &&
-          home.getAttribute('data-transition-state') === 'crossfade') {
+      if (
+        records.some((record) => record.attributeName === 'data-transition-state') &&
+        home.getAttribute('data-transition-state') === 'crossfade'
+      ) {
         observer.disconnect();
         controls[0].click();
       }
@@ -1323,8 +1578,10 @@ test('hybrid: same-frame crossfade reversal intent coalesces before motion owner
       attributeFilter: ['data-transition-state']
     });
     new MutationObserver((records, observer) => {
-      if (records.some((record) => record.attributeName === 'data-transition-state') &&
-          home.getAttribute('data-transition-state') === 'crossfade') {
+      if (
+        records.some((record) => record.attributeName === 'data-transition-state') &&
+        home.getAttribute('data-transition-state') === 'crossfade'
+      ) {
         observer.disconnect();
         controls[0].click();
         controls[1].click();
@@ -1373,7 +1630,19 @@ test('hybrid: ten same-frame requests coalesce to the latest project', async ({ 
   await expect(page.locator(`[data-design-project="${target}"]`)).toHaveAttribute('aria-current', 'true');
 });
 
-test('hybrid: five project transitions keep fixed anchors and negligible layout shift', async ({ page }) => {
+const hybridMotionTest = test.extend({
+  // Trace capture perturbs requestAnimationFrame cadence on full-viewport SVG
+  // crossfades. Retain DOM/source diagnostics without trace screencast frames;
+  // Playwright still writes the separately configured failure screenshot.
+  trace: {
+    mode: 'retain-on-failure',
+    screenshots: false,
+    snapshots: true,
+    sources: true
+  }
+});
+
+hybridMotionTest('@motion-gate hybrid: ten project transitions keep fixed anchors and negligible layout shift', async ({ page }) => {
   await page.addInitScript(() => {
     window.__hybridLayoutShiftScore = 0;
     window.__hybridLongTasks = [];
@@ -1390,12 +1659,12 @@ test('hybrid: five project transitions keep fixed anchors and negligible layout 
       }
       try {
         const longTaskObserver = new PerformanceObserver((list) => {
-            list.getEntries().forEach((entry) => {
-              window.__hybridLongTasks.push({
-                startTime: entry.startTime,
-                duration: entry.duration
-              });
+          list.getEntries().forEach((entry) => {
+            window.__hybridLongTasks.push({
+              startTime: entry.startTime,
+              duration: entry.duration
             });
+          });
         });
         longTaskObserver.observe({ type: 'longtask', buffered: true });
       } catch (_) {
@@ -1410,21 +1679,6 @@ test('hybrid: five project transitions keep fixed anchors and negligible layout 
     window.__hybridLayoutShiftScore = 0;
     window.__hybridLongTasks = [];
     window.__hybridMotionStart = performance.now();
-    window.__hybridFrameDeltas = [];
-    window.__hybridStopFrameSampling = false;
-    let previousFrame = null;
-    const sampleMotionFrames = (timestamp) => {
-      if (window.__hybridStopFrameSampling) return;
-      const inMotion = Boolean(
-        document.querySelector('[data-design-home="hybrid"]')?.getAttribute('data-transition-state')
-      );
-      if (inMotion && previousFrame !== null) {
-        window.__hybridFrameDeltas.push(timestamp - previousFrame);
-      }
-      previousFrame = inMotion ? timestamp : null;
-      requestAnimationFrame(sampleMotionFrames);
-    };
-    requestAnimationFrame(sampleMotionFrames);
   });
 
   const inventory = await page.evaluate(() =>
@@ -1447,16 +1701,70 @@ test('hybrid: five project transitions keep fixed anchors and negligible layout 
     });
   const baseline = await readAnchors();
   const home = page.locator('[data-design-home="hybrid"]');
-  const next = page.locator('.chamber-home__pager-button').last();
+  const frameBlocks = [];
 
-  for (let index = 1; index <= 5; index += 1) {
-    await next.click();
-    await expect(home).toHaveAttribute('data-requested-project', inventory[index].id);
-    await expect(home).toHaveAttribute('data-active-project', inventory[index].id);
-    await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
+  for (let index = 1; index <= 10; index += 1) {
+    const idleFrames = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const frames = [];
+          const deadline = performance.now() + 350;
+          let previousFrame = null;
+          const sampleIdleFrames = (timestamp) => {
+            if (previousFrame !== null) frames.push(timestamp - previousFrame);
+            previousFrame = timestamp;
+            if (performance.now() < deadline) requestAnimationFrame(sampleIdleFrames);
+            else resolve(frames);
+          };
+          requestAnimationFrame(sampleIdleFrames);
+        })
+    );
+    const motionFrames = await page.evaluate(
+      () =>
+        new Promise((resolve, reject) => {
+          const homeRoot = document.querySelector('[data-design-home="hybrid"]');
+          const nextButton = document.querySelectorAll('.chamber-home__pager-button')[1];
+          const frames = [];
+          let previousFrame = null;
+          let previousPhase = null;
+          let stopped = false;
+          const sampleMotionFrames = (timestamp) => {
+            if (stopped) return;
+            const phase = homeRoot.getAttribute('data-transition-state');
+            const visibleMotion = phase === 'crossfade' || phase === 'reversing';
+            if (visibleMotion && previousFrame !== null && previousPhase === phase) {
+              frames.push(timestamp - previousFrame);
+            }
+            previousFrame = visibleMotion ? timestamp : null;
+            previousPhase = visibleMotion ? phase : null;
+            requestAnimationFrame(sampleMotionFrames);
+          };
+          const timeout = window.setTimeout(() => {
+            stopped = true;
+            observer.disconnect();
+            reject(new Error('Hybrid transition did not settle within 3 seconds'));
+          }, 3000);
+          const settle = () => {
+            if (homeRoot.hasAttribute('data-transition-state')) return;
+            stopped = true;
+            window.clearTimeout(timeout);
+            observer.disconnect();
+            resolve(frames);
+          };
+          const observer = new MutationObserver(settle);
+          observer.observe(homeRoot, { attributes: true, attributeFilter: ['data-transition-state'] });
+          requestAnimationFrame(sampleMotionFrames);
+          nextButton.click();
+          requestAnimationFrame(settle);
+        })
+    );
+    frameBlocks.push({ idleFrames, motionFrames });
+    const expectedProject = inventory[index % inventory.length];
+    await expect(home).toHaveAttribute('data-requested-project', expectedProject.id);
+    await expect(home).toHaveAttribute('data-active-project', expectedProject.id);
     await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
-    await expect(page.locator('.chamber-home__title')).toHaveText(inventory[index].title);
-    await expect(page.locator(`[data-design-project="${inventory[index].id}"]`)).toHaveAttribute(
+    await expect(page.locator('.chamber-home__title')).toHaveText(expectedProject.title);
+    await expect(page.locator(`[data-design-project="${expectedProject.id}"]`)).toHaveAttribute(
       'aria-current',
       'true'
     );
@@ -1464,35 +1772,77 @@ test('hybrid: five project transitions keep fixed anchors and negligible layout 
     for (const key of Object.keys(baseline)) expect(Math.abs(current[key] - baseline[key])).toBeLessThanOrEqual(1);
   }
 
-  expect(await page.evaluate(() => window.__hybridLayoutShiftScore)).toBeLessThanOrEqual(0.01);
-  const pacing = await page.evaluate(() => {
-    window.__hybridStopFrameSampling = true;
-    const frames = window.__hybridFrameDeltas.slice().sort((left, right) => left - right);
-    const median = frames[Math.floor(frames.length / 2)] || 0;
-    const p90 = frames[Math.min(frames.length - 1, Math.floor(frames.length * 0.9))] || 0;
-    const jankThreshold = median * 1.5 + 1;
+  const summarize = (values, jankThreshold) => {
+    const frames = values.slice().sort((left, right) => left - right);
+    let slowStreak = 0;
+    let maxSlowStreak = 0;
+    values.forEach((delta) => {
+      slowStreak = delta > jankThreshold ? slowStreak + 1 : 0;
+      maxSlowStreak = Math.max(maxSlowStreak, slowStreak);
+    });
     return {
       frameCount: frames.length,
-      median,
-      p90,
+      median: frames[Math.floor(frames.length / 2)] || 0,
+      p90: frames[Math.min(frames.length - 1, Math.floor(frames.length * 0.9))] || 0,
+      p99: frames[Math.min(frames.length - 1, Math.floor(frames.length * 0.99))] || 0,
+      max: frames[frames.length - 1] || 0,
       jankRatio: frames.filter((delta) => delta > jankThreshold).length / Math.max(1, frames.length),
-      longTasks: window.__hybridLongTasks.filter(
-        (entry) => entry.startTime >= window.__hybridMotionStart
-      )
+      maxSlowStreak
+    };
+  };
+  const blocks = frameBlocks.map(({ idleFrames, motionFrames }) => {
+    const idleMedian = idleFrames.slice().sort((left, right) => left - right)[Math.floor(idleFrames.length / 2)] || 0;
+    const jankThreshold = idleMedian * 1.5 + 1;
+    const idle = summarize(idleFrames, jankThreshold);
+    const motion = summarize(motionFrames, jankThreshold);
+    return {
+      idle,
+      motion,
+      excessJankRatio: Math.max(0, motion.jankRatio - idle.jankRatio)
     };
   });
+  const pairedExcess = blocks.map((block) => block.excessJankRatio);
+  const bootstrapMeans = [];
+  let bootstrapSeed = 0xc0de0515;
+  for (let sampleIndex = 0; sampleIndex < 5000; sampleIndex += 1) {
+    let total = 0;
+    for (let blockIndex = 0; blockIndex < pairedExcess.length; blockIndex += 1) {
+      bootstrapSeed = (Math.imul(bootstrapSeed, 1664525) + 1013904223) >>> 0;
+      total += pairedExcess[Math.floor((bootstrapSeed / 0x100000000) * pairedExcess.length)];
+    }
+    bootstrapMeans.push(total / pairedExcess.length);
+  }
+  bootstrapMeans.sort((left, right) => left - right);
+  const pacing = {
+    blocks,
+    observedExcessMean: pairedExcess.reduce((total, value) => total + value, 0) / pairedExcess.length,
+    excessLower95: bootstrapMeans[Math.floor(bootstrapMeans.length * 0.05)],
+    longTasks: await page.evaluate(() =>
+      window.__hybridLongTasks.filter((entry) => entry.startTime >= window.__hybridMotionStart)
+    )
+  };
   const pacingSummary = JSON.stringify(pacing);
-  expect(pacing.frameCount, pacingSummary).toBeGreaterThan(50);
-  // Shared headless hosts may settle at 15/20/30/60 Hz. Judge smoothness by
-  // relative cadence: allow one missed host frame at p90, bound the share of
-  // slower intervals, and fail every main-thread long task.
-  expect(pacing.median, pacingSummary).toBeLessThanOrEqual(70);
-  expect(pacing.p90, pacingSummary).toBeLessThanOrEqual(pacing.median * 2 + 1);
-  expect(pacing.jankRatio, pacingSummary).toBeLessThanOrEqual(0.15);
+  expect(await page.evaluate(() => window.__hybridLayoutShiftScore), pacingSummary).toBeLessThanOrEqual(0.01);
+  for (const block of blocks) {
+    expect(block.idle.frameCount, pacingSummary).toBeGreaterThan(12);
+    expect(block.motion.frameCount, pacingSummary).toBeGreaterThan(20);
+    // Pair each transition with a nearby idle control. A 60 Hz-capable host is
+    // required, while isolated one-frame misses remain inside the p90/p99 caps.
+    expect(block.idle.median, pacingSummary).toBeLessThanOrEqual(20.5);
+    expect(block.motion.median, pacingSummary).toBeLessThanOrEqual(block.idle.median + 2);
+    expect(block.motion.p90, pacingSummary).toBeLessThanOrEqual(
+      Math.max(block.idle.p90 + 2, block.idle.median * 2 + 2)
+    );
+    expect(block.motion.p99, pacingSummary).toBeLessThanOrEqual(block.idle.median * 3 + 3);
+  }
+  // Detect regressions confidently above the 15% excess-jank budget with
+  // transition-level resampling, plus a deterministic 20% gross ceiling.
+  expect(pacing.observedExcessMean, pacingSummary).toBeLessThanOrEqual(0.2);
+  expect(pacing.excessLower95, pacingSummary).toBeLessThanOrEqual(0.15);
   expect(pacing.longTasks, pacingSummary).toEqual([]);
 });
 
-test('hybrid: reduced motion and Original fallback surfaces have no axe violations', async ({ page }) => {
+test('hybrid: reduced motion Case and Free Assets surfaces have no axe violations', async ({ page }) => {
   const errors = collectConsoleErrors(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
@@ -1508,21 +1858,17 @@ test('hybrid: reduced motion and Original fallback surfaces have no axe violatio
   expect(homeAxe.violations, formatAxeViolations(homeAxe.violations)).toEqual([]);
 
   await page.locator('.chamber-home__view').click();
-  await expect(page.locator('html')).toHaveAttribute('data-design-surface', 'case');
+  await waitForHybridCase(page, 'vega-shell');
+  await expect(page.locator('.hybrid-case-dossier')).toBeVisible();
+  await expect(page.locator('.hybrid-case-hero')).toBeVisible();
   await expectReducedMotionStyles(page, '#case-view');
   const caseAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(caseAxe.violations, formatAxeViolations(caseAxe.violations)).toEqual([]);
 
   await page.goto(`${server.base}/free-assets.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => {
-    const root = document.documentElement;
-    return (
-      root.getAttribute('data-design-runtime-state') === 'ready' &&
-      root.getAttribute('data-design-runtime-ready') === 'hybrid' &&
-      document.querySelectorAll('#fa-grid .fa-card').length > 0 &&
-      getComputedStyle(document.querySelector('.layout')).visibility === 'visible'
-    );
-  });
+  await waitForHybridFreeAssets(page);
+  await expect(page.locator('.fa-card__thumb-mv[data-codex-preview-enabled="true"]')).toHaveCount(0);
+  await expect(page.locator('script[src*="model-viewer.min.js"]')).toHaveCount(0);
   await expectReducedMotionStyles(page, 'body');
   const assetsAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(assetsAxe.violations, formatAxeViolations(assetsAxe.violations)).toEqual([]);

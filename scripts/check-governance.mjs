@@ -104,14 +104,19 @@ check(
 );
 check('package: codex:ship includes governance', /\bcheck:governance\b/.test(packageJson.scripts['codex:ship'] || ''));
 check(
+  'package: motion gate is isolated on one worker',
+  packageJson.scripts['test:motion'] ===
+    'playwright test tests/quality/design-modes.spec.mjs --grep @motion-gate --workers=1'
+);
+check(
   'package: browser smoke includes Design Lab explicitly',
   packageJson.scripts['test:browser'] ===
-    'playwright test tests/quality/site-smoke.spec.mjs tests/quality/design-modes.spec.mjs'
+    'playwright test tests/quality/site-smoke.spec.mjs tests/quality/design-modes.spec.mjs --grep-invert @motion-gate && npm run test:motion'
 );
 check(
   'package: Design Lab gate is explicit',
   packageJson.scripts['test:design-lab'] ===
-    'playwright test tests/quality/design-modes.spec.mjs tests/quality/admin-preview.spec.mjs'
+    'playwright test tests/quality/design-modes.spec.mjs tests/quality/admin-preview.spec.mjs --grep-invert @motion-gate && npm run test:motion'
 );
 check(
   'package: codex:ship includes Design Lab gate',
