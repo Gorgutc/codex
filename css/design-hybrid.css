@@ -117,6 +117,7 @@ html[data-design='hybrid'].design-chamber-home .chamber-home__image--active {
 }
 
 html[data-design='hybrid'].design-chamber-home .chamber-home.is-transitioning .chamber-home__image-stack {
+  transform: translateZ(0);
   will-change: filter;
 }
 
