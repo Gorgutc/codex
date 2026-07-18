@@ -594,11 +594,19 @@ function ensureModelViewerObserver() {
   return modelViewerObserver;
 }
 
+function keepsModelPreviewsPosterFirst() {
+  var root = document.documentElement;
+  var designMode = root.getAttribute('data-design');
+  if (designMode === 'specimen' || designMode === 'chamber') return true;
+  if (designMode !== 'hybrid') return false;
+  var runtimeState = root.getAttribute('data-design-runtime-state');
+  return runtimeState === 'pending' || runtimeState === 'ready';
+}
+
 function observeModelViewers() {
   var previews = Array.prototype.slice.call(document.querySelectorAll('.fa-card__thumb-mv'));
   if (!previews.length) return;
-  var designMode = document.documentElement.getAttribute('data-design');
-  if (designMode === 'specimen' || designMode === 'chamber' || designMode === 'hybrid') {
+  if (keepsModelPreviewsPosterFirst()) {
     if (modelViewerObserver) {
       modelViewerObserver.disconnect();
       modelViewerObserver = null;
@@ -620,6 +628,24 @@ function observeModelViewers() {
   });
 }
 
+function watchHybridRuntimeFallback() {
+  var root = document.documentElement;
+  if (root.getAttribute('data-design') !== 'hybrid' ||
+      root.getAttribute('data-design-runtime-state') !== 'pending' ||
+      typeof MutationObserver === 'undefined') return;
+  new MutationObserver(function(records, observer) {
+    var runtimeStateChanged = records.some(function(record) {
+      return record.attributeName === 'data-design-runtime-state';
+    });
+    if (!runtimeStateChanged || root.getAttribute('data-design-runtime-state') === 'pending') return;
+    observer.disconnect();
+    if (!keepsModelPreviewsPosterFirst()) observeModelViewers();
+  }).observe(root, {
+    attributes: true,
+    attributeFilter: ['data-design-runtime-state']
+  });
+}
+
 /* ─── INIT ─── */
 document.addEventListener('DOMContentLoaded', function() {
   // XSS/visibility batch: tag-карточки выключенных категорий теперь
@@ -627,6 +653,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // прежний runtime-прунинг (pruneHiddenTagCards) и патч счётчика больше не
   // нужны — main.js считает #cards-count по видимо-корректному NodeList сам.
   bindTagCards();
+  // Hybrid is poster-first only while its optional runtime is pending or ready.
+  // If that runtime fails open, restore Original's near-viewport 3D previews.
+  watchHybridRuntimeFallback();
   // Initial load: honor a deep-link hash (#<asset-id> из JSON-LD itemList /
   // расшаренных ссылок). Если hash указывает на известный ассет — открываем его
   // категорию и доводим карточку до вида; иначе — первая категория. DO NOT

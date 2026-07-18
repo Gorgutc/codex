@@ -925,6 +925,57 @@ test('hybrid: a loaded adapter that does not start falls back to Original within
   await expect(page.locator('[data-design-home="hybrid"]')).toHaveCount(0);
 });
 
+test('hybrid: Free Assets fail-open restores Original near-viewport 3D previews', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  let releaseAdapter;
+  const adapterGate = new Promise((resolve) => {
+    releaseAdapter = resolve;
+  });
+  await page.route('**/js/design-hybrid.js', async (route) => {
+    await adapterGate;
+    await route.abort();
+  });
+
+  await page.goto(`${server.base}/free-assets.html?design=hybrid&lang=en`, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'pending');
+  await page.waitForFunction(() => document.querySelectorAll('#fa-grid .fa-card').length > 0);
+
+  const preview = page.locator('.fa-card__thumb-mv').first();
+  await expect(preview).toHaveCount(1);
+  await expect(page.locator('.fa-card__thumb-mv[data-codex-preview-enabled="true"]')).toHaveCount(0);
+  await expect(page.locator('script[src*="model-viewer.min.js"]')).toHaveCount(0);
+
+  const viewerRequest = page.waitForRequest((request) => request.url().endsWith('/js/vendor/model-viewer.min.js'));
+  releaseAdapter();
+  await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback');
+  await preview.scrollIntoViewIfNeeded();
+  await expect(preview).toHaveAttribute('data-codex-preview-enabled', 'true');
+  await viewerRequest;
+  await expect(page.locator('script[src*="model-viewer.min.js"]')).toHaveCount(1);
+  await expect(page.locator('.layout')).toHaveCSS('visibility', 'visible');
+  await expect(page.locator('html')).not.toHaveAttribute('data-design-surface', /.+/);
+  await expect(page.locator('body')).not.toHaveClass(/chamber-page-assets|specimen-fa-page/);
+});
+
+test('hybrid: Free Assets keeps Original 3D previews when the optional loader is unavailable', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await page.route('**/js/design-loader.js', (route) => route.abort());
+
+  await page.goto(`${server.base}/free-assets.html?design=hybrid&lang=en`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelectorAll('#fa-grid .fa-card').length > 0);
+  await expect(page.locator('html')).not.toHaveAttribute('data-design-runtime-state', /.+/);
+
+  const preview = page.locator('.fa-card__thumb-mv').first();
+  await expect(preview).toHaveCount(1);
+  await preview.scrollIntoViewIfNeeded();
+  await expect(preview).toHaveAttribute('data-codex-preview-enabled', 'true');
+  await expect(page.locator('script[src*="model-viewer.min.js"]')).toHaveCount(1);
+  await expect(page.locator('html')).not.toHaveAttribute('data-design-surface', /.+/);
+  await expect(page.locator('body')).not.toHaveClass(/chamber-page-assets|specimen-fa-page/);
+});
+
 test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog', async ({ page }) => {
   let releaseBaseRuntime;
   const baseRuntimeGate = new Promise((resolve) => {
@@ -1359,6 +1410,7 @@ test('hybrid: approved Home safe insets and mobile controls stay frozen', async 
 });
 
 test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geometry', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const desktopFixtures = [
     { width: 1440, height: 1024, narrativePadding: 48 },
     { width: 1600, height: 1050, narrativePadding: 64 }
@@ -1420,6 +1472,58 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
     );
   expect(caseTargets.length).toBeGreaterThan(0);
   expect(caseTargets.filter((size) => size.width < 44 || size.height < 44)).toEqual([]);
+});
+
+test('hybrid: short mobile landscape keeps Case media and Free Assets grid scrollable', async ({ page }) => {
+  await page.setViewportSize({ width: 667, height: 375 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
+  await waitForHybridCase(page, 'orbital-mk-ii');
+
+  const caseGeometry = await page.locator('#case-view').evaluate((caseView) => {
+    const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
+    const scroll = caseView.querySelector('.case-scroll').getBoundingClientRect();
+    const narrative = caseView.querySelector('.case-text');
+    return {
+      dossierHeight: header.height,
+      galleryHeight: scroll.height,
+      narrativePadding: Number.parseFloat(getComputedStyle(narrative).paddingLeft),
+      verticalGap: scroll.top - header.bottom,
+      viewportRemainder: window.innerHeight - scroll.bottom,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  expect(Math.abs(caseGeometry.dossierHeight - 144)).toBeLessThanOrEqual(1);
+  expect(Math.abs(caseGeometry.galleryHeight - 167)).toBeLessThanOrEqual(1);
+  expect(Math.abs(caseGeometry.narrativePadding - 24)).toBeLessThanOrEqual(1);
+  expect(Math.abs(caseGeometry.verticalGap)).toBeLessThanOrEqual(1);
+  expect(Math.abs(caseGeometry.viewportRemainder)).toBeLessThanOrEqual(1);
+  expect(caseGeometry.overflow).toBeLessThanOrEqual(1);
+
+  await page.goto(`${server.base}/free-assets.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
+  await waitForHybridFreeAssets(page);
+  const assetGeometry = await page.locator('#fa-view').evaluate((view) => {
+    const sidebar = document.querySelector('.sidebar').getBoundingClientRect();
+    const main = document.querySelector('.main-area').getBoundingClientRect();
+    const scrollElement = view.querySelector('.fa-scroll');
+    const scroll = scrollElement.getBoundingClientRect();
+    return {
+      sidebarHeight: sidebar.height,
+      mainHeight: main.height,
+      scrollHeight: scroll.height,
+      scrollableOverflow: scrollElement.scrollHeight - scrollElement.clientHeight,
+      chromeGap: main.top - sidebar.bottom,
+      viewportRemainder: window.innerHeight - main.bottom,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  expect(Math.abs(assetGeometry.sidebarHeight - 136)).toBeLessThanOrEqual(1);
+  expect(Math.abs(assetGeometry.mainHeight - 239)).toBeLessThanOrEqual(1);
+  expect(assetGeometry.scrollHeight).toBeGreaterThanOrEqual(64);
+  expect(assetGeometry.scrollableOverflow).toBeGreaterThan(0);
+  expect(Math.abs(assetGeometry.chromeGap)).toBeLessThanOrEqual(1);
+  expect(Math.abs(assetGeometry.viewportRemainder)).toBeLessThanOrEqual(1);
+  expect(assetGeometry.overflow).toBeLessThanOrEqual(1);
 });
 
 test('hybrid: decode barrier coalesces rapid requests and commits only the latest project', async ({ page }) => {

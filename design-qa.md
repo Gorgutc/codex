@@ -39,6 +39,8 @@ Each Hybrid source and runtime capture was inspected side by side at the same vi
 - The Case lifecycle regression covers 2D → Blueprints → 3D and proves teardown before returning Home.
 - Hybrid Free Assets originally lacked its own complete interaction contract. Tests now cover filter, empty state, EN/RU, download, opt-in model runtime, fullscreen cleanup, focus return, and poster-first loading.
 - The Free Assets fullscreen close target inherited `32×32` on mobile. The scoped Hybrid target is now at least `44×44`.
+- Free Assets fail-open originally kept Hybrid poster-first suppression after the Original surface returned. The observer now resumes near-viewport 3D previews on `fallback` or when the optional loader is unavailable.
+- Short mobile landscape originally left almost no Case media height and no usable Free Assets scroll area. A height-aware `667×375` layout now keeps a `167px` Case media stage and a visible, scrollable asset grid without changing portrait or desktop rules.
 - A preloader optimization experiment produced noisy Lighthouse regressions and a large formatting diff. Both were removed; the final runtime keeps the proven frozen preloader.
 
 ## Accessibility, motion, and performance
@@ -64,9 +66,9 @@ Each Hybrid source and runtime capture was inspected side by side at the same vi
 ## Fresh final verification — 2026-07-18
 
 - `test:visual`: `10/10` pass.
-- `quality:deep`: pass, including browser `56/56`, the isolated motion gate `1/1`, admin `25/25`, content validation, dependency/security/static gates, and Pa11y `0` errors.
+- `quality:deep`: pass, including browser `59/59`, the isolated motion gate `1/1`, admin `25/25`, content validation, dependency/security/static gates, and Pa11y `0` errors.
 - `check:lighthouse`: completed on all eleven configured URLs with expected opt-in `noindex` SEO warnings; accessibility `100`, best practices `96`, and CLS `0`.
-- Hybrid lifecycle coverage includes all 18 cases, 2D/3D/Blueprints teardown, transition stress, Free Assets interaction cleanup, and the `44×44` mobile close target.
+- Hybrid lifecycle coverage includes all 18 cases, 2D/3D/Blueprints teardown, transition stress, Free Assets interaction cleanup and fail-open 3D restoration, the `44×44` mobile close target, and short-landscape geometry.
 - Independent code, frozen-contract, visual, accessibility, performance, and motion review: PASS with no P0-P2 findings. Tablet visual polish and small deadwood cleanup remain P3 follow-ups for VIS-05.6.
 - `codex:ship`: pass on the final runtime/source tree, including the focused Design Lab suite and frozen verification with `0 FAIL`. No runtime/source edits follow this recorded run.
 

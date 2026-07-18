@@ -752,6 +752,60 @@ html[data-design='hybrid'][data-design-surface='case']
   }
 }
 
+@media (max-width: 767px) and (max-height: 500px) and (orientation: landscape) {
+  html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .case-view__header {
+    height: 9rem;
+    padding: var(--space-3);
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, 1.45fr);
+    grid-template-rows: minmax(0, 1fr) 2.75rem;
+    column-gap: var(--space-3);
+    row-gap: var(--space-2);
+  }
+
+  html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .case-view__left {
+    grid-column: 1;
+    grid-row: 1;
+    overflow: hidden;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .case-view__meta {
+    padding-bottom: var(--space-1);
+  }
+
+  html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .case-view__title {
+    margin-top: var(--space-1);
+    font-size: clamp(1.75rem, 6vw, 2.5rem);
+    white-space: normal;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .case-view__actions {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    min-height: 0;
+    align-self: center;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .hybrid-case-dossier {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .hybrid-case-dossier__back {
+    width: 100%;
+  }
+
+  html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .case-progress {
+    top: calc(var(--hybrid-shell-header) + 9rem);
+  }
+
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    :is(.case-scroll, .case-3d, .case-blueprints) {
+    inset: calc(var(--hybrid-shell-header) + 9rem) 0 0;
+  }
+}
+
 /* --------------------------------------------------------------------------
    VIS-05.5 — Black Chamber Free Assets shell with equal Specimen cards
    -------------------------------------------------------------------------- */
@@ -1154,6 +1208,48 @@ html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-
 
   html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .fa-card__body {
     min-height: 19rem;
+  }
+}
+
+@media (max-width: 767px) and (max-height: 500px) and (orientation: landscape) {
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .sidebar {
+    height: 8.5rem;
+  }
+
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .site-header {
+    height: 5.5rem;
+  }
+
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .header-top {
+    flex-basis: 2.75rem;
+  }
+
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .cards-scroll {
+    height: 3rem;
+    flex-basis: 3rem;
+  }
+
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .tag-card,
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .tag-card__info {
+    min-height: 3rem;
+  }
+
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .main-area,
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets.cards-collapsed .main-area {
+    inset: 8.5rem 0 0;
+  }
+
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .fa-view {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .fa-view__title {
+    font-size: clamp(2rem, 8vw, 3rem);
+  }
+
+  html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .fa-trust {
+    margin-top: var(--space-2);
   }
 }
 
