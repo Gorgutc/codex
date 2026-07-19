@@ -187,6 +187,12 @@ html[data-design='hybrid'].design-chamber-home .chamber-home.is-content-changing
    VIS-05.4 — Specimen Case anatomy with Black Chamber treatment
    -------------------------------------------------------------------------- */
 
+/* Case metadata is appended once and reused across route transitions. Keep it
+   out of the Home header flow until the Case surface explicitly owns it. */
+html[data-design='hybrid'] body.chamber-page-portfolio .hybrid-case-file {
+  display: none;
+}
+
 html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .layout {
   display: block;
   height: 100dvh;
@@ -285,6 +291,7 @@ html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfol
 html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .hybrid-case-file {
   position: absolute;
   left: 50%;
+  display: block;
   margin: 0;
   color: var(--chamber-muted);
   font-family: var(--font-mono);
@@ -929,6 +936,12 @@ html[data-design='hybrid'][data-design-surface='free-assets']
 
 html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .contact-btn {
   display: none;
+}
+
+html[data-design='hybrid'][data-design-surface='free-assets']
+  body.chamber-page-assets
+  .tags-dropdown__panel {
+  background: var(--chamber-panel);
 }
 
 html[data-design='hybrid'][data-design-surface='free-assets'] body.chamber-page-assets .cards-scroll {

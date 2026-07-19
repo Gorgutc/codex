@@ -1364,6 +1364,114 @@ test('hybrid: Case media modes tear down before returning to Home', async ({ pag
   expect(internalConsoleErrors(errors)).toEqual([]);
 });
 
+for (const exit of [
+  { label: 'Project Index', selector: '.hybrid-case-dossier__back' },
+  { label: 'logo', selector: '#logo-home' }
+]) {
+  test(`hybrid: ${exit.label} Case exit restores the Home header controls`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1024 });
+    await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
+    await waitForHybridHome(page);
+
+    const baseline = await page.evaluate(() => {
+      const header = document.querySelector('.header-top').getBoundingClientRect();
+      const controls = document.querySelector('.header-top__controls').getBoundingClientRect();
+      return {
+        headerRight: header.right,
+        controlsLeft: controls.left,
+        controlsRight: controls.right
+      };
+    });
+
+    await page.locator('.chamber-home__view').click();
+    await waitForHybridCase(page, 'orbital-mk-ii');
+    await expect(page.locator('.hybrid-case-file')).toBeVisible();
+    await page.locator(exit.selector).click();
+    await waitForHybridHome(page);
+
+    await expect.poll(() => new URL(page.url()).hash).toBe('');
+    await expect(page.locator('#contact-btn')).toBeVisible();
+    await expect(page.locator('#lang-toggle')).toBeVisible();
+    await expect(page.locator('.hybrid-case-file')).toHaveCount(1);
+    const state = await page.evaluate(() => {
+      const header = document.querySelector('.header-top').getBoundingClientRect();
+      const controls = document.querySelector('.header-top__controls').getBoundingClientRect();
+      const contact = document.getElementById('contact-btn').getBoundingClientRect();
+      const language = document.getElementById('lang-toggle').getBoundingClientRect();
+      const caseFile = document.querySelector('.hybrid-case-file');
+      const caseFileRect = caseFile.getBoundingClientRect();
+      return {
+        headerRight: header.right,
+        controlsLeft: controls.left,
+        controlsRight: controls.right,
+        contactRight: contact.right,
+        languageLeft: language.left,
+        languageRight: language.right,
+        caseFileDisplay: getComputedStyle(caseFile).display,
+        caseFileWidth: caseFileRect.width,
+        caseFileHeight: caseFileRect.height
+      };
+    });
+    expect(state.caseFileDisplay).toBe('none');
+    expect(state.caseFileWidth).toBe(0);
+    expect(state.caseFileHeight).toBe(0);
+    expect(Math.abs(state.controlsLeft - baseline.controlsLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(state.controlsRight - baseline.controlsRight)).toBeLessThanOrEqual(1);
+    expect(Math.abs(state.headerRight - baseline.headerRight)).toBeLessThanOrEqual(1);
+    expect(Math.abs(state.controlsRight - state.headerRight)).toBeLessThanOrEqual(1);
+    expect(state.contactRight).toBeLessThanOrEqual(state.languageLeft);
+    expect(Math.abs(state.languageRight - state.controlsRight)).toBeLessThanOrEqual(1);
+  });
+}
+
+test('hybrid: Free Assets filter panel stays opaque above category cards', async ({ page }) => {
+  for (const viewport of [
+    { width: 1440, height: 1024 },
+    { width: 768, height: 1024 }
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${server.base}/free-assets.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
+    await waitForHybridFreeAssets(page);
+
+    await page.locator('#tags-dropdown-trigger').click();
+    await expect(page.locator('#tags-dropdown-trigger')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#tags-dropdown')).toHaveAttribute('data-open', 'true');
+    await expect(page.locator('#tags-dropdown-panel')).toBeVisible();
+    const layer = await page.locator('#tags-dropdown-panel').evaluate((panel) => {
+      const style = getComputedStyle(panel);
+      const channels = style.backgroundColor.match(/[\d.]+/g)?.map(Number) || [];
+      const alpha = channels.length === 4 ? channels[3] : channels.length === 3 ? 1 : 0;
+      const panelRect = panel.getBoundingClientRect();
+      const cards = Array.from(document.querySelectorAll('.tag-card')).filter((card) => {
+        const cardRect = card.getBoundingClientRect();
+        return cardRect.width > 0 && cardRect.height > 0;
+      });
+      const overlap = cards.map((card) => {
+        const cardRect = card.getBoundingClientRect();
+        const left = Math.max(panelRect.left, cardRect.left);
+        const top = Math.max(panelRect.top, cardRect.top);
+        const right = Math.min(panelRect.right, cardRect.right);
+        const bottom = Math.min(panelRect.bottom, cardRect.bottom);
+        return { left, top, right, bottom, area: Math.max(0, right - left) * Math.max(0, bottom - top) };
+      }).sort((a, b) => b.area - a.area)[0];
+      const paintedNode = overlap && overlap.area > 0
+        ? document.elementFromPoint((overlap.left + overlap.right) / 2, (overlap.top + overlap.bottom) / 2)
+        : null;
+      return {
+        alpha,
+        overlapsCard: Boolean(overlap && overlap.area > 0),
+        panelOwnsOverlap: Boolean(paintedNode && (paintedNode === panel || panel.contains(paintedNode))),
+        insideViewport: panelRect.left >= 0 && panelRect.top >= 0 &&
+          panelRect.right <= window.innerWidth && panelRect.bottom <= window.innerHeight
+      };
+    });
+    expect(layer.alpha).toBe(1);
+    expect(layer.overlapsCard).toBe(true);
+    expect(layer.panelOwnsOverlap).toBe(true);
+    expect(layer.insideViewport).toBe(true);
+  }
+});
+
 test('hybrid: Free Assets uses the Black Chamber shell, equal cards, and poster-first previews', async ({ page }) => {
   const errors = collectConsoleErrors(page);
   await page.setViewportSize({ width: 1440, height: 1024 });
