@@ -659,10 +659,11 @@
     return 'https://player.vimeo.com/video/' + id + '?' + params.join('&');
   }
 
-  function mediaItemHTML(item, eager) {
+  function mediaItemHTML(item, eager, inlineOverlay) {
     var isVideo = item.type === 'video';
     var format  = item.format === 'tall' ? 'tall' : 'wide';
     var cls     = 'case-item case-item--' + format;
+    if (inlineOverlay) cls += ' case-item--inline-stage';
     // prod-review F2 (A1-01/C-01): все admin-редактируемые поля экранируются
     // перед innerHTML — зеркало motionItemHTML. Ошибки загрузки медиа ловит
     // делегированный capture-листенер на caseTrack (инлайн-onerror убран:
@@ -706,6 +707,7 @@
     h +=     '<p class="case-item__caption-label">' + label + '</p>';
     h +=     '<p class="case-item__caption-desc">' + desc + '</p>';
     h +=   '</div>';
+    if (inlineOverlay) h += inlineTextHTML(inlineOverlay, 'case-text--overlay');
     h += '</article>';
     return h;
   }
@@ -991,15 +993,31 @@
   function rowTall2(a, b, eager) {
     return '<div class="case-row case-row--tall-2">' + mediaItemHTML(a, eager) + mediaItemHTML(b) + '</div>';
   }
+  function inlineTextHTML(text, modifier) {
+    var classes = 'case-text case-text--inline';
+    if (modifier) classes += ' ' + modifier;
+    var h  = '<div class="' + classes + '">';
+    h +=     '<p class="case-text__eyebrow">Notes</p>';
+    h +=     '<h3 class="case-text__title">' + escapeHTML(text.title || '') + '</h3>';
+    h +=     '<p class="case-text__body">'  + escapeHTML(text.body  || '') + '</p>';
+    h +=   '</div>';
+    return h;
+  }
   function rowTallText(media, text, eager) {
-    var h  = '<div class="case-row case-row--tall-text">';
-    h +=     mediaItemHTML(media, eager);
+    var hybridOverlay = !!(
+      window.CodexDesign &&
+      window.CodexDesign.mode === 'hybrid' &&
+      document.body &&
+      document.body.classList.contains('chamber-page-portfolio')
+    );
+    var h  = '<div class="case-row case-row--tall-text' + (hybridOverlay ? ' case-row--wide-text' : '') + '">';
+    h +=     mediaItemHTML(media, eager, hybridOverlay ? text : null);
+    if (hybridOverlay) {
+      h += '</div>';
+      return h;
+    }
     h +=     '<article class="case-item case-item--text-inline">';
-    h +=       '<div class="case-text case-text--inline">';
-    h +=         '<p class="case-text__eyebrow">Notes</p>';
-    h +=         '<h3 class="case-text__title">' + escapeHTML(text.title || '') + '</h3>';
-    h +=         '<p class="case-text__body">'  + escapeHTML(text.body  || '') + '</p>';
-    h +=       '</div>';
+    h +=       inlineTextHTML(text);
     h +=     '</article>';
     h +=   '</div>';
     return h;

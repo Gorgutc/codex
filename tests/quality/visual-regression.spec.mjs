@@ -79,22 +79,24 @@ async function waitForHybridHomeReady(page) {
       return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
     };
 
-    return root.getAttribute('data-design-runtime-state') === 'ready'
-      && root.getAttribute('data-design-runtime-ready') === 'hybrid'
-      && root.getAttribute('data-design-surface') === 'home'
-      && root.classList.contains('design-chamber-home')
-      && home
-      && !home.hidden
-      && home.getAttribute('data-active-project') === 'orbital-mk-ii'
-      && !home.hasAttribute('data-transition-state')
-      && home.getAttribute('aria-busy') !== 'true'
-      && activeImage
-      && activeImage.complete
-      && activeImage.naturalWidth > 0
-      && visible('.chamber-home__pager')
-      && visible('.chamber-home__foot')
-      && visible('.chamber-home__index-button.is-active')
-      && visible('.chamber-home__assets');
+    return (
+      root.getAttribute('data-design-runtime-state') === 'ready' &&
+      root.getAttribute('data-design-runtime-ready') === 'hybrid' &&
+      root.getAttribute('data-design-surface') === 'home' &&
+      root.classList.contains('design-chamber-home') &&
+      home &&
+      !home.hidden &&
+      home.getAttribute('data-active-project') === 'orbital-mk-ii' &&
+      !home.hasAttribute('data-transition-state') &&
+      home.getAttribute('aria-busy') !== 'true' &&
+      activeImage &&
+      activeImage.complete &&
+      activeImage.naturalWidth > 0 &&
+      visible('.chamber-home__pager') &&
+      visible('.chamber-home__foot') &&
+      visible('.chamber-home__index-button.is-active') &&
+      visible('.chamber-home__assets')
+    );
   });
 
   await page.evaluate(async () => {
@@ -104,6 +106,82 @@ async function waitForHybridHomeReady(page) {
     }
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
+}
+
+async function settleSurfaceMedia(page, scrollSelector) {
+  await page.evaluate(async (selector) => {
+    window.scrollTo(0, 0);
+    const scrollRoot = selector ? document.querySelector(selector) : null;
+    if (scrollRoot) {
+      scrollRoot.scrollTop = 0;
+      scrollRoot.scrollLeft = 0;
+    }
+
+    document.querySelectorAll('video').forEach((video) => video.pause());
+    const visibleImages = Array.from(document.images).filter((image) => {
+      const rect = image.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+    await Promise.all(
+      visibleImages.map((image) => {
+        if (typeof image.decode === 'function') return image.decode();
+        return Promise.resolve();
+      })
+    );
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }, scrollSelector);
+}
+
+async function waitForHybridCaseReady(page, caseId) {
+  await page.waitForFunction((expectedId) => {
+    const root = document.documentElement;
+    const caseView = document.getElementById('case-view');
+    const hero = document.querySelector('#case-scroll-track > .hybrid-case-hero');
+    const heroImage = hero?.querySelector('img');
+    return (
+      root.getAttribute('data-design-runtime-state') === 'ready' &&
+      root.getAttribute('data-design-runtime-ready') === 'hybrid' &&
+      root.getAttribute('data-design-surface') === 'case' &&
+      !root.classList.contains('design-chamber-home') &&
+      caseView &&
+      !caseView.hidden &&
+      caseView.getAttribute('data-hybrid-case-ready') === expectedId &&
+      document.body.classList.contains('chamber-page-portfolio') &&
+      document.querySelectorAll('.hybrid-case-dossier').length === 1 &&
+      document.querySelectorAll('#case-scroll-track > .hybrid-case-hero').length === 1 &&
+      document.getElementById('case-tab-2d')?.getAttribute('aria-selected') === 'true' &&
+      heroImage &&
+      heroImage.complete &&
+      heroImage.naturalWidth > 0
+    );
+  }, caseId);
+  await settleSurfaceMedia(page, '#case-scroll');
+}
+
+async function waitForHybridFreeAssetsReady(page) {
+  await page.waitForFunction(() => {
+    const root = document.documentElement;
+    const cards = Array.from(document.querySelectorAll('#fa-grid .fa-card'));
+    const visibleImages = cards
+      .map((card) => card.querySelector('.fa-card__thumb img'))
+      .filter((image) => {
+        if (!image) return false;
+        const rect = image.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+      });
+    return (
+      root.getAttribute('data-design-runtime-state') === 'ready' &&
+      root.getAttribute('data-design-runtime-ready') === 'hybrid' &&
+      root.getAttribute('data-design-surface') === 'free-assets' &&
+      document.body.classList.contains('chamber-page-assets') &&
+      cards.length === 8 &&
+      cards.every((card) => Boolean(card.dataset.chamberIndex)) &&
+      visibleImages.length > 0 &&
+      visibleImages.every((image) => image.complete && image.naturalWidth > 0) &&
+      getComputedStyle(document.querySelector('.layout')).visibility === 'visible'
+    );
+  });
+  await settleSurfaceMedia(page, '.fa-scroll');
 }
 
 async function prepare(page, routePath, viewport, query = 'lang=en') {
@@ -200,6 +278,72 @@ test.describe('visual regression baselines', () => {
     await expect(page.locator('.chamber-home__pager-button')).toHaveCount(2);
     await expect(page.locator('.chamber-home__foot')).toBeVisible();
     await expect(page).toHaveScreenshot('hybrid-home-mobile-390x844.png', {
+      animations: 'disabled',
+      fullPage: false,
+      maxDiffPixelRatio: 0.015
+    });
+  });
+
+  test('Hybrid R2 Case desktop first viewport', async ({ page }) => {
+    await prepare(page, '/index.html', { width: 1440, height: 1024 }, 'design=hybrid&lang=en#orbital-mk-ii');
+    await waitForHybridCaseReady(page, 'orbital-mk-ii');
+    await expect(page.locator('#case-view')).toBeVisible();
+    await expect(page.locator('.hybrid-case-dossier')).toHaveCount(1);
+    await expect(page.locator('#case-scroll-track > .hybrid-case-hero')).toHaveCount(1);
+    await expect(page.locator('.chamber-case-poster')).toHaveCount(0);
+    await expect(page).toHaveScreenshot('hybrid-case-desktop-1440x1024.png', {
+      animations: 'disabled',
+      fullPage: false,
+      maxDiffPixelRatio: 0.015
+    });
+  });
+
+  test('Hybrid R2 Case inline note overlay', async ({ page }) => {
+    await prepare(page, '/index.html', { width: 1440, height: 1024 }, 'design=hybrid&lang=en#cad-strut');
+    await waitForHybridCaseReady(page, 'cad-strut');
+    const row = page.locator('#case-scroll-track > .case-row--wide-text');
+    await expect(row).toHaveCount(1);
+    await row.scrollIntoViewIfNeeded();
+    await expect(row).toHaveScreenshot('hybrid-case-inline-overlay-desktop-1440x1024.png', {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.015
+    });
+  });
+
+  test('Hybrid R2 Case mobile first viewport', async ({ page }) => {
+    await prepare(page, '/index.html', { width: 390, height: 844 }, 'design=hybrid&lang=en#orbital-mk-ii');
+    await waitForHybridCaseReady(page, 'orbital-mk-ii');
+    await expect(page.locator('#case-view')).toBeVisible();
+    await expect(page.locator('.hybrid-case-dossier')).toHaveCount(1);
+    await expect(page.locator('#case-scroll-track > .hybrid-case-hero')).toHaveCount(1);
+    await expect(page.locator('.chamber-case-poster')).toHaveCount(0);
+    await expect(page).toHaveScreenshot('hybrid-case-mobile-390x844.png', {
+      animations: 'disabled',
+      fullPage: false,
+      maxDiffPixelRatio: 0.015
+    });
+  });
+
+  test('Hybrid R2 Free Assets desktop first viewport', async ({ page }) => {
+    await prepare(page, '/free-assets.html', { width: 1440, height: 1024 }, 'design=hybrid&lang=en');
+    await waitForHybridFreeAssetsReady(page);
+    await expect(page.locator('body')).toHaveClass(/chamber-page-assets/);
+    await expect(page.locator('#tag-hard-surface')).toHaveClass(/tag-card--active/);
+    await expect(page.locator('#fa-grid .fa-card')).toHaveCount(8);
+    await expect(page).toHaveScreenshot('hybrid-free-assets-desktop-1440x1024.png', {
+      animations: 'disabled',
+      fullPage: false,
+      maxDiffPixelRatio: 0.015
+    });
+  });
+
+  test('Hybrid R2 Free Assets mobile first viewport', async ({ page }) => {
+    await prepare(page, '/free-assets.html', { width: 390, height: 844 }, 'design=hybrid&lang=en');
+    await waitForHybridFreeAssetsReady(page);
+    await expect(page.locator('body')).toHaveClass(/chamber-page-assets/);
+    await expect(page.locator('#tag-hard-surface')).toHaveClass(/tag-card--active/);
+    await expect(page.locator('#fa-grid .fa-card')).toHaveCount(8);
+    await expect(page).toHaveScreenshot('hybrid-free-assets-mobile-390x844.png', {
       animations: 'disabled',
       fullPage: false,
       maxDiffPixelRatio: 0.015

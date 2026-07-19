@@ -1,9 +1,9 @@
 /*
  * CODEX BLACK CHAMBER
- * Reusable Black Chamber presentation layer. Chamber starts every surface;
- * the Hybrid adapter starts only the approved Home capability. Cases, 3D,
- * blueprints, filters, previews, downloads, i18n and sharing stay delegated to
- * their existing runtime owners.
+ * Reusable Black Chamber presentation layer. Chamber owns the Design Lab route
+ * shell while Case media, filters, previews, downloads, i18n and sharing stay
+ * delegated to their existing runtime owners. Hybrid supplies narrow surface
+ * adapters without starting the independent Specimen route runtime.
  */
 (function () {
   'use strict';
@@ -266,6 +266,7 @@
       document.body.classList.add('chamber-route-case');
       document.body.classList.remove('chamber-route-home', 'chamber-case-scrolled');
       if (runtime.casePresentation) decorateCase(id);
+      if (runtime.caseAdapter) runtime.caseAdapter(id, projects[activeIndex]);
       if (shouldResetCasePosition) {
         if (caseScroll) caseScroll.scrollTop = 0;
         window.scrollTo(0, 0);
@@ -396,6 +397,7 @@
       }
       refreshProjects();
       if (homeIntent) showHome({ keepHomeRender: true });
+      else if (runtime.caseAdapter) runtime.caseAdapter(ids[activeIndex], projects[activeIndex]);
     });
 
     /* main.js opens the first case on a zero-delay timer. Run after that timer so
@@ -409,6 +411,14 @@
         ensureCaseHash(initialHash);
         showCase(initialHash);
       } else {
+        /* main.js may have prepared the default Case before the optional Hybrid
+           runtime became active. Rebuild that hidden Case once under the active
+           presentation owner so opening the same first project cannot reveal
+           the stale Original tall-text anatomy. */
+        if (runtime.mode === 'hybrid' && ids[0] &&
+            window.CodexCase && typeof window.CodexCase.openCase === 'function') {
+          window.CodexCase.openCase(ids[0], { initial: true, skipHashSync: true });
+        }
         showHome();
       }
     }, 0);
@@ -424,6 +434,9 @@
     image.loading = 'eager';
     image.decoding = 'async';
     var incomingImage = null;
+    var imageStack = null;
+    var imageLayer = null;
+    var incomingImageLayer = null;
     if (runtime.stableMotion) {
       image.classList.add('chamber-home__image--active');
       incomingImage = make('img', 'chamber-home__image');
@@ -431,10 +444,18 @@
       incomingImage.decoding = 'async';
       incomingImage.hidden = true;
       incomingImage.setAttribute('aria-hidden', 'true');
+      imageLayer = make('div', 'chamber-home__image-layer chamber-home__image-layer--active');
+      incomingImageLayer = make('div', 'chamber-home__image-layer');
+      incomingImageLayer.hidden = true;
+      append(imageLayer, image);
+      append(incomingImageLayer, incomingImage);
+      imageStack = make('div', 'chamber-home__image-stack');
+      append(imageStack, imageLayer, incomingImageLayer);
     }
     var shade = make('div', 'chamber-home__shade');
     shade.setAttribute('aria-hidden', 'true');
-    append(media, image, incomingImage, shade);
+    if (imageStack) append(media, imageStack, shade);
+    else append(media, image, shade);
 
     var rail = make('nav', 'chamber-home__rail');
     rail.setAttribute('aria-label', localCopy('Project index', 'Индекс проектов'));
@@ -484,6 +505,8 @@
     var reversalFrame = 0;
     var activeImage = image;
     var standbyImage = incomingImage;
+    var activeImageLayer = imageLayer;
+    var standbyImageLayer = incomingImageLayer;
     var motionWaiters = [];
 
     function rebuildIndex() {
@@ -620,6 +643,16 @@
       });
     }
 
+    function setStableImageActive(layer, imageNode, active) {
+      if (layer) layer.classList.toggle('chamber-home__image-layer--active', active);
+      if (imageNode) imageNode.classList.toggle('chamber-home__image--active', active);
+    }
+
+    function setStableImageHidden(layer, imageNode, hidden) {
+      if (layer) layer.hidden = hidden;
+      if (imageNode) imageNode.hidden = hidden;
+    }
+
     function clearStableMotion() {
       transitionGeneration += 1;
       transitionRunning = false;
@@ -630,13 +663,13 @@
       root.removeAttribute('data-transition-state');
       root.removeAttribute('aria-busy');
       if (standbyImage) {
-        standbyImage.classList.remove('chamber-home__image--active');
-        standbyImage.hidden = true;
+        setStableImageActive(standbyImageLayer, standbyImage, false);
+        setStableImageHidden(standbyImageLayer, standbyImage, true);
         standbyImage.setAttribute('aria-hidden', 'true');
       }
       if (activeImage) {
-        activeImage.hidden = false;
-        activeImage.classList.add('chamber-home__image--active');
+        setStableImageHidden(activeImageLayer, activeImage, false);
+        setStableImageActive(activeImageLayer, activeImage, true);
         activeImage.removeAttribute('aria-hidden');
       }
     }
@@ -660,23 +693,23 @@
       root.classList.add('is-transitioning', 'is-content-changing');
       root.setAttribute('data-transition-state', 'reversing');
       root.setAttribute('aria-busy', 'true');
-      activeImage.hidden = false;
+      setStableImageHidden(activeImageLayer, activeImage, false);
       activeImage.removeAttribute('aria-hidden');
       standbyImage.setAttribute('aria-hidden', 'true');
-      activeImage.classList.add('chamber-home__image--active');
-      standbyImage.classList.remove('chamber-home__image--active');
+      setStableImageActive(activeImageLayer, activeImage, true);
+      setStableImageActive(standbyImageLayer, standbyImage, false);
 
       await delay(180);
       if (generation !== transitionGeneration) return;
       commitCopy(sourceIndex);
       root.classList.remove('is-content-changing');
 
-      /* The image scale is the longest Hybrid transition (720ms). Keep the
+      /* The lightweight layer scale is the longest Hybrid transition (720ms). Keep the
          motion owner active for its full duration so a following request can
          never reverse an in-flight transform after will-change is removed. */
       await delay(540);
       if (generation !== transitionGeneration) return;
-      standbyImage.hidden = true;
+      setStableImageHidden(standbyImageLayer, standbyImage, true);
       committedIndex = sourceIndex;
       transitionSourceIndex = -1;
       root.classList.remove('is-transitioning', 'is-content-changing');
@@ -710,12 +743,12 @@
         var targetProject = projectList[targetIndex];
         transitionSourceIndex = committedIndex;
         root.setAttribute('data-transition-state', 'decoding');
-        standbyImage.classList.remove('chamber-home__image--active');
-        standbyImage.hidden = false;
+        setStableImageActive(standbyImageLayer, standbyImage, false);
+        setStableImageHidden(standbyImageLayer, standbyImage, false);
         await prepareImage(standbyImage, targetProject);
         if (generation !== transitionGeneration) break;
         if (targetIndex !== requestedIndex) {
-          standbyImage.hidden = true;
+          setStableImageHidden(standbyImageLayer, standbyImage, true);
           continue;
         }
 
@@ -725,22 +758,25 @@
         if (generation !== transitionGeneration) break;
         standbyImage.removeAttribute('aria-hidden');
         activeImage.setAttribute('aria-hidden', 'true');
-        standbyImage.classList.add('chamber-home__image--active');
-        activeImage.classList.remove('chamber-home__image--active');
+        setStableImageActive(standbyImageLayer, standbyImage, true);
+        setStableImageActive(activeImageLayer, activeImage, false);
 
         await delay(180);
         if (generation !== transitionGeneration) break;
         commitCopy(targetIndex);
         root.classList.remove('is-content-changing');
 
-        /* 180ms content phase + 540ms settle phase matches the CSS transform's
+        /* 180ms content phase + 540ms settle phase matches the layer transform's
            full 720ms. data-transition-state remains authoritative until then. */
         await delay(540);
         if (generation !== transitionGeneration) break;
-        activeImage.hidden = true;
+        setStableImageHidden(activeImageLayer, activeImage, true);
         var previousImage = activeImage;
+        var previousImageLayer = activeImageLayer;
         activeImage = standbyImage;
         standbyImage = previousImage;
+        activeImageLayer = standbyImageLayer;
+        standbyImageLayer = previousImageLayer;
         committedIndex = targetIndex;
         transitionSourceIndex = -1;
         root.classList.remove('is-transitioning');
@@ -752,8 +788,8 @@
           root.classList.remove('is-transitioning', 'is-content-changing');
           root.removeAttribute('data-transition-state');
           root.removeAttribute('aria-busy');
-          standbyImage.classList.remove('chamber-home__image--active');
-          standbyImage.hidden = true;
+          setStableImageActive(standbyImageLayer, standbyImage, false);
+          setStableImageHidden(standbyImageLayer, standbyImage, true);
           standbyImage.setAttribute('aria-hidden', 'true');
         }
       }
@@ -847,6 +883,7 @@
   }
 
   function initFreeAssets() {
+    setDesignSurface('free-assets');
     document.body.classList.add('chamber-page-assets');
     preserveModeLinks();
 
@@ -895,7 +932,8 @@
       home: options.home !== false,
       casePresentation: options.casePresentation !== false,
       freeAssetsPresentation: options.freeAssetsPresentation !== false,
-      stableMotion: options.stableMotion === true
+      stableMotion: options.stableMotion === true,
+      caseAdapter: typeof options.caseAdapter === 'function' ? options.caseAdapter : null
     };
     started = true;
 
