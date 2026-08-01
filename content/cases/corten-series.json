@@ -7,7 +7,7 @@
   "cadPlaceholder": false,
   "card": {
     "htmlComment": "4",
-    "thumb": "./assets/cards/corten-series.svg",
+    "thumb": "./assets/cards/corten-series-e4a28f4d.png",
     "thumbLabel": "Corten Series",
     "imgLoading": "lazy",
     "imgFetchPriority": null,
@@ -32,8 +32,7 @@
     },
     "tools": [
       "Blender",
-      "Substance Painter",
-      "DaVinci Resolve"
+      "Substance Painter"
     ],
     "modelSrc": "./assets/models/corten-series.glb",
     "modelStats": {
@@ -121,6 +120,14 @@
         "en": "Rust generated from curvature + ambient occlusion masks. Two layers: oxide underneath, flake breakup on top, roughness offset per layer.",
         "ru": "Ржавчина генерируется из curvature + AO-маски. Два слоя: оксид снизу, чешуйчатый отрыв сверху, roughness-сдвиг на каждом слое."
       }
-    }
-  }
+    },
+    "srcs": [
+      "./assets/cases/corten-series/01-e4a28f4d.png",
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "layoutMode": "seeded"
 }
