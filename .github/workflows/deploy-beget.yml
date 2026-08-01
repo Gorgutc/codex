@@ -216,9 +216,12 @@ jobs:
           set net:timeout 30
           set net:reconnect-interval-base 5
           set xfer:clobber on
-          # SFTP fallback: change only this URL to sftp://, then remove the
-          # ftp:ssl-* settings above; keep --env-password and both mirrors.
-          open --env-password -u "$BEGET_FTP_USER" "ftps://$BEGET_FTP_HOST"
+          # ftp:// + ssl-force = explicit FTP-over-TLS on port 21 (AUTH TLS),
+          # which is what Beget serves. The ftps:// scheme would mean IMPLICIT
+          # TLS on port 990 — closed on Beget, "Connection refused" before
+          # login. SFTP fallback: change only this URL to sftp://, then remove
+          # the ftp:ssl-* settings above; keep --env-password and both mirrors.
+          open --env-password -u "$BEGET_FTP_USER" "ftp://$BEGET_FTP_HOST"
 
           # The remote target is the hosting docroot. Do not use ./ here: a
           # trailing target can create a worktree-name subdirectory in lftp.
