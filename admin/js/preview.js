@@ -35,9 +35,8 @@
   const State = window.AdminState;
   const SETTINGS_PATH = 'content/settings.json';
   const FA_PATH = 'content/free-assets.json';
-  // Зеркало generate-content.mjs: формат слота задан позицией (2 wide + 3 tall),
-  // в runtime-запись motion-блока попадают только эти ключи.
-  const MEDIA_FORMATS = ['wide', 'tall', 'tall', 'wide', 'tall'];
+  // Зеркало generate-content.mjs: в runtime-запись motion-блока попадают
+  // только эти ключи (формат слота теперь живёт в самом case.media-блоке).
   const MOTION_KEYS = ['source', 'layout', 'playback', 'src', 'vimeoId', 'vimeoHash', 'poster', 'title'];
 
   const els = {
@@ -81,19 +80,41 @@
 
   /* ── зеркала генератора: content-JSON → runtime-структуры ──────────── */
 
+  // Блоки case.media редактируются вживую, а валидация — отдельный слой:
+  // битый блок не должен ронять сборку превью TypeError'ом до того, как
+  // validateCaseDraft покажет ошибку. Не-объекты выпадают (одинаково в
+  // buildRuntimeEntry и buildCaseLocale — индексы остаются согласованными),
+  // отсутствующая подпись деградирует в пустую строку.
+  function mediaBlocks(cs) {
+    return (Array.isArray(cs.media) ? cs.media : []).filter(
+      (block) => block !== null && typeof block === 'object' && !Array.isArray(block)
+    );
+  }
+
+  function captionText(block, part, lang) {
+    const caption = block.caption;
+    const pair = caption && typeof caption === 'object' ? caption[part] : null;
+    return (pair && pair[lang]) || '';
+  }
+
   // content/cases/{id}.json → запись window.CARDS_DATA[id]
   // (зеркало buildCaseEntry из generate-content.mjs).
-  function buildRuntimeEntry(id, c) {
+  function buildRuntimeEntry(c) {
     const cs = c.case;
-    const media = MEDIA_FORMATS.map((format, i) => ({
-      type: 'image',
-      format,
-      src: (cs.srcs && cs.srcs[i]) || './assets/cases/' + id + '/0' + (i + 1) + '.svg',
-      bg: cs.palette[i],
-      label: cs.captions[i].label.en,
-      desc: cs.captions[i].desc.en,
-      enabled: true
-    }));
+    const media = mediaBlocks(cs).map((block) => {
+      const out = {
+        type: block.type,
+        format: block.format,
+        src: block.src,
+        bg: block.bg,
+        label: captionText(block, 'label', 'en'),
+        desc: captionText(block, 'desc', 'en'),
+        enabled: true
+      };
+      // Только truthy — зеркало генератора (poster:null не эмитится).
+      if (block.poster) out.poster = block.poster;
+      return out;
+    });
     let motionBlocks = null;
     if (Array.isArray(cs.motionBlocks)) {
       motionBlocks = cs.motionBlocks.map((block) => {
@@ -132,7 +153,10 @@
     const cs = c.case;
     const entry = {
       role: cs.role[lang],
-      captions: cs.captions.map((cap) => ({ label: cap.label[lang], desc: cap.desc[lang] })),
+      captions: (Array.isArray(cs.media) ? cs.media : []).map((block) => ({
+        label: block.caption.label[lang],
+        desc: block.caption.desc[lang]
+      })),
       text: { title: cs.text.title[lang], body: cs.text.body[lang] },
       inline: { title: cs.inline.title[lang], body: cs.inline.body[lang] }
     };
@@ -179,7 +203,7 @@
     const out = {};
     for (const c of model.cases) {
       if (!c.visible) continue;
-      out[c.id] = !c.drafted && publishedData[c.id] ? deepClone(publishedData[c.id]) : buildRuntimeEntry(c.id, c.data);
+      out[c.id] = !c.drafted && publishedData[c.id] ? deepClone(publishedData[c.id]) : buildRuntimeEntry(c.data);
     }
     return out;
   }

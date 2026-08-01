@@ -43,62 +43,90 @@
       "textures": "Procedural (PBR)",
       "software": "ZBrush + Blender"
     },
-    "palette": [
-      "linear-gradient(135deg,#1a1a22 0%,#262632 100%)",
-      "linear-gradient(135deg,#16161e 0%,#20202c 100%)",
-      "linear-gradient(135deg,#12121a 0%,#1a1a26 100%)",
-      "linear-gradient(135deg,#0e0e16 0%,#161620 100%)",
-      "linear-gradient(135deg,#0a0a12 0%,#12121c 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Portrait render",
-          "ru": "Портрет"
-        },
-        "desc": {
-          "en": "Stylized bird character. Feather grooming with procedural asymmetry and wind drift.",
-          "ru": "Стилизованный птичий персонаж. Грум пера с процедурной асимметрией и wind drift."
+        "src": "./assets/cases/glint-owl/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a1a22 0%,#262632 100%)",
+        "caption": {
+          "label": {
+            "en": "Portrait render",
+            "ru": "Портрет"
+          },
+          "desc": {
+            "en": "Stylized bird character. Feather grooming with procedural asymmetry and wind drift.",
+            "ru": "Стилизованный птичий персонаж. Грум пера с процедурной асимметрией и wind drift."
+          }
         }
       },
       {
-        "label": {
-          "en": "Wing spread",
-          "ru": "Размах крыла"
-        },
-        "desc": {
-          "en": "Fully posed flight wing with hand-placed primaries and secondaries on a bone chain.",
-          "ru": "Полностью спозированное крыло — первичные и вторичные перья расставлены вручную на bone chain."
+        "src": "./assets/cases/glint-owl/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#16161e 0%,#20202c 100%)",
+        "caption": {
+          "label": {
+            "en": "Wing spread",
+            "ru": "Размах крыла"
+          },
+          "desc": {
+            "en": "Fully posed flight wing with hand-placed primaries and secondaries on a bone chain.",
+            "ru": "Полностью спозированное крыло — первичные и вторичные перья расставлены вручную на bone chain."
+          }
         }
       },
       {
-        "label": {
-          "en": "Feather cards",
-          "ru": "Feather cards"
-        },
-        "desc": {
-          "en": "Texture sheet of 40 individual feather cards used by the groom and LOD feather planes.",
-          "ru": "Texture-sheet из 40 индивидуальных feather-карт — для грума и LOD feather planes."
+        "src": "./assets/cases/glint-owl/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#12121a 0%,#1a1a26 100%)",
+        "caption": {
+          "label": {
+            "en": "Feather cards",
+            "ru": "Feather cards"
+          },
+          "desc": {
+            "en": "Texture sheet of 40 individual feather cards used by the groom and LOD feather planes.",
+            "ru": "Texture-sheet из 40 индивидуальных feather-карт — для грума и LOD feather planes."
+          }
         }
       },
       {
-        "label": {
-          "en": "Beak & talon",
-          "ru": "Клюв и когти"
-        },
-        "desc": {
-          "en": "Hero keratin shader — glossy micro-surface, warm subsurface — applied to beak and talons.",
-          "ru": "Hero keratin-шейдер — глянцевая микро-поверхность, тёплый subsurface — на клюве и когтях."
+        "src": "./assets/cases/glint-owl/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0e0e16 0%,#161620 100%)",
+        "caption": {
+          "label": {
+            "en": "Beak & talon",
+            "ru": "Клюв и когти"
+          },
+          "desc": {
+            "en": "Hero keratin shader — glossy micro-surface, warm subsurface — applied to beak and talons.",
+            "ru": "Hero keratin-шейдер — глянцевая микро-поверхность, тёплый subsurface — на клюве и когтях."
+          }
         }
       },
       {
-        "label": {
-          "en": "Silhouette lineup",
-          "ru": "Силуэты"
-        },
-        "desc": {
-          "en": "Eight pose silhouettes used to lock mood before the final groom pass was started.",
-          "ru": "Восемь pose-силуэтов — лочили настрой до старта финального грум-пасса."
+        "src": "./assets/cases/glint-owl/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0a0a12 0%,#12121c 100%)",
+        "caption": {
+          "label": {
+            "en": "Silhouette lineup",
+            "ru": "Силуэты"
+          },
+          "desc": {
+            "en": "Eight pose silhouettes used to lock mood before the final groom pass was started.",
+            "ru": "Восемь pose-силуэтов — лочили настрой до старта финального грум-пасса."
+          }
         }
       }
     ],

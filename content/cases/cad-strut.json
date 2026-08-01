@@ -43,62 +43,90 @@
       "textures": "Procedural (PBR)",
       "software": "Fusion 360 + Blender"
     },
-    "palette": [
-      "linear-gradient(135deg,#1f2429 0%,#2b3138 100%)",
-      "linear-gradient(135deg,#1c2126 0%,#282e35 100%)",
-      "linear-gradient(135deg,#191e23 0%,#252b32 100%)",
-      "linear-gradient(135deg,#161b20 0%,#21272e 100%)",
-      "linear-gradient(135deg,#13181d 0%,#1e242b 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Node overview",
-          "ru": "Обзор узла"
-        },
-        "desc": {
-          "en": "Structural strut node. Six-way connector for space-frame assemblies.",
-          "ru": "Структурный strut-узел. Six-way коннектор под space-frame сборки."
+        "src": "./assets/cases/cad-strut/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1f2429 0%,#2b3138 100%)",
+        "caption": {
+          "label": {
+            "en": "Node overview",
+            "ru": "Обзор узла"
+          },
+          "desc": {
+            "en": "Structural strut node. Six-way connector for space-frame assemblies.",
+            "ru": "Структурный strut-узел. Six-way коннектор под space-frame сборки."
+          }
         }
       },
       {
-        "label": {
-          "en": "Axis diagram",
-          "ru": "Диаграмма осей"
-        },
-        "desc": {
-          "en": "Load-path diagram — principal axes marked for the structural engineer.",
-          "ru": "Load-path диаграмма — главные оси размечены для конструктора."
+        "src": "./assets/cases/cad-strut/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1c2126 0%,#282e35 100%)",
+        "caption": {
+          "label": {
+            "en": "Axis diagram",
+            "ru": "Диаграмма осей"
+          },
+          "desc": {
+            "en": "Load-path diagram — principal axes marked for the structural engineer.",
+            "ru": "Load-path диаграмма — главные оси размечены для конструктора."
+          }
         }
       },
       {
-        "label": {
-          "en": "Cross-section",
-          "ru": "Cross-section"
-        },
-        "desc": {
-          "en": "Section through the central hub. Wall thickness and weld-prep highlighted.",
-          "ru": "Сечение через центральный hub. Толщина стенок и weld-prep подсвечены."
+        "src": "./assets/cases/cad-strut/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#191e23 0%,#252b32 100%)",
+        "caption": {
+          "label": {
+            "en": "Cross-section",
+            "ru": "Cross-section"
+          },
+          "desc": {
+            "en": "Section through the central hub. Wall thickness and weld-prep highlighted.",
+            "ru": "Сечение через центральный hub. Толщина стенок и weld-prep подсвечены."
+          }
         }
       },
       {
-        "label": {
-          "en": "Mount plate",
-          "ru": "Mount-плита"
-        },
-        "desc": {
-          "en": "Bolt-circle mount plate. Parametric — updates when strut diameter changes.",
-          "ru": "Bolt-circle mount-плита. Параметрическая — обновляется при смене диаметра strut."
+        "src": "./assets/cases/cad-strut/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#161b20 0%,#21272e 100%)",
+        "caption": {
+          "label": {
+            "en": "Mount plate",
+            "ru": "Mount-плита"
+          },
+          "desc": {
+            "en": "Bolt-circle mount plate. Parametric — updates when strut diameter changes.",
+            "ru": "Bolt-circle mount-плита. Параметрическая — обновляется при смене диаметра strut."
+          }
         }
       },
       {
-        "label": {
-          "en": "Surface finish",
-          "ru": "Поверхностная отделка"
-        },
-        "desc": {
-          "en": "KeyShot pass — powder-coated aluminium, matte warm grey.",
-          "ru": "KeyShot-пасс — powder-coated aluminium, matte warm grey."
+        "src": "./assets/cases/cad-strut/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#13181d 0%,#1e242b 100%)",
+        "caption": {
+          "label": {
+            "en": "Surface finish",
+            "ru": "Поверхностная отделка"
+          },
+          "desc": {
+            "en": "KeyShot pass — powder-coated aluminium, matte warm grey.",
+            "ru": "KeyShot-пасс — powder-coated aluminium, matte warm grey."
+          }
         }
       }
     ],

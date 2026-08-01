@@ -42,62 +42,90 @@
       "textures": "Procedural (PBR)",
       "software": "Blender"
     },
-    "palette": [
-      "linear-gradient(135deg,#1a2233 0%,#26304a 100%)",
-      "linear-gradient(135deg,#161e2e 0%,#222c44 100%)",
-      "linear-gradient(135deg,#121a28 0%,#1e283e 100%)",
-      "linear-gradient(135deg,#0e1624 0%,#182238 100%)",
-      "linear-gradient(135deg,#0a1220 0%,#141e30 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Final frame",
-          "ru": "Финальный кадр"
-        },
-        "desc": {
-          "en": "Product reveal animation — 6-second loop rendered for a hero section background.",
-          "ru": "Product reveal-анимация — 6-секундный луп, рендер под фон hero-секции."
+        "src": "./assets/cases/helix-reveal/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a2233 0%,#26304a 100%)",
+        "caption": {
+          "label": {
+            "en": "Final frame",
+            "ru": "Финальный кадр"
+          },
+          "desc": {
+            "en": "Product reveal animation — 6-second loop rendered for a hero section background.",
+            "ru": "Product reveal-анимация — 6-секундный луп, рендер под фон hero-секции."
+          }
         }
       },
       {
-        "label": {
-          "en": "Storyboard",
-          "ru": "Раскадровка"
-        },
-        "desc": {
-          "en": "Hand-drawn beat sheet translated to Blender timeline. 6 key poses over 180 frames.",
-          "ru": "Beat sheet от руки перенесён на Blender timeline. 6 ключевых поз на 180 кадров."
+        "src": "./assets/cases/helix-reveal/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#161e2e 0%,#222c44 100%)",
+        "caption": {
+          "label": {
+            "en": "Storyboard",
+            "ru": "Раскадровка"
+          },
+          "desc": {
+            "en": "Hand-drawn beat sheet translated to Blender timeline. 6 key poses over 180 frames.",
+            "ru": "Beat sheet от руки перенесён на Blender timeline. 6 ключевых поз на 180 кадров."
+          }
         }
       },
       {
-        "label": {
-          "en": "Render settings",
-          "ru": "Render settings"
-        },
-        "desc": {
-          "en": "4K @ 60 fps, Cycles path-trace, 512 samples. Denoised in OptiX. Exported as ProRes 4444.",
-          "ru": "4K @ 60 fps, Cycles path-trace, 512 сэмплов. Denoise OptiX. Экспорт ProRes 4444."
+        "src": "./assets/cases/helix-reveal/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#121a28 0%,#1e283e 100%)",
+        "caption": {
+          "label": {
+            "en": "Render settings",
+            "ru": "Render settings"
+          },
+          "desc": {
+            "en": "4K @ 60 fps, Cycles path-trace, 512 samples. Denoised in OptiX. Exported as ProRes 4444.",
+            "ru": "4K @ 60 fps, Cycles path-trace, 512 сэмплов. Denoise OptiX. Экспорт ProRes 4444."
+          }
         }
       },
       {
-        "label": {
-          "en": "Camera moves",
-          "ru": "Движение камеры"
-        },
-        "desc": {
-          "en": "Two-layer parallax camera setup — dolly track plus subtle handheld noise for energy.",
-          "ru": "Двухслойная parallax-камера — dolly-track плюс тонкий handheld noise для энергии."
+        "src": "./assets/cases/helix-reveal/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0e1624 0%,#182238 100%)",
+        "caption": {
+          "label": {
+            "en": "Camera moves",
+            "ru": "Движение камеры"
+          },
+          "desc": {
+            "en": "Two-layer parallax camera setup — dolly track plus subtle handheld noise for energy.",
+            "ru": "Двухслойная parallax-камера — dolly-track плюс тонкий handheld noise для энергии."
+          }
         }
       },
       {
-        "label": {
-          "en": "Colour grade",
-          "ru": "Color grade"
-        },
-        "desc": {
-          "en": "Teal-orange grade applied in DaVinci Resolve. Matches the brand launch trailer palette.",
-          "ru": "Teal-orange грейд в DaVinci Resolve — совпадает с палитрой brand launch-трейлера."
+        "src": "./assets/cases/helix-reveal/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0a1220 0%,#141e30 100%)",
+        "caption": {
+          "label": {
+            "en": "Colour grade",
+            "ru": "Color grade"
+          },
+          "desc": {
+            "en": "Teal-orange grade applied in DaVinci Resolve. Matches the brand launch trailer palette.",
+            "ru": "Teal-orange грейд в DaVinci Resolve — совпадает с палитрой brand launch-трейлера."
+          }
         }
       }
     ],

@@ -39,6 +39,37 @@ const MIME = {
   '.glb': 'model/gltf-binary'
 };
 
+/* Живой content/ приходит с ВЫКЛЮЧЕННОЙ частью категорий и кейсов — владелец
+ * прячет их через админку. Эти смоуки проверяют ПОВЕДЕНИЕ админки («выключи
+ * кейс — строка затемнилась»), поэтому им нужен полностью видимый базовый
+ * слепок: иначе строка под тестом уже затемнена и спек падает на реальном
+ * контенте, а не на регрессии. Оба читателя контента (статический сервер для
+ * loadCatalog и мок Contents API для ensureFile) отдают ОДНИ И ТЕ ЖЕ
+ * нормализованные байты, поэтому черновики, publishPrecheck и план коммита
+ * остаются согласованными. */
+export function normalizeVisibility(relPath, buffer) {
+  const rel = relPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  const isCase = /^content\/cases\/[^/]+\.json$/.test(rel);
+  if (!isCase && rel !== 'content/settings.json' && rel !== 'content/free-assets.json') return buffer;
+  let data;
+  try {
+    data = JSON.parse(buffer.toString('utf8'));
+  } catch (_error) {
+    return buffer;
+  }
+  if (rel === 'content/settings.json') {
+    for (const filter of data.filters || []) delete filter.enabled;
+  } else if (rel === 'content/free-assets.json') {
+    for (const category of data.categories || []) {
+      delete category.enabled;
+      for (const item of category.items || []) delete item.enabled;
+    }
+  } else if (data.enabled === false) {
+    data.enabled = true;
+  }
+  return Buffer.from(JSON.stringify(data, null, 2) + '\n', 'utf8');
+}
+
 // Поднимает статический сервер репозитория в beforeAll, гасит в afterAll.
 // Возвращает объект с живым полем base (URL сервера) — читать ВНУТРИ теста,
 // когда сервер уже поднят.
@@ -60,7 +91,9 @@ export function startStaticServer() {
             res.writeHead(404).end();
             return;
           }
-          res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream' }).end(data);
+          res
+            .writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream' })
+            .end(normalizeVisibility(reqPath, data));
         });
       });
       ctx.server.listen(0, '127.0.0.1', () => {
@@ -99,7 +132,7 @@ export async function mockGitHub(page) {
         type: 'file',
         encoding: 'base64',
         sha: 'sha-' + filePath,
-        content: fs.readFileSync(abs).toString('base64')
+        content: normalizeVisibility(filePath, fs.readFileSync(abs)).toString('base64')
       });
     }
     if (p === '/repos/Gorgutc/codex/git/ref/heads/main') return json(200, { object: { sha: 'headsha000' } });

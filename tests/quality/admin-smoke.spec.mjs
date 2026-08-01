@@ -201,3 +201,27 @@ test('редактор: автосохранение черновика, вал�
   expect(calls.treePaths).toEqual([CASE_PATH]);
   expect(calls.commitMessage).toMatch(/^content: .+ \[admin\]$/);
 });
+
+// Этот спек раздаёт СЫРОЙ content/ (без normalizeVisibility из admin-harness),
+// поэтому именно здесь проверяется рендер админки поверх реальных
+// enabled:false владельца — остальные admin-спеки видят нормализованную базу.
+test('owner-скрытая база: кейс выключенной категории затемнён с бейджем', async ({ page }) => {
+  const settings = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/settings.json'), 'utf8'));
+  const hiddenFilter = (settings.filters || []).find((f) => f.enabled === false && f.key !== 'all');
+  test.skip(!hiddenFilter, 'в content/ нет выключенных категорий — нечего проверять');
+  // Первый кейс скрытой категории, не выключенный сам по себе, — из контента.
+  const hiddenCaseId = hiddenFilter && (settings.cardOrder || []).find((id) => {
+    const data = JSON.parse(fs.readFileSync(path.join(ROOT, `content/cases/${id}.json`), 'utf8'));
+    return data.category === hiddenFilter.key && data.enabled !== false;
+  });
+  test.skip(!hiddenCaseId, 'у выключенной категории нет включённых кейсов в cardOrder');
+
+  await mockGitHub(page);
+  await loginWithPat(page);
+
+  const row = page.locator(`.case-row[data-case-id="${hiddenCaseId}"]`);
+  await expect(row).toHaveClass(/case-row--off/);
+  await expect(row.locator('.badge--off')).toHaveText('категория скрыта');
+  // собственный выключатель кейса не тронут: скрыта категория, а не кейс
+  await expect(row.locator('.switch input')).toBeChecked();
+});

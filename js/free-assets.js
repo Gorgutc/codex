@@ -425,6 +425,9 @@ function handleDownload(e) {
       var a = document.createElement('a');
       a.href = url;
       a.download = file;
+      // Утилитарный якорь без текста живёт в DOM до таймера удаления (500мс) —
+      // display:none прячет его от AT/axe (link-name) на это окно.
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 500);

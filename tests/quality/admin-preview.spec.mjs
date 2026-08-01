@@ -17,13 +17,24 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
+import { normalizeVisibility } from './fixtures/admin-harness.mjs';
+import { visibleCaseIds } from '../../scripts/content-expectations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const CASE_PATH = 'content/cases/orbital-mk-ii.json';
+// Карточка, которая реально есть в СГЕНЕРИРОВАННОМ index.html: Design-Lab
+// сценарий проверяет опубликованную страницу, а не черновик, поэтому id
+// выводится из контента, а не зашит (prod-review F1, finding D-01).
+const SHIPPED_CASE_ID = visibleCaseIds(ROOT)[0];
 const RU_TITLE_FIELD = `[data-field="${CASE_PATH}::card.title.ru"]`;
 const THUMB_INPUT = `[data-media="${CASE_PATH}::card.thumb"]`;
 const HIDDEN_CASE = 'vega-shell';
 const RU_DRAFT_TITLE = 'Орбитальная станция Мк.II';
+// Опубликованный EN-заголовок кейса — из живого контента, не литералом:
+// владелец правит тексты через админку, спек не должен от этого краснеть.
+const CASE_TITLE_EN = JSON.parse(
+  fs.readFileSync(path.join(ROOT, CASE_PATH), 'utf8')
+).card.title.en;
 
 const PNG_BUFFER = Buffer.concat([
   Buffer.from('89504e470d0a1a0a', 'hex'), // PNG-сигнатура
@@ -57,7 +68,9 @@ test.beforeAll(async () => {
           res.writeHead(404).end();
           return;
         }
-        res.writeHead(200, { 'Content-Type': mime[path.extname(filePath)] || 'application/octet-stream' }).end(data);
+        res
+          .writeHead(200, { 'Content-Type': mime[path.extname(filePath)] || 'application/octet-stream' })
+          .end(normalizeVisibility(reqPath, data));
       });
     });
     server.listen(0, '127.0.0.1', () => {
@@ -91,7 +104,7 @@ async function mockNetwork(page) {
         type: 'file',
         encoding: 'base64',
         sha: 'sha-' + filePath,
-        content: fs.readFileSync(abs).toString('base64')
+        content: normalizeVisibility(filePath, fs.readFileSync(abs)).toString('base64')
       });
     }
     return json(404, { message: 'unmatched ' + request.method() + ' ' + p });
@@ -126,7 +139,10 @@ test('Design Lab: public URL is opt-in, canonical stays Original, links retain m
     /design-specimen\.js$/
   );
   await expect(page.locator('a[href*="free-assets.html"]').first()).toHaveAttribute('href', /design=specimen/);
-  await expect(page.locator('a.work-card[data-id="orbital-mk-ii"]')).toHaveAttribute('href', '#orbital-mk-ii');
+  await expect(page.locator(`a.work-card[data-id="${SHIPPED_CASE_ID}"]`)).toHaveAttribute(
+    'href',
+    `#${SHIPPED_CASE_ID}`
+  );
   const designApi = await page.evaluate(() => ({
     mode: window.CodexDesign && window.CodexDesign.mode,
     initialHash: window.CodexDesign && window.CodexDesign.initialHash,
@@ -234,7 +250,7 @@ test('превью: черновик в iframe — RU-заголовок, скр
   await page.click('#preview-lang-en');
   await expect(page.locator('#preview-lang-en')).toHaveAttribute('aria-pressed', 'true');
   await expect(frame.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(frame.locator('h2[data-i18n="card.orbital-mk-ii.title"]')).toHaveText('Orbital Mk.II');
+  await expect(frame.locator('h2[data-i18n="card.orbital-mk-ii.title"]')).toHaveText(CASE_TITLE_EN);
 
   // 5. Design Lab полностью пересобирает iframe; быстрый последний выбор побеждает.
   await page.evaluate(() => {

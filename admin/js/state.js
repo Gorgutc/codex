@@ -574,17 +574,16 @@
     return count;
   }
 
-  // Запись значения по dot-пути с созданием недостающих контейнеров.
-  // Особый случай «srcs»: валидатор требует массив ровно из 5 элементов,
-  // поэтому отсутствующий srcs создаётся как [null×5].
+  // Запись значения по dot-пути с созданием недостающих контейнеров:
+  // следующий сегмент-число → массив, иначе объект (case.media.2.src на
+  // пустом черновике собирает case.media = [ … , { src } ]).
   function setDeep(target, dotPath, value) {
     const keys = String(dotPath).split('.');
     let node = target;
     for (let i = 0; i < keys.length - 1; i += 1) {
       const key = keys[i];
       if (node[key] === null || node[key] === undefined) {
-        if (key === 'srcs') node[key] = [null, null, null, null, null];
-        else node[key] = /^\d+$/.test(keys[i + 1]) ? [] : {};
+        node[key] = /^\d+$/.test(keys[i + 1]) ? [] : {};
       }
       node = node[key];
     }
@@ -694,6 +693,78 @@
     );
   }
 
+  // Зеркало case.media-правил generate-content.mjs (validateCaseMedia):
+  // непустой массив до MEDIA_MAX_BLOCKS блоков, строгие enum формата и типа,
+  // путь внутри ./assets/ с расширением под тип, непустой фон и двуязычная
+  // подпись. Идентификаторы полей совпадают с data-field/data-media ui.js.
+  const MEDIA_MAX_BLOCKS = 12;
+  const MEDIA_FORMAT_VALUES = ['wide', 'tall'];
+  const MEDIA_TYPE_VALUES = ['image', 'video'];
+  const MEDIA_IMAGE_EXT_RE = /\.(svg|png|jpg|jpeg|webp)$/i;
+
+  function validateCaseMediaDraft(errors, path, media) {
+    if (!Array.isArray(media) || media.length === 0) {
+      errors.push({ path, field: 'case.media', message: 'Иллюстрации: нужен хотя бы один блок — обновите страницу' });
+      return;
+    }
+    if (media.length > MEDIA_MAX_BLOCKS) {
+      errors.push({
+        path,
+        field: 'case.media',
+        message: 'Иллюстрации: не больше ' + MEDIA_MAX_BLOCKS + ' блоков (сейчас ' + media.length + ')'
+      });
+    }
+    media.forEach(function (block, i) {
+      const where = 'Слот ' + (i + 1);
+      const dotBase = 'case.media.' + i;
+      if (block === null || typeof block !== 'object' || Array.isArray(block)) {
+        errors.push({ path, field: dotBase, message: where + ': блок повреждён — обновите страницу' });
+        return;
+      }
+      if (MEDIA_FORMAT_VALUES.indexOf(block.format) === -1) {
+        errors.push({
+          path,
+          field: dotBase + '.format',
+          message: where + ': формат должен быть «wide» (широкий) или «tall» (высокий)'
+        });
+      }
+      if (MEDIA_TYPE_VALUES.indexOf(block.type) === -1) {
+        errors.push({
+          path,
+          field: dotBase + '.type',
+          message: where + ': тип блока должен быть «image» (изображение) или «video» (ролик)'
+        });
+      }
+      if (!isAssetPath(block.src)) {
+        errors.push({
+          path,
+          field: dotBase + '.src',
+          message: where + ': путь файла должен лежать внутри ./assets/'
+        });
+      } else if (block.type === 'video') {
+        if (!/\.webm$/i.test(block.src)) {
+          errors.push({ path, field: dotBase + '.src', message: where + ': видео-блоку нужен файл .webm' });
+        }
+      } else if (block.type === 'image' && !MEDIA_IMAGE_EXT_RE.test(block.src)) {
+        errors.push({
+          path,
+          field: dotBase + '.src',
+          message: where + ': изображению нужен файл SVG, PNG, JPG или WebP'
+        });
+      }
+      if (block.poster !== null && block.poster !== undefined && !isAssetPath(block.poster)) {
+        errors.push({ path, field: dotBase + '.poster', message: where + ': постер должен лежать внутри ./assets/' });
+      }
+      if (!isFilled(block.bg)) {
+        errors.push({ path, field: dotBase + '.bg', message: where + ': фон (CSS-градиент) не может быть пустым' });
+      }
+      pushMarkupError(errors, path, dotBase + '.bg', block.bg, where + ' — фон');
+      const caption = block.caption;
+      pushPairTextErrors(errors, path, dotBase + '.caption.label', caption && caption.label, where + ' — заголовок');
+      pushPairTextErrors(errors, path, dotBase + '.caption.desc', caption && caption.desc, where + ' — описание');
+    });
+  }
+
   function validateCaseDraft(errors, path, draft) {
     const card = draft.card || {};
     // prod-review F2 (C-MIRROR): + зеркала серверных правил (разметка,
@@ -725,22 +796,20 @@
     if (Array.isArray(cs.tools)) {
       cs.tools.forEach((tool, i) => pushMarkupError(errors, path, 'case.tools.' + i, tool, 'Инструмент ' + (i + 1)));
     }
-    // Зеркало «ровно 5» и palette-правил генератора.
-    if (Array.isArray(cs.captions) && cs.captions.length !== 5) {
-      errors.push({ path, field: 'case.captions', message: 'Подписи: должно быть ровно 5 — обновите страницу' });
-    }
-    if (!Array.isArray(cs.palette) || cs.palette.length !== 5 || !cs.palette.every(isFilled)) {
-      errors.push({ path, field: 'case.palette', message: 'Палитра: должно быть 5 непустых значений — обновите страницу' });
-    } else {
-      cs.palette.forEach((color, i) => pushMarkupError(errors, path, 'case.palette.' + i, color, 'Палитра, слот ' + (i + 1)));
-    }
-    if (Array.isArray(cs.captions)) {
-      cs.captions.forEach((caption, i) => {
-        const where = 'Подпись ' + (i + 1);
-        pushPairTextErrors(errors, path, 'case.captions.' + i + '.label', caption && caption.label, where + ' — заголовок');
-        pushPairTextErrors(errors, path, 'case.captions.' + i + '.desc', caption && caption.desc, where + ' — описание');
-      });
-    }
+    // Зеркало validateCaseMedia из generate-content.mjs: один самодостаточный
+    // блок на слот (src + format + type + poster + bg + caption).
+    // Смешанная схема запрещена (зеркало правила генератора): legacy-массив
+    // рядом с case.media молча игнорировался бы билдерами.
+    ['srcs', 'captions', 'palette'].forEach(function (legacyKey) {
+      if (legacyKey in cs) {
+        errors.push({
+          path,
+          field: 'case.media',
+          message: 'Схема устарела: case.' + legacyKey + ' больше не используется — только case.media (сбросьте черновик)'
+        });
+      }
+    });
+    validateCaseMediaDraft(errors, path, cs.media);
     if (cs.text) {
       pushPairTextErrors(errors, path, 'case.text.title', cs.text.title, 'Текстовый блок — заголовок');
       pushPairTextErrors(errors, path, 'case.text.body', cs.text.body, 'Текстовый блок — текст');
@@ -809,17 +878,6 @@
     }
     if (!isAssetPath(cs.modelSrc) || !/\.glb$/i.test(cs.modelSrc)) {
       errors.push({ path, field: 'case.modelSrc', message: '3D-модель: нужен .glb-файл внутри ./assets/' });
-    }
-    if (Array.isArray(cs.srcs)) {
-      cs.srcs.forEach((src, i) => {
-        if (src !== null && src !== undefined && !isAssetPath(src)) {
-          errors.push({
-            path,
-            field: 'case.srcs.' + i,
-            message: 'Слот ' + (i + 1) + ': путь изображения должен лежать внутри ./assets/'
-          });
-        }
-      });
     }
     if (cs.modelStats !== null && typeof cs.modelStats === 'object' && !Array.isArray(cs.modelStats)) {
       for (const key of Object.keys(cs.modelStats)) {
