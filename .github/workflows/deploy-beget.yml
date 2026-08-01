@@ -1,0 +1,319 @@
+# Beget production deployment.
+#
+# `content-publish` writes its rendered output with GITHUB_TOKEN. GitHub does
+# not normally emit a second `push` workflow event for that token, so the
+# `workflow_run` trigger below is the delivery bridge for both its successful
+# `[content-publish]` commit and its automatic `[content-publish-revert]`.
+name: deploy-beget
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_run:
+    workflows: [content-publish]
+    types: [completed]
+    branches: [main]
+
+# A cancelled lftp mirror can leave the public tree half-updated. Queue every
+# production deployment instead, including the workflow_run delivery bridge.
+concurrency:
+  group: deploy-beget-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Beget production
+    runs-on: ubuntu-latest
+    # The Actions UI permits selecting another ref for manual dispatch. The
+    # production job is intentionally unavailable from any ref but main.
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+
+    steps:
+      # Every event resolves current main. A queued deployment must never send
+      # an obsolete push SHA after a newer main revision already exists.
+      - name: Checkout deployment revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git checkout --detach origin/main
+
+      # The admin's source-only commit cannot be deployed: content-publish
+      # first turns it into generated runtime files. It may include uploaded
+      # media too, so its exact subject is the identity, not its path list.
+      # A GitHub Actions bot is separately allowlisted to two fixed subjects.
+      # Unknown bot commits fail closed for automatic triggers; an owner can
+      # still recover current main through workflow_dispatch after the same
+      # unresolved-admin guard.
+      - name: Decide whether this revision needs deployment
+        id: guard
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          subject="$(git log -1 --format=%s)"
+          author="$(git log -1 --format=%an)"
+          admin_subject_regex='^content: .+ \[admin\]$'
+          regen_subject='chore(content): regenerate site from content/ [content-publish]'
+          revert_subject='revert(content): roll back content push after failed publish [content-publish-revert]'
+
+          skip=false
+          allowed_publish_bot=false
+          if [ "$author" = 'github-actions[bot]' ] && { [ "$subject" = "$regen_subject" ] || [ "$subject" = "$revert_subject" ]; }; then
+            allowed_publish_bot=true
+          fi
+
+          if [ "$EVENT_NAME" = 'workflow_run' ]; then
+            if [ "$allowed_publish_bot" = 'true' ]; then
+              reason='allowlisted content-publish bot revision delivered by workflow_run'
+            else
+              skip=true
+              reason='workflow_run head is not an allowlisted content-publish bot revision; skipped fail closed'
+            fi
+          elif [[ "$subject" =~ $admin_subject_regex ]]; then
+            skip=true
+            reason='source-only admin content commit; waiting for content-publish'
+          elif [ "$author" = 'github-actions[bot]' ] && [ "$EVENT_NAME" != 'workflow_dispatch' ]; then
+            skip=true
+            reason='bot revision waits for the workflow_run delivery bridge'
+          else
+            pending_admin=false
+            settlement_sha=''
+            while IFS=$'\x1f' read -r sha history_author history_subject; do
+              if [ "$history_author" = 'github-actions[bot]' ] && { [ "$history_subject" = "$regen_subject" ] || [ "$history_subject" = "$revert_subject" ]; }; then
+                settlement_sha="$sha"
+                break
+              fi
+              if [[ "$history_subject" =~ $admin_subject_regex ]]; then
+                pending_admin=true
+                break
+              fi
+            done < <(git log --first-parent --format='%H%x1f%an%x1f%s' HEAD)
+
+            if [ "$pending_admin" = 'true' ]; then
+              skip=true
+              reason='an admin content publish is newer than its latest bot settlement; waiting for content-publish'
+            elif [ "$EVENT_NAME" = 'workflow_dispatch' ]; then
+              reason="manual owner-selected deployment after settlement ${settlement_sha:-none}"
+            else
+              reason="deployable revision after settlement ${settlement_sha:-none}"
+            fi
+          fi
+
+          {
+            echo "skip=$skip"
+            echo "reason=$reason"
+            echo "revision=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo '## Beget deployment'
+            echo
+            echo "- Revision: \`$(git rev-parse --short=12 HEAD)\`"
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Decision: $reason"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Missing secrets are an intentionally soft skip. This keeps normal CI
+      # green for forks and before the owner has configured Beget, while making
+      # the missing deployment contract visible in both logs and summary.
+      - name: Check Beget deployment secrets
+        id: secrets
+        if: steps.guard.outputs.skip != 'true'
+        shell: bash
+        env:
+          BEGET_FTP_HOST: ${{ secrets.BEGET_FTP_HOST }}
+          BEGET_FTP_USER: ${{ secrets.BEGET_FTP_USER }}
+          BEGET_FTP_PASSWORD: ${{ secrets.BEGET_FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in BEGET_FTP_HOST BEGET_FTP_USER BEGET_FTP_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            missing_csv="$(IFS=,; echo "${missing[*]}")"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "missing=$missing_csv" >> "$GITHUB_OUTPUT"
+            echo '::notice::секреты не настроены, деплой пропущен'
+            {
+              echo '- Деплой: секреты не настроены, деплой пропущен.'
+              echo "- Missing secret names: \`$missing_csv\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install lftp
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes lftp
+
+      # lftp's --env-password keeps the password out of argv and the FTP URL.
+      # Explicit FTP-over-TLS is required: a certificate failure is a deploy
+      # failure rather than an insecure fallback.
+      - name: Mirror public site to Beget over FTPS
+        id: mirror
+        if: steps.secrets.outputs.ready == 'true'
+        shell: bash
+        env:
+          BEGET_FTP_HOST: ${{ secrets.BEGET_FTP_HOST }}
+          BEGET_FTP_USER: ${{ secrets.BEGET_FTP_USER }}
+          BEGET_FTP_PASSWORD: ${{ secrets.BEGET_FTP_PASSWORD }}
+          EXPECTED_SHA: ${{ steps.guard.outputs.revision }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if [ "$(git rev-parse origin/main)" != "$EXPECTED_SHA" ]; then
+            echo 'deployed=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::main advanced while this deployment was queued; a newer trigger will deploy the resolved revision.'
+            echo '- Deployment: skipped safely because main advanced before the FTPS transfer.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo 'deployed=true' >> "$GITHUB_OUTPUT"
+          export LFTP_PASSWORD="$BEGET_FTP_PASSWORD"
+
+          main_file_count="$(find . -type f \
+            ! -path './.git/*' \
+            ! -path './node_modules/*' \
+            ! -path './test-results/*' \
+            ! -path './playwright-report/*' \
+            ! -path './runs/*' \
+            ! -path './downloads/*' | wc -l | tr -d ' ')"
+          downloads_file_count="$(find downloads -type f | wc -l | tr -d ' ')"
+          {
+            echo '- Mirror source files:'
+            echo "  - Main tree (deleting stale repo files): \`$main_file_count\`"
+            echo "  - downloads/ (additive only): \`$downloads_file_count\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          lftp <<LFTP
+          set cmd:fail-exit true
+          set ftp:passive-mode true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ftps:initial-prot P
+          set ssl:verify-certificate true
+          set ssl:check-hostname true
+          set net:max-retries 3
+          set net:timeout 30
+          set net:reconnect-interval-base 5
+          set xfer:clobber on
+          # SFTP fallback: change only this URL to sftp://, then remove the
+          # ftp:ssl-* settings above; keep --env-password and both mirrors.
+          open --env-password -u "$BEGET_FTP_USER" "ftps://$BEGET_FTP_HOST"
+
+          # The remote target is the hosting docroot. Do not use ./ here: a
+          # trailing target can create a worktree-name subdirectory in lftp.
+          # --delete applies only to this public tree. In particular, never
+          # add --delete-excluded: it would remove owner-managed downloads.
+          mirror --reverse --delete --verbose --no-perms --max-errors=1 \
+            --exclude-glob '.git/**' \
+            --exclude-glob 'node_modules/**' \
+            --exclude-glob 'test-results/**' \
+            --exclude-glob 'playwright-report/**' \
+            --exclude-glob 'runs/**' \
+            --exclude-glob 'downloads/**' \
+            ./ .
+
+          # Download archives may be real owner-managed files on Beget while
+          # this checkout only has placeholders. The additive pass uploads a
+          # repository copy only when that remote path is missing; it never
+          # deletes OR replaces an existing archive.
+          mirror --reverse --only-missing --verbose --no-perms --max-errors=1 downloads/ downloads
+          bye
+          LFTP
+
+          unset LFTP_PASSWORD
+
+      # A fresh root request proves the public docroot is reachable. The
+      # generated cards payload is then compared byte-for-byte with the local
+      # source via SHA-256, using a cache-busting query on both requests.
+      - name: Verify Beget parity after deployment
+        id: parity
+        if: steps.mirror.outputs.deployed == 'true'
+        shell: bash
+        env:
+          PUBLIC_URL: https://codex.promo/
+        run: |
+          set -euo pipefail
+          cache_bust="deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
+          parity_root="$RUNNER_TEMP/beget-parity"
+          mkdir -p "$parity_root"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 60 \
+            --header 'Cache-Control: no-cache' \
+            --header 'Accept-Encoding: identity' \
+            --output "$parity_root/root.html" \
+            "${PUBLIC_URL}?${cache_bust}"
+
+          root_local_hash="$(sha256sum index.html | awk '{print $1}')"
+          root_public_hash="$(sha256sum "$parity_root/root.html" | awk '{print $1}')"
+          if [ "$root_local_hash" != "$root_public_hash" ]; then
+            echo "::error::Public cache-busted parity mismatch for index.html (local $root_local_hash, public $root_public_hash)."
+            exit 1
+          fi
+
+          local_hash="$(sha256sum js/cards-data.js | awk '{print $1}')"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 60 \
+            --header 'Cache-Control: no-cache' \
+            --header 'Accept-Encoding: identity' \
+            --output "$parity_root/cards-data.js" \
+            "${PUBLIC_URL}js/cards-data.js?${cache_bust}"
+          public_hash="$(sha256sum "$parity_root/cards-data.js" | awk '{print $1}')"
+          if [ "$local_hash" != "$public_hash" ]; then
+            echo "::error::Public cache-busted parity mismatch for js/cards-data.js (local $local_hash, public $public_hash)."
+            exit 1
+          fi
+
+          {
+            echo
+            echo '### Post-deploy parity'
+            echo "- \`index.html\` SHA-256: \`$root_local_hash\` (local = public)."
+            echo "- \`js/cards-data.js\` SHA-256: \`$local_hash\` (local = public)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write deployment summary
+        if: always()
+        shell: bash
+        env:
+          GUARD_SKIP: ${{ steps.guard.outputs.skip }}
+          GUARD_REASON: ${{ steps.guard.outputs.reason }}
+          SECRETS_READY: ${{ steps.secrets.outputs.ready }}
+          MIRROR_OUTCOME: ${{ steps.mirror.outcome }}
+          MIRROR_DEPLOYED: ${{ steps.mirror.outputs.deployed }}
+          PARITY_OUTCOME: ${{ steps.parity.outcome }}
+        run: |
+          {
+            echo
+            echo '### Result'
+            if [ "$GUARD_SKIP" = 'true' ]; then
+              echo "- Skipped safely: $GUARD_REASON."
+            elif [ "$SECRETS_READY" != 'true' ]; then
+              echo '- Skipped softly: Beget deployment secrets are unavailable.'
+            elif [ "$MIRROR_DEPLOYED" != 'true' ]; then
+              echo '- Skipped safely: main advanced before transfer; the newer event owns deployment.'
+            elif [ "$MIRROR_OUTCOME" = 'success' ] && [ "$PARITY_OUTCOME" = 'success' ]; then
+              echo '- Deployed and verified: FTPS hashes and cache-busted HTTPS bodies match local files.'
+            else
+              echo "- Deployment failed (mirror: ${MIRROR_OUTCOME:-not-run}; parity: ${PARITY_OUTCOME:-not-run})."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
