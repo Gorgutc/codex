@@ -207,13 +207,23 @@ jobs:
           lftp <<LFTP
           set cmd:fail-exit true
           set ftp:passive-mode true
+          set ftp:prefer-epsv true
           set ftp:ssl-force true
           set ftp:ssl-protect-data true
           set ftps:initial-prot P
           set ssl:verify-certificate true
           set ssl:check-hostname true
-          set net:max-retries 3
-          set net:timeout 30
+          # Beget's FTP server (custom "BeGet FTP Server") accepts the TLS 1.3
+          # control handshake but the PROT P data connections never establish
+          # from the GnuTLS-built lftp on ubuntu-latest (TLS 1.3 session-ticket
+          # reuse quirk): the first file dies with "max-retries exceeded".
+          # Pinning TLS 1.2 restores classic session reuse on the data channel.
+          set ssl:priority "NORMAL:-VERS-TLS1.3"
+          # IPv4 only: the runner has no IPv6 egress, a stray AAAA answer would
+          # stall every data connection until net:timeout.
+          set dns:order "inet"
+          set net:max-retries 2
+          set net:timeout 20
           set net:reconnect-interval-base 5
           set xfer:clobber on
           # ftp:// + ssl-force = explicit FTP-over-TLS on port 21 (AUTH TLS),
