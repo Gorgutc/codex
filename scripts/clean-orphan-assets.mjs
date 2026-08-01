@@ -72,10 +72,11 @@ function addContentRefs(set) {
     if (c.card && c.card.thumb) addRef(set, c.card.thumb);
     const cs = c.case || {};
     if (cs.modelSrc) addRef(set, cs.modelSrc);
-    // 5 illustration slots: explicit src, or the per-case convention default.
-    for (let i = 0; i < 5; i++) {
-      const explicit = cs.srcs && cs.srcs[i];
-      addRef(set, explicit || `./assets/cases/${id}/0${i + 1}.svg`);
+    // Illustration slots: every case.media block carries an explicit src
+    // (and, for video blocks, an optional poster).
+    for (const block of Array.isArray(cs.media) ? cs.media : []) {
+      if (block && block.src) addRef(set, block.src);
+      if (block && block.poster) addRef(set, block.poster);
     }
     if (Array.isArray(cs.motionBlocks)) {
       for (const block of cs.motionBlocks) {

@@ -23,7 +23,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { ROOT, hash8, startStaticServer, mockGitHub } from './fixtures/admin-harness.mjs';
+import { ROOT, hash8, startStaticServer, mockGitHub, normalizeVisibility } from './fixtures/admin-harness.mjs';
 
 const FA_PATH = 'content/free-assets.json';
 const FIRST_ITEM_BASE = 'categories.0.items.0';
@@ -214,8 +214,11 @@ test('тогл постера вкл→выкл: черновик снова ч�
 
 test('guard: последний видимый ассет выключить нельзя (русское сообщение)', async ({ page }) => {
   await mockGitHub(page);
-  // все ассеты, кроме первого, выключены через черновик sessionStorage
-  const draft = JSON.parse(fs.readFileSync(path.join(ROOT, FA_PATH), 'utf8'));
+  // все ассеты, кроме первого, выключены через черновик sessionStorage.
+  // Черновик строится от ТОЙ ЖЕ полностью видимой базы, что отдаёт харнесс, —
+  // иначе выключенные владельцем категории делают «последний видимый» ассет
+  // невидимым и guard не срабатывает.
+  const draft = JSON.parse(normalizeVisibility(FA_PATH, fs.readFileSync(path.join(ROOT, FA_PATH))).toString('utf8'));
   draft.categories.forEach((category, ci) => {
     category.items.forEach((item, ii) => {
       if (ci === 0 && ii === 0) return;

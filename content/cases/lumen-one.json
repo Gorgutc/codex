@@ -42,62 +42,90 @@
       "textures": "1 × 2 K",
       "software": "Blender + Substance"
     },
-    "palette": [
-      "linear-gradient(135deg,#1e2428 0%,#2c3640 100%)",
-      "linear-gradient(135deg,#1a2024 0%,#28303c 100%)",
-      "linear-gradient(135deg,#161c20 0%,#222c38 100%)",
-      "linear-gradient(135deg,#11181c 0%,#1c2832 100%)",
-      "linear-gradient(135deg,#0c1418 0%,#18242e 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Final render",
-          "ru": "Финальный рендер"
-        },
-        "desc": {
-          "en": "Architectural lighting unit. Photorealistic turntable deliverable for investor pitch deck.",
-          "ru": "Архитектурный светильник. Фотореалистичный turntable под pitch-deck инвесторов."
+        "src": "./assets/cases/lumen-one/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1e2428 0%,#2c3640 100%)",
+        "caption": {
+          "label": {
+            "en": "Final render",
+            "ru": "Финальный рендер"
+          },
+          "desc": {
+            "en": "Architectural lighting unit. Photorealistic turntable deliverable for investor pitch deck.",
+            "ru": "Архитектурный светильник. Фотореалистичный turntable под pitch-deck инвесторов."
+          }
         }
       },
       {
-        "label": {
-          "en": "Lighting setup",
-          "ru": "Lighting setup"
-        },
-        "desc": {
-          "en": "3-point HDRI rig with area light fill. Caustics rendered via path-tracing at 4096 samples.",
-          "ru": "3-точечный HDRI-риг с area-light fill. Каустики через path-tracing на 4096 сэмплов."
+        "src": "./assets/cases/lumen-one/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a2024 0%,#28303c 100%)",
+        "caption": {
+          "label": {
+            "en": "Lighting setup",
+            "ru": "Lighting setup"
+          },
+          "desc": {
+            "en": "3-point HDRI rig with area light fill. Caustics rendered via path-tracing at 4096 samples.",
+            "ru": "3-точечный HDRI-риг с area-light fill. Каустики через path-tracing на 4096 сэмплов."
+          }
         }
       },
       {
-        "label": {
-          "en": "Spec sheet",
-          "ru": "Spec sheet"
-        },
-        "desc": {
-          "en": "Dimension overlay and material callout sheet generated in Blender Compositing and Inkscape.",
-          "ru": "Оверлей размерностей и material callout — собраны в Blender Compositing и Inkscape."
+        "src": "./assets/cases/lumen-one/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#161c20 0%,#222c38 100%)",
+        "caption": {
+          "label": {
+            "en": "Spec sheet",
+            "ru": "Spec sheet"
+          },
+          "desc": {
+            "en": "Dimension overlay and material callout sheet generated in Blender Compositing and Inkscape.",
+            "ru": "Оверлей размерностей и material callout — собраны в Blender Compositing и Inkscape."
+          }
         }
       },
       {
-        "label": {
-          "en": "Context shot",
-          "ru": "Context shot"
-        },
-        "desc": {
-          "en": "Hero placement in a modern office environment, shot from client-approved camera angle.",
-          "ru": "Hero-кадр в современном офисе — ракурс утверждён клиентом."
+        "src": "./assets/cases/lumen-one/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#11181c 0%,#1c2832 100%)",
+        "caption": {
+          "label": {
+            "en": "Context shot",
+            "ru": "Context shot"
+          },
+          "desc": {
+            "en": "Hero placement in a modern office environment, shot from client-approved camera angle.",
+            "ru": "Hero-кадр в современном офисе — ракурс утверждён клиентом."
+          }
         }
       },
       {
-        "label": {
-          "en": "Colour variants",
-          "ru": "Варианты отделки"
-        },
-        "desc": {
-          "en": "Six finish variants — brass, chrome, matte black, warm white — rendered as catalogue sprites.",
-          "ru": "Шесть finish-вариантов — brass, chrome, matte black, warm white — рендеры под catalogue-спрайты."
+        "src": "./assets/cases/lumen-one/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0c1418 0%,#18242e 100%)",
+        "caption": {
+          "label": {
+            "en": "Colour variants",
+            "ru": "Варианты отделки"
+          },
+          "desc": {
+            "en": "Six finish variants — brass, chrome, matte black, warm white — rendered as catalogue sprites.",
+            "ru": "Шесть finish-вариантов — brass, chrome, matte black, warm white — рендеры под catalogue-спрайты."
+          }
         }
       }
     ],

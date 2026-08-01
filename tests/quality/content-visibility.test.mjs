@@ -48,11 +48,42 @@ function fail(message, output) {
   throw new Error(message);
 }
 
+// Every scenario asserts GENERATOR SEMANTICS (what disabling X does), so each
+// sandbox copy starts from a fully visible baseline and then hides exactly the
+// one thing under test. Without this the owner's live visibility choices decide
+// whether the self-test can run at all: with 5 of 7 filters and 5 of 6 FA
+// categories currently disabled in content/, "disable one case and count the
+// rest" asserted 17 cards against a 3-card grid.
+function showEverything(contentDir) {
+  const readJson = (rel) => JSON.parse(readFileSync(path.join(contentDir, rel), 'utf8'));
+  const writeJson = (rel, value) =>
+    writeFileSync(path.join(contentDir, rel), JSON.stringify(value, null, 2) + '\n', 'utf8');
+
+  const settings = readJson('settings.json');
+  for (const filter of settings.filters || []) delete filter.enabled;
+  writeJson('settings.json', settings);
+  for (const id of settings.cardOrder || []) {
+    const rel = path.join('cases', `${id}.json`);
+    const data = readJson(rel);
+    if (data.enabled === false) {
+      data.enabled = true;
+      writeJson(rel, data);
+    }
+  }
+  const fa = readJson('free-assets.json');
+  for (const category of fa.categories || []) {
+    delete category.enabled;
+    for (const item of category.items || []) delete item.enabled;
+  }
+  writeJson('free-assets.json', fa);
+}
+
 // Fresh sandbox per scenario: contentDir = copy of content/, outDir = empty.
 function makeSandbox(name) {
   const contentDir = mkdtempSync(path.join(tmpdir(), `codex-visibility-${name}-content-`));
   const outDir = mkdtempSync(path.join(tmpdir(), `codex-visibility-${name}-out-`));
   cpSync(path.join(root, 'content'), contentDir, { recursive: true });
+  showEverything(contentDir);
   return {
     contentDir,
     outDir,

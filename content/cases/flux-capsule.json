@@ -42,62 +42,90 @@
       "textures": "Procedural (PBR)",
       "software": "Blender"
     },
-    "palette": [
-      "linear-gradient(135deg,#1e2030 0%,#282a40 100%)",
-      "linear-gradient(135deg,#1a1c2c 0%,#24263c 100%)",
-      "linear-gradient(135deg,#161828 0%,#202234 100%)",
-      "linear-gradient(135deg,#12142a 0%,#1c1e30 100%)",
-      "linear-gradient(135deg,#0e102a 0%,#181a2a 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Product shot",
-          "ru": "Product shot"
-        },
-        "desc": {
-          "en": "Consumer tech device. E-commerce hero shot with studio HDRI and custom denoising.",
-          "ru": "Consumer-гаджет. E-commerce hero-кадр со studio HDRI и кастомным denoising."
+        "src": "./assets/cases/flux-capsule/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1e2030 0%,#282a40 100%)",
+        "caption": {
+          "label": {
+            "en": "Product shot",
+            "ru": "Product shot"
+          },
+          "desc": {
+            "en": "Consumer tech device. E-commerce hero shot with studio HDRI and custom denoising.",
+            "ru": "Consumer-гаджет. E-commerce hero-кадр со studio HDRI и кастомным denoising."
+          }
         }
       },
       {
-        "label": {
-          "en": "360° view",
-          "ru": "Turntable 360°"
-        },
-        "desc": {
-          "en": "Full turntable sequence — 36 frames at 10° increments. Exported as WebP sprite strip.",
-          "ru": "Полная turntable-секвенция — 36 кадров с шагом 10°. Экспорт WebP sprite strip."
+        "src": "./assets/cases/flux-capsule/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a1c2c 0%,#24263c 100%)",
+        "caption": {
+          "label": {
+            "en": "360° view",
+            "ru": "Turntable 360°"
+          },
+          "desc": {
+            "en": "Full turntable sequence — 36 frames at 10° increments. Exported as WebP sprite strip.",
+            "ru": "Полная turntable-секвенция — 36 кадров с шагом 10°. Экспорт WebP sprite strip."
+          }
         }
       },
       {
-        "label": {
-          "en": "Detail macro",
-          "ru": "Detail macro"
-        },
-        "desc": {
-          "en": "Micro-surface texture pass. Sub-millimetre detail captured with a virtual macro lens rig.",
-          "ru": "Пасс микро-текстуры. Субмиллиметровая детализация — virtual macro lens."
+        "src": "./assets/cases/flux-capsule/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#161828 0%,#202234 100%)",
+        "caption": {
+          "label": {
+            "en": "Detail macro",
+            "ru": "Detail macro"
+          },
+          "desc": {
+            "en": "Micro-surface texture pass. Sub-millimetre detail captured with a virtual macro lens rig.",
+            "ru": "Пасс микро-текстуры. Субмиллиметровая детализация — virtual macro lens."
+          }
         }
       },
       {
-        "label": {
-          "en": "Packaging",
-          "ru": "Упаковка"
-        },
-        "desc": {
-          "en": "Retail box render with reflective foil stamping, printed using PBR metallic-clearcoat.",
-          "ru": "Рендер упаковки с reflective foil stamping, печать PBR metallic-clearcoat."
+        "src": "./assets/cases/flux-capsule/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#12142a 0%,#1c1e30 100%)",
+        "caption": {
+          "label": {
+            "en": "Packaging",
+            "ru": "Упаковка"
+          },
+          "desc": {
+            "en": "Retail box render with reflective foil stamping, printed using PBR metallic-clearcoat.",
+            "ru": "Рендер упаковки с reflective foil stamping, печать PBR metallic-clearcoat."
+          }
         }
       },
       {
-        "label": {
-          "en": "Scale ref",
-          "ru": "Scale-референс"
-        },
-        "desc": {
-          "en": "Hand comparison render to communicate size without breaking photo-neutral background.",
-          "ru": "Сравнение с рукой — передать размер без потери фотонейтрального фона."
+        "src": "./assets/cases/flux-capsule/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0e102a 0%,#181a2a 100%)",
+        "caption": {
+          "label": {
+            "en": "Scale ref",
+            "ru": "Scale-референс"
+          },
+          "desc": {
+            "en": "Hand comparison render to communicate size without breaking photo-neutral background.",
+            "ru": "Сравнение с рукой — передать размер без потери фотонейтрального фона."
+          }
         }
       }
     ],

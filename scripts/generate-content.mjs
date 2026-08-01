@@ -10,8 +10,9 @@
  * and regenerates the shipped files:
  *   js/cards-data.js           — window.CARDS_DATA in the final expanded form
  *                                (the former makeItems() from js/main.js is
- *                                ported here: media[5] = 2 wide + 3 tall,
- *                                enabled:true, text/inline/motionBlocks)
+ *                                ported here: items.media[] flattened from
+ *                                case.media blocks, enabled:true,
+ *                                text/inline/motionBlocks)
  *   js/fa-data.js              — var FA_DATA (EN catalog)
  *   js/i18n-data.js            — dictionaries injected into
  *                                scripts/templates/i18n-data.tpl.js
@@ -241,6 +242,71 @@ function checkLocaleParity(violations, fileLabel, dictionaries) {
   }
 }
 
+/* ── case.media (one self-describing block per illustration slot) ─────────
+ *
+ * Replaces the three former parallel arrays (case.srcs / case.captions /
+ * case.palette) plus the positional format table. Every block carries its own
+ * src, format, type, background and bilingual caption, so a case may hold any
+ * 1..MEDIA_MAX_BLOCKS blocks instead of exactly five.
+ */
+const MEDIA_MAX_BLOCKS = 12;
+const MEDIA_FORMAT_VALUES = ['wide', 'tall'];
+const MEDIA_TYPE_VALUES = ['image', 'video'];
+// Image slots render through <img>; the video slot is the same self-hosted
+// WebM contract the motion blocks already use (validateMotionBlock).
+const MEDIA_IMAGE_EXT_RE = /\.(svg|png|jpg|jpeg|webp)$/i;
+
+function validateCaseMedia(violations, where, media) {
+  if (!Array.isArray(media) || media.length === 0) {
+    violations.push(`${where}: case.media must be a non-empty array of media blocks`);
+    return;
+  }
+  if (media.length > MEDIA_MAX_BLOCKS) {
+    violations.push(`${where}: case.media must have at most ${MEDIA_MAX_BLOCKS} blocks (got ${media.length})`);
+  }
+  media.forEach((block, i) => {
+    const w = `${where}: case.media[${i}]`;
+    if (block === null || typeof block !== 'object' || Array.isArray(block)) {
+      violations.push(`${w}: must be an object`);
+      return;
+    }
+    if (!MEDIA_FORMAT_VALUES.includes(block.format)) {
+      violations.push(`${w}.format: must be "wide" or "tall" (got ${JSON.stringify(block.format)})`);
+    }
+    if (!MEDIA_TYPE_VALUES.includes(block.type)) {
+      violations.push(`${w}.type: must be "image" or "video" (got ${JSON.stringify(block.type)})`);
+    }
+    checkAssetFile(violations, `${w}.src`, block.src);
+    if (isNonEmptyString(block.src)) {
+      if (block.type === 'video') {
+        if (!/\.webm$/i.test(block.src)) {
+          violations.push(`${w}.src: a video block must point at a .webm file ("${block.src}")`);
+        }
+      } else if (block.type === 'image' && !MEDIA_IMAGE_EXT_RE.test(block.src)) {
+        violations.push(`${w}.src: an image block must be .svg/.png/.jpg/.jpeg/.webp ("${block.src}")`);
+      }
+    }
+    // poster is the still frame of a video block; null/absent means none.
+    if (block.poster !== null && block.poster !== undefined) {
+      checkAssetFile(violations, `${w}.poster`, block.poster);
+    }
+    // bg lands in the style="background:…" attribute of the case gallery
+    // (escaped at runtime, guarded here as defense in depth).
+    if (!isNonEmptyString(block.bg)) {
+      violations.push(`${w}.bg: must be a non-empty string (CSS background of the slot)`);
+    }
+    const caption = block.caption;
+    if (
+      caption === null ||
+      typeof caption !== 'object' ||
+      !hasLocalePair(caption.label) ||
+      !hasLocalePair(caption.desc)
+    ) {
+      violations.push(`${w}.caption: must have label and desc with non-empty "en" and "ru"`);
+    }
+  });
+}
+
 function validateMotionBlock(violations, where, block) {
   if (block === null || typeof block !== 'object') {
     violations.push(`${where}: must be an object`);
@@ -336,35 +402,17 @@ function validateCase(violations, entry, filterKeys) {
   if (cs.modelStats === null || typeof cs.modelStats !== 'object' || Array.isArray(cs.modelStats)) {
     violations.push(`${where}: case.modelStats must be an object`);
   }
-  if (!Array.isArray(cs.palette) || cs.palette.length !== 5 || !cs.palette.every(isNonEmptyString)) {
-    violations.push(`${where}: case.palette must be an array of 5 non-empty strings`);
-  }
-  if ('srcs' in cs && (!Array.isArray(cs.srcs) || cs.srcs.length !== 5)) {
-    violations.push(`${where}: case.srcs, when present, must be an array of 5 entries (string path or null)`);
-  }
-  // Effective media sources: srcs[i] override or the default per-case SVG.
-  for (let i = 0; i < 5; i += 1) {
-    const override = Array.isArray(cs.srcs) ? cs.srcs[i] : null;
-    if (override === null || override === undefined) {
-      checkAssetFile(violations, `${where}: media slot ${i + 1} (default)`, `./assets/cases/${c.id}/0${i + 1}.svg`);
-    } else {
-      checkAssetFile(violations, `${where}: case.srcs[${i}]`, override);
+  // The legacy parallel arrays died with the case.media migration: a stray
+  // srcs/captions/palette would be silently ignored by the builders (and a
+  // re-run of the migrator could clobber case.media from it).
+  for (const legacyKey of ['srcs', 'captions', 'palette']) {
+    if (legacyKey in cs) {
+      violations.push(
+        `${where}: case.${legacyKey} is obsolete — case.media[] is the only media schema (remove the legacy key)`
+      );
     }
   }
-  if (!Array.isArray(cs.captions) || cs.captions.length !== 5) {
-    violations.push(`${where}: case.captions must be an array of 5 entries`);
-  } else {
-    cs.captions.forEach((caption, i) => {
-      if (
-        caption === null ||
-        typeof caption !== 'object' ||
-        !hasLocalePair(caption.label) ||
-        !hasLocalePair(caption.desc)
-      ) {
-        violations.push(`${where}: case.captions[${i}] must have label and desc with non-empty "en" and "ru"`);
-      }
-    });
-  }
+  validateCaseMedia(violations, where, cs.media);
   for (const block of ['text', 'inline']) {
     const value = cs[block];
     if (value === null || typeof value !== 'object' || !hasLocalePair(value.title) || !hasLocalePair(value.body)) {
@@ -392,11 +440,17 @@ function validateCase(violations, entry, filterKeys) {
   if (Array.isArray(cs.tools)) {
     cs.tools.forEach((tool, i) => checkPlainText(violations, where, `case.tools[${i}]`, tool));
   }
-  if (Array.isArray(cs.captions)) {
-    cs.captions.forEach((caption, i) => {
+  // Captions render through innerHTML and bg lands in the style attribute of
+  // the case gallery (escaped at runtime since F2, guarded here as defense in
+  // depth — prod-review F2, findings A2-11/A1-01).
+  if (Array.isArray(cs.media)) {
+    cs.media.forEach((block, i) => {
+      if (block === null || typeof block !== 'object') return;
+      checkPlainText(violations, where, `case.media[${i}].bg`, block.bg);
+      const caption = block.caption;
       if (caption !== null && typeof caption === 'object') {
-        checkPlainTextPair(violations, where, `case.captions[${i}].label`, caption.label);
-        checkPlainTextPair(violations, where, `case.captions[${i}].desc`, caption.desc);
+        checkPlainTextPair(violations, where, `case.media[${i}].caption.label`, caption.label);
+        checkPlainTextPair(violations, where, `case.media[${i}].caption.desc`, caption.desc);
       }
     });
   }
@@ -417,12 +471,6 @@ function validateCase(violations, entry, filterKeys) {
         checkPlainText(violations, where, `case.motionBlocks[${i}].title`, block.title);
       }
     });
-  }
-  // palette values land in the style="background:…" attribute of the case
-  // gallery (escaped at runtime since F2, guarded here as defense in depth —
-  // prod-review F2, finding A2-11/A1-01).
-  if (Array.isArray(cs.palette)) {
-    cs.palette.forEach((color, i) => checkPlainText(violations, where, `case.palette[${i}]`, color));
   }
   // modelStats values render in the 3D info panel (buildInfoHTML → innerHTML,
   // escaped at runtime since F2) — adversarial F1 review found them outside
@@ -840,20 +888,28 @@ function applySparse(target, diff) {
 
 /* ── js/cards-data.js ────────────────────────────────────────────────────── */
 
-const MEDIA_FORMATS = ['wide', 'tall', 'tall', 'wide', 'tall'];
 const MOTION_KEYS = ['source', 'layout', 'playback', 'src', 'vimeoId', 'vimeoHash', 'poster', 'title'];
 
 function buildCaseEntry(c) {
   const cs = c.case;
-  const media = MEDIA_FORMATS.map((format, i) => ({
-    type: 'image',
-    format,
-    src: (cs.srcs && cs.srcs[i]) || `./assets/cases/${c.id}/0${i + 1}.svg`,
-    bg: cs.palette[i],
-    label: cs.captions[i].label.en,
-    desc: cs.captions[i].desc.en,
-    enabled: true
-  }));
+  // Runtime shape consumed by js/main.js: flat EN label/desc, no caption
+  // nesting. Key order is part of the generated bytes — do not reorder.
+  const media = cs.media.map((block) => {
+    const out = {
+      type: block.type,
+      format: block.format,
+      src: block.src,
+      bg: block.bg,
+      label: block.caption.label.en,
+      desc: block.caption.desc.en,
+      enabled: true
+    };
+    // poster travels only when set: js/main.js renders it on video blocks, but
+    // every current block stores poster:null and an unconditional key would
+    // change the generated bytes. Truthy check, NOT `'poster' in block`.
+    if (block.poster) out.poster = block.poster;
+    return out;
+  });
 
   let motionBlocks = null;
   if (Array.isArray(cs.motionBlocks)) {
@@ -989,13 +1045,13 @@ function buildCaseLocales(content) {
     const cs = c.case;
     const enCandidate = {
       role: cs.role.en,
-      captions: cs.captions.map((cap) => ({ label: cap.label.en, desc: cap.desc.en })),
+      captions: cs.media.map((block) => ({ label: block.caption.label.en, desc: block.caption.desc.en })),
       text: { title: cs.text.title.en, body: cs.text.body.en },
       inline: { title: cs.inline.title.en, body: cs.inline.body.en }
     };
     const ruEntry = {
       role: cs.role.ru,
-      captions: cs.captions.map((cap) => ({ label: cap.label.ru, desc: cap.desc.ru })),
+      captions: cs.media.map((block) => ({ label: block.caption.label.ru, desc: block.caption.desc.ru })),
       text: { title: cs.text.title.ru, body: cs.text.body.ru },
       inline: { title: cs.inline.title.ru, body: cs.inline.body.ru }
     };

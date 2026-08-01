@@ -45,62 +45,90 @@
       "textures": "2 KTX2",
       "software": "Drive test asset"
     },
-    "palette": [
-      "linear-gradient(135deg,#1a2030 0%,#252e40 100%)",
-      "linear-gradient(135deg,#161c2e 0%,#20283c 100%)",
-      "linear-gradient(135deg,#111828 0%,#1a2234 100%)",
-      "linear-gradient(135deg,#0d1422 0%,#161e2e 100%)",
-      "linear-gradient(135deg,#0b1220 0%,#141c2a 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "System overview",
-          "ru": "Обзор системы"
-        },
-        "desc": {
-          "en": "Modular exo-armor built from 47 individual pieces. Each segment detaches for LOD and rigging.",
-          "ru": "Модульный экзо-доспех из 47 отдельных деталей. Каждый сегмент отсоединяется под LOD и риг."
+        "src": "./assets/cases/vega-shell/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a2030 0%,#252e40 100%)",
+        "caption": {
+          "label": {
+            "en": "System overview",
+            "ru": "Обзор системы"
+          },
+          "desc": {
+            "en": "Modular exo-armor built from 47 individual pieces. Each segment detaches for LOD and rigging.",
+            "ru": "Модульный экзо-доспех из 47 отдельных деталей. Каждый сегмент отсоединяется под LOD и риг."
+          }
         }
       },
       {
-        "label": {
-          "en": "Component breakdown",
-          "ru": "Разборка компонентов"
-        },
-        "desc": {
-          "en": "Parting logic derived from real manufacturing constraints. No floating geo, clean hard-edges.",
-          "ru": "Логика парт-сетки выведена из реальных производственных констрейнтов. Без плавающей геометрии, чистые hard-edges."
+        "src": "./assets/cases/vega-shell/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#161c2e 0%,#20283c 100%)",
+        "caption": {
+          "label": {
+            "en": "Component breakdown",
+            "ru": "Разборка компонентов"
+          },
+          "desc": {
+            "en": "Parting logic derived from real manufacturing constraints. No floating geo, clean hard-edges.",
+            "ru": "Логика парт-сетки выведена из реальных производственных констрейнтов. Без плавающей геометрии, чистые hard-edges."
+          }
         }
       },
       {
-        "label": {
-          "en": "LOD passes",
-          "ru": "LOD-пассы"
-        },
-        "desc": {
-          "en": "LOD0–LOD2 prepared at 100 %, 40 % and 12 % poly budgets for runtime mesh streaming.",
-          "ru": "LOD0–LOD2 подготовлены под 100%, 40% и 12% поли-бюджета для runtime mesh streaming."
+        "src": "./assets/cases/vega-shell/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#111828 0%,#1a2234 100%)",
+        "caption": {
+          "label": {
+            "en": "LOD passes",
+            "ru": "LOD-пассы"
+          },
+          "desc": {
+            "en": "LOD0–LOD2 prepared at 100 %, 40 % and 12 % poly budgets for runtime mesh streaming.",
+            "ru": "LOD0–LOD2 подготовлены под 100%, 40% и 12% поли-бюджета для runtime mesh streaming."
+          }
         }
       },
       {
-        "label": {
-          "en": "Shoulder plate",
-          "ru": "Наплечник"
-        },
-        "desc": {
-          "en": "Ball-joint attachment with limit constraints baked into naming. Ready for IK retarget.",
-          "ru": "Шарнирное крепление с лимитами, прописанными в naming. Готов к IK-retarget."
+        "src": "./assets/cases/vega-shell/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0d1422 0%,#161e2e 100%)",
+        "caption": {
+          "label": {
+            "en": "Shoulder plate",
+            "ru": "Наплечник"
+          },
+          "desc": {
+            "en": "Ball-joint attachment with limit constraints baked into naming. Ready for IK retarget.",
+            "ru": "Шарнирное крепление с лимитами, прописанными в naming. Готов к IK-retarget."
+          }
         }
       },
       {
-        "label": {
-          "en": "Paint variant",
-          "ru": "Вариант покраски"
-        },
-        "desc": {
-          "en": "Three material presets — factory clean, field-worn, arctic camo — via ID-mask layering.",
-          "ru": "Три материальных пресета — factory clean, field-worn, arctic camo — через ID-маски."
+        "src": "./assets/cases/vega-shell/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0b1220 0%,#141c2a 100%)",
+        "caption": {
+          "label": {
+            "en": "Paint variant",
+            "ru": "Вариант покраски"
+          },
+          "desc": {
+            "en": "Three material presets — factory clean, field-worn, arctic camo — via ID-mask layering.",
+            "ru": "Три материальных пресета — factory clean, field-worn, arctic camo — через ID-маски."
+          }
         }
       }
     ],

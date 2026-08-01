@@ -39,9 +39,9 @@
 
   const SETTINGS_PATH = 'content/settings.json';
   const FA_PATH = 'content/free-assets.json';
-  // Формат слота фиксирован позицией в раскладке сайта (MEDIA_FORMATS
-  // генератора): 1 и 4 — широкие, 2/3/5 — высокие.
-  const SLOT_FORMATS = ['широкий', 'высокий', 'высокий', 'широкий', 'высокий'];
+  // Формат живёт в самом блоке case.media (enum генератора wide|tall);
+  // здесь только человекочитаемые подписи слотов.
+  const MEDIA_FORMAT_LABELS = { wide: 'широкий', tall: 'высокий' };
 
   const els = {
     topbar: document.getElementById('topbar'),
@@ -1618,8 +1618,7 @@
       });
     }
 
-    // Перестановка слота иллюстраций: src/фон/подпись переезжают вместе.
-    // Дефолтный src зависит от ПОЗИЦИИ (./assets/cases/<id>/0N.svg), поэтому
+    // Перестановка слота иллюстраций: блок case.media переезжает целиком.
     // prod-review F2 (D-09): i18nOverrides адресуются структурными
     // индексами (captions.N, motionBlocks.N) и при перестановке слотов
     // уезжали бы на чужие блоки МОЛЧА (verify это не ловит). Пока
@@ -1643,20 +1642,21 @@
       return true;
     }
 
-    // перед перестановкой эффективные src фиксируются явными путями.
+    // Блок case.media самодостаточен (src уже явный путь, фон/подпись/формат
+    // лежат внутри), поэтому переставляется ОДИН массив.
     function moveMediaSlot(from, to, focusKey) {
-      if (from === to || to < 0 || to > 4) return;
+      const blocks = State.getValue(path, 'case.media') || [];
+      if (from === to || to < 0 || to >= blocks.length) return;
       if (reorderBlockedByOverrides()) return;
-      const cs = State.getValue(path, 'case') || {};
-      const srcs = [];
-      for (let i = 0; i < 5; i += 1) {
-        const current = Array.isArray(cs.srcs) ? cs.srcs[i] : null;
-        srcs.push(current || './assets/cases/' + id + '/0' + (i + 1) + '.svg');
-      }
-      State.setValue(path, 'case.srcs', movedArray(srcs, from, to));
-      State.setValue(path, 'case.palette', movedArray(cs.palette, from, to));
-      State.setValue(path, 'case.captions', movedArray(cs.captions, from, to));
-      remapListIndex(path, /^case\.srcs\.(\d+)$/, 1, from, to, (_match, newIndex) => 'case.srcs.' + newIndex);
+      State.setValue(path, 'case.media', movedArray(blocks, from, to));
+      remapListIndex(
+        path,
+        /^case\.media\.(\d+)\.(.+)$/,
+        1,
+        from,
+        to,
+        (match, newIndex) => 'case.media.' + newIndex + '.' + match[2]
+      );
       toast('Порядок сохранён в черновик', 'info');
       rerender(focusKey);
     }
@@ -1772,33 +1772,38 @@
     }
     sections.push(layoutSection);
 
+    const mediaBlocks = Array.isArray(draft.case.media) ? draft.case.media : [];
     const mediaStrip = el('div', { className: 'media-strip', id: 'media-strip' });
-    for (let i = 0; i < 5; i += 1) {
-      const defaultSrc = './assets/cases/' + id + '/0' + (i + 1) + '.svg';
-      const effectiveSrc = (draft.case.srcs && draft.case.srcs[i]) || defaultSrc;
+    mediaBlocks.forEach((block, i) => {
+      // Имя загружаемого файла по-прежнему привязано к ПОЗИЦИИ слота
+      // (./assets/cases/<id>/0N.<ext>) — это же имя даёт mediaBaseName.
+      const namingPath = './assets/cases/' + id + '/0' + (i + 1) + '.svg';
       mediaStrip.appendChild(
         el('figure', { className: 'media-slot' }, [
           manualLayout
             ? reorderControls({
                 label: 'Слот ' + (i + 1),
                 index: i,
-                count: 5,
+                count: mediaBlocks.length,
                 focusKey: 'slot::' + i,
                 onMove: moveMediaSlot
               })
             : null,
           dropZone({
             filePath: path,
-            dotPath: 'case.srcs.' + i,
+            dotPath: 'case.media.' + i + '.src',
             kind: 'image',
-            namingPath: defaultSrc,
-            currentPath: effectiveSrc,
+            namingPath: namingPath,
+            currentPath: (block && block.src) || namingPath,
             preview: 'image'
           }),
-          el('figcaption', { text: 'Слот ' + (i + 1) + ' · ' + SLOT_FORMATS[i] })
+          el('figcaption', {
+            text:
+              'Слот ' + (i + 1) + ' · ' + (MEDIA_FORMAT_LABELS[block && block.format] || (block && block.format) || '—')
+          })
         ])
       );
-    }
+    });
     if (manualLayout) makeSortable(mediaStrip, '.media-slot', moveMediaSlot);
     sections.push(
       el('section', { className: 'editor-section' }, [
@@ -1809,18 +1814,18 @@
           text:
             'SVG, PNG, JPG или WebP · до 200 КБ на изображение. Подписи к слотам редактируются ниже.' +
             (manualLayout
-              ? ' При перестановке слотов подпись и фон переезжают вместе с изображением; формат слота (широкий/высокий) задаётся позицией.'
+              ? ' При перестановке блок переезжает целиком: изображение, фон, подпись и формат (широкий/высокий).'
               : '')
         })
       ])
     );
 
-    if (Array.isArray(draft.case.captions)) {
+    if (mediaBlocks.length > 0) {
       const captionSection = el('section', { className: 'editor-section' }, [
         el('h2', { text: 'Подписи к медиа-слотам' })
       ]);
-      draft.case.captions.forEach((_caption, i) => {
-        const base = 'case.captions.' + i;
+      mediaBlocks.forEach((_block, i) => {
+        const base = 'case.media.' + i + '.caption';
         captionSection.appendChild(
           pairField(path, 'Слот ' + (i + 1) + ' — заголовок', base + '.label.en', base + '.label.ru')
         );
@@ -2172,7 +2177,7 @@
       errors.push({ path: FA_PATH, field, message });
     }
     if (errors.length > 0) {
-      // prod-review F2 (кросс-ревью): у части ошибок (year, palette,
+      // prod-review F2 (кросс-ревью): у части ошибок (year, case.media.N.bg,
       // cardOrder, structuredData, i18nOverrides — обычно следы ручной
       // правки репозитория) нет полей-якорей в UI, applyPendingErrors их
       // не отрисует. Первые сообщения показываем прямо в тосте, чтобы

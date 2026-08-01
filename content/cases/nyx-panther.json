@@ -43,62 +43,90 @@
       "textures": "1 × 2 K",
       "software": "ZBrush + Blender"
     },
-    "palette": [
-      "linear-gradient(135deg,#1a1816 0%,#2a2520 100%)",
-      "linear-gradient(135deg,#161411 0%,#241f1a 100%)",
-      "linear-gradient(135deg,#12100e 0%,#1e1a16 100%)",
-      "linear-gradient(135deg,#0e0c0a 0%,#181614 100%)",
-      "linear-gradient(135deg,#0a0908 0%,#141210 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Full body pose",
-          "ru": "Поза в полный рост"
-        },
-        "desc": {
-          "en": "Stylized feline creature. Hand-sculpted anatomy, two-coat fur groom, stylised musculature.",
-          "ru": "Стилизованный хищник кошачьих. Скульптинг анатомии вручную, двухслойный грум меха, стилизованная мускулатура."
+        "src": "./assets/cases/nyx-panther/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a1816 0%,#2a2520 100%)",
+        "caption": {
+          "label": {
+            "en": "Full body pose",
+            "ru": "Поза в полный рост"
+          },
+          "desc": {
+            "en": "Stylized feline creature. Hand-sculpted anatomy, two-coat fur groom, stylised musculature.",
+            "ru": "Стилизованный хищник кошачьих. Скульптинг анатомии вручную, двухслойный грум меха, стилизованная мускулатура."
+          }
         }
       },
       {
-        "label": {
-          "en": "Fur pass",
-          "ru": "Fur-пасс"
-        },
-        "desc": {
-          "en": "Dual-layer fur groom — undercoat + guard hairs with procedural clumping and asymmetry.",
-          "ru": "Двухслойный грум — подшёрсток + остевые волосы с процедурным клампингом и асимметрией."
+        "src": "./assets/cases/nyx-panther/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#161411 0%,#241f1a 100%)",
+        "caption": {
+          "label": {
+            "en": "Fur pass",
+            "ru": "Fur-пасс"
+          },
+          "desc": {
+            "en": "Dual-layer fur groom — undercoat + guard hairs with procedural clumping and asymmetry.",
+            "ru": "Двухслойный грум — подшёрсток + остевые волосы с процедурным клампингом и асимметрией."
+          }
         }
       },
       {
-        "label": {
-          "en": "Head study",
-          "ru": "Этюд головы"
-        },
-        "desc": {
-          "en": "Facial sculpt focused on eye rhythm and nasal break. Fine whisker cards placed manually.",
-          "ru": "Скульптинг лица — ритм глаз и nasal break. Тонкие whisker-карты расставлены вручную."
+        "src": "./assets/cases/nyx-panther/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#12100e 0%,#1e1a16 100%)",
+        "caption": {
+          "label": {
+            "en": "Head study",
+            "ru": "Этюд головы"
+          },
+          "desc": {
+            "en": "Facial sculpt focused on eye rhythm and nasal break. Fine whisker cards placed manually.",
+            "ru": "Скульптинг лица — ритм глаз и nasal break. Тонкие whisker-карты расставлены вручную."
+          }
         }
       },
       {
-        "label": {
-          "en": "Silhouette cards",
-          "ru": "Силуэтные карты"
-        },
-        "desc": {
-          "en": "Action pose library with 6 silhouettes used to lock animation feel before keyframing.",
-          "ru": "Библиотека из 6 action-силуэтов — лочили animation feel до начала ключей."
+        "src": "./assets/cases/nyx-panther/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0e0c0a 0%,#181614 100%)",
+        "caption": {
+          "label": {
+            "en": "Silhouette cards",
+            "ru": "Силуэтные карты"
+          },
+          "desc": {
+            "en": "Action pose library with 6 silhouettes used to lock animation feel before keyframing.",
+            "ru": "Библиотека из 6 action-силуэтов — лочили animation feel до начала ключей."
+          }
         }
       },
       {
-        "label": {
-          "en": "Prowl animation",
-          "ru": "Анимация подкрадывания"
-        },
-        "desc": {
-          "en": "Looped prowl cycle at 30 fps. Cloth-free skeleton mesh for real-time preview in viewport.",
-          "ru": "Looped prowl-цикл на 30 fps. Cloth-free скелет-меш — real-time preview во viewport."
+        "src": "./assets/cases/nyx-panther/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0a0908 0%,#141210 100%)",
+        "caption": {
+          "label": {
+            "en": "Prowl animation",
+            "ru": "Анимация подкрадывания"
+          },
+          "desc": {
+            "en": "Looped prowl cycle at 30 fps. Cloth-free skeleton mesh for real-time preview in viewport.",
+            "ru": "Looped prowl-цикл на 30 fps. Cloth-free скелет-меш — real-time preview во viewport."
+          }
         }
       }
     ],

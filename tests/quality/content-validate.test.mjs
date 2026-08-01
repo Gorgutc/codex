@@ -55,9 +55,35 @@ try {
   lumen.card.title.ru = ''; // empty locale value
   lumen.card.imgLoading = 'soon'; // not "eager"/"lazy"
   lumen.card.imgFetchPriority = 'urgent'; // not a fetchpriority value
-  lumen.case.palette = lumen.case.palette.slice(0, 4); // wrong length
+  lumen.case.media = 'five slots'; // case.media must be an array
   lumen.case.modelSrc = './assets/../outside/model.glb'; // traversal attempt
   writeJson('cases/lumen-one.json', lumen);
+
+  // case.media negative scenarios (one shape per file so every violation is
+  // attributable): empty array, over the block cap, broken enums, a video
+  // block pointing at a still image, empty background, half-filled caption.
+  const helix = readJson('cases/helix-reveal.json');
+  helix.case.media = []; // empty media list
+  writeJson('cases/helix-reveal.json', helix);
+
+  const drift = readJson('cases/drift-koi.json');
+  while (drift.case.media.length < 13) drift.case.media.push({ ...drift.case.media[0] }); // over the 12-block cap
+  writeJson('cases/drift-koi.json', drift);
+
+  const flux = readJson('cases/flux-capsule.json');
+  flux.case.media[0].format = 'huge'; // not in {wide,tall}
+  flux.case.media[1].type = 'audio'; // not in {image,video}
+  writeJson('cases/flux-capsule.json', flux);
+
+  const glint = readJson('cases/glint-owl.json');
+  glint.case.media[2].type = 'video'; // video block still pointing at an .svg
+  glint.case.media[3].bg = ''; // empty slot background
+  glint.case.media[4].caption.label.ru = ''; // half-filled caption pair
+  writeJson('cases/glint-owl.json', glint);
+
+  const arc = readJson('cases/arc-motion.json');
+  arc.case.captions = []; // mixed schema: legacy array alongside case.media
+  writeJson('cases/arc-motion.json', arc);
 
   const orbital = readJson('cases/orbital-mk-ii.json');
   orbital.case.motionBlocks[0].src = './assets/cases/orbital-mk-ii/missing-loop.webm'; // not on disk
@@ -104,7 +130,15 @@ try {
     'card.imgFetchPriority must be "high", "low", "auto", or null/absent (got "urgent")',
     '"size" must be a non-empty string',
     '"contents" must be a non-empty array of non-empty strings',
-    'case.palette must be an array of 5 non-empty strings',
+    'content/cases/lumen-one.json: case.media must be a non-empty array of media blocks',
+    'content/cases/helix-reveal.json: case.media must be a non-empty array of media blocks',
+    'case.media must have at most 12 blocks (got 13)',
+    'case.media[0].format: must be "wide" or "tall" (got "huge")',
+    'case.media[1].type: must be "image" or "video" (got "audio")',
+    'case.media[2].src: a video block must point at a .webm file',
+    'case.media[3].bg: must be a non-empty string',
+    'case.media[4].caption: must have label and desc with non-empty "en" and "ru"',
+    'content/cases/arc-motion.json: case.captions is obsolete — case.media[] is the only media schema',
     'must not contain ".." segments',
     'missing-loop.webm',
     'must be a string of digits ("not-digits")',

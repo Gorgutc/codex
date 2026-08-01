@@ -13,7 +13,7 @@
     "test:golden": "playwright test tests/quality/content-golden.spec.mjs",
     "test:content-validate": "node tests/quality/content-validate.test.mjs && node tests/quality/content-visibility.test.mjs",
     "test:verify-fatal": "node tests/quality/verify-frozen-fatal-exit.test.mjs",
-    "codex:ship": "npm run codex:verify-plugin && npm run check:governance && npm run check:parity && npm run content:check && npm run test:golden && npm run test:verify-fatal && npm run test:design-lab && npm run verify",
+    "codex:ship": "npm run codex:verify-plugin && npm run check:governance && npm run check:parity && npm run content:check && npm run test:content-validate && npm run test:golden && npm run test:verify-fatal && npm run test:design-lab && npm run verify",
     "check:js": "eslint \"js/**/*.js\" \"admin/js/**/*.js\" \"netlify/functions/**/*.mjs\" \"scripts/**/*.mjs\" \"verify-frozen.js\" \"*.config.mjs\" \"*.config.cjs\"",
     "check:css": "stylelint \"css/**/*.css\"",
     "check:html": "htmlhint \"*.html\" \"admin/*.html\"",

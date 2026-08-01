@@ -43,62 +43,90 @@
       "textures": "Procedural (PBR)",
       "software": "Blender"
     },
-    "palette": [
-      "linear-gradient(135deg,#1f1a2a 0%,#2a2438 100%)",
-      "linear-gradient(135deg,#1b1626 0%,#262034 100%)",
-      "linear-gradient(135deg,#171222 0%,#221e30 100%)",
-      "linear-gradient(135deg,#130e1e 0%,#1e1a2c 100%)",
-      "linear-gradient(135deg,#0f0a1a 0%,#181428 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Orbit frame",
-          "ru": "Orbit-кадр"
-        },
-        "desc": {
-          "en": "Turntable sequence for industrial product — 360° orbit, 4K export with motion blur.",
-          "ru": "Turntable-секвенция для индустриального продукта — орбита 360°, экспорт 4K с motion blur."
+        "src": "./assets/cases/arc-motion/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1f1a2a 0%,#2a2438 100%)",
+        "caption": {
+          "label": {
+            "en": "Orbit frame",
+            "ru": "Orbit-кадр"
+          },
+          "desc": {
+            "en": "Turntable sequence for industrial product — 360° orbit, 4K export with motion blur.",
+            "ru": "Turntable-секвенция для индустриального продукта — орбита 360°, экспорт 4K с motion blur."
+          }
         }
       },
       {
-        "label": {
-          "en": "Lighting pass",
-          "ru": "Lighting-пасс"
-        },
-        "desc": {
-          "en": "3-layer HDRI rig with gel-coloured area lights. Lighting designed to match brand guidelines.",
-          "ru": "3-слойный HDRI-риг с gel-coloured area lights. Свет под brand-гайды."
+        "src": "./assets/cases/arc-motion/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1b1626 0%,#262034 100%)",
+        "caption": {
+          "label": {
+            "en": "Lighting pass",
+            "ru": "Lighting-пасс"
+          },
+          "desc": {
+            "en": "3-layer HDRI rig with gel-coloured area lights. Lighting designed to match brand guidelines.",
+            "ru": "3-слойный HDRI-риг с gel-coloured area lights. Свет под brand-гайды."
+          }
         }
       },
       {
-        "label": {
-          "en": "Export settings",
-          "ru": "Export-настройки"
-        },
-        "desc": {
-          "en": "Delivered as 4K MP4 (H.264), WebM (VP9), and individual PNG sequence for compositing.",
-          "ru": "Доставлен как 4K MP4 (H.264), WebM (VP9) и отдельная PNG-секвенция под composit."
+        "src": "./assets/cases/arc-motion/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#171222 0%,#221e30 100%)",
+        "caption": {
+          "label": {
+            "en": "Export settings",
+            "ru": "Export-настройки"
+          },
+          "desc": {
+            "en": "Delivered as 4K MP4 (H.264), WebM (VP9), and individual PNG sequence for compositing.",
+            "ru": "Доставлен как 4K MP4 (H.264), WebM (VP9) и отдельная PNG-секвенция под composit."
+          }
         }
       },
       {
-        "label": {
-          "en": "Motion blur",
-          "ru": "Motion blur"
-        },
-        "desc": {
-          "en": "Per-object velocity pass rendered separately so the client can tune blur amount in post.",
-          "ru": "Per-object velocity-пасс рендерится отдельно — клиент может крутить blur amount в посте."
+        "src": "./assets/cases/arc-motion/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#130e1e 0%,#1e1a2c 100%)",
+        "caption": {
+          "label": {
+            "en": "Motion blur",
+            "ru": "Motion blur"
+          },
+          "desc": {
+            "en": "Per-object velocity pass rendered separately so the client can tune blur amount in post.",
+            "ru": "Per-object velocity-пасс рендерится отдельно — клиент может крутить blur amount в посте."
+          }
         }
       },
       {
-        "label": {
-          "en": "Compositing AOVs",
-          "ru": "Compositing AOVs"
-        },
-        "desc": {
-          "en": "Cryptomatte, depth, ID and position passes delivered for flexible relight in Nuke.",
-          "ru": "Cryptomatte, depth, ID и position-пассы — гибкий relight в Nuke."
+        "src": "./assets/cases/arc-motion/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0f0a1a 0%,#181428 100%)",
+        "caption": {
+          "label": {
+            "en": "Compositing AOVs",
+            "ru": "Compositing AOVs"
+          },
+          "desc": {
+            "en": "Cryptomatte, depth, ID and position passes delivered for flexible relight in Nuke.",
+            "ru": "Cryptomatte, depth, ID и position-пассы — гибкий relight в Nuke."
+          }
         }
       }
     ],

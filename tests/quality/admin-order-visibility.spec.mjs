@@ -10,7 +10,8 @@
  *      (тост «Порядок сохранён в черновик»), публикация несёт обновлённый
  *      content/settings.json в tree коммита;
  *   3) ручной layoutMode: переключатель показывает ручки/кнопки порядка у
- *      слотов и motion-блоков, перестановка слота двигает подпись и фон;
+ *      слотов и motion-блоков, перестановка слота двигает блок case.media
+ *      целиком (src, подпись, фон, формат);
  *   4) русский guard при попытке скрыть последний видимый кейс;
  *   5) выключение категории → кейсы категории затемнены с бейджем
  *      «категория скрыта», фильтр «All» в списке категорий отсутствует.
@@ -25,6 +26,12 @@ const CASE_PATH = 'content/cases/orbital-mk-ii.json';
 
 const settingsJson = JSON.parse(fs.readFileSync(path.join(ROOT, SETTINGS_PATH), 'utf8'));
 const CARD_ORDER = settingsJson.cardOrder;
+// Публикуемая схема слотов: один самодостаточный блок case.media[] на слот.
+// Ожидания выводятся из живого контента (не хардкодятся): владелец правит
+// подписи/число блоков через админку, и спек не должен от этого краснеть.
+const caseJson = JSON.parse(fs.readFileSync(path.join(ROOT, CASE_PATH), 'utf8'));
+const mediaJson = caseJson.case.media;
+const motionJson = caseJson.case.motionBlocks;
 
 const ctx = startStaticServer();
 
@@ -39,8 +46,8 @@ async function loginWithPat(page) {
 
 // Автосейв черновиков в sessionStorage дебаунсится (~400 мс), поэтому
 // сначала ждём появления нужного состояния, затем читаем снапшот.
-async function waitDrafts(page, predicate) {
-  await page.waitForFunction(predicate);
+async function waitDrafts(page, predicate, arg) {
+  await page.waitForFunction(predicate, arg);
   return page.evaluate(() => JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}'));
 }
 
@@ -127,9 +134,11 @@ test('ручной layoutMode: переключатель открывает п�
   await page.click('#layout-manual-btn');
   await expect(page.locator('.toast')).toContainText('авторский порядок файлов');
 
-  // manual: ручки и кнопки у 5 слотов и у каждого motion-блока
-  await expect(page.locator('#media-strip .reorder-handle')).toHaveCount(5);
-  await expect(page.locator('#motion-list .reorder-handle')).toHaveCount(4);
+  // manual: ручка у каждого слота и у каждого motion-блока (числа — из контента)
+  expect(mediaJson.length).toBeGreaterThanOrEqual(2);
+  expect(motionJson.length).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('#media-strip .reorder-handle')).toHaveCount(mediaJson.length);
+  await expect(page.locator('#motion-list .reorder-handle')).toHaveCount(motionJson.length);
   await expect(page.locator('#layout-section')).toContainText('Ручной порядок включён');
   await page.waitForFunction(() => {
     const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
@@ -137,29 +146,47 @@ test('ручной layoutMode: переключатель открывает п�
     return !!draft && draft.layoutMode === 'manual';
   });
 
-  // слот 1 ↓: эффективный src материализуется и переезжает вместе с подписью
+  // слот 1 ↓: блок case.media переезжает целиком — src (уже явный путь),
+  // подпись и формат едут вместе с изображением.
+  const firstFormat = mediaJson[0].format;
+  const secondFormat = mediaJson[1].format;
+  // sanity-guard фикстуры: ассерт «формат едет с блоком» не должен молча
+  // превратиться в тавтологию, если владелец уравняет форматы слотов 1 и 2
+  expect(firstFormat).not.toBe(secondFormat);
   await page.click('[data-reorder="slot::0::down"]');
   await expect(page.locator('.toast').last()).toContainText('Порядок сохранён в черновик');
-  const drafts = await waitDrafts(page, () => {
-    const store = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
-    const draft = store['content/cases/orbital-mk-ii.json'];
-    return !!draft && Array.isArray(draft.case.srcs) && draft.case.srcs[1] === './assets/cases/orbital-mk-ii/01.svg';
-  });
+  const drafts = await waitDrafts(
+    page,
+    (expectedSrc) => {
+      const store = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+      const draft = store['content/cases/orbital-mk-ii.json'];
+      return !!draft && Array.isArray(draft.case.media) && draft.case.media[1].src === expectedSrc;
+    },
+    mediaJson[0].src
+  );
   const draft = drafts[CASE_PATH];
-  expect(draft.case.srcs[0]).toBe('./assets/cases/orbital-mk-ii/02.png');
-  expect(draft.case.srcs[1]).toBe('./assets/cases/orbital-mk-ii/01.svg');
-  expect(draft.case.captions[1].label.en).toBe('Hero render');
-  expect(draft.case.captions[0].label.en).toBe('Material study');
+  expect(draft.case.media).toHaveLength(mediaJson.length);
+  expect(draft.case.media[0].src).toBe(mediaJson[1].src);
+  expect(draft.case.media[1].src).toBe(mediaJson[0].src);
+  expect(draft.case.media[1].caption.label.en).toBe(mediaJson[0].caption.label.en);
+  expect(draft.case.media[0].caption.label.en).toBe(mediaJson[1].caption.label.en);
+  expect(draft.case.media[0].format).toBe(secondFormat);
+  expect(draft.case.media[1].format).toBe(firstFormat);
 
-  // motion-блок 1 ↓: массив motionBlocks переставлен
+  // motion-блок 1 ↓: массив motionBlocks переставлен (ожидания — из контента)
+  expect(motionJson[0].playback).not.toBe(motionJson[1].playback);
   await page.click('[data-reorder="motion::0::down"]');
-  const drafts2 = await waitDrafts(page, () => {
-    const store = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
-    const draft2 = store['content/cases/orbital-mk-ii.json'];
-    return !!draft2 && draft2.case.motionBlocks[0].playback === 'controlled';
-  });
-  expect(drafts2[CASE_PATH].case.motionBlocks[0].playback).toBe('controlled');
-  expect(drafts2[CASE_PATH].case.motionBlocks[1].playback).toBe('ambient');
+  const drafts2 = await waitDrafts(
+    page,
+    (expectedPlayback) => {
+      const store = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+      const draft2 = store['content/cases/orbital-mk-ii.json'];
+      return !!draft2 && draft2.case.motionBlocks[0].playback === expectedPlayback;
+    },
+    motionJson[1].playback
+  );
+  expect(drafts2[CASE_PATH].case.motionBlocks[0].playback).toBe(motionJson[1].playback);
+  expect(drafts2[CASE_PATH].case.motionBlocks[1].playback).toBe(motionJson[0].playback);
 
   // возврат к seeded прячет ручки
   await page.click('#layout-seeded-btn');

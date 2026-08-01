@@ -43,62 +43,90 @@
       "textures": "5 × 4 K",
       "software": "Blender + Substance"
     },
-    "palette": [
-      "linear-gradient(135deg,#1a1a2a 0%,#252535 100%)",
-      "linear-gradient(135deg,#161624 0%,#202030 100%)",
-      "linear-gradient(135deg,#121220 0%,#1c1c2c 100%)",
-      "linear-gradient(135deg,#0e0e1c 0%,#181828 100%)",
-      "linear-gradient(135deg,#0a0a18 0%,#161626 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Final asset",
-          "ru": "Финальный ассет"
-        },
-        "desc": {
-          "en": "Hero weapon for a third-person action title. 4K PBR textures, optimised for real-time.",
-          "ru": "Hero-оружие под TPS-action. 4K PBR-текстуры, оптимизация под real-time."
+        "src": "./assets/cases/nightshard/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a1a2a 0%,#252535 100%)",
+        "caption": {
+          "label": {
+            "en": "Final asset",
+            "ru": "Финальный ассет"
+          },
+          "desc": {
+            "en": "Hero weapon for a third-person action title. 4K PBR textures, optimised for real-time.",
+            "ru": "Hero-оружие под TPS-action. 4K PBR-текстуры, оптимизация под real-time."
+          }
         }
       },
       {
-        "label": {
-          "en": "Texture sheets",
-          "ru": "Текстурные карты"
-        },
-        "desc": {
-          "en": "Albedo, roughness, metalness, normal and AO maps. Baked from 8M-poly high source.",
-          "ru": "Albedo, roughness, metalness, normal и AO. Запечены с 8M-poly high-source."
+        "src": "./assets/cases/nightshard/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#161624 0%,#202030 100%)",
+        "caption": {
+          "label": {
+            "en": "Texture sheets",
+            "ru": "Текстурные карты"
+          },
+          "desc": {
+            "en": "Albedo, roughness, metalness, normal and AO maps. Baked from 8M-poly high source.",
+            "ru": "Albedo, roughness, metalness, normal и AO. Запечены с 8M-poly high-source."
+          }
         }
       },
       {
-        "label": {
-          "en": "Polycount view",
-          "ru": "Polycount"
-        },
-        "desc": {
-          "en": "Game-ready mesh at 12 k triangles — within budget for character-attachment LOD0.",
-          "ru": "Game-ready меш на 12k tris — в бюджете под character-attachment LOD0."
+        "src": "./assets/cases/nightshard/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#121220 0%,#1c1c2c 100%)",
+        "caption": {
+          "label": {
+            "en": "Polycount view",
+            "ru": "Polycount"
+          },
+          "desc": {
+            "en": "Game-ready mesh at 12 k triangles — within budget for character-attachment LOD0.",
+            "ru": "Game-ready меш на 12k tris — в бюджете под character-attachment LOD0."
+          }
         }
       },
       {
-        "label": {
-          "en": "In-engine test",
-          "ru": "In-engine тест"
-        },
-        "desc": {
-          "en": "Live capture inside Unreal Engine 5 using Nanite-disabled preview with Lumen.",
-          "ru": "Live-capture в Unreal Engine 5: Nanite-disabled preview с Lumen."
+        "src": "./assets/cases/nightshard/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0e0e1c 0%,#181828 100%)",
+        "caption": {
+          "label": {
+            "en": "In-engine test",
+            "ru": "In-engine тест"
+          },
+          "desc": {
+            "en": "Live capture inside Unreal Engine 5 using Nanite-disabled preview with Lumen.",
+            "ru": "Live-capture в Unreal Engine 5: Nanite-disabled preview с Lumen."
+          }
         }
       },
       {
-        "label": {
-          "en": "Blade macro",
-          "ru": "Макро клинка"
-        },
-        "desc": {
-          "en": "Edge chip detail pass. Anisotropic reflection matches reference from real forged steel.",
-          "ru": "Пасс детализации сколов на кромке. Anisotropic reflection совпадает с reference кованой стали."
+        "src": "./assets/cases/nightshard/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#0a0a18 0%,#161626 100%)",
+        "caption": {
+          "label": {
+            "en": "Blade macro",
+            "ru": "Макро клинка"
+          },
+          "desc": {
+            "en": "Edge chip detail pass. Anisotropic reflection matches reference from real forged steel.",
+            "ru": "Пасс детализации сколов на кромке. Anisotropic reflection совпадает с reference кованой стали."
+          }
         }
       }
     ],

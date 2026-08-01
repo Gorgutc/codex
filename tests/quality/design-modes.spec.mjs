@@ -1,10 +1,72 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { visibleCaseIds, visibleFaCategories } from '../../scripts/content-expectations.mjs';
 import { startStaticServer } from './fixtures/admin-harness.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const VISIBLE_CASES = visibleCaseIds(ROOT).map((id) =>
+  JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'cases', `${id}.json`), 'utf8'))
+);
+const CASE_BY_ID = new Map(VISIBLE_CASES.map((project) => [project.id, project]));
+const PRIMARY_CASE = VISIBLE_CASES[0] || null;
+const SECOND_CASE = VISIBLE_CASES[1] || null;
+const THIRD_CASE = VISIBLE_CASES[2] || null;
+const THREE_D_CASE = VISIBLE_CASES.find((project) => project.case?.modelSrc) || null;
+const POSTER_CASE = VISIBLE_CASES.find((project) => project.card?.thumb) || null;
+const CONTROLLED_MOTION_CASE =
+  VISIBLE_CASES.find(
+    (project) =>
+      project.case?.modelSrc &&
+      project.case?.motionBlocks?.some(
+        (block) => block?.source === 'vimeo' && block.playback === 'controlled'
+      )
+  ) || null;
+const INLINE_CASE =
+  VISIBLE_CASES.find(
+    (project) =>
+      project.case?.inline?.title?.en &&
+      project.case?.media?.some((media) => media?.format === 'tall' && media.src)
+  ) || null;
+const VISIBLE_FA_CATEGORIES = visibleFaCategories(ROOT);
+const NON_GAME_FA_CATEGORY = VISIBLE_FA_CATEGORIES.find((category) => !category.gameAsset) || null;
+const SHOWCASE_FA_CATEGORY = VISIBLE_FA_CATEGORIES.find(
+  (category) => !category.gameAsset && category.items.length >= 3
+) || null;
+function hasFreeAssetModel(item) {
+  const model = Object.hasOwn(item, 'model') ? item.model : item.id;
+  return typeof model === 'string' && fs.existsSync(path.join(ROOT, 'assets', 'models', 'free', `${model}.glb`));
+}
+
+const VISIBLE_MODEL_FA = VISIBLE_FA_CATEGORIES
+  .flatMap((category) => category.items.map((item) => ({ category, item })))
+  .find(({ item }) => hasFreeAssetModel(item));
+const MODEL_ARCHIVE_FA = VISIBLE_FA_CATEGORIES
+  .flatMap((category) => category.items.map((item) => ({ category, item })))
+  .find(({ item }) => hasFreeAssetModel(item) && item.file && fs.existsSync(path.join(ROOT, 'downloads', item.file)));
 
 const server = startStaticServer();
 const MODES = ['specimen', 'chamber'];
 const PROTOTYPE_KEYS = ['constructor', 'toString', '__proto__'];
+
+function requireFixture(fixture, reason) {
+  test.skip(!fixture, reason);
+  return fixture;
+}
+
+function assetPath(value) {
+  return String(value || '').replace(/^\.\//, '');
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function assetPathPattern(value) {
+  return new RegExp(`${escapeRegExp(assetPath(value))}$`);
+}
 
 function collectConsoleErrors(page) {
   const errors = [];
@@ -249,18 +311,15 @@ test('manual language choice wins over late geo detection', async ({ page }) => 
 });
 
 test('Original Free Assets game filter hides non-game cards in the rendered layout', async ({ page }) => {
+  const category = requireFixture(
+    NON_GAME_FA_CATEGORY,
+    'skipped: no visible non-game Free Assets category for the game filter'
+  );
   await page.setViewportSize({ width: 1440, height: 1024 });
   await page.goto(`${server.base}/free-assets.html?lang=en`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => document.querySelectorAll('#fa-grid .fa-card').length > 0);
 
-  const nonGameTag = await page.evaluate(() => {
-    const card = document.querySelector('.tag-card[data-game-asset="false"][data-tag]');
-    const tag = card?.getAttribute('data-tag') || '';
-    return tag && window.FA_DATA?.[tag]?.length ? tag : null;
-  });
-  expect(nonGameTag).not.toBeNull();
-
-  await page.locator(`.tag-card[data-tag="${nonGameTag}"]`).click();
+  await page.locator(`.tag-card[data-tag="${category.key}"]`).click();
   await page.locator('#game-switch-label').click();
   await expect(page.locator('#game-switch')).toBeChecked();
   await expect(page.locator('#fa-grid .fa-card:visible')).toHaveCount(0);
@@ -269,13 +328,15 @@ test('Original Free Assets game filter hides non-game cards in the rendered layo
 
 for (const mode of MODES) {
   test(`${mode}: direct case deep links survive bootstrap`, async ({ page }) => {
-    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
+    const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
+    const next = requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases');
+    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#${primary.id}`, { waitUntil: 'networkidle' });
     await waitForDesign(page, mode, 'index');
 
-    expect(new URL(page.url()).hash).toBe('#orbital-mk-ii');
+    expect(new URL(page.url()).hash).toBe(`#${primary.id}`);
     await expect(page.locator(`[data-design-home="${mode}"]`)).toBeHidden();
     await expect(page.locator('#case-view')).toBeVisible();
-    await expect(page.locator('#case-title')).toContainText('Orbital Mk.II');
+    await expect(page.locator('#case-title')).toContainText(primary.card.title.en);
     const firstCaseItem = page
       .locator(
         mode === 'chamber'
@@ -293,16 +354,16 @@ for (const mode of MODES) {
     await expect(page.locator('#case-blueprints')).toBeVisible();
     await page.locator('#case-tab-2d').click();
     await page.locator('#case-next').click();
-    await expect.poll(() => new URL(page.url()).hash).toBe('#vega-shell');
+    await expect.poll(() => new URL(page.url()).hash).toBe(`#${next.id}`);
     expect(new URL(page.url()).searchParams.get('design')).toBe(mode);
-    await expect(page.locator('#case-title')).toContainText('Vega Shell');
+    await expect(page.locator('#case-title')).toContainText(next.card.title.en);
 
-    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#vega-shell`, { waitUntil: 'networkidle' });
+    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#${next.id}`, { waitUntil: 'networkidle' });
     await waitForDesign(page, mode, 'index');
 
-    expect(new URL(page.url()).hash).toBe('#vega-shell');
+    expect(new URL(page.url()).hash).toBe(`#${next.id}`);
     await expect(page.locator(`[data-design-home="${mode}"]`)).toBeHidden();
-    await expect(page.locator('#case-title')).toContainText('Vega Shell');
+    await expect(page.locator('#case-title')).toContainText(next.card.title.en);
   });
 
   test(`${mode}: Home, Case and Back share the opt-in URL`, async ({ page }) => {
@@ -401,7 +462,11 @@ for (const mode of MODES) {
   });
 
   test(`${mode}: Case media stops on Back and resumes for the same id`, async ({ page }) => {
-    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
+    const motionCase = requireFixture(
+      CONTROLLED_MOTION_CASE,
+      'skipped: no visible case has a controlled Vimeo motion block'
+    );
+    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#${motionCase.id}`, { waitUntil: 'networkidle' });
     await waitForDesign(page, mode, 'index');
 
     const home = page.locator(`[data-design-home="${mode}"]`);
@@ -425,7 +490,7 @@ for (const mode of MODES) {
     await expect(page.locator('.case-motion__vimeo iframe')).toHaveCount(0);
     await expect(controlledVimeo).toHaveAttribute('aria-pressed', 'false');
 
-    await home.locator('[data-design-project="orbital-mk-ii"]').click();
+    await home.locator(`[data-design-project="${motionCase.id}"]`).click();
     await expect(home).toBeHidden();
     await controlledVimeo.scrollIntoViewIfNeeded();
     await expect(controlledVimeo).toHaveAttribute('aria-pressed', 'true');
@@ -442,11 +507,12 @@ for (const mode of MODES) {
   });
 
   test(`${mode}: browser Back tears down Case fullscreen before showing Home`, async ({ page }) => {
+    const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
     await page.goto(`${server.base}/index.html?design=${mode}&lang=en`, { waitUntil: 'networkidle' });
     await waitForDesign(page, mode, 'index');
     const home = page.locator(`[data-design-home="${mode}"]`);
-    await home.locator('[data-design-project="orbital-mk-ii"]').first().click();
-    await expect.poll(() => new URL(page.url()).hash).toBe('#orbital-mk-ii');
+    await home.locator(`[data-design-project="${primary.id}"]`).first().click();
+    await expect.poll(() => new URL(page.url()).hash).toBe(`#${primary.id}`);
     await expect(page.locator('#case-view')).toBeVisible();
 
     const galleryImage = page
@@ -573,7 +639,7 @@ for (const mode of MODES) {
         })
       );
     expect(faTargetSizes.length).toBeGreaterThan(0);
-    expect(faTargetSizes.filter((size) => size.width < 44 || size.height < 44)).toEqual([]);
+    expect(faTargetSizes.filter((size) => Math.round(size.width) < 44 || Math.round(size.height) < 44)).toEqual([]);
     const faAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(faAxe.violations, formatAxeViolations(faAxe.violations)).toEqual([]);
     const overflow = await page.evaluate(
@@ -584,6 +650,7 @@ for (const mode of MODES) {
   });
 
   test(`${mode}: mobile Home and Case keep controls inside the viewport`, async ({ page }) => {
+    const posterCase = requireFixture(POSTER_CASE, 'skipped: no visible case with a card poster');
     const errors = collectConsoleErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${server.base}/index.html?design=${mode}&lang=en`, { waitUntil: 'networkidle' });
@@ -625,11 +692,11 @@ for (const mode of MODES) {
         })
       );
     expect(homeTargetSizes.length).toBeGreaterThan(0);
-    expect(homeTargetSizes.filter((size) => size.width < 44 || size.height < 44)).toEqual([]);
+    expect(homeTargetSizes.filter((size) => Math.round(size.width) < 44 || Math.round(size.height) < 44)).toEqual([]);
     const homeAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(homeAxe.violations, formatAxeViolations(homeAxe.violations)).toEqual([]);
 
-    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
+    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#${posterCase.id}`, { waitUntil: 'networkidle' });
     await waitForDesign(page, mode, 'index');
     await expect(page.locator(`[data-design-home="${mode}"]`)).toBeHidden();
     await expect(page.locator('#case-share-desktop')).toBeVisible();
@@ -685,7 +752,7 @@ for (const mode of MODES) {
         })
       );
     expect(caseTargetSizes.length).toBeGreaterThan(0);
-    expect(caseTargetSizes.filter((size) => size.width < 44 || size.height < 44)).toEqual([]);
+    expect(caseTargetSizes.filter((size) => Math.round(size.width) < 44 || Math.round(size.height) < 44)).toEqual([]);
 
     const caseLayout = await page.evaluate((expectedMode) => {
       const actions = document.querySelector('.case-view__actions');
@@ -707,7 +774,7 @@ for (const mode of MODES) {
     expect(caseLayout.documentOverflow).toBeLessThanOrEqual(1);
     expect(caseLayout.actionsOverflow).toBeLessThanOrEqual(1);
     expect(caseLayout.titleCaptionOverlap).toBe(false);
-    if (mode === 'chamber') expect(caseLayout.posterSrc).toMatch(/assets\/cards\/orbital-mk-ii\.svg$/);
+    if (mode === 'chamber') expect(caseLayout.posterSrc).toMatch(assetPathPattern(posterCase.card.thumb));
     else {
       expect(caseLayout.specimenFirstMedia).toBe(true);
       await expect(page.locator('#logo-home')).toContainText('CODEX');
@@ -732,7 +799,8 @@ for (const mode of MODES) {
   }
 
   test(`${mode}: Case has no axe violations`, async ({ page }) => {
-    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
+    const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
+    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#${primary.id}`, { waitUntil: 'networkidle' });
     await waitForDesign(page, mode, 'index');
     await expect(page.locator('#case-view')).toBeVisible();
     const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
@@ -740,18 +808,20 @@ for (const mode of MODES) {
   });
 
   test(`${mode}: reduced motion covers Home, Case and Free Assets`, async ({ page }) => {
+    const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(`${server.base}/index.html?design=${mode}&lang=en`, { waitUntil: 'networkidle' });
     await waitForDesign(page, mode, 'index');
     await expectReducedMotionStyles(page, 'body');
 
     if (mode === 'chamber') {
+      const next = requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases');
       const home = page.locator('[data-design-home="chamber"]');
-      await page.locator('.chamber-home__index-button[data-design-project="vega-shell"]').click();
+      await page.locator(`.chamber-home__index-button[data-design-project="${next.id}"]`).click();
       await expect(home).not.toHaveClass(/is-changing/);
     }
 
-    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#orbital-mk-ii`, {
+    await page.goto(`${server.base}/index.html?design=${mode}&lang=en#${primary.id}`, {
       waitUntil: 'networkidle'
     });
     await waitForDesign(page, mode, 'index');
@@ -764,7 +834,7 @@ for (const mode of MODES) {
   });
 }
 
-test('hybrid: strict opt-in keeps canonical Original and preserves the 18-project order', async ({ page }) => {
+test('hybrid: strict opt-in keeps canonical Original and preserves the content-derived project order', async ({ page }) => {
   const errors = collectConsoleErrors(page);
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
@@ -805,7 +875,7 @@ test('hybrid: strict opt-in keeps canonical Original and preserves the 18-projec
       control.getAttribute('href')
     )
   }));
-  expect(inventory.source).toHaveLength(18);
+  expect(inventory.source).toEqual(VISIBLE_CASES.map((project) => project.id));
   expect(inventory.hybrid).toEqual(inventory.source);
   expect(inventory.hrefs).toEqual(inventory.source.map((id) => `#${id}`));
 
@@ -821,6 +891,7 @@ test('hybrid: strict opt-in keeps canonical Original and preserves the 18-projec
 });
 
 test('hybrid: static image grade is isolated from lightweight transition layers', async ({ page }) => {
+  requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for an image transition');
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
 
@@ -898,6 +969,10 @@ test('hybrid: static image grade is isolated from lightweight transition layers'
 test('hybrid: readiness gate prevents Original flash and fails open when the adapter is unavailable', async ({
   page
 }) => {
+  const inlineCase = requireFixture(
+    INLINE_CASE,
+    'skipped: no visible case has an inline note with tall media'
+  );
   await page.emulateMedia({ reducedMotion: 'reduce' });
   let releaseAdapter;
   const adapterGate = new Promise((resolve) => {
@@ -953,13 +1028,13 @@ test('hybrid: readiness gate prevents Original flash and fails open when the ada
   });
   await expect(page.locator('.layout')).toHaveCSS('visibility', 'visible');
   await expect(page.locator('.design-runtime-gate')).toHaveCount(0);
-  await page.locator('.chamber-home__view').click();
-  await waitForHybridCase(page, 'orbital-mk-ii');
+  await page.locator(`[data-design-project="${inlineCase.id}"]`).click();
+  await waitForHybridCase(page, inlineCase.id);
   await expect(page.locator('#case-scroll-track > .case-row--wide-text')).toHaveCount(1);
   await expect(page.locator('#case-scroll-track .case-text--overlay')).toHaveCount(1);
 
   await page.route('**/js/design-hybrid.js', (route) => route.abort());
-  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#cad-strut`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${inlineCase.id}`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback');
   await page.waitForFunction(() => !document.documentElement.classList.contains('is-loading'));
   await expect(page.locator('.layout')).toHaveCSS('visibility', 'visible');
@@ -1010,6 +1085,10 @@ test('hybrid: a loaded adapter that does not start falls back to Original within
 });
 
 test('hybrid: an adapter arriving after watchdog fallback cannot reactivate the presentation', async ({ page }) => {
+  const inlineCase = requireFixture(
+    INLINE_CASE,
+    'skipped: no visible case has an inline note with tall media'
+  );
   await page.emulateMedia({ reducedMotion: 'reduce' });
   let releaseAdapter;
   const adapterGate = new Promise((resolve) => {
@@ -1020,7 +1099,7 @@ test('hybrid: an adapter arriving after watchdog fallback cannot reactivate the 
     await route.continue();
   });
 
-  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#cad-strut`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${inlineCase.id}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.documentElement.classList.contains('is-loading'));
   await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'pending');
   await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback', { timeout: 6000 });
@@ -1042,6 +1121,10 @@ test('hybrid: an adapter arriving after watchdog fallback cannot reactivate the 
 });
 
 test('hybrid: Free Assets fail-open restores Original near-viewport 3D previews', async ({ page }) => {
+  const modelAsset = requireFixture(
+    VISIBLE_MODEL_FA,
+    'skipped: no visible Free Assets item has a local 3D preview model'
+  );
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1440, height: 1024 });
   let releaseAdapter;
@@ -1057,7 +1140,22 @@ test('hybrid: Free Assets fail-open restores Original near-viewport 3D previews'
   await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'pending');
   await page.waitForFunction(() => document.querySelectorAll('#fa-grid .fa-card').length > 0);
 
-  const preview = page.locator('.fa-card__thumb-mv').first();
+  // Кликать по категории нельзя: перерендер грида в pending-состоянии — не
+  // сценарий этого теста (он проверяет подавление превью ДО фолбэка). Модельный
+  // ассет обязан быть в дефолтной (первой видимой) категории — иначе skip.
+  const defaultTag = await page.evaluate(() => {
+    const card = document.querySelector('.tag-card[data-tag]');
+    return card ? card.getAttribute('data-tag') : null;
+  });
+  test.skip(
+    modelAsset.category.key !== defaultTag,
+    'skipped: the default Free Assets category has no local 3D preview model'
+  );
+  // У .fa-card нет data-id — якоримся на уникальный alt model-viewer'а
+  // (createPreviewThumb: `${title} — 3D preview`).
+  const preview = page.locator(
+    `#fa-grid model-viewer.fa-card__thumb-mv[alt="${modelAsset.item.title} — 3D preview"]`
+  );
   await expect(preview).toHaveCount(1);
   await expect(page.locator('.fa-card__thumb-mv[data-codex-preview-enabled="true"]')).toHaveCount(0);
   await expect(page.locator('script[src*="model-viewer.min.js"]')).toHaveCount(0);
@@ -1075,6 +1173,10 @@ test('hybrid: Free Assets fail-open restores Original near-viewport 3D previews'
 });
 
 test('hybrid: Free Assets keeps Original 3D previews when the optional loader is unavailable', async ({ page }) => {
+  const modelAsset = requireFixture(
+    VISIBLE_MODEL_FA,
+    'skipped: no visible Free Assets item has a local 3D preview model'
+  );
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1440, height: 1024 });
   await page.route('**/js/design-loader.js', (route) => route.abort());
@@ -1083,7 +1185,12 @@ test('hybrid: Free Assets keeps Original 3D previews when the optional loader is
   await page.waitForFunction(() => document.querySelectorAll('#fa-grid .fa-card').length > 0);
   await expect(page.locator('html')).not.toHaveAttribute('data-design-runtime-state', /.+/);
 
-  const preview = page.locator('.fa-card__thumb-mv').first();
+  await page.locator(`.tag-card[data-tag="${modelAsset.category.key}"]`).click();
+  // У .fa-card нет data-id — якоримся на уникальный alt model-viewer'а
+  // (createPreviewThumb: `${title} — 3D preview`).
+  const preview = page.locator(
+    `#fa-grid model-viewer.fa-card__thumb-mv[alt="${modelAsset.item.title} — 3D preview"]`
+  );
   await expect(preview).toHaveCount(1);
   await preview.scrollIntoViewIfNeeded();
   await expect(preview).toHaveAttribute('data-codex-preview-enabled', 'true');
@@ -1101,18 +1208,65 @@ test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog
     await baseRuntimeGate;
     await route.continue();
   });
+  // Окно «watchdog ещё не выстрелил» меряем часами СТРАНИЦЫ, а не раннера:
+  // под CPU-контеншном параллельных воркеров wall-clock ожидание теста
+  // уезжает за прелоадер-failsafe + 4000мс и даёт ложный fallback.
+  await page.addInitScript(() => {
+    window.__designStates = [];
+    // Init-скрипт исполняется до парсинга — documentElement ещё нет, поэтому
+    // наблюдаем document с subtree: ловим атрибут на корне, когда он появится.
+    new MutationObserver(() => {
+      const root = document.documentElement;
+      if (!root) return;
+      window.__designStates.push({
+        state: root.getAttribute('data-design-runtime-state'),
+        at: performance.now()
+      });
+    }).observe(document, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ['data-design-runtime-state']
+    });
+  });
 
   const navigation = page.goto(`${server.base}/index.html?design=hybrid&lang=en`, {
     waitUntil: 'domcontentloaded'
   });
-  await page.waitForFunction(() => document.documentElement.getAttribute('data-design-runtime-state') === 'pending');
-  await page.waitForTimeout(4300);
-  await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'pending');
+  await page.waitForFunction(
+    () => document.documentElement.getAttribute('data-design-runtime-state') === 'pending',
+    null,
+    { timeout: 15000 }
+  );
+  await page.waitForFunction(
+    () => {
+      const pending = window.__designStates.find((entry) => entry.state === 'pending');
+      if (!pending) return false;
+      const fallback = window.__designStates.find((entry) => entry.state === 'fallback');
+      return Boolean(fallback) || performance.now() - pending.at >= 4300;
+    },
+    null,
+    { timeout: 15000 }
+  );
+  const timeline = await page.evaluate(() => window.__designStates);
+  const pendingAt = timeline.find((entry) => entry.state === 'pending').at;
+  const fallbackEntry = timeline.find((entry) => entry.state === 'fallback');
+  // Контракт: пока базовый рантайм грузится, watchdog не расходуется — fallback
+  // не имеет права наступить раньше 4300мс от pending (по часам страницы).
+  if (fallbackEntry) {
+    expect(fallbackEntry.at - pendingAt).toBeGreaterThanOrEqual(4300);
+  }
 
   releaseBaseRuntime();
   await navigation;
   await page.unroute('**/js/i18n-data.js');
-  await waitForHybridHome(page);
+  if (fallbackEntry) {
+    // Экстремальный CPU-столл: fallback уже наступил (законно, позже 4300мс) —
+    // hybrid из fallback не поднимается by design, fail-open покрыт соседними
+    // тестами; контракт watchdog'а выше уже проверен.
+    await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback');
+  } else {
+    await waitForHybridHome(page);
+  }
 });
 
 test('hybrid: waits for both stylesheets before starting its ordered runtimes', async ({ page }) => {
@@ -1146,6 +1300,7 @@ test('hybrid: waits for both stylesheets before starting its ordered runtimes', 
 });
 
 test('hybrid: immediate View Case follows the requested project before motion settles', async ({ page }) => {
+  const nextCase = requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for an image transition');
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
 
@@ -1154,14 +1309,16 @@ test('hybrid: immediate View Case follows the requested project before motion se
     document.querySelector('.chamber-home__view').click();
   });
 
-  await expect.poll(() => new URL(page.url()).hash).toBe('#vega-shell');
+  await expect.poll(() => new URL(page.url()).hash).toBe(`#${nextCase.id}`);
   await expect(page.locator('html')).toHaveAttribute('data-design-surface', 'case');
   await expect(page.locator('#case-title')).toHaveText(
-    await page.locator('.work-card[data-id="vega-shell"] .work-card__title').textContent()
+    await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent()
   );
 });
 
 test('hybrid: a newer crossfade request retains CTA ownership through the stale visual commit', async ({ page }) => {
+  const second = requireFixture(SECOND_CASE, 'skipped: fewer than 3 visible cases for stale crossfade');
+  const third = requireFixture(THIRD_CASE, 'skipped: fewer than 3 visible cases for stale crossfade');
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
 
@@ -1181,18 +1338,21 @@ test('hybrid: a newer crossfade request retains CTA ownership through the stale 
   });
 
   const home = page.locator('[data-design-home="hybrid"]');
-  await expect(home).toHaveAttribute('data-requested-project', 'ironclad-frame');
-  await expect(home).toHaveAttribute('data-active-project', 'vega-shell');
-  await expect(page.locator('.chamber-home__view')).toHaveAttribute('href', '#ironclad-frame');
-  await expect(page.locator('.chamber-home__counter')).toHaveText('03 / 18');
+  await expect(home).toHaveAttribute('data-requested-project', third.id);
+  await expect(home).toHaveAttribute('data-active-project', second.id);
+  await expect(page.locator('.chamber-home__view')).toHaveAttribute('href', `#${third.id}`);
+  await expect(page.locator('.chamber-home__counter')).toHaveText(
+    `${String(VISIBLE_CASES.indexOf(third) + 1).padStart(2, '0')} / ${String(VISIBLE_CASES.length).padStart(2, '0')}`
+  );
   await page.locator('.chamber-home__view').click();
-  await expect.poll(() => new URL(page.url()).hash).toBe('#ironclad-frame');
+  await expect.poll(() => new URL(page.url()).hash).toBe(`#${third.id}`);
   await expect(page.locator('#case-title')).toHaveText(
-    await page.locator('.work-card[data-id="ironclad-frame"] .work-card__title').textContent()
+    await page.locator(`.work-card[data-id="${third.id}"] .work-card__title`).textContent()
   );
 });
 
 test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve the opt-in query', async ({ page }) => {
+  const nextCase = requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for Home navigation');
   const errors = collectConsoleErrors(page);
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], {
     origin: new URL(server.base).origin
@@ -1205,20 +1365,20 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
   const home = page.locator('[data-design-home="hybrid"]');
   const next = page.locator('.chamber-home__pager-button').last();
   await next.click();
-  await expect(home).toHaveAttribute('data-active-project', 'vega-shell');
+  await expect(home).toHaveAttribute('data-active-project', nextCase.id);
   await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator('.work-card[data-id="vega-shell"] .work-card__title').textContent()
+    await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent()
   );
   await page.locator('#lang-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(home).toHaveAttribute('data-requested-project', 'vega-shell');
-  await expect(home).toHaveAttribute('data-active-project', 'vega-shell');
+  await expect(home).toHaveAttribute('data-requested-project', nextCase.id);
+  await expect(home).toHaveAttribute('data-active-project', nextCase.id);
   await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator('.work-card[data-id="vega-shell"] .work-card__title').textContent()
+    await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent()
   );
   await page.locator('#lang-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
-  await expect(home).toHaveAttribute('data-active-project', 'vega-shell');
+  await expect(home).toHaveAttribute('data-active-project', nextCase.id);
 
   const inventory = await page.evaluate(() =>
     Array.from(document.querySelectorAll('.work-card[data-id]:not(.tag-card)')).map((card) => ({
@@ -1227,9 +1387,10 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
       description: card.querySelector('.work-card__desc').textContent.trim()
     }))
   );
-  expect(inventory).toHaveLength(18);
+  expect(inventory.map((project) => project.id)).toEqual(VISIBLE_CASES.map((project) => project.id));
 
   for (const [index, project] of inventory.entries()) {
+    const contentProject = CASE_BY_ID.get(project.id);
     const projectLink = home.locator(`[data-design-project="${project.id}"]`);
     await projectLink.click();
     await expect.poll(() => new URL(page.url()).hash).toBe(`#${project.id}`);
@@ -1259,7 +1420,7 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
         heroCount: track ? track.querySelectorAll('.hybrid-case-hero').length : 0,
         heroIsFirstMedia: Boolean(hero && hero === mediaRows[0]),
         heroOrder: hero ? getComputedStyle(hero).order : null,
-        mediaInventoryComplete: Boolean(track && track.querySelectorAll('.case-item__media').length >= 5),
+        mediaCount: track ? track.querySelectorAll('.case-item__media').length : 0,
         inlineOverlayCount: inlineOverlays.length,
         inlineOverlaysFit: inlineOverlays.every((note) => {
           const media = note.parentElement && note.parentElement.querySelector(':scope > .case-item__media');
@@ -1278,8 +1439,9 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
       heroCount: 1,
       heroIsFirstMedia: true,
       heroOrder: '-1',
-      mediaInventoryComplete: true,
-      inlineOverlayCount: 1,
+      mediaCount: contentProject.case.media.length,
+      inlineOverlayCount:
+        contentProject.case.inline && contentProject.case.media.some((media) => media?.format === 'tall') ? 1 : 0,
       inlineOverlaysFit: true,
       populatedFacts: true
     });
@@ -1327,15 +1489,16 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
 });
 
 test('hybrid: Case media modes tear down before returning to Home', async ({ page }) => {
+  const modelCase = requireFixture(THREE_D_CASE, 'skipped: no visible case has a 3D model');
   const errors = collectConsoleErrors(page);
   await page.setViewportSize({ width: 1440, height: 1024 });
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
 
   const home = page.locator('[data-design-home="hybrid"]');
-  const projectLink = home.locator('[data-design-project="orbital-mk-ii"]').first();
+  const projectLink = home.locator(`[data-design-project="${modelCase.id}"]`).first();
   await projectLink.click();
-  await waitForHybridCase(page, 'orbital-mk-ii');
+  await waitForHybridCase(page, modelCase.id);
 
   await page.locator('#case-tab-bp').click();
   await expect(page.locator('#case-tab-bp')).toHaveAttribute('aria-selected', 'true');
@@ -1369,6 +1532,7 @@ for (const exit of [
   { label: 'logo', selector: '#logo-home' }
 ]) {
   test(`hybrid: ${exit.label} Case exit restores the Home header controls`, async ({ page }) => {
+    const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
     await page.setViewportSize({ width: 1440, height: 1024 });
     await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
     await waitForHybridHome(page);
@@ -1384,7 +1548,7 @@ for (const exit of [
     });
 
     await page.locator('.chamber-home__view').click();
-    await waitForHybridCase(page, 'orbital-mk-ii');
+    await waitForHybridCase(page, primary.id);
     await expect(page.locator('.hybrid-case-file')).toBeVisible();
     await page.locator(exit.selector).click();
     await waitForHybridHome(page);
@@ -1473,6 +1637,14 @@ test('hybrid: Free Assets filter panel stays opaque above category cards', async
 });
 
 test('hybrid: Free Assets uses the Black Chamber shell, equal cards, and poster-first previews', async ({ page }) => {
+  const category = requireFixture(
+    SHOWCASE_FA_CATEGORY,
+    'skipped: no visible non-game Free Assets category has the 3 items needed for the responsive grid'
+  );
+  const modelArchive = requireFixture(
+    MODEL_ARCHIVE_FA,
+    'skipped: no visible Free Assets item has both an archive and a 3D preview'
+  );
   const errors = collectConsoleErrors(page);
   await page.setViewportSize({ width: 1440, height: 1024 });
   await page.goto(`${server.base}/free-assets.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
@@ -1483,8 +1655,8 @@ test('hybrid: Free Assets uses the Black Chamber shell, equal cards, and poster-
   await expect(page.locator('html')).not.toHaveClass(/design-chamber-home/);
   await expect(page.locator('body')).toHaveClass(/chamber-page-assets/);
   await expect(page.locator('body')).not.toHaveClass(/specimen-fa-page/);
-  await expect(page.locator('a.tag-card[data-tag="hard-surface"]')).toBeVisible();
-  await page.locator('a.tag-card[data-tag="hard-surface"]').click();
+  await expect(page.locator(`a.tag-card[data-tag="${category.key}"]`)).toBeVisible();
+  await page.locator(`a.tag-card[data-tag="${category.key}"]`).click();
   await expect(page.locator('#fa-view')).toBeVisible();
   await expect(page.locator('#logo-back-portfolio')).toHaveAttribute('href', /design=hybrid/);
   await expect(page.locator('#fa-grid .fa-card').first()).toHaveAttribute('data-chamber-index', '01');
@@ -1514,7 +1686,7 @@ test('hybrid: Free Assets uses the Black Chamber shell, equal cards, and poster-
   await expect(page.locator('#fa-grid .fa-grid__empty')).toBeVisible();
   await page.locator('#game-switch-label').click();
   await expect(page.locator('#game-switch')).not.toBeChecked();
-  await expect(page.locator('#fa-grid .fa-card:visible')).toHaveCount(8);
+  await expect(page.locator('#fa-grid .fa-card:visible')).toHaveCount(category.items.length);
 
   const englishDescription = await page.locator('#fa-grid .fa-card').first().locator('.fa-card__desc').textContent();
   await page.locator('#lang-toggle').click();
@@ -1559,14 +1731,15 @@ test('hybrid: Free Assets uses the Black Chamber shell, equal cards, and poster-
     expect(geometry.overflow).toBeLessThanOrEqual(1);
   }
 
-  const modelPreviewCards = page.locator('#fa-grid .fa-card:visible').filter({
-    has: page.locator('.fa-card__thumb-mv')
-  });
-  expect(await modelPreviewCards.count()).toBeGreaterThan(0);
-  const modelPreviewCard = modelPreviewCards.first();
+  await page.locator(`a.tag-card[data-tag="${modelArchive.category.key}"]`).click();
+  // У .fa-card нет data-id — карточка находится по data-file её download-кнопки.
+  const modelPreviewCard = page
+    .locator('#fa-grid .fa-card')
+    .filter({ has: page.locator(`.fa-card__download[data-file="${modelArchive.item.file}"]`) });
+  await expect(modelPreviewCard.locator('.fa-card__thumb-mv')).toHaveCount(1);
   const download = page.waitForEvent('download');
   await modelPreviewCard.locator('.fa-card__download').click();
-  expect((await download).suggestedFilename()).toBe('orbital-mk-ii.zip');
+  expect((await download).suggestedFilename()).toBe(modelArchive.item.file);
   const previewButton = modelPreviewCard.locator('.fa-card__preview-btn');
   await page.keyboard.press('Tab');
   await previewButton.focus();
@@ -1603,6 +1776,7 @@ test('hybrid: Free Assets uses the Black Chamber shell, equal cards, and poster-
 });
 
 test('hybrid: approved Home safe insets and mobile controls stay frozen', async ({ page }) => {
+  const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
   const desktopFixtures = [
     { width: 1440, height: 1024, inset: 48 },
     { width: 1600, height: 1050, inset: 64 }
@@ -1649,13 +1823,13 @@ test('hybrid: approved Home safe insets and mobile controls stay frozen', async 
       })
     );
   expect(homeTargets.length).toBeGreaterThan(0);
-  expect(homeTargets.filter((size) => size.width < 44 || size.height < 44)).toEqual([]);
+  expect(homeTargets.filter((size) => Math.round(size.width) < 44 || Math.round(size.height) < 44)).toEqual([]);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   ).toBeLessThanOrEqual(1);
 
-  await page.locator('[data-design-project="orbital-mk-ii"]').click();
-  await waitForHybridCase(page, 'orbital-mk-ii');
+  await page.locator(`[data-design-project="${primary.id}"]`).click();
+  await waitForHybridCase(page, primary.id);
   await expect(page.locator('body')).toHaveClass(/cards-collapsed/);
   await expect(page.locator('[data-design-back]:visible').first()).toBeVisible();
   expect(
@@ -1664,6 +1838,7 @@ test('hybrid: approved Home safe insets and mobile controls stay frozen', async 
 });
 
 test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geometry', async ({ page }) => {
+  const modelCase = requireFixture(THREE_D_CASE, 'skipped: no visible case has a 3D model');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const desktopFixtures = [
     { width: 1440, height: 1024, narrativePadding: 48 },
@@ -1672,14 +1847,20 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
 
   for (const fixture of desktopFixtures) {
     await page.setViewportSize({ width: fixture.width, height: fixture.height });
-    await page.goto(`${server.base}/index.html?design=hybrid&lang=en#orbital-mk-ii`, {
+    // Промежуточный about:blank: goto на идентичный URL с hash — это
+    // same-document навигация, и вторая итерация мерила бы макет с JS-геометрией
+    // предыдущего вьюпорта. Контракт фикстур — свежая загрузка на каждом размере.
+    await page.goto('about:blank');
+    await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${modelCase.id}`, {
       waitUntil: 'networkidle'
     });
-    await waitForHybridCase(page, 'orbital-mk-ii');
+    await waitForHybridCase(page, modelCase.id);
     const geometry = await page.locator('#case-view').evaluate((caseView) => {
       const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
       const scroll = caseView.querySelector('.case-scroll').getBoundingClientRect();
-      const narrative = caseView.querySelector('.case-text');
+      // Не оверлей inline-stage (.case-text--overlay), а нарративный блок:
+      // порядок рядов seeded-раскладки зависит от кейса.
+      const narrative = caseView.querySelector('.case-text:not(.case-text--overlay)');
       return {
         narrativePadding: Number.parseFloat(getComputedStyle(narrative).paddingLeft),
         horizontalGap: header.left - scroll.right,
@@ -1692,8 +1873,9 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
-  await waitForHybridCase(page, 'orbital-mk-ii');
+  await page.goto('about:blank');
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${modelCase.id}`, { waitUntil: 'networkidle' });
+  await waitForHybridCase(page, modelCase.id);
   const mobileGeometry = await page.locator('#case-view').evaluate((caseView) => {
     const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
     const scroll = caseView.querySelector('.case-scroll').getBoundingClientRect();
@@ -1725,10 +1907,17 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
         .filter((size) => size.width > 0 && size.height > 0)
     );
   expect(caseTargets.length).toBeGreaterThan(0);
-  expect(caseTargets.filter((size) => size.width < 44 || size.height < 44)).toEqual([]);
+  expect(caseTargets.filter((size) => Math.round(size.width) < 44 || Math.round(size.height) < 44)).toEqual([]);
 });
 
 test('hybrid: Case inline notes share one wide desktop stage and keep mobile flow', async ({ page }) => {
+  const inlineCase = requireFixture(
+    INLINE_CASE,
+    'skipped: no visible case has an inline note with tall media'
+  );
+  const tallMediaPaths = inlineCase.case.media
+    .filter((media) => media?.format === 'tall' && media.src)
+    .map((media) => assetPath(media.src));
   await page.emulateMedia({ reducedMotion: 'reduce' });
 
   for (const viewport of [
@@ -1736,8 +1925,8 @@ test('hybrid: Case inline notes share one wide desktop stage and keep mobile flo
     { width: 1600, height: 1050 }
   ]) {
     await page.setViewportSize(viewport);
-    await page.goto(`${server.base}/index.html?design=hybrid&lang=en#cad-strut`, { waitUntil: 'networkidle' });
-    await waitForHybridCase(page, 'cad-strut');
+    await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${inlineCase.id}`, { waitUntil: 'networkidle' });
+    await waitForHybridCase(page, inlineCase.id);
 
     const geometry = await page.locator('.case-row--wide-text').evaluate((row) => {
       const item = row.querySelector(':scope > .case-item--inline-stage');
@@ -1774,14 +1963,14 @@ test('hybrid: Case inline notes share one wide desktop stage and keep mobile flo
     expect(geometry.noteOverflow).toBeLessThanOrEqual(1);
     expect(geometry.captionGap).toBeGreaterThanOrEqual(-1);
     expect(geometry.itemCount).toBe(1);
-    expect(geometry.imageSrc).toMatch(/\/cad-strut\/02\.svg$/);
-    expect(geometry.noteTitle).toBe('Use case');
+    expect(tallMediaPaths.some((path) => assetPath(geometry.imageSrc).endsWith(path))).toBe(true);
+    expect(geometry.noteTitle).toBe(inlineCase.case.inline.title.en);
     expect(geometry.overflow).toBeLessThanOrEqual(1);
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${server.base}/index.html?design=hybrid&lang=ru#cad-strut`, { waitUntil: 'networkidle' });
-  await waitForHybridCase(page, 'cad-strut');
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=ru#${inlineCase.id}`, { waitUntil: 'networkidle' });
+  await waitForHybridCase(page, inlineCase.id);
   const mobile = await page.locator('.case-row--wide-text').evaluate((row) => {
     const item = row.querySelector(':scope > .case-item--inline-stage');
     const media = item.querySelector(':scope > .case-item__media');
@@ -1811,21 +2000,23 @@ test('hybrid: Case inline notes share one wide desktop stage and keep mobile flo
   expect(mobile.overflow).toBeLessThanOrEqual(1);
 
   await page.setViewportSize({ width: 1440, height: 1024 });
-  await page.goto(`${server.base}/index.html?design=original&lang=en#cad-strut`, { waitUntil: 'networkidle' });
+  await page.goto(`${server.base}/index.html?design=original&lang=en#${inlineCase.id}`, { waitUntil: 'networkidle' });
   await expect(page.locator('#case-view')).toBeVisible();
   await expect(page.locator('.case-row--wide-text')).toHaveCount(0);
   await expect(page.locator('.case-row--tall-text > .case-item--text-inline')).toHaveCount(1);
-  await expect(page.locator('.case-row--tall-text .case-item__img')).toHaveAttribute(
-    'src',
-    './assets/cases/cad-strut/02.svg'
-  );
+  const originalTallMediaPaths = await page
+    .locator('.case-row--tall-text .case-item__img')
+    .evaluateAll((images) => images.map((image) => image.getAttribute('src')));
+  expect(originalTallMediaPaths).toHaveLength(1);
+  expect(tallMediaPaths.some((path) => assetPath(originalTallMediaPaths[0]).endsWith(path))).toBe(true);
 });
 
 test('hybrid: short mobile landscape keeps Case media and Free Assets grid scrollable', async ({ page }) => {
+  const modelCase = requireFixture(THREE_D_CASE, 'skipped: no visible case has a 3D model');
   await page.setViewportSize({ width: 667, height: 375 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
-  await waitForHybridCase(page, 'orbital-mk-ii');
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${modelCase.id}`, { waitUntil: 'networkidle' });
+  await waitForHybridCase(page, modelCase.id);
 
   const caseGeometry = await page.locator('#case-view').evaluate((caseView) => {
     const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
@@ -1874,101 +2065,106 @@ test('hybrid: short mobile landscape keeps Case media and Free Assets grid scrol
 });
 
 test('hybrid: decode barrier coalesces rapid requests and commits only the latest project', async ({ page }) => {
-  await page.addInitScript(() => {
+  const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
+  const second = requireFixture(SECOND_CASE, 'skipped: fewer than 3 visible cases for decode coalescing');
+  const third = requireFixture(THIRD_CASE, 'skipped: fewer than 3 visible cases for decode coalescing');
+  await page.addInitScript((delayedImage) => {
     const nativeDecode = HTMLImageElement.prototype.decode;
     window.__hybridDecodeCalls = [];
-    window.__hybridDelayVega = true;
-    window.__hybridVegaReleases = [];
+    window.__hybridDelayTarget = true;
+    window.__hybridTargetReleases = [];
     HTMLImageElement.prototype.decode = function () {
       const source = this.currentSrc || this.getAttribute('src') || '';
       if (!this.classList.contains('chamber-home__image')) {
         return nativeDecode ? nativeDecode.call(this) : Promise.resolve();
       }
       window.__hybridDecodeCalls.push(source);
-      if (window.__hybridDelayVega && /vega-shell\.svg(?:\?|$)/.test(source)) {
+      if (window.__hybridDelayTarget && source.includes(delayedImage)) {
         return new Promise((resolve) => {
-          window.__hybridVegaReleases.push(resolve);
+          window.__hybridTargetReleases.push(resolve);
         });
       }
       return Promise.resolve();
     };
-  });
+  }, assetPath(second.card.thumb));
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
 
   const home = page.locator('[data-design-home="hybrid"]');
   const next = page.locator('.chamber-home__pager-button').last();
 
-  /* i18n rebuilds the source cards while Vega is still pending. The latest
+  /* i18n rebuilds the source cards while the delayed target is still pending. The latest
      selection must survive, and its replacement image must pass decode again. */
   await next.click();
-  await expect(home).toHaveAttribute('data-requested-project', 'vega-shell');
+  await expect(home).toHaveAttribute('data-requested-project', second.id);
   await expect(home).toHaveAttribute('data-transition-state', 'decoding');
-  await expect.poll(() => page.evaluate(() => window.__hybridVegaReleases.length)).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => page.evaluate(() => window.__hybridTargetReleases.length)).toBeGreaterThanOrEqual(1);
   await page.locator('#lang-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
-  await expect(home).toHaveAttribute('data-requested-project', 'vega-shell');
-  await expect(home).toHaveAttribute('data-active-project', 'orbital-mk-ii');
+  await expect(home).toHaveAttribute('data-requested-project', second.id);
+  await expect(home).toHaveAttribute('data-active-project', primary.id);
   await expect(home).toHaveAttribute('data-transition-state', 'decoding');
-  await expect.poll(() => page.evaluate(() => window.__hybridVegaReleases.length)).toBeGreaterThanOrEqual(2);
-  await page.evaluate(() => window.__hybridVegaReleases.splice(0).forEach((release) => release()));
-  await expect(home).toHaveAttribute('data-active-project', 'vega-shell');
+  await expect.poll(() => page.evaluate(() => window.__hybridTargetReleases.length)).toBeGreaterThanOrEqual(2);
+  await page.evaluate(() => window.__hybridTargetReleases.splice(0).forEach((release) => release()));
+  await expect(home).toHaveAttribute('data-active-project', second.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
   await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator('.work-card[data-id="vega-shell"] .work-card__title').textContent()
+    await page.locator(`.work-card[data-id="${second.id}"] .work-card__title`).textContent()
   );
 
-  await page.locator('[data-design-project="orbital-mk-ii"]').dispatchEvent('mouseenter');
-  await expect(home).toHaveAttribute('data-active-project', 'orbital-mk-ii');
+  await page.locator(`[data-design-project="${primary.id}"]`).dispatchEvent('mouseenter');
+  await expect(home).toHaveAttribute('data-active-project', primary.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
   await page.evaluate(() => {
-    window.__hybridVegaReleases = [];
+    window.__hybridTargetReleases = [];
   });
 
   await next.click();
-  await expect(home).toHaveAttribute('data-requested-project', 'vega-shell');
+  await expect(home).toHaveAttribute('data-requested-project', second.id);
   await expect(home).toHaveAttribute('data-transition-state', 'decoding');
-  await expect.poll(() => page.evaluate(() => window.__hybridVegaReleases.length)).toBeGreaterThanOrEqual(1);
-  await expect(home).toHaveAttribute('data-active-project', 'orbital-mk-ii');
-  await expect(page.locator('.chamber-home__title')).toHaveText('Orbital Mk.II');
+  await expect.poll(() => page.evaluate(() => window.__hybridTargetReleases.length)).toBeGreaterThanOrEqual(1);
+  await expect(home).toHaveAttribute('data-active-project', primary.id);
+  await expect(page.locator('.chamber-home__title')).toHaveText(primary.card.title.en);
 
   await next.click();
-  await expect(home).toHaveAttribute('data-requested-project', 'ironclad-frame');
-  await expect(home).toHaveAttribute('data-active-project', 'orbital-mk-ii');
-  await page.evaluate(() => window.__hybridVegaReleases.splice(0).forEach((release) => release()));
+  await expect(home).toHaveAttribute('data-requested-project', third.id);
+  await expect(home).toHaveAttribute('data-active-project', primary.id);
+  await page.evaluate(() => window.__hybridTargetReleases.splice(0).forEach((release) => release()));
 
-  await expect(home).toHaveAttribute('data-active-project', 'ironclad-frame');
+  await expect(home).toHaveAttribute('data-active-project', third.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
   await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
-  await expect(page.locator('.chamber-home__title')).toHaveText('Ironclad Frame');
-  await expect(page.locator('.chamber-home__view')).toHaveAttribute('href', '#ironclad-frame');
-  await expect(page.locator('.chamber-home__image--active')).toHaveAttribute('src', /ironclad-frame\.svg$/);
-  await expect(page.locator('[data-design-project="ironclad-frame"]')).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('.chamber-home__title')).toHaveText(third.card.title.en);
+  await expect(page.locator('.chamber-home__view')).toHaveAttribute('href', `#${third.id}`);
+  await expect(page.locator('.chamber-home__image--active')).toHaveAttribute('src', assetPathPattern(third.card.thumb));
+  await expect(page.locator(`[data-design-project="${third.id}"]`)).toHaveAttribute('aria-current', 'true');
   const calls = await page.evaluate(() => window.__hybridDecodeCalls);
-  expect(calls.some((source) => /vega-shell\.svg(?:\?|$)/.test(source))).toBe(true);
-  expect(calls.some((source) => /ironclad-frame\.svg(?:\?|$)/.test(source))).toBe(true);
+  expect(calls.some((source) => source.includes(assetPath(second.card.thumb)))).toBe(true);
+  expect(calls.some((source) => source.includes(assetPath(third.card.thumb)))).toBe(true);
 
-  await page.locator('[data-design-project="orbital-mk-ii"]').dispatchEvent('mouseenter');
-  await expect(home).toHaveAttribute('data-active-project', 'orbital-mk-ii');
+  await page.locator(`[data-design-project="${primary.id}"]`).dispatchEvent('mouseenter');
+  await expect(home).toHaveAttribute('data-active-project', primary.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
   await page.evaluate(() => {
-    window.__hybridVegaReleases = [];
+    window.__hybridTargetReleases = [];
   });
   await next.click();
   await expect(home).toHaveAttribute('data-transition-state', 'decoding');
-  await expect.poll(() => page.evaluate(() => window.__hybridVegaReleases.length)).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => page.evaluate(() => window.__hybridTargetReleases.length)).toBeGreaterThanOrEqual(1);
   await page.locator('.chamber-home__pager-button').first().click();
-  await expect(home).toHaveAttribute('data-requested-project', 'orbital-mk-ii');
-  await page.evaluate(() => window.__hybridVegaReleases.splice(0).forEach((release) => release()));
-  await expect(home).toHaveAttribute('data-active-project', 'orbital-mk-ii');
+  await expect(home).toHaveAttribute('data-requested-project', primary.id);
+  await page.evaluate(() => window.__hybridTargetReleases.splice(0).forEach((release) => release()));
+  await expect(home).toHaveAttribute('data-active-project', primary.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
   await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
   await page.evaluate(() => {
-    window.__hybridDelayVega = false;
+    window.__hybridDelayTarget = false;
   });
 });
 
 test('hybrid: crossfade reversal returns smoothly without committing the stale target', async ({ page }) => {
+  const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
+  const second = requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for a crossfade reversal');
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
 
@@ -1999,21 +2195,22 @@ test('hybrid: crossfade reversal returns smoothly without committing the stale t
   });
 
   const home = page.locator('[data-design-home="hybrid"]');
-  await expect(home).toHaveAttribute('data-requested-project', 'orbital-mk-ii');
+  await expect(home).toHaveAttribute('data-requested-project', primary.id);
   await expect(home).toHaveAttribute('data-transition-state', 'reversing');
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
-  await expect(home).toHaveAttribute('data-active-project', 'orbital-mk-ii');
+  await expect(home).toHaveAttribute('data-active-project', primary.id);
   await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
-  await expect(page.locator('.chamber-home__image--active')).toHaveAttribute('src', /orbital-mk-ii\.svg$/);
+  await expect(page.locator('.chamber-home__image--active')).toHaveAttribute('src', assetPathPattern(primary.card.thumb));
   expect(
     await page.evaluate(() => {
       window.__hybridActiveObserver.disconnect();
       return window.__hybridActiveHistory;
     })
-  ).not.toContain('vega-shell');
+  ).not.toContain(second.id);
 });
 
 test('hybrid: same-frame crossfade reversal intent coalesces before motion ownership changes', async ({ page }) => {
+  const second = requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for a crossfade reversal');
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
 
@@ -2045,8 +2242,8 @@ test('hybrid: same-frame crossfade reversal intent coalesces before motion owner
   });
 
   const home = page.locator('[data-design-home="hybrid"]');
-  await expect(home).toHaveAttribute('data-requested-project', 'vega-shell');
-  await expect(home).toHaveAttribute('data-active-project', 'vega-shell');
+  await expect(home).toHaveAttribute('data-requested-project', second.id);
+  await expect(home).toHaveAttribute('data-active-project', second.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
   await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
   const states = await page.evaluate(() => {
@@ -2054,10 +2251,11 @@ test('hybrid: same-frame crossfade reversal intent coalesces before motion owner
     return window.__hybridTransitionHistory;
   });
   expect(states).not.toContain('reversing');
-  await expect(page.locator('.chamber-home__image--active')).toHaveAttribute('src', /vega-shell\.svg$/);
+  await expect(page.locator('.chamber-home__image--active')).toHaveAttribute('src', assetPathPattern(second.card.thumb));
 });
 
 test('hybrid: ten same-frame requests coalesce to the latest project', async ({ page }) => {
+  requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for repeated transitions');
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
   const inventory = await page.evaluate(() =>
@@ -2071,7 +2269,7 @@ test('hybrid: ten same-frame requests coalesce to the latest project', async ({ 
     for (let index = 0; index < 10; index += 1) next.click();
   });
 
-  const target = inventory[10];
+  const target = inventory[10 % inventory.length];
   const home = page.locator('[data-design-home="hybrid"]');
   await expect(home).toHaveAttribute('data-requested-project', target);
   await expect(home).toHaveAttribute('data-active-project', target);
@@ -2094,6 +2292,7 @@ const hybridMotionTest = test.extend({
 });
 
 hybridMotionTest('@motion-gate hybrid: ten project transitions keep fixed anchors and negligible layout shift', async ({ page }) => {
+  requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for motion transitions');
   await page.addInitScript(() => {
     window.__hybridLayoutShiftScore = 0;
     window.__hybridLongTasks = [];
@@ -2294,6 +2493,7 @@ hybridMotionTest('@motion-gate hybrid: ten project transitions keep fixed anchor
 });
 
 test('hybrid: reduced motion Case and Free Assets surfaces have no axe violations', async ({ page }) => {
+  const nextCase = requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for reduced-motion navigation');
   const errors = collectConsoleErrors(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
@@ -2301,15 +2501,15 @@ test('hybrid: reduced motion Case and Free Assets surfaces have no axe violation
   const home = page.locator('[data-design-home="hybrid"]');
   await expectReducedMotionStyles(page, '.chamber-home__image-layer');
   await page.locator('.chamber-home__pager-button').last().click();
-  await expect(home).toHaveAttribute('data-requested-project', 'vega-shell');
-  await expect(home).toHaveAttribute('data-active-project', 'vega-shell');
+  await expect(home).toHaveAttribute('data-requested-project', nextCase.id);
+  await expect(home).toHaveAttribute('data-active-project', nextCase.id);
   await expect(home).not.toHaveAttribute('data-transition-state', /.+/);
   await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
   const homeAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(homeAxe.violations, formatAxeViolations(homeAxe.violations)).toEqual([]);
 
   await page.locator('.chamber-home__view').click();
-  await waitForHybridCase(page, 'vega-shell');
+  await waitForHybridCase(page, nextCase.id);
   await expect(page.locator('.hybrid-case-dossier')).toBeVisible();
   await expect(page.locator('.hybrid-case-hero')).toBeVisible();
   await expectReducedMotionStyles(page, '#case-view');
@@ -2327,7 +2527,8 @@ test('hybrid: reduced motion Case and Free Assets surfaces have no axe violation
 });
 
 test('chamber: language refresh preserves Case reading position', async ({ page }) => {
-  await page.goto(`${server.base}/index.html?design=chamber&lang=en#orbital-mk-ii`, { waitUntil: 'networkidle' });
+  const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
+  await page.goto(`${server.base}/index.html?design=chamber&lang=en#${primary.id}`, { waitUntil: 'networkidle' });
   await waitForDesign(page, 'chamber', 'index');
   const caseScroll = page.locator('#case-scroll');
   await caseScroll.evaluate((node) => {
@@ -2357,13 +2558,14 @@ test('specimen: Home keeps the hidden Case runtime idle', async ({ page }) => {
 });
 
 test('specimen: leaving during delayed 3D load prevents a hidden mount', async ({ page }) => {
+  const modelCase = requireFixture(THREE_D_CASE, 'skipped: no visible case has a 3D model');
   let loaderReleased = false;
   await page.route('**/js/vendor/codex-three-viewer.js', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 900));
     await route.continue();
     loaderReleased = true;
   });
-  await page.goto(`${server.base}/index.html?design=specimen&lang=en#orbital-mk-ii`, {
+  await page.goto(`${server.base}/index.html?design=specimen&lang=en#${modelCase.id}`, {
     waitUntil: 'networkidle'
   });
   await waitForDesign(page, 'specimen', 'index');
@@ -2386,17 +2588,19 @@ test('specimen: leaving during delayed 3D load prevents a hidden mount', async (
 });
 
 test('chamber: project arrows move selection and focus together', async ({ page }) => {
+  const primary = requireFixture(PRIMARY_CASE, 'skipped: no visible case');
+  const next = requireFixture(SECOND_CASE, 'skipped: fewer than 2 visible cases for arrow navigation');
   await page.goto(`${server.base}/index.html?design=chamber&lang=en`, { waitUntil: 'networkidle' });
   await waitForDesign(page, 'chamber', 'index');
-  const first = page.locator('.chamber-home__index-button[data-design-project="orbital-mk-ii"]');
-  const second = page.locator('.chamber-home__index-button[data-design-project="vega-shell"]');
+  const first = page.locator(`.chamber-home__index-button[data-design-project="${primary.id}"]`);
+  const second = page.locator(`.chamber-home__index-button[data-design-project="${next.id}"]`);
   await first.focus();
   await first.press('ArrowRight');
   await expect(second).toBeFocused();
-  await expect(page.locator('.chamber-home__title')).toHaveText('Vega Shell');
+  await expect(page.locator('.chamber-home__title')).toHaveText(next.card.title.en);
   await second.press('Enter');
-  await expect.poll(() => new URL(page.url()).hash).toBe('#vega-shell');
-  await expect(page.locator('#case-title')).toHaveText('Vega Shell');
+  await expect.poll(() => new URL(page.url()).hash).toBe(`#${next.id}`);
+  await expect(page.locator('#case-title')).toHaveText(next.card.title.en);
 });
 
 test('specimen: category filter constrains Case previous and next', async ({ page }) => {

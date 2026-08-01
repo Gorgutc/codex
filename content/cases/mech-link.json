@@ -43,62 +43,90 @@
       "textures": "Procedural (PBR)",
       "software": "Fusion 360 + Blender"
     },
-    "palette": [
-      "linear-gradient(135deg,#1d232a 0%,#2a3138 100%)",
-      "linear-gradient(135deg,#1a2027 0%,#262d34 100%)",
-      "linear-gradient(135deg,#171d24 0%,#222930 100%)",
-      "linear-gradient(135deg,#141a21 0%,#1e252c 100%)",
-      "linear-gradient(135deg,#11171e 0%,#1a2128 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Assembly overview",
-          "ru": "Обзор сборки"
-        },
-        "desc": {
-          "en": "Industrial link chain assembly. Parametric pin-joint system sourced from CAD.",
-          "ru": "Промышленная link-цепь. Параметрическая pin-joint сборка из CAD."
+        "src": "./assets/cases/mech-link/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1d232a 0%,#2a3138 100%)",
+        "caption": {
+          "label": {
+            "en": "Assembly overview",
+            "ru": "Обзор сборки"
+          },
+          "desc": {
+            "en": "Industrial link chain assembly. Parametric pin-joint system sourced from CAD.",
+            "ru": "Промышленная link-цепь. Параметрическая pin-joint сборка из CAD."
+          }
         }
       },
       {
-        "label": {
-          "en": "Bracket detail",
-          "ru": "Деталь кронштейна"
-        },
-        "desc": {
-          "en": "Bolt-pattern close-up. Retopology pass prepared for manufacturing review.",
-          "ru": "Крупный план bolt-pattern. Retopology-пасс подготовлен для manufacturing-review."
+        "src": "./assets/cases/mech-link/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a2027 0%,#262d34 100%)",
+        "caption": {
+          "label": {
+            "en": "Bracket detail",
+            "ru": "Деталь кронштейна"
+          },
+          "desc": {
+            "en": "Bolt-pattern close-up. Retopology pass prepared for manufacturing review.",
+            "ru": "Крупный план bolt-pattern. Retopology-пасс подготовлен для manufacturing-review."
+          }
         }
       },
       {
-        "label": {
-          "en": "Motion study",
-          "ru": "Исследование движения"
-        },
-        "desc": {
-          "en": "Range-of-motion sketch for the pivoting arm. Constraint solver preview.",
-          "ru": "Скетч range-of-motion для pivoting-arm. Preview constraint-solver."
+        "src": "./assets/cases/mech-link/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#171d24 0%,#222930 100%)",
+        "caption": {
+          "label": {
+            "en": "Motion study",
+            "ru": "Исследование движения"
+          },
+          "desc": {
+            "en": "Range-of-motion sketch for the pivoting arm. Constraint solver preview.",
+            "ru": "Скетч range-of-motion для pivoting-arm. Preview constraint-solver."
+          }
         }
       },
       {
-        "label": {
-          "en": "Exploded view",
-          "ru": "Exploded view"
-        },
-        "desc": {
-          "en": "Parts diagram for manufacture planning. Tolerances marked in source DWG.",
-          "ru": "Диаграмма деталей под производственное планирование. Допуски размечены в исходном DWG."
+        "src": "./assets/cases/mech-link/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#141a21 0%,#1e252c 100%)",
+        "caption": {
+          "label": {
+            "en": "Exploded view",
+            "ru": "Exploded view"
+          },
+          "desc": {
+            "en": "Parts diagram for manufacture planning. Tolerances marked in source DWG.",
+            "ru": "Диаграмма деталей под производственное планирование. Допуски размечены в исходном DWG."
+          }
         }
       },
       {
-        "label": {
-          "en": "Material preview",
-          "ru": "Превью материала"
-        },
-        "desc": {
-          "en": "KeyShot pass — brushed steel and anodized aluminium swatches.",
-          "ru": "KeyShot-пасс — brushed steel и anodized aluminium-сэмплы."
+        "src": "./assets/cases/mech-link/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#11171e 0%,#1a2128 100%)",
+        "caption": {
+          "label": {
+            "en": "Material preview",
+            "ru": "Превью материала"
+          },
+          "desc": {
+            "en": "KeyShot pass — brushed steel and anodized aluminium swatches.",
+            "ru": "KeyShot-пасс — brushed steel и anodized aluminium-сэмплы."
+          }
         }
       }
     ],

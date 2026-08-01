@@ -43,62 +43,90 @@
       "textures": "Procedural (PBR)",
       "software": "Fusion 360 + Blender"
     },
-    "palette": [
-      "linear-gradient(135deg,#21272d 0%,#2e353c 100%)",
-      "linear-gradient(135deg,#1d232a 0%,#2a3138 100%)",
-      "linear-gradient(135deg,#1a2027 0%,#262c33 100%)",
-      "linear-gradient(135deg,#171d24 0%,#222930 100%)",
-      "linear-gradient(135deg,#141a21 0%,#1e252c 100%)"
-    ],
-    "captions": [
+    "media": [
       {
-        "label": {
-          "en": "Spine assembly",
-          "ru": "Сборка позвоночника"
-        },
-        "desc": {
-          "en": "Kinematic spine assembly. Parametric ribs driven by a single driver angle.",
-          "ru": "Кинематическая ось. Параметрические рёбра управляются одним driver-углом."
+        "src": "./assets/cases/flex-spine/01.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#21272d 0%,#2e353c 100%)",
+        "caption": {
+          "label": {
+            "en": "Spine assembly",
+            "ru": "Сборка позвоночника"
+          },
+          "desc": {
+            "en": "Kinematic spine assembly. Parametric ribs driven by a single driver angle.",
+            "ru": "Кинематическая ось. Параметрические рёбра управляются одним driver-углом."
+          }
         }
       },
       {
-        "label": {
-          "en": "Rib section",
-          "ru": "Сечение ребра"
-        },
-        "desc": {
-          "en": "Section-cut through one rib — thickness and fillet radii exposed as parameters.",
-          "ru": "Section-cut через одно ребро — толщина и радиусы фасок выведены как параметры."
+        "src": "./assets/cases/flex-spine/02.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1d232a 0%,#2a3138 100%)",
+        "caption": {
+          "label": {
+            "en": "Rib section",
+            "ru": "Сечение ребра"
+          },
+          "desc": {
+            "en": "Section-cut through one rib — thickness and fillet radii exposed as parameters.",
+            "ru": "Section-cut через одно ребро — толщина и радиусы фасок выведены как параметры."
+          }
         }
       },
       {
-        "label": {
-          "en": "Deflection test",
-          "ru": "Deflection study"
-        },
-        "desc": {
-          "en": "FEA sketch — deflection map under 50 N lateral load, prepared for design review.",
-          "ru": "FEA-скетч — deflection map под 50 N боковой нагрузки для design-review."
+        "src": "./assets/cases/flex-spine/03.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a2027 0%,#262c33 100%)",
+        "caption": {
+          "label": {
+            "en": "Deflection test",
+            "ru": "Deflection study"
+          },
+          "desc": {
+            "en": "FEA sketch — deflection map under 50 N lateral load, prepared for design review.",
+            "ru": "FEA-скетч — deflection map под 50 N боковой нагрузки для design-review."
+          }
         }
       },
       {
-        "label": {
-          "en": "Joint detail",
-          "ru": "Деталь сустава"
-        },
-        "desc": {
-          "en": "Ball-and-socket joint close-up. Tolerance stack-up listed in source PDF.",
-          "ru": "Крупный план ball-and-socket. Tolerance stack-up расписан в исходном PDF."
+        "src": "./assets/cases/flex-spine/04.svg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#171d24 0%,#222930 100%)",
+        "caption": {
+          "label": {
+            "en": "Joint detail",
+            "ru": "Деталь сустава"
+          },
+          "desc": {
+            "en": "Ball-and-socket joint close-up. Tolerance stack-up listed in source PDF.",
+            "ru": "Крупный план ball-and-socket. Tolerance stack-up расписан в исходном PDF."
+          }
         }
       },
       {
-        "label": {
-          "en": "Render study",
-          "ru": "Этюд рендера"
-        },
-        "desc": {
-          "en": "KeyShot pass — matte steel against cool grey backdrop.",
-          "ru": "KeyShot-пасс — matte-steel на cool-grey фоне."
+        "src": "./assets/cases/flex-spine/05.svg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#141a21 0%,#1e252c 100%)",
+        "caption": {
+          "label": {
+            "en": "Render study",
+            "ru": "Этюд рендера"
+          },
+          "desc": {
+            "en": "KeyShot pass — matte steel against cool grey backdrop.",
+            "ru": "KeyShot-пасс — matte-steel на cool-grey фоне."
+          }
         }
       }
     ],
