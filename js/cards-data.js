@@ -16,8 +16,7 @@ window.CARDS_DATA = {
     role: 'Client',
     tools: [
       'Blender',
-      'Substance Painter',
-      'DaVinci Resolve'
+      'Substance Painter'
     ],
     modelSrc: './assets/models/corten-series.glb',
     modelStats: {
@@ -32,7 +31,7 @@ window.CARDS_DATA = {
         {
           type: 'image',
           format: 'wide',
-          src: './assets/cases/corten-series/01.svg',
+          src: './assets/cases/corten-series/01-e4a28f4d.png',
           bg: 'linear-gradient(135deg,#2a2018 0%,#3a2e22 100%)',
           label: 'Studio render',
           desc: 'Product viz for an industrial furniture brand. Corten steel material, HDR studio lighting.',
