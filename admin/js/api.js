@@ -133,6 +133,32 @@
     return { login: user.login, avatarUrl: user.avatar_url || '' };
   }
 
+  /* Доступен ли OAuth-контур на этом хостинге.
+     Панель раздаётся и с Netlify (функции есть), и с Beget (статика — функций
+     нет, и «Войти через GitHub» открывает popup с 404). Вход по PAT штатный и
+     задокументирован, поэтому на статике кнопку просто не показываем.
+
+     Проба: GET без параметров. На Netlify функция отвечает 302 на github.com —
+     с redirect:'manual' fetch отдаёт opaqueredirect (status 0) и НИКУДА не
+     ходит, OAuth-флоу не стартует. Если секреты не заданы, функция отдаёт 400 —
+     контур всё равно есть, кнопка нужна (владелец увидит внятную ошибку).
+     На статике — 404. Правило: недоступен ТОЛЬКО при явном 404.
+     Fail-open: сетевая ошибка оставляет кнопку (не ломаем Netlify-контур). */
+  const OAUTH_FUNCTION_PATH = '/.netlify/functions/cms-auth';
+
+  async function probeOAuthAvailable() {
+    try {
+      const res = await fetch(OAUTH_FUNCTION_PATH, {
+        method: 'GET',
+        redirect: 'manual',
+        cache: 'no-store'
+      });
+      return res.status !== 404;
+    } catch (_e) {
+      return true;
+    }
+  }
+
   // OAuth web flow через Netlify Function: popup → postMessage с токеном.
   function loginWithGitHub() {
     return new Promise((resolve, reject) => {
@@ -193,6 +219,65 @@
   //                                       конвейера минутами позже — удаление
   //                                       открыло бы окно 404 }
   // Для совместимости принимается и старый формат — просто массив files.
+  //
+  // Слайс B (TOCTOU): каждый текстовый файл плана несёт expectedSha — sha блоба,
+  // от которого редактировали (publishPrecheck обновляет его прямо перед
+  // сборкой плана). Между precheck'ом и созданием дерева main мог уехать:
+  // второй админ, ручной коммит или bot-коммит конвейера. base_tree новый
+  // коммит берёт от head, поэтому наш блоб МОЛЧА затёр бы чужую правку —
+  // ref-update при этом остался бы fast-forward и не сработал бы. Поэтому
+  // сверяем sha на head ДО создания хоть одного блоба и отказываемся без
+  // коммита; заслон non-fast-forward ниже остаётся вторым рубежом.
+  // sha блоба по пути на КОНКРЕТНОМ коммите. 404 — это ответ («файла нет»),
+  // а не сбой: их надо различать, иначе оборванная сеть диагностируется как
+  // «файл изменился» и владелец идёт чинить несуществующую гонку.
+  async function blobShaAt(path, headSha) {
+    try {
+      const data = await api(REPO_BASE + '/contents/' + path + '?ref=' + headSha);
+      return { known: true, sha: (data && data.sha) || null };
+    } catch (error) {
+      if (error && error.status === 404) return { known: true, sha: null };
+      return { known: false, error };
+    }
+  }
+
+  function staleError(message) {
+    const stale = new Error(message);
+    stale.code = 'stale-blob';
+    return stale;
+  }
+
+  async function assertPlanFresh(files, binaries, headSha) {
+    for (const file of files) {
+      if (!file.expectedSha) continue;
+      const actual = await blobShaAt(file.path, headSha);
+      if (!actual.known) {
+        const failed = new Error(
+          'Не удалось проверить состояние ' + file.path + ' на сервере — публикация отменена, повторите попытку.'
+        );
+        failed.code = 'precheck-unavailable';
+        throw failed;
+      }
+      if (actual.sha !== file.expectedSha) {
+        throw staleError('Файл ' + file.path + ' изменился на сервере — обновите страницу.');
+      }
+    }
+    for (const binary of binaries) {
+      if (!binary.expectedAbsent) continue;
+      const actual = await blobShaAt(binary.path, headSha);
+      if (!actual.known) {
+        const failed = new Error(
+          'Не удалось проверить состояние ' + binary.path + ' на сервере — публикация отменена, повторите попытку.'
+        );
+        failed.code = 'precheck-unavailable';
+        throw failed;
+      }
+      if (actual.sha !== null) {
+        throw staleError('Медиафайл ' + binary.path + ' уже существует на сервере — обновите страницу.');
+      }
+    }
+  }
+
   async function publish(payload, message) {
     const plan = Array.isArray(payload) ? { files: payload } : payload || {};
     const files = plan.files || [];
@@ -201,6 +286,7 @@
 
     const ref = await api(REPO_BASE + '/git/ref/heads/' + BRANCH);
     const headSha = ref.object.sha;
+    await assertPlanFresh(files, binaries, headSha);
     const headCommit = await api(REPO_BASE + '/git/commits/' + headSha);
 
     const tree = [];
@@ -304,6 +390,7 @@
     setSession,
     clearSession,
     validateToken,
+    probeOAuthAvailable,
     loginWithGitHub,
     fetchFile,
     publish,

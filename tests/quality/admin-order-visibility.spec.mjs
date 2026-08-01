@@ -48,7 +48,7 @@ async function loginWithPat(page) {
 // сначала ждём появления нужного состояния, затем читаем снапшот.
 async function waitDrafts(page, predicate, arg) {
   await page.waitForFunction(predicate, arg);
-  return page.evaluate(() => JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}'));
+  return page.evaluate(() => (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {}));
 }
 
 test('выключение кейса: мгновенное затемнение, бейдж «скрыто», черновик', async ({ page }) => {
@@ -64,7 +64,7 @@ test('выключение кейса: мгновенное затемнение
   await expect(row.locator('.switch input')).not.toBeChecked();
   await expect(page.locator('#draft-indicator')).toBeVisible();
   await page.waitForFunction(() => {
-    const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     const draft = drafts['content/cases/vega-shell.json'];
     return !!draft && draft.enabled === false;
   });
@@ -97,7 +97,7 @@ test('перестановка кнопками ↑/↓ меняет cardOrder; 
   await expect(page.locator('.case-row').first()).toHaveAttribute('data-case-id', secondId);
   await expect(page.locator('.case-row').nth(1)).toHaveAttribute('data-case-id', firstId);
   const drafts = await waitDrafts(page, () => {
-    const store = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    const store = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     return !!store['content/settings.json'];
   });
   expect(drafts[SETTINGS_PATH].cardOrder[0]).toBe(secondId);
@@ -141,7 +141,7 @@ test('ручной layoutMode: переключатель открывает п�
   await expect(page.locator('#motion-list .reorder-handle')).toHaveCount(motionJson.length);
   await expect(page.locator('#layout-section')).toContainText('Ручной порядок включён');
   await page.waitForFunction(() => {
-    const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     const draft = drafts['content/cases/orbital-mk-ii.json'];
     return !!draft && draft.layoutMode === 'manual';
   });
@@ -158,7 +158,7 @@ test('ручной layoutMode: переключатель открывает п�
   const drafts = await waitDrafts(
     page,
     (expectedSrc) => {
-      const store = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+      const store = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
       const draft = store['content/cases/orbital-mk-ii.json'];
       return !!draft && Array.isArray(draft.case.media) && draft.case.media[1].src === expectedSrc;
     },
@@ -179,7 +179,7 @@ test('ручной layoutMode: переключатель открывает п�
   const drafts2 = await waitDrafts(
     page,
     (expectedPlayback) => {
-      const store = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+      const store = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
       const draft2 = store['content/cases/orbital-mk-ii.json'];
       return !!draft2 && draft2.case.motionBlocks[0].playback === expectedPlayback;
     },
@@ -204,7 +204,12 @@ test('guard: последний видимый кейс выключить не�
     seeded['content/cases/' + id + '.json'] = draft;
   }
   await page.addInitScript((store) => {
-    sessionStorage.setItem('codexAdminDrafts', JSON.stringify(store));
+    // baseShas: провенанс черновика. ensureFile принимает восстановленный
+    // черновик, только если он снят с ТОЙ ЖЕ версии файла; мок Contents
+    // API отдаёт sha вида `sha-<path>`.
+    const baseShas = {};
+    for (const key of Object.keys(store)) baseShas[key] = 'sha-' + key;
+    sessionStorage.setItem('codexAdminDrafts', JSON.stringify({ version: 2, files: store, baseShas }));
   }, seeded);
   await loginWithPat(page);
 
@@ -240,7 +245,7 @@ test('категории: выключение скрывает кейсы с б
   await expect(cadCase.locator('.switch input')).toBeChecked();
 
   const drafts = await waitDrafts(page, () => {
-    const store = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    const store = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     return !!store['content/settings.json'];
   });
   const cadFilter = drafts[SETTINGS_PATH].filters.find((f) => f.key === 'cad');

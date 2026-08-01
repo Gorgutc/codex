@@ -122,6 +122,29 @@ check(
   'package: codex:ship includes Design Lab gate',
   /\btest:design-lab\b/.test(packageJson.scripts['codex:ship'] || '')
 );
+/* Slice B: the admin panel is the only way the owner writes content, and its
+ * publish path now carries the TOCTOU guard, the draft-envelope migration and
+ * the case-media structure editor. Those suites used to live only in
+ * `test:admin`, which CI never ran (the workflow runs `codex:ship` alone), so a
+ * regression there reached main green. Both the admin suite and the case-media
+ * runtime gate are part of the ship gate now, and the roster is pinned here so
+ * a new spec cannot be added to `test:admin` and silently skipped by CI. */
+check(
+  'package: codex:ship includes the admin panel gate',
+  /\btest:admin\b/.test(packageJson.scripts['codex:ship'] || '')
+);
+check(
+  'package: admin gate lists the case-media editor spec',
+  /tests\/quality\/admin-case-media\.spec\.mjs/.test(packageJson.scripts['test:admin'] || '')
+);
+check(
+  'package: codex:ship includes the case-media runtime gate',
+  /\btest:case-media\b/.test(packageJson.scripts['codex:ship'] || '')
+);
+check(
+  'package: case-media runtime gate is explicit',
+  packageJson.scripts['test:case-media'] === 'playwright test tests/quality/case-media-runtime.spec.mjs'
+);
 check(
   'package: visual snapshots stay out of fast hooks',
   !/\btest:visual\b/.test(packageJson.scripts['quality:fast'] || '')

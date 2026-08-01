@@ -297,6 +297,10 @@
       // должна навсегда убивать элемент с его play/pause-контролом
       // (кросс-ревью F2).
       if (t.closest && t.closest('.case-motion')) return;
+      // Слайс B: ленивые видео-слоты case.media исключены по той же причине,
+      // что и motion-видео — src подставляется по видимости, и транзиентная
+      // сетевая ошибка не должна навсегда удалять блок из кейса.
+      if (t.hasAttribute && t.hasAttribute('data-case-media-src')) return;
       if (t.classList.contains('case-item__img') || t.classList.contains('case-item__video')) {
         t.remove();
       }
@@ -328,6 +332,8 @@
   var currentLightDdDocKey   = null;       // v0.7.3 — global keydown listener для Escape (cleanup в destroy3D)
   var pendingScrollReset = false;          // v0.10.2 — отложенный сброс scrollTop на 0
   var caseMotionObserver = null;           // lazy local/Vimeo motion blocks inside 2D case view
+  var caseMediaVideoObserver = null;       // lazy video slots of case.media inside 2D case view
+  var caseMediaGeneration = 0;             // bumped on teardown: stale observer callbacks stay inert
   // v0.8.2: currentCategory удалён — переменная только писалась внутри
   // applyFilters и сразу же шла в evt.detail. Поле detail.category
   // оставлено для обратной совместимости публичного API codex:filter.
@@ -679,8 +685,20 @@
       // зеркало <img>-ветки: wide 1600×900 / tall 600×800.
       var vw = format === 'wide' ? 1600 : 600;
       var vh = format === 'wide' ? 900  : 800;
-      h += '<video class="case-item__video" src="' + src + '" width="' + vw + '" height="' + vh + '" autoplay muted loop playsinline ';
-      if (item.poster) h += 'poster="' + escapeHTML(item.poster) + '" ';
+      // Слайс B: видео-слот больше НЕ грузится безусловным autoplay-атрибутом.
+      // Он повторяет ленивую механику motion-блоков: preload="none", src едет в
+      // data-case-media-src и подставляется только когда слот реально попал в
+      // видимую область (initCaseMediaVideos), а закрытие кейса/уход на 3D
+      // ставит его на паузу. Класс .case-motion НЕ используется намеренно —
+      // его анатомию пинят проверки CASE-motion-* в verify-frozen.js.
+      // Постер — нативный атрибут <video>, а не отдельный <img>: галерея
+      // лайтбокса собирает img внутри [data-gallery], и постер-картинка попала
+      // бы в неё как «слайд».
+      var videoSrc = safeCaseAssetPath(item.src);
+      var videoPoster = safeCaseAssetPath(item.poster);
+      h += '<video class="case-item__video" width="' + vw + '" height="' + vh + '" muted loop playsinline preload="none" ';
+      if (videoSrc) h += 'data-case-media-src="' + escapeHTML(videoSrc) + '" ';
+      if (videoPoster) h += 'poster="' + escapeHTML(videoPoster) + '" ';
       h += 'aria-label="' + label + '"></video>';
     } else if (!isVideo && item.src) {
       // v0.20.0 — gallery img триггерит fullscreen viewer. tabindex+role+aria
@@ -903,6 +921,93 @@
     });
   }
 
+  /* ─── Слайс B: видео-слоты case.media ───────────────────────────────
+     Те же примитивы, что и у motion-блоков (lazy src + IntersectionObserver +
+     teardown), но своя пара функций и свой observer: у motion-блоков есть
+     poster-слой, play/pause-контрол и Vimeo-ветка, а их DOM-анатомию пинят
+     проверки CASE-motion-* в verify-frozen.js — обобщение поменяло бы их
+     поведение. Селектор ведётся по data-case-media-src, которого у
+     motion-видео (data-motion-src) нет, поэтому пересечения невозможны. */
+  function caseMediaVideos() {
+    return Array.prototype.slice.call(
+      caseTrack ? caseTrack.querySelectorAll('video.case-item__video[data-case-media-src]') : []
+    );
+  }
+  function playCaseMediaVideo(video) {
+    if (!video.getAttribute('src')) {
+      var src = video.getAttribute('data-case-media-src');
+      if (!src) return;
+      video.setAttribute('src', src);
+      try { video.load(); } catch (_) { /* no-op */ }
+    }
+    var playPromise = video.play && video.play();
+    if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(function () {});
+  }
+  function initCaseMediaVideos() {
+    stopCaseMediaVideos();
+    var videos = caseMediaVideos();
+    if (!videos.length) return;
+    // reduced-motion: ролик остаётся постером и НЕ грузит байты сам —
+    // нативные controls тут не рисуются, слот статичен по требованию системы.
+    if (prefersReducedMotion()) return;
+    if (!('IntersectionObserver' in window)) {
+      videos.forEach(playCaseMediaVideo);
+      return;
+    }
+    // Observer захватывается ЛОКАЛЬНО, а не читается из глобальной переменной
+    // в колбэке: между постановкой на наблюдение и срабатыванием кейс успевает
+    // пересобраться (innerHTML-своп) или закрыться, и глобальная переменная
+    // уже указывала бы на чужой observer (или на null). Поколение отсекает
+    // отложенные колбэки старой сборки.
+    var generation = ++caseMediaGeneration;
+    var observer = new IntersectionObserver(function (entries) {
+      if (generation !== caseMediaGeneration) {
+        observer.disconnect();
+        return;
+      }
+      // Условия могли измениться ПОСЛЕ постановки на наблюдение: ушли с 2D,
+      // владелец включил экономию движения в системе.
+      if (currentViz !== '2d' || prefersReducedMotion()) return;
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        observer.unobserve(entry.target);
+        if (!caseTrack || !caseTrack.contains(entry.target)) return;
+        playCaseMediaVideo(entry.target);
+      });
+    }, { root: caseScroll || null, rootMargin: '280px 0px', threshold: 0.01 });
+    caseMediaVideoObserver = observer;
+    videos.forEach(function (video) { observer.observe(video); });
+  }
+  function stopCaseMediaVideos() {
+    // Поколение растёт на КАЖДОМ teardown: колбэки уже поставленных в очередь
+    // пересечений после этого ничего не запускают.
+    caseMediaGeneration++;
+    if (caseMediaVideoObserver && typeof caseMediaVideoObserver.disconnect === 'function') {
+      caseMediaVideoObserver.disconnect();
+    }
+    caseMediaVideoObserver = null;
+    caseMediaVideos().forEach(function (video) {
+      try { video.pause(); } catch (_) { /* no-op */ }
+    });
+  }
+  // Системная настройка может смениться при ОТКРЫТОМ кейсе: тогда играющий
+  // слот надо не только остановить, но и отцепить от источника — иначе он
+  // продолжит тянуть байты в буфер уже после включения экономии движения.
+  (function bindCaseMediaReducedMotion() {
+    if (!window.matchMedia) return;
+    var query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    function onReducedMotionChange() {
+      if (!query.matches) return;
+      stopCaseMediaVideos();
+      caseMediaVideos().forEach(function (video) {
+        video.removeAttribute('src');
+        try { video.load(); } catch (_) { /* no-op */ }
+      });
+    }
+    if (typeof query.addEventListener === 'function') query.addEventListener('change', onReducedMotionChange);
+    else if (typeof query.addListener === 'function') query.addListener(onReducedMotionChange);
+  })();
+
   // Design Lab variants keep the Case DOM mounted while their Home is visible.
   // Expose a narrow lifecycle boundary so hidden Vimeo/video/WebGL work cannot
   // continue, and so reopening the same hash can resume 2D media even when the
@@ -911,6 +1016,7 @@
     leaveFullscreenRuntime();
     if (currentViz !== '2d') setViz('2d');
     stopCaseMotionBlocks();
+    stopCaseMediaVideos();
     Array.prototype.slice.call(caseTrack ? caseTrack.querySelectorAll('video') : []).forEach(function (video) {
       try { video.pause(); } catch (_) { /* no-op */ }
     });
@@ -922,12 +1028,10 @@
   function resumeCaseRuntime() {
     if (currentViz !== '2d') return;
     initCaseMotionBlocks();
-    if (prefersReducedMotion()) return;
-    Array.prototype.slice.call(caseTrack ? caseTrack.querySelectorAll('video[autoplay]:not(.case-motion__video)') : [])
-      .forEach(function (video) {
-        var playPromise = video.play && video.play();
-        if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(function () {});
-      });
+    // Слайс B: возобновление видео-слотов идёт через тот же ленивый путь, что и
+    // первичная сборка — прежняя ветка искала video[autoplay], которого у слотов
+    // больше нет (src подставляется по видимости, а не в разметке).
+    initCaseMediaVideos();
   }
 
   /* Full-width text block (intro) — v0.9: eyebrow + meta (role / year / tools)
@@ -990,8 +1094,8 @@
   function rowTall1(media, eager) {
     return '<div class="case-row case-row--tall-1">' + mediaItemHTML(media, eager) + '</div>';
   }
-  function rowTall2(a, b, eager) {
-    return '<div class="case-row case-row--tall-2">' + mediaItemHTML(a, eager) + mediaItemHTML(b) + '</div>';
+  function rowTall2(a, b, eagerA, eagerB) {
+    return '<div class="case-row case-row--tall-2">' + mediaItemHTML(a, eagerA) + mediaItemHTML(b, eagerB) + '</div>';
   }
   function inlineTextHTML(text, modifier) {
     var classes = 'case-text case-text--inline';
@@ -1000,6 +1104,21 @@
     h +=     '<p class="case-text__eyebrow">Notes</p>';
     h +=     '<h3 class="case-text__title">' + escapeHTML(text.title || '') + '</h3>';
     h +=     '<p class="case-text__body">'  + escapeHTML(text.body  || '') + '</p>';
+    h +=   '</div>';
+    return h;
+  }
+  /* Слайс B: инлайн-текст без «носителя».
+     rowTallText вешает inline-блок на высокую иллюстрацию; если высоких блоков
+     в кейсе нет вовсе (владелец волен собрать кейс из одних широких), текст
+     раньше молча пропадал из вёрстки. Тогда он идёт отдельным полноширинным
+     рядом — тот же контейнер .case-row--text, что и у вводного текста, с той же
+     инлайн-разметкой (в hybrid-режиме overlay-варианта тоже нет носителя,
+     поэтому ветка одна на оба режима). */
+  function rowInlineTextFull(text) {
+    var h  = '<div class="case-row case-row--text">';
+    h +=     '<article class="case-item case-item--text">';
+    h +=       inlineTextHTML(text);
+    h +=     '</article>';
     h +=   '</div>';
     return h;
   }
@@ -1071,6 +1190,10 @@
     if (items.inline && talls.length >= 1) {
       // Один tall уходит в tall-text
       tallRows.push({ kind: 'tall-text', a: talls.shift() });
+    } else if (items.inline) {
+      // Слайс B: высоких блоков нет — inline-текст идёт отдельным рядом,
+      // а не теряется. Ряд участвует в общей раскладке как не-wide.
+      tallRows.push({ kind: 'inline-text' });
     }
     // Оставшиеся talls: если 2+ — tall-2, если 1 — tall-1, если 0 — ничего
     while (talls.length >= 2) {
@@ -1115,18 +1238,36 @@
       html += textFullHTML(items.text, textMeta);
     }
 
-    all.forEach(function (row, idx) {
-      // prod-review F3 (E-23): первый отрисованный media-item — LCP-кандидат → eager.
-      var eager = idx === 0;
-      if (row.kind === 'wide')      html += rowWide(row.a, eager);
-      else if (row.kind === 'tall-1') html += rowTall1(row.a, eager);
-      else if (row.kind === 'tall-2') html += rowTall2(row.a, row.b, eager);
-      else if (row.kind === 'tall-text') html += rowTallText(row.a, items.inline, eager);
+    // prod-review F3 (E-23): LCP-кандидат получает eager + fetchpriority=high.
+    // Слайс B: считать «первый ряд» больше нельзя — первым рядом теперь бывает
+    // видео-слот или полноширинный inline-текст, и eager уходил бы в никуда,
+    // оставляя настоящую первую картинку lazy. Метку получает первый блок,
+    // который реально рендерит <img>.
+    var eagerClaimed = false;
+    function claimEager(item) {
+      if (eagerClaimed) return false;
+      if (!item || item.type === 'video' || !item.src) return false;
+      eagerClaimed = true;
+      return true;
+    }
+    all.forEach(function (row) {
+      if (row.kind === 'wide')      html += rowWide(row.a, claimEager(row.a));
+      else if (row.kind === 'tall-1') html += rowTall1(row.a, claimEager(row.a));
+      else if (row.kind === 'tall-2') html += rowTall2(row.a, row.b, claimEager(row.a), claimEager(row.b));
+      else if (row.kind === 'tall-text') html += rowTallText(row.a, items.inline, claimEager(row.a));
+      else if (row.kind === 'inline-text') html += rowInlineTextFull(items.inline);
     });
     html += motionRowsHTML(items.motionBlocks);
 
+    // Teardown ДО подмены разметки: innerHTML отцепляет старые узлы, и
+    // играющий <video> остался бы играть в отсоединённом поддереве (его
+    // никакой последующий querySelector уже не найдёт). Порядок обязателен
+    // при пересборке того же кейса — смена языка, переход A→B.
+    stopCaseMotionBlocks();
+    stopCaseMediaVideos();
     caseTrack.innerHTML = html;
     initCaseMotionBlocks();
+    initCaseMediaVideos();
   }
 
   /* ══════════════════════════════════
@@ -3168,6 +3309,7 @@
       if (currentThreeViewer && currentThreeViewer.setAutoRotate) currentThreeViewer.setAutoRotate(false);
       if (caseScroll)     caseScroll.hidden     = false;
       initCaseMotionBlocks();
+      initCaseMediaVideos();
       // v0.10.2 — если кейс менялся пока был Blueprints/3D — сбрасываем позицию теперь
       if (pendingScrollReset && caseScroll) {
         caseScroll.scrollTop = 0;
@@ -3176,6 +3318,7 @@
       }
     } else if (mode === 'blueprints') {
       stopCaseMotionBlocks();
+      stopCaseMediaVideos();
       // prod-review F3 (A1-02): пауза Three-вьюера и при уходе на Blueprints.
       if (currentThreeViewer && currentThreeViewer.setAutoRotate) currentThreeViewer.setAutoRotate(false);
       if (caseScroll)     caseScroll.hidden     = true;
@@ -3186,6 +3329,7 @@
       }
     } else { // '3d'
       stopCaseMotionBlocks();
+      stopCaseMediaVideos();
       if (caseScroll)     caseScroll.hidden     = true;
       if (caseBlueprints) caseBlueprints.hidden = true;
       if (case3d)         case3d.hidden         = false;
@@ -3516,9 +3660,17 @@
      CASE BACK — мобильная кнопка возврата к сайдбару
      (разворачивает sidebar из collapsed)
   ══════════════════════════════════ */
+  // Слайс B: на мобильном возврат к карточкам не размонтирует кейс — он
+  // уезжает под display:none, а <video> в скрытом контейнере продолжает
+  // играть и тянуть байты. Гасим медиа кейса вместе с разворотом сайдбара.
+  function leaveCaseToCards() {
+    stopCaseMediaVideos();
+    stopCaseMotionBlocks();
+    setCollapsed(false);
+  }
   if (caseBack) {
     caseBack.addEventListener('click', function () {
-      setCollapsed(false);
+      leaveCaseToCards();
     });
   }
   // Лого в мобильном кейсе — тоже возврат к карточкам
@@ -3528,7 +3680,7 @@
       var isMobile = window.matchMedia('(max-width: 767px)').matches;
       if (!isMobile) return;
       e.preventDefault();
-      setCollapsed(false);
+      leaveCaseToCards();
     });
   }
 

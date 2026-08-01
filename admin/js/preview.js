@@ -102,7 +102,11 @@
   function buildRuntimeEntry(c) {
     const cs = c.case;
     const media = mediaBlocks(cs).map((block) => {
-      const out = {
+      const out = {};
+      // Слайс B: стабильный id блока необязателен и едет только когда задан —
+      // зеркало buildCaseEntry (у авторского контента id нет).
+      if (block.id) out.id = block.id;
+      Object.assign(out, {
         type: block.type,
         format: block.format,
         src: block.src,
@@ -110,7 +114,7 @@
         label: captionText(block, 'label', 'en'),
         desc: captionText(block, 'desc', 'en'),
         enabled: true
-      };
+      });
       // Только truthy — зеркало генератора (poster:null не эмитится).
       if (block.poster) out.poster = block.poster;
       return out;
