@@ -164,7 +164,8 @@
           "file": "apex-frame.zip",
           "bg": "linear-gradient(135deg,#202428 0,#2c3034 100%)"
         }
-      ]
+      ],
+      "enabled": false
     },
     {
       "key": "product",
@@ -357,7 +358,8 @@
           "file": "shard-cannon.zip",
           "bg": "linear-gradient(135deg,#1a1a2a 0,#252535 100%)"
         }
-      ]
+      ],
+      "enabled": false
     },
     {
       "key": "organic",
@@ -422,7 +424,8 @@
           "file": "glint-owl.zip",
           "bg": "linear-gradient(135deg,#1a1a22 0,#262632 100%)"
         }
-      ]
+      ],
+      "enabled": false
     },
     {
       "key": "animation",
@@ -468,7 +471,8 @@
           "file": "arc-motion.zip",
           "bg": "linear-gradient(135deg,#1f1a2a 0,#2a2438 100%)"
         }
-      ]
+      ],
+      "enabled": false
     },
     {
       "key": "cad",
@@ -533,7 +537,8 @@
           "file": "cad-strut.zip",
           "bg": "linear-gradient(135deg,#1f2429 0,#2b3138 100%)"
         }
-      ]
+      ],
+      "enabled": false
     }
   ]
 }

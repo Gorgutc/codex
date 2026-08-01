@@ -6,27 +6,33 @@
     },
     {
       "key": "hard-surface",
-      "label": "Hard Surface"
+      "label": "Hard Surface",
+      "enabled": false
     },
     {
       "key": "product",
-      "label": "Product"
+      "label": "Product",
+      "enabled": true
     },
     {
       "key": "organic",
-      "label": "Organic"
+      "label": "Organic",
+      "enabled": false
     },
     {
       "key": "prototyping",
-      "label": "Prototyping"
+      "label": "Prototyping",
+      "enabled": false
     },
     {
       "key": "animations",
-      "label": "Animations"
+      "label": "Animations",
+      "enabled": false
     },
     {
       "key": "cad",
-      "label": "CAD"
+      "label": "CAD",
+      "enabled": false
     }
   ],
   "cardOrder": [
