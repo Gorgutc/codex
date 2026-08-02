@@ -20,6 +20,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { ROOT, hash8, startStaticServer, mockGitHub } from './fixtures/admin-harness.mjs';
+// ASSET-BUDGET-01: the hard limit the panel enforces is a hand mirror of the
+// canonical budget, so the fixture size and the expected message are DERIVED
+// from the canon here instead of being written down. A hardcoded "2 МБ" is
+// exactly what goes stale the moment the budget moves.
+import { ASSET_BUDGETS, MB } from '../../scripts/asset-budget.mjs';
 
 const CASE_PATH = 'content/cases/orbital-mk-ii.json';
 const THUMB_INPUT = `[data-media="${CASE_PATH}::card.thumb"]`;
@@ -160,14 +165,42 @@ test('изображение тяжелее жёсткого лимита бло
   await mockGitHub(page);
   await openCaseEditor(page);
 
-  const oversize = Buffer.alloc(2 * 1024 * 1024 + 1024, 7);
+  const rasterBlock = ASSET_BUDGETS.raster.failBytes;
+  const oversize = Buffer.alloc(rasterBlock + 1024, 7);
   await page.setInputFiles(THUMB_INPUT, { name: 'huge.png', mimeType: 'image/png', buffer: oversize });
 
   await expect(page.locator('.toast--error')).toContainText('Файл слишком большой');
-  await expect(page.locator('.toast--error')).toContainText('тяжелее 2 МБ не публикуем');
+  await expect(page.locator('.toast--error')).toContainText(`тяжелее ${rasterBlock / MB} МБ не публикуем`);
   const cardSection = page.locator('.editor-section', { hasText: 'Карточка в списке работ' });
   await expect(cardSection.locator('.drop-zone__badge')).toBeHidden();
   await expect(page.locator('#media-warning')).toBeHidden();
+  await expect(page.locator('#draft-indicator')).toBeHidden();
+});
+
+/* ASSET-BUDGET-01: SVG shares the image upload slot but NOT its budget — a
+ * raster pasted into an .svg as base64 passes every extension check in the
+ * stack, so the vector class fails 4x earlier. This asserts the per-extension
+ * hard limit (MEDIA_RULES.blockBytesByExt) actually fires: the fixture sits
+ * UNDER the raster limit and would have been accepted before. */
+test('SVG тяжелее векторного лимита блокируется, оставаясь под растровым', async ({ page }) => {
+  await mockGitHub(page);
+  await openCaseEditor(page);
+
+  const vectorBlock = ASSET_BUDGETS.vector.failBytes;
+  const rasterBlock = ASSET_BUDGETS.raster.failBytes;
+  expect(vectorBlock).toBeLessThan(rasterBlock); // иначе сценарий ничего не доказывает
+  const svg = Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><!--' + 'x'.repeat(vectorBlock + 1024) + '--></svg>',
+    'utf8'
+  );
+  expect(svg.length).toBeGreaterThan(vectorBlock);
+  expect(svg.length).toBeLessThan(rasterBlock);
+  await page.setInputFiles(THUMB_INPUT, { name: 'huge.svg', mimeType: 'image/svg+xml', buffer: svg });
+
+  await expect(page.locator('.toast--error')).toContainText('Файл слишком большой');
+  await expect(page.locator('.toast--error')).toContainText(`тяжелее ${vectorBlock / 1024} КБ не публикуем`);
+  const cardSection = page.locator('.editor-section', { hasText: 'Карточка в списке работ' });
+  await expect(cardSection.locator('.drop-zone__badge')).toBeHidden();
   await expect(page.locator('#draft-indicator')).toBeHidden();
 });
 

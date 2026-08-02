@@ -64,6 +64,7 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { faPosterKind, faPosterPath, faPosterProblem, faTagCoverValue } from './fa-poster-path.mjs';
+import { assetBudgetViolation, formatBytes } from './asset-budget.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // CONTENT_DIR may be overridden (tests/quality/content-validate.test.mjs points
@@ -224,9 +225,25 @@ function checkAssetFile(violations, where, value, extension = null) {
     violations.push(`${where}: "${value}" must end with ${extension}`);
     return;
   }
-  if (!fs.existsSync(path.resolve(ROOT, value))) {
+  const abs = path.resolve(ROOT, value);
+  if (!fs.existsSync(abs)) {
     violations.push(`${where}: file not found on disk ("${value}")`);
+    return;
   }
+  /* ASSET-BUDGET-01 — the byte budget lives HERE because checkAssetFile is the
+   * single chokepoint every content-declared asset path already crosses (model,
+   * media src, video poster, motion src/poster, card thumb, FA model/poster,
+   * header logo and all three OG images — eleven call sites, one clause), and
+   * because validateContent() runs in BOTH --write and --check. That means a
+   * violation fires on the owner's publish path (the `regen` step of
+   * content-publish.yml runs the generator with continue-on-error and routes
+   * `steps.regen.outcome == 'failure'` straight into the existing auto-revert)
+   * AND locally in `npm run content:check`, in ~1 s — instead of surfacing as a
+   * 30 s Playwright click timeout on a 3D pane that is busy downloading the
+   * file. The numbers and the grandfather list are in scripts/asset-budget.mjs.
+   */
+  const budgetProblem = assetBudgetViolation(value, fs.statSync(abs).size);
+  if (budgetProblem !== null) violations.push(`${where}: "${value}" ${budgetProblem}`);
 }
 
 function collectKeyPaths(value, prefix, out) {
@@ -1454,15 +1471,9 @@ window.CARDS_DATA = ` +
 
 // A2-01/E-02/F-03: human-readable archive size from the real byte count (honest
 // contentSize / Download label). Deterministic, no locale formatting.
-function formatBytes(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  const kb = bytes / 1024;
-  if (kb < 1024) return (kb < 10 ? kb.toFixed(1) : String(Math.round(kb))) + ' KB';
-  const mb = kb / 1024;
-  if (mb < 1024) return (mb < 10 ? mb.toFixed(1) : String(Math.round(mb))) + ' MB';
-  const gb = mb / 1024;
-  return (gb < 10 ? gb.toFixed(1) : String(Math.round(gb))) + ' GB';
-}
+// ASSET-BUDGET-01 moved the implementation to scripts/asset-budget.mjs (imported
+// at the top) so a budget message and the size the owner reads on a Free Assets
+// card are worded by the SAME formatter. The bytes it emits are unchanged.
 
 // thumb/model travel into fa-data.js VERBATIM (`if (key in item)`) — the
 // runtime resolver in js/free-assets.js owns the conventions, so a raster
