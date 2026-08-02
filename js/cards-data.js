@@ -20,6 +20,7 @@ window.CARDS_DATA = {
       'Substance Painter'
     ],
     modelSrc: './assets/models/corten-series.glb',
+    layoutMode: 'manual',
     modelStats: {
       triangles: '60',
       vertices: '40',
@@ -40,8 +41,8 @@ window.CARDS_DATA = {
         },
         {
           type: 'image',
-          format: 'tall',
-          src: './assets/cases/corten-series/02.svg',
+          format: 'wide',
+          src: './assets/cases/corten-series/02-e4a28f4d.png',
           bg: 'linear-gradient(135deg,#241a14 0%,#34281e 100%)',
           label: 'Context shot',
           desc: 'In-situ placement render in a concrete loft environment. Used as lead image for the launch deck.',
@@ -49,29 +50,21 @@ window.CARDS_DATA = {
         },
         {
           type: 'image',
-          format: 'tall',
-          src: './assets/cases/corten-series/03.svg',
+          format: 'wide',
+          src: './assets/cases/corten-series/03-e4a28f4d.png',
           bg: 'linear-gradient(135deg,#1e1410 0%,#2c2018 100%)',
           label: 'Material passes',
           desc: 'Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web.',
           enabled: true
         },
         {
-          type: 'image',
-          format: 'wide',
-          src: './assets/cases/corten-series/04.svg',
-          bg: 'linear-gradient(135deg,#180e0a 0%,#281c12 100%)',
-          label: 'Detail macro',
-          desc: 'Texture close-up showing procedural oxidation, patina and surface imperfection layers.',
-          enabled: true
-        },
-        {
+          id: 'media-msbj0s97',
           type: 'image',
           format: 'tall',
-          src: './assets/cases/corten-series/05.svg',
-          bg: 'linear-gradient(135deg,#120a08 0%,#20150e 100%)',
-          label: 'Lineup shot',
-          desc: 'Full collection rendered as a lineup for the catalogue spread. Lighting matches brand art direction.',
+          src: './assets/cases/corten-series/04-e4a28f4d.png',
+          bg: 'linear-gradient(135deg,#1e1410 0%,#2c2018 100%)',
+          label: 'Material passes',
+          desc: 'Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web.',
           enabled: true
         }
       ],

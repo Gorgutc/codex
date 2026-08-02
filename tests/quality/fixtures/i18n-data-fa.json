@@ -600,12 +600,8 @@
             "desc": "Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web."
           },
           {
-            "label": "Detail macro",
-            "desc": "Texture close-up showing procedural oxidation, patina and surface imperfection layers."
-          },
-          {
-            "label": "Lineup shot",
-            "desc": "Full collection rendered as a lineup for the catalogue spread. Lighting matches brand art direction."
+            "label": "Material passes",
+            "desc": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
           }
         ],
         "text": {
@@ -701,12 +697,8 @@
             "desc": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
           },
           {
-            "label": "Detail macro",
-            "desc": "Крупный план текстуры: процедурная оксидация, патина, слои поверхностных дефектов."
-          },
-          {
-            "label": "Lineup-кадр",
-            "desc": "Вся коллекция собрана lineup-ом под разворот каталога. Свет соответствует AD-гайдам бренда."
+            "label": "Material passes",
+            "desc": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
           }
         ],
         "text": {
