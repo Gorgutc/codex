@@ -34,12 +34,12 @@
       "Blender",
       "Substance Painter"
     ],
-    "modelSrc": "./assets/models/corten-series.glb",
+    "modelSrc": "./assets/models/corten-series-cec47032.glb",
     "modelStats": {
-      "triangles": "60",
-      "vertices": "40",
-      "materials": 1,
-      "textures": "Procedural (PBR)",
+      "triangles": "600000",
+      "vertices": "40000",
+      "materials": 10,
+      "textures": "PBR",
       "software": "Blender"
     },
     "media": [
