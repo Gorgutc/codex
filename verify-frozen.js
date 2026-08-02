@@ -219,7 +219,10 @@ const add = (suite, name, pass, detail = '', skipped = false) => {
    Грепаем shipped HTML + JS на запрещённые pattern'ы. Это runs ДО
    подъёма серверa: если static check FAIL — runtime тесты бессмысленны.
 ═══════════════════════════════════════════════════════════════════════ */
-function runStaticChecks() {
+/* assetAudit is prepared by the async caller below: this file is CommonJS while
+ * every scripts/*.mjs is ESM, so the budget module is reached through
+ * `await import()` and its result is passed in rather than required here. */
+function runStaticChecks(assetAudit = null) {
   console.log('\n=== Static file-level checks ===');
 
   // A7 — Vendor paths only: GSAP / Lenis / ScrollTrigger / SplitText не
@@ -520,6 +523,73 @@ function runStaticChecks() {
   });
   add('static', 'C1-no-new-px-font-size', pxBudgetOK,
       pxBudgetOK ? 'all CSS within current per-file budget' : pxViolations.join('; '));
+
+  /* ── ASSET-BUDGET-01 — byte budget of the SHIPPED asset set ──────────────
+   *
+   * Second host of the gate. The primary one is checkAssetFile() in
+   * scripts/generate-content.mjs, which covers everything content/ declares and
+   * is what closes the admin publish path (the `regen` step of
+   * content-publish.yml). This one exists for what the generator cannot see:
+   *   • the HDR maps, whose paths live ONLY as string literals in js/main.js
+   *     (ENV_PRESETS) and js/vendor/codex-three-viewer.js — no content/*.json
+   *     holds an HDR path, so a content-derived resolver alone would miss ~22 MB
+   *     of genuinely shipped bytes;
+   *   • favicons and anything else reachable only from the shipped HTML/CSS.
+   *
+   * It runs inside runStaticChecks(), i.e. BEFORE any browser page is opened,
+   * so an oversized model surfaces as a named FAIL in ~1 s instead of as an
+   * opaque 30 s Playwright click timeout on a 3D pane busy downloading it.
+   *
+   * Expectations are DERIVED, never fixtured: the class list comes from
+   * ASSET_BUDGETS and each class's members come from the resolver, so no case
+   * id and no count is hardcoded. A class with zero shipped members is recorded
+   * as a SKIP with an explicit reason rather than silently passing.
+   */
+  if (assetAudit === null) {
+    add('static', 'ASSET-budget-audit', false,
+        'the asset budget resolver did not run — see scripts/asset-budget-audit.mjs');
+  } else if (assetAudit.error) {
+    add('static', 'ASSET-budget-audit', false, `asset budget audit failed: ${assetAudit.error}`);
+  } else {
+    const { entries, failures, warnings, debt, byClass, budgets, format, mirrorProblems } = assetAudit;
+    // Sanity: a resolver that silently returned nothing would make every
+    // per-class check "pass" by being empty.
+    add('static', 'ASSET-budget-audit', entries.length > 0,
+        `${entries.length} shipped file(s) resolved from content/ + shipped HTML/CSS/JS`
+        + (debt.length ? `, ${debt.length} grandfathered` : ''));
+    Object.keys(budgets).forEach(assetClass => {
+      const classEntries = byClass[assetClass] || [];
+      const name = `ASSET-budget-${assetClass}`;
+      if (classEntries.length === 0) {
+        add('static', name, true,
+            `skipped: no shipped ${assetClass} asset in the reference set — nothing to budget`, true);
+        return;
+      }
+      const classFailures = failures.filter(e => e.assetClass === assetClass);
+      if (classFailures.length) {
+        add('static', name, false, classFailures.map(e => `${e.path} ${e.problem}`).join('; '));
+        return;
+      }
+      const classWarnings = warnings.filter(e => e.assetClass === assetClass);
+      const classDebt = debt.filter(e => e.assetClass === assetClass);
+      const largest = classEntries[0];
+      const notes = [];
+      if (classWarnings.length) notes.push(`${classWarnings.length} over the advisory warn line`);
+      if (classDebt.length) notes.push(`${classDebt.length} grandfathered (${classDebt.map(e => e.path).join(', ')})`);
+      const failLabel = budgets[assetClass].failBytes === null
+        ? 'warn-only class' : `budget ${format(budgets[assetClass].failBytes)}`;
+      add('static', name, true,
+          `${classEntries.length} file(s), largest ${format(largest.bytes)} ${largest.path}, ${failLabel}`
+          + (notes.length ? ` — ${notes.join('; ')}` : ''));
+    });
+    // The admin panel hand-mirrors the canonical numbers (classic non-module
+    // script — it cannot import them). A drifted mirror means the panel accepts
+    // an upload CI then rejects, after the commit is already on main.
+    add('static', 'ASSET-budget-admin-mirror', mirrorProblems.length === 0,
+        mirrorProblems.length
+          ? mirrorProblems.join('; ')
+          : 'admin/js/state.js MEDIA_RULES blockBytes match scripts/asset-budget.mjs');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1924,8 +1994,27 @@ async function testMobileViewport(BASE) {
 
   let fatalError = null;
 
+  // ASSET-BUDGET-01 bridge: this file is CommonJS, scripts/asset-budget*.mjs are
+  // ESM, so the budget modules are reached with a dynamic import here (the
+  // enclosing IIFE is async) and their result is handed to the sync
+  // runStaticChecks(). A failure to load is reported as a FAIL, never swallowed:
+  // "the budget could not be checked" must not look like "the budget is fine".
+  let assetAudit;
   try {
-    runStaticChecks();
+    const audit = await import('./scripts/asset-budget-audit.mjs');
+    const budget = await import('./scripts/asset-budget.mjs');
+    assetAudit = {
+      ...audit.auditAssets(ROOT),
+      mirrorProblems: audit.adminMirrorProblems(ROOT),
+      budgets: budget.ASSET_BUDGETS,
+      format: budget.formatBytes
+    };
+  } catch (e) {
+    assetAudit = { error: e.message };
+  }
+
+  try {
+    runStaticChecks(assetAudit);
     await testIndex(BASE);
     await testFreeAssets(BASE);
     await testMobileViewport(BASE);
