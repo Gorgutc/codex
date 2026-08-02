@@ -78,8 +78,79 @@ try {
   const glint = readJson('cases/glint-owl.json');
   glint.case.media[2].type = 'video'; // video block still pointing at an .svg
   glint.case.media[3].bg = ''; // empty slot background
-  glint.case.media[4].caption.label.ru = ''; // half-filled caption pair
+  // Captions are optional per pair, but never half-translated: an EN label
+  // with an empty RU one would show English text to a Russian visitor.
+  glint.case.media[4].caption.label.ru = '';
   writeJson('cases/glint-owl.json', glint);
+
+  // case.cta negative scenarios (CASE-CTA-01): switched on without a link,
+  // a foreign domain, and the REPLACE_WITH_REAL placeholder surviving on a
+  // switched-off link (it is never a legitimate stored value).
+  const mech = readJson('cases/mech-link.json');
+  mech.case.cta = { enabled: true }; // enabled without a url
+  writeJson('cases/mech-link.json', mech);
+
+  const nyx = readJson('cases/nyx-panther.json');
+  nyx.case.cta = { enabled: true, url: 'https://portfolio.example.com/nyx' }; // not artstation/behance
+  writeJson('cases/nyx-panther.json', nyx);
+
+  const recon = readJson('cases/recon-drone.json');
+  recon.case.cta = { enabled: false, url: 'https://www.behance.net/REPLACE_WITH_REAL' };
+  writeJson('cases/recon-drone.json', recon);
+
+  const nightshard = readJson('cases/nightshard.json');
+  nightshard.case.cta = { enabled: 'yes', url: 'https://www.artstation.com/artwork/x' }; // not a boolean
+  writeJson('cases/nightshard.json', nightshard);
+
+  // Forms the URL parser forgives but the runtime refuses to render — every
+  // one of them must fail HERE, or the button silently disappears from the
+  // site (and the userinfo form additionally leaks credentials into the
+  // public js/cards-data.js). One case per form so each is attributable.
+  const cortenSeries = readJson('cases/corten-series.json');
+  cortenSeries.case.cta = { enabled: true, url: 'https://user:token@dprofile.ru/works/1' };
+  writeJson('cases/corten-series.json', cortenSeries);
+
+  const cadStrut = readJson('cases/cad-strut.json');
+  cadStrut.case.cta = { enabled: true, url: 'https://dprofile.ru:8443/works/1' };
+  writeJson('cases/cad-strut.json', cadStrut);
+
+  const ironclad = readJson('cases/ironclad-frame.json');
+  ironclad.case.cta = { enabled: true, url: ' https://dprofile.ru/works/1' }; // padding whitespace
+  writeJson('cases/ironclad-frame.json', ironclad);
+
+  const lumenOne = readJson('cases/lumen-one.json');
+  lumenOne.case.cta = { enabled: true, url: 'https:\\\\dprofile.ru/works/1' }; // backslashes
+  writeJson('cases/lumen-one.json', lumenOne);
+
+  // Suffix and prefix look-alikes of an allowlisted host (exact hostname match).
+  const helixReveal = readJson('cases/helix-reveal.json');
+  helixReveal.case.cta = { enabled: true, url: 'https://evil-dprofile.ru/works/1' };
+  writeJson('cases/helix-reveal.json', helixReveal);
+
+  const glintOwl2 = readJson('cases/glint-owl.json');
+  glintOwl2.case.cta = { enabled: true, url: 'https://dprofile.ru.attacker.tld/works/1' };
+  writeJson('cases/glint-owl.json', glintOwl2);
+
+  // Chain integrity: a caption on a non-last strip splits the canvas, and a
+  // mixed-format chain renders as a staircase.
+  const corteRig = readJson('cases/core-rig.json');
+  corteRig.case.media[1].seamless = true; // chain [0,1] on a manual-order case
+  corteRig.case.media[2].seamless = true; // ...extended to [0,1,2]
+  corteRig.case.media[2].format = corteRig.case.media[0].format === 'wide' ? 'tall' : 'wide';
+  writeJson('cases/core-rig.json', corteRig);
+
+  // case.media[i].seamless ("Behance trick"): the first block has nothing
+  // above it, and the automatic layout reorders blocks, so gluing needs
+  // layoutMode "manual".
+  const coreRig = readJson('cases/core-rig.json');
+  coreRig.layoutMode = 'manual';
+  coreRig.case.media[0].seamless = true; // nothing above the first block
+  writeJson('cases/core-rig.json', coreRig);
+
+  const flexSpine = readJson('cases/flex-spine.json');
+  delete flexSpine.layoutMode; // seeded — order is not authored
+  flexSpine.case.media[1].seamless = true;
+  writeJson('cases/flex-spine.json', flexSpine);
 
   // Slice B: background grammar and the optional stable block id.
   const vega = readJson('cases/vega-shell.json');
@@ -160,7 +231,22 @@ try {
     'case.media[1].type: must be "image" or "video" (got "audio")',
     'case.media[2].src: a video block must point at a .webm file',
     'case.media[3].bg: must be a non-empty string',
-    'case.media[4].caption: must have label and desc with non-empty "en" and "ru"',
+    'case.media[4].caption.label: fill both "en" and "ru" or leave both empty',
+    'content/cases/mech-link.json: case.cta.url must be a non-empty https:// link to the project',
+    'content/cases/nyx-panther.json: case.cta.url must point at artstation.com, behance.net, dprofile.ru (got "portfolio.example.com")',
+    'content/cases/recon-drone.json: case.cta.url still carries the REPLACE_WITH_REAL placeholder',
+    'content/cases/nightshard.json: case.cta.enabled must be a boolean (got "yes")',
+    'content/cases/core-rig.json: case.media[0].seamless: the first block has nothing above it to glue to',
+    'content/cases/flex-spine.json: case.media[1].seamless: needs layoutMode "manual"',
+    'content/cases/core-rig.json: case.media[0].caption: only the LAST block of a glued chain may carry a caption',
+    'content/cases/core-rig.json: case.media[1].caption: only the LAST block of a glued chain may carry a caption',
+    'content/cases/core-rig.json: case.media[2].format: every block of a glued chain must share one format',
+    'content/cases/corten-series.json: case.cta.url must not carry a user name or password before the host',
+    'content/cases/cad-strut.json: case.cta.url must not carry a port',
+    'content/cases/ironclad-frame.json: case.cta.url must not start or end with spaces',
+    'content/cases/lumen-one.json: case.cta.url must not contain backslashes',
+    'content/cases/helix-reveal.json: case.cta.url must point at artstation.com, behance.net, dprofile.ru (got "evil-dprofile.ru")',
+    'content/cases/glint-owl.json: case.cta.url must point at artstation.com, behance.net, dprofile.ru (got "dprofile.ru.attacker.tld")',
     'content/cases/vega-shell.json: case.media[0].bg: must be a single var(--token), #hex colour or linear/radial-gradient',
     'content/cases/vega-shell.json: case.media[1].bg: must be a single var(--token), #hex colour or linear/radial-gradient',
     'content/cases/vega-shell.json: case.media[2].bg: must be a single var(--token), #hex colour or linear/radial-gradient',

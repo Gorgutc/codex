@@ -730,6 +730,27 @@ textarea[disabled] {
   align-self: flex-start;
 }
 
+/* «Биханс-приём»: склейка блока с предыдущим (без вертикального отступа). */
+.media-slot__seamless {
+  margin-top: 0.4rem;
+}
+
+.media-slot__seamless label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: 0.71875rem;
+  color: var(--a-text);
+}
+
+.media-slot__seamless:has(input[disabled]) label {
+  color: var(--a-faint);
+}
+
+.media-slot__seamless .hint {
+  margin-top: 0.2rem;
+}
+
 .media-add-row {
   display: flex;
   flex-wrap: wrap;

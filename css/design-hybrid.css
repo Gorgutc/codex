@@ -567,6 +567,16 @@ html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfol
   margin: 0;
 }
 
+/* «Биханс-приём»: ряд-полотно склеен по определению — режимный gap выше
+   разорвал бы полосы. Правило повторяет специфичность соседа, а не
+   добавляет !important (см. .case-row--seamless в portfolio-case.css).
+   Ограничение hero: первый media-ряд hybrid поднимает наверх как hero
+   (order:-1); цепочка переезжает ЦЕЛИКОМ (это один ряд), поэтому склейка
+   переживает подъём, но hero-геометрия остаётся хозяйкой первого ряда. */
+html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .case-row--seamless {
+  gap: 0;
+}
+
 html[data-design='hybrid'][data-design-surface='case'] body.chamber-page-portfolio .hybrid-case-hero {
   order: -1;
 }
@@ -829,6 +839,15 @@ html[data-design='hybrid'][data-design-surface='case']
     :is(.case-row, .case-row--tall-2, .case-row--tall-text, .case-row--motion-halves) {
     flex-direction: column;
     gap: var(--space-4);
+  }
+
+  /* Полотно склейки — без зазора и на мобильном: правило выше (0,4,2)
+     перебило бы базовое `.case-row.case-row--seamless` (0,2,0). */
+  html[data-design='hybrid'][data-design-surface='case']
+    body.chamber-page-portfolio
+    .case-row--seamless {
+    flex-direction: column;
+    gap: 0;
   }
 
   html[data-design='hybrid'][data-design-surface='case']

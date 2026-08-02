@@ -699,7 +699,9 @@
       h += '<video class="case-item__video" width="' + vw + '" height="' + vh + '" muted loop playsinline preload="none" ';
       if (videoSrc) h += 'data-case-media-src="' + escapeHTML(videoSrc) + '" ';
       if (videoPoster) h += 'poster="' + escapeHTML(videoPoster) + '" ';
-      h += 'aria-label="' + label + '"></video>';
+      // Подпись необязательна, а доступное имя — нет: пустой aria-label
+      // оставил бы <video> вовсе без имени (у <img>-ветки такой фолбэк есть).
+      h += 'aria-label="' + (label || 'Case video') + '"></video>';
     } else if (!isVideo && item.src) {
       // v0.20.0 — gallery img триггерит fullscreen viewer. tabindex+role+aria
       // для клавиатурной доступности (Enter/Space в main.js gallery keydown).
@@ -721,10 +723,16 @@
     /* v0.15.2 [B3] — .case-media-fs-btn удалена для 2D кейсов.
        Fullscreen остаётся для 3D (.case-3d__fs-btn) и Blueprints (.case-blueprints__fs-btn). */
     h +=   '</div>';
-    h +=   '<div class="case-item__caption">';
-    h +=     '<p class="case-item__caption-label">' + label + '</p>';
-    h +=     '<p class="case-item__caption-desc">' + desc + '</p>';
-    h +=   '</div>';
+    // Подписи блока необязательны (запрос владельца: серия иллюстраций без
+    // сопровождающего текста). Пустые label И desc — узел подписи НЕ строится
+    // вовсе: пустой .case-item__caption оставил бы margin-top под собой и
+    // пустые <p> в дереве доступности. Заполнено что-то одно — рендерим его.
+    if (label || desc) {
+      h += '<div class="case-item__caption">';
+      if (label) h += '<p class="case-item__caption-label">' + label + '</p>';
+      if (desc)  h += '<p class="case-item__caption-desc">' + desc + '</p>';
+      h += '</div>';
+    }
     if (inlineOverlay) h += inlineTextHTML(inlineOverlay, 'case-text--overlay');
     h += '</article>';
     return h;
@@ -1034,8 +1042,94 @@
     initCaseMediaVideos();
   }
 
+  /* CASE-CTA-01 — внешняя ссылка кейса.
+     Раньше кнопка рисовалась у КАЖДОГО кейса с хардкод-адресом
+     …/REPLACE_WITH_REAL (ArtStation для game-ассетов, Behance для остальных):
+     посетитель уходил на несуществующую страницу. Теперь адрес приходит из
+     content (case.cta) через items.cta, а сеть и подписи выводятся из самого
+     адреса — нет данных, нет узла.
+
+     Язык берётся из <html lang> (его ставит i18n.js), а не из отдельного
+     словаря: кейс целиком пересобирается на i18n:changed, поэтому подпись и
+     aria едут вместе с ним, и в content/i18n-ui.json не появляется ключей,
+     которые владелец не редактирует. */
+  /* Таблица CTA-платформ — ЕДИНЫЙ источник правды.
+     ДОБАВЛЯЯ ПЛАТФОРМУ, продублируй ту же запись в двух других зеркалах
+     (таблица копируется дословно, поэтому новая платформа — одна запись в
+     каждом файле):
+       scripts/generate-content.mjs — валидация origin (канон);
+       admin/js/state.js            — ctaUrlProblem (гейт публикации);
+       js/main.js                   — этот файл (подпись, aria, data-external).
+     hosts перечисляются ПОЛНОСТЬЮ (с www и без): сравнение точное по hostname,
+     а не по суффиксу — «evil-dprofile.ru» и «dprofile.ru.attacker.tld» мимо. */
+  var CTA_PLATFORMS = [
+    {
+      network: 'artstation',
+      hosts: ['artstation.com', 'www.artstation.com'],
+      label: { en: 'View on ArtStation', ru: 'Смотреть на ArtStation' },
+      aria: {
+        en: 'Open the project on ArtStation in a new tab',
+        ru: 'Открыть проект на ArtStation в новой вкладке'
+      }
+    },
+    {
+      network: 'behance',
+      hosts: ['behance.net', 'www.behance.net'],
+      label: { en: 'View on Behance', ru: 'Смотреть на Behance' },
+      aria: {
+        en: 'Open the project on Behance in a new tab',
+        ru: 'Открыть проект на Behance в новой вкладке'
+      }
+    },
+    {
+      network: 'dprofile',
+      hosts: ['dprofile.ru', 'www.dprofile.ru'],
+      label: { en: 'View on DPROFILE', ru: 'Смотреть на DPROFILE' },
+      aria: {
+        en: 'Open the project on DPROFILE in a new tab',
+        ru: 'Открыть проект на DPROFILE в новой вкладке'
+      }
+    }
+  ];
+  /* Та же parser-семантика, что у валидатора и зеркала админки: https, без
+     userinfo, без порта, точное совпадение hostname. Генератор эмитит уже
+     нормализованный parsed.href, поэтому строка здесь и строка, прошедшая
+     валидацию, — одна и та же. */
+  function caseCtaPlatform(url) {
+    if (typeof url !== 'string' || !url) return null;
+    var parsed;
+    try {
+      parsed = new URL(url);
+    } catch (_) {
+      return null;
+    }
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port) return null;
+    var host = parsed.hostname.toLowerCase();
+    for (var i = 0; i < CTA_PLATFORMS.length; i++) {
+      if (CTA_PLATFORMS[i].hosts.indexOf(host) !== -1) return CTA_PLATFORMS[i];
+    }
+    return null;
+  }
+  function caseCtaHTML(cta) {
+    if (!cta) return '';
+    // Чужой домен до рантайма не доходит (валидатор + зеркало админки), но
+    // href подставляется в разметку — неизвестный адрес просто не рисуем.
+    var platform = caseCtaPlatform(cta.url);
+    if (!platform) return '';
+    var lang = document.documentElement.getAttribute('lang') === 'ru' ? 'ru' : 'en';
+    var h  = '<a class="case-text__external-btn"';
+    h +=     ' href="' + escapeHTML(cta.url) + '"';
+    h +=     ' target="_blank" rel="noopener noreferrer"';
+    h +=     ' aria-label="' + escapeHTML(platform.aria[lang]) + '"';
+    h +=     ' data-external="' + platform.network + '">';
+    h +=     '<span class="case-text__external-btn-label">' + escapeHTML(platform.label[lang]) + '</span>';
+    h +=     '<span class="case-text__external-btn-arrow" aria-hidden="true">→</span>';
+    h +=   '</a>';
+    return h;
+  }
+
   /* Full-width text block (intro) — v0.9: eyebrow + meta (role / year / tools)
-     v0.13.8: external link button (ArtStation для game-ассетов, Behance для остальных). */
+     v0.13.8: external link button; CASE-CTA-01: только по данным кейса. */
   function textFullHTML(text, meta) {
     meta = meta || {};
     // prod-review F2 (A1-01): role/year/tools \u2014 admin-\u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0443\u0435\u043c\u044b\u0435 \u043f\u043e\u043b\u044f.
@@ -1050,15 +1144,8 @@
       chips += '<span class="case-text__meta-item">' + escapeHTML(meta.tools.join(' \u00b7 ')) + '</span>';
     }
 
-    // v0.13.8 — external link (game → ArtStation, non-game → Behance)
-    var isGame    = meta.gameAsset === true;
-    var extHref   = isGame
-      ? 'https://www.artstation.com/REPLACE_WITH_REAL'
-      : 'https://www.behance.net/REPLACE_WITH_REAL';
-    var extLabel  = isGame ? 'View on ArtStation' : 'View on Behance';
-    var extAria   = isGame
-      ? 'Открыть профиль на ArtStation в новой вкладке'
-      : 'Открыть профиль на Behance в новой вкладке';
+    // CASE-CTA-01: пустая строка, если владелец не включил ссылку у кейса.
+    var ctaHTML = caseCtaHTML(meta.cta);
 
     var h  = '<div class="case-row case-row--text">';
     h +=     '<article class="case-item case-item--text">';
@@ -1070,14 +1157,7 @@
       h +=           '<div class="case-text__meta">' + chips + '</div>';
     }
     h +=           '</div>';
-    h +=           '<a class="case-text__external-btn"';
-    h +=             ' href="' + extHref + '"';
-    h +=             ' target="_blank" rel="noopener noreferrer"';
-    h +=             ' aria-label="' + extAria + '"';
-    h +=             ' data-external="' + (isGame ? 'artstation' : 'behance') + '">';
-    h +=             '<span class="case-text__external-btn-label">' + extLabel + '</span>';
-    h +=             '<span class="case-text__external-btn-arrow" aria-hidden="true">\u2192</span>';
-    h +=           '</a>';
+    h +=           ctaHTML;
     h +=         '</div>';
     h +=         '<h2 class="case-text__title">' + escapeHTML(text.title || '') + '</h2>';
     h +=         '<p class="case-text__body">'  + escapeHTML(text.body  || '') + '</p>';
@@ -1096,6 +1176,18 @@
   }
   function rowTall2(a, b, eagerA, eagerB) {
     return '<div class="case-row case-row--tall-2">' + mediaItemHTML(a, eagerA) + mediaItemHTML(b, eagerB) + '</div>';
+  }
+  /* «Биханс-приём»: цепочка склеенных блоков — ОДИН ряд-полотно.
+     Почему не отдельный .case-row на каждую полосу с отрицательным отступом:
+     вертикальный зазор между рядами задаёт gap самого трека, а его
+     переопределяют все режимы Design Lab (chamber 0, hybrid/specimen — свои
+     значения). Отрицательный margin пришлось бы синхронизировать с каждым из
+     них, и любое будущее изменение зазора молча разрывало бы склейку. Один
+     контейнер с gap:0 склеивает полосы независимо от режима. */
+  function rowSeamless(blocks, claimEager) {
+    var h = '<div class="case-row case-row--seamless">';
+    blocks.forEach(function (media) { h += mediaItemHTML(media, claimEager(media)); });
+    return h + '</div>';
   }
   function inlineTextHTML(text, modifier) {
     var classes = 'case-text case-text--inline';
@@ -1166,9 +1258,38 @@
     // Отсутствующий или любой другой флаг = прежнее seeded-поведение.
     var manualOrder = data.layoutMode === 'manual';
 
-    // Разделяем media на wide / tall
-    var widesSrc = items.media.filter(function (m) { return m.format === 'wide' && m.enabled !== false; });
-    var tallsSrc = items.media.filter(function (m) { return m.format === 'tall' && m.enabled !== false; });
+    /* «Биханс-приём» (seamless): блок с seamless:true приклеен к ПРЕДЫДУЩЕМУ
+       блоку — длинная иллюстрация, нарезанная на полосы, читается одним
+       полотном. Цепочка собирается ДО раскладки: хвост уходит внутрь цепочки
+       и в пары/одиночные ряды больше не попадает. Флаг требует ручного
+       порядка — это правило держит валидатор контента, здесь оно читается. */
+    var visibleMedia = items.media.filter(function (m) { return m && m.enabled !== false; });
+    var seamlessChains = [];
+    var chainTails = [];
+    var openChain = null;
+    visibleMedia.forEach(function (block, i) {
+      if (i > 0 && block.seamless === true) {
+        if (!openChain) {
+          openChain = { head: visibleMedia[i - 1], blocks: [visibleMedia[i - 1]] };
+          seamlessChains.push(openChain);
+        }
+        openChain.blocks.push(block);
+        chainTails.push(block);
+      } else {
+        openChain = null;
+      }
+    });
+    function chainFor(block) {
+      for (var ci = 0; ci < seamlessChains.length; ci++) {
+        if (seamlessChains[ci].head === block) return seamlessChains[ci];
+      }
+      return null;
+    }
+    function isChainTail(block) { return chainTails.indexOf(block) !== -1; }
+
+    // Разделяем media на wide / tall (хвосты цепочек уже «заняты» головой)
+    var widesSrc = visibleMedia.filter(function (m) { return m.format === 'wide' && !isChainTail(m); });
+    var tallsSrc = visibleMedia.filter(function (m) { return m.format === 'tall' && !isChainTail(m); });
 
     // Детерминированное перемешивание внутри каждой группы
     // (в ручном режиме — no-op, порядок остаётся авторским)
@@ -1180,45 +1301,110 @@
       }
       return arr;
     }
-    var wides = shuffleInPlace(widesSrc.slice());
-    var talls = shuffleInPlace(tallsSrc.slice());
 
-    // Планируем tall-ряды.
-    // Базовый план (при 3 talls): tallText (1) + tall2 (2) = 3
-    // Если inline нет: tall1 + tall2 = 3
-    var tallRows = [];
-    if (items.inline && talls.length >= 1) {
-      // Один tall уходит в tall-text
-      tallRows.push({ kind: 'tall-text', a: talls.shift() });
-    } else if (items.inline) {
-      // Слайс B: высоких блоков нет — inline-текст идёт отдельным рядом,
-      // а не теряется. Ряд участвует в общей раскладке как не-wide.
-      tallRows.push({ kind: 'inline-text' });
-    }
-    // Оставшиеся talls: если 2+ — tall-2, если 1 — tall-1, если 0 — ничего
-    while (talls.length >= 2) {
-      tallRows.push({ kind: 'tall-2', a: talls.shift(), b: talls.shift() });
-    }
-    if (talls.length === 1) {
-      tallRows.push({ kind: 'tall-1', a: talls.shift() });
-    }
+    var all;
+    if (manualOrder) {
+      /* Ручной порядок — ОДИН проход по авторскому массиву.
+         Раньше ряды собирались по группам (сначала все tall, потом все wide),
+         и авторская последовательность [A tall, B склеен, C tall] выезжала как
+         C → полотно A+B: цепочка уходила в конец группы, а в hybrid/specimen
+         hero доставался чужой блок. Один проход схлопывает цепочку НА МЕСТЕ
+         головы, пара 50/50 собирается только из соседей по списку, и правило
+         «не два wide подряд» здесь не применяется — оно принадлежит
+         автоматической раскладке (так и написано в подсказке админки). */
+      all = [];
+      var consumed = [];
+      var inlinePlaced = false;
+      visibleMedia.forEach(function (block, i) {
+        if (consumed[i] || isChainTail(block)) return;
+        var chain = chainFor(block);
+        if (chain) {
+          all.push({ kind: 'seamless', chain: chain });
+          return;
+        }
+        if (block.format !== 'tall') {
+          all.push({ kind: 'wide', a: block });
+          return;
+        }
+        if (items.inline && !inlinePlaced) {
+          inlinePlaced = true;
+          all.push({ kind: 'tall-text', a: block });
+          return;
+        }
+        // Пара 50/50 — только со СЛЕДУЮЩИМ высоким блоком списка (не с любым
+        // свободным): иначе пара перепрыгивала бы через авторских соседей.
+        var partner = -1;
+        for (var j = i + 1; j < visibleMedia.length; j++) {
+          if (consumed[j] || isChainTail(visibleMedia[j])) continue;
+          if (chainFor(visibleMedia[j])) break;
+          if (visibleMedia[j].format !== 'tall') break;
+          partner = j;
+          break;
+        }
+        if (partner !== -1) {
+          consumed[partner] = true;
+          all.push({ kind: 'tall-2', a: block, b: visibleMedia[partner] });
+        } else {
+          all.push({ kind: 'tall-1', a: block });
+        }
+      });
+      // Носителя для инлайн-текста не нашлось — он идёт отдельным рядом в
+      // конце ленты (та же ветка, что и в автоматической раскладке).
+      if (items.inline && !inlinePlaced) all.push({ kind: 'inline-text' });
+    } else {
+      var wides = shuffleInPlace(widesSrc.slice());
+      var allTalls = shuffleInPlace(tallsSrc.slice());
+      // Голова цепочки не встаёт в пару и не носит инлайн-текст: её ряд — целое
+      // полотно, а половинная колонка или сосед 50/50 разорвали бы склейку.
+      var talls = [];
+      var chainTalls = [];
+      allTalls.forEach(function (m) { (chainFor(m) ? chainTalls : talls).push(m); });
 
-    // План wide-рядов
-    var wideRows = wides.map(function (m) { return { kind: 'wide', a: m }; });
+      // Планируем tall-ряды.
+      // Базовый план (при 3 talls): tallText (1) + tall2 (2) = 3
+      // Если inline нет: tall1 + tall2 = 3
+      var tallRows = [];
+      if (items.inline && talls.length >= 1) {
+        // Один tall уходит в tall-text
+        tallRows.push({ kind: 'tall-text', a: talls.shift() });
+      } else if (items.inline) {
+        // Слайс B: высоких блоков нет — inline-текст идёт отдельным рядом,
+        // а не теряется. Ряд участвует в общей раскладке как не-wide.
+        tallRows.push({ kind: 'inline-text' });
+      }
+      // Оставшиеся talls: если 2+ — tall-2, если 1 — tall-1, если 0 — ничего
+      while (talls.length >= 2) {
+        tallRows.push({ kind: 'tall-2', a: talls.shift(), b: talls.shift() });
+      }
+      if (talls.length === 1) {
+        tallRows.push({ kind: 'tall-1', a: talls.shift() });
+      }
+      // Полотна с высокой головой — одиночными рядами (в seeded контент их
+      // нести не должен: валидатор требует ручного порядка).
+      chainTalls.forEach(function (m) { tallRows.push({ kind: 'seamless', chain: chainFor(m) }); });
 
-    // Перемешиваем tallRows и wideRows между собой, чередуя.
-    // Подход: сливаем в один массив и перемешиваем seeded, но избегаем двух wide подряд.
-    var all = tallRows.concat(wideRows);
-    shuffleInPlace(all);
+      // План wide-рядов (голова цепочки разворачивается в ряд-полотно)
+      var wideRows = wides.map(function (m) {
+        var chain = chainFor(m);
+        return chain ? { kind: 'seamless', chain: chain } : { kind: 'wide', a: m };
+      });
 
-    // Развод двух wide подряд (если возникли).
-    for (var k = 0; k < all.length - 1; k++) {
-      if (all[k].kind === 'wide' && all[k + 1].kind === 'wide') {
-        // Ищем следующий не-wide и меняем местами с k+1
-        for (var m = k + 2; m < all.length; m++) {
-          if (all[m].kind !== 'wide') {
-            var tmp = all[k + 1]; all[k + 1] = all[m]; all[m] = tmp;
-            break;
+      // Перемешиваем tallRows и wideRows между собой, чередуя.
+      // Подход: сливаем в один массив и перемешиваем seeded, но избегаем двух wide подряд.
+      all = tallRows.concat(wideRows);
+      shuffleInPlace(all);
+
+      // Развод двух wide подряд (если возникли). Ряд-полотно в разводе НЕ
+      // участвует: его позиция авторская, а перестановка увела бы склейку от
+      // соседей, ради которых её и включили.
+      for (var k = 0; k < all.length - 1; k++) {
+        if (all[k].kind === 'wide' && all[k + 1].kind === 'wide') {
+          // Ищем следующий не-wide и меняем местами с k+1
+          for (var m = k + 2; m < all.length; m++) {
+            if (all[m].kind !== 'wide' && all[m].kind !== 'seamless') {
+              var tmp = all[k + 1]; all[k + 1] = all[m]; all[m] = tmp;
+              break;
+            }
           }
         }
       }
@@ -1228,12 +1414,13 @@
     var html = '';
     if (items.text) {
       // v0.9: передаём role/tools из data + year из DOM (card)
-      // v0.13.8: gameAsset — из meta.gameAsset (читается из DOM в openCase)
+      // CASE-CTA-01: внешняя ссылка приходит из данных кейса (items.cta),
+      // а не из флага gameAsset — её наличие решает владелец в админке.
       var textMeta = {
-        role:      data.role  || null,
-        tools:     data.tools || null,
-        year:      meta.year  || null,
-        gameAsset: meta.gameAsset === true
+        role:  data.role  || null,
+        tools: data.tools || null,
+        year:  meta.year  || null,
+        cta:   items.cta  || null
       };
       html += textFullHTML(items.text, textMeta);
     }
@@ -1251,7 +1438,8 @@
       return true;
     }
     all.forEach(function (row) {
-      if (row.kind === 'wide')      html += rowWide(row.a, claimEager(row.a));
+      if (row.kind === 'seamless')  html += rowSeamless(row.chain.blocks, claimEager);
+      else if (row.kind === 'wide') html += rowWide(row.a, claimEager(row.a));
       else if (row.kind === 'tall-1') html += rowTall1(row.a, claimEager(row.a));
       else if (row.kind === 'tall-2') html += rowTall2(row.a, row.b, claimEager(row.a), claimEager(row.b));
       else if (row.kind === 'tall-text') html += rowTallText(row.a, items.inline, claimEager(row.a));
@@ -1421,9 +1609,9 @@
     model3dBuiltFor = null;                         // v0.11 — сброс кэша 3D
 
     // Build items + reset scroll + progress
-    // v0.13.8: передаём gameAsset для external link (ArtStation/Behance)
-    var gameAsset = !!(card && card.dataset && card.dataset.gameAsset === 'true');
-    buildItems(id, { year: yearText, gameAsset: gameAsset });
+    // CASE-CTA-01: gameAsset здесь больше не нужен — внешняя ссылка перестала
+    // выводиться из типа ассета и приходит из content вместе с кейсом.
+    buildItems(id, { year: yearText });
     if (progressBar) progressBar.style.width = '0%';
     // v0.10.2 — scrollTop на display:none-видимости не применяется корректно,
     // поэтому если сейчас вкладка Blueprints — ставим флаг, сбросим при переходе на 2D

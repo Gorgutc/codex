@@ -91,10 +91,14 @@
     );
   }
 
+  // Зеркало captionText генератора: отсутствующая пара и пара из одних
+  // пробелов одинаково схлопываются в '' — иначе превью нарисовало бы пустую
+  // подпись с отступом там, где сайт не нарисует ничего.
   function captionText(block, part, lang) {
     const caption = block.caption;
     const pair = caption && typeof caption === 'object' ? caption[part] : null;
-    return (pair && pair[lang]) || '';
+    const value = (pair && typeof pair[lang] === 'string' && pair[lang]) || '';
+    return value.trim().length === 0 ? '' : value;
   }
 
   // content/cases/{id}.json → запись window.CARDS_DATA[id]
@@ -117,6 +121,8 @@
       });
       // Только truthy — зеркало генератора (poster:null не эмитится).
       if (block.poster) out.poster = block.poster;
+      // Склейка едет в превью только включённой — зеркало buildCaseEntry.
+      if (block.seamless === true) out.seamless = true;
       return out;
     });
     let motionBlocks = null;
@@ -142,6 +148,14 @@
       inline: cs.inline ? { title: cs.inline.title.en, body: cs.inline.body.en } : null,
       motionBlocks
     };
+    // CASE-CTA-01: зеркало buildCaseEntry — кнопка едет в превью только у
+    // включённой ссылки с валидным адресом, и в НОРМАЛИЗОВАННОМ виде (как
+    // эмитит генератор), иначе превью показало бы кнопку там, где сайт её не
+    // нарисует (или наоборот).
+    const cta = cs.cta;
+    if (cta && typeof cta === 'object' && cta.enabled === true && !State.ctaUrlProblem(cta.url)) {
+      entry.items.cta = { url: new URL(cta.url).href };
+    }
     return entry;
   }
 
@@ -157,9 +171,11 @@
     const cs = c.case;
     const entry = {
       role: cs.role[lang],
-      captions: (Array.isArray(cs.media) ? cs.media : []).map((block) => ({
-        label: block.caption.label[lang],
-        desc: block.caption.desc[lang]
+      // Позиционный массив подписей сохраняет форму даже у блоков без подписи
+      // (пустые строки, не дыры) — контракт наложения в js/i18n.js.
+      captions: mediaBlocks(cs).map((block) => ({
+        label: captionText(block, 'label', lang),
+        desc: captionText(block, 'desc', lang)
       })),
       text: { title: cs.text.title[lang], body: cs.text.body[lang] },
       inline: { title: cs.inline.title[lang], body: cs.inline.body[lang] }

@@ -618,6 +618,12 @@ html[data-design="specimen"] body.specimen-index-page .case-row {
   gap: var(--space-4);
 }
 
+/* «Биханс-приём»: ряд-полотно склеен по определению — режимный gap выше
+   разорвал бы полосы (зеркало правила в portfolio-case.css). */
+html[data-design="specimen"] body.specimen-index-page .case-row--seamless {
+  gap: 0;
+}
+
 html[data-design="specimen"] body.specimen-index-page .case-item__media,
 html[data-design="specimen"] body.specimen-index-page .case-text {
   border: 1px solid var(--specimen-line);
@@ -1061,6 +1067,13 @@ html[data-design="specimen"] body.specimen-fa-page .fa-card__contents-item {
   html[data-design="specimen"] body.specimen-index-page .case-row--motion-halves {
     flex-direction: column;
     gap: var(--space-4);
+  }
+
+  /* Полотно склейки — без зазора и на мобильном: правило выше (0,3,2)
+     перебило бы базовое `.case-row.case-row--seamless` (0,2,0). */
+  html[data-design="specimen"] body.specimen-index-page .case-row--seamless {
+    flex-direction: column;
+    gap: 0;
   }
 
   html[data-design="specimen"] body.specimen-index-page .case-row--tall-text > :is(.case-item--tall, .case-item--text-inline) {
