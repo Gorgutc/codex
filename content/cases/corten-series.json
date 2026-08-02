@@ -61,7 +61,60 @@
         }
       },
       {
-        "src": "./assets/cases/corten-series/02-e4a28f4d.png",
+        "src": "./assets/cases/corten-series/05-dc26ecf5.jpg",
+        "format": "wide",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
+        "caption": {
+          "label": {
+            "en": "Material passes",
+            "ru": "Material passes"
+          },
+          "desc": {
+            "en": "Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web.",
+            "ru": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
+          }
+        }
+      },
+      {
+        "id": "media-msbv5509",
+        "src": "./assets/cases/corten-series/03-d35162b9.jpg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
+        "caption": {
+          "label": {
+            "en": "",
+            "ru": ""
+          },
+          "desc": {
+            "en": "",
+            "ru": ""
+          }
+        }
+      },
+      {
+        "id": "media-msbv5b5y",
+        "src": "./assets/cases/corten-series/04-9dfa2fd8.jpg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
+        "caption": {
+          "label": {
+            "en": "",
+            "ru": ""
+          },
+          "desc": {
+            "en": "",
+            "ru": ""
+          }
+        }
+      },
+      {
+        "src": "./assets/cases/corten-series/02-5598d4e4.jpg",
         "format": "wide",
         "type": "image",
         "poster": null,
@@ -78,19 +131,20 @@
         }
       },
       {
-        "src": "./assets/cases/corten-series/03-e4a28f4d.png",
-        "format": "wide",
+        "id": "media-msbvd19y",
+        "src": "./assets/cases/corten-series/06-164177c7.jpg",
+        "format": "tall",
         "type": "image",
         "poster": null,
         "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
         "caption": {
           "label": {
-            "en": "Material passes",
-            "ru": "Material passes"
+            "en": "",
+            "ru": ""
           },
           "desc": {
-            "en": "Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web.",
-            "ru": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
+            "en": "",
+            "ru": ""
           }
         }
       },
