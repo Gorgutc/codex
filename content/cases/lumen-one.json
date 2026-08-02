@@ -149,5 +149,6 @@
         "ru": "Filament-IES bakes управляют emissive intensity map. Внутренний рассеиватель — subsurface-приближение, без cheat-геометрии."
       }
     }
-  }
+  },
+  "layoutMode": "manual"
 }
