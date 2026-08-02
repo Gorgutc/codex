@@ -61,8 +61,8 @@
         }
       },
       {
-        "src": "./assets/cases/corten-series/02.svg",
-        "format": "tall",
+        "src": "./assets/cases/corten-series/02-e4a28f4d.png",
+        "format": "wide",
         "type": "image",
         "poster": null,
         "bg": "linear-gradient(135deg,#241a14 0%,#34281e 100%)",
@@ -78,8 +78,8 @@
         }
       },
       {
-        "src": "./assets/cases/corten-series/03.svg",
-        "format": "tall",
+        "src": "./assets/cases/corten-series/03-e4a28f4d.png",
+        "format": "wide",
         "type": "image",
         "poster": null,
         "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
@@ -95,36 +95,20 @@
         }
       },
       {
-        "src": "./assets/cases/corten-series/04.svg",
-        "format": "wide",
-        "type": "image",
-        "poster": null,
-        "bg": "linear-gradient(135deg,#180e0a 0%,#281c12 100%)",
-        "caption": {
-          "label": {
-            "en": "Detail macro",
-            "ru": "Detail macro"
-          },
-          "desc": {
-            "en": "Texture close-up showing procedural oxidation, patina and surface imperfection layers.",
-            "ru": "Крупный план текстуры: процедурная оксидация, патина, слои поверхностных дефектов."
-          }
-        }
-      },
-      {
-        "src": "./assets/cases/corten-series/05.svg",
+        "id": "media-msbj0s97",
+        "src": "./assets/cases/corten-series/04-e4a28f4d.png",
         "format": "tall",
         "type": "image",
         "poster": null,
-        "bg": "linear-gradient(135deg,#120a08 0%,#20150e 100%)",
+        "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
         "caption": {
           "label": {
-            "en": "Lineup shot",
-            "ru": "Lineup-кадр"
+            "en": "Material passes",
+            "ru": "Material passes"
           },
           "desc": {
-            "en": "Full collection rendered as a lineup for the catalogue spread. Lighting matches brand art direction.",
-            "ru": "Вся коллекция собрана lineup-ом под разворот каталога. Свет соответствует AD-гайдам бренда."
+            "en": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web.",
+            "ru": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
           }
         }
       }
@@ -150,5 +134,5 @@
       }
     }
   },
-  "layoutMode": "seeded"
+  "layoutMode": "manual"
 }
