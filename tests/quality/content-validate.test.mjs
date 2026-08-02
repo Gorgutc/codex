@@ -81,6 +81,29 @@ try {
   glint.case.media[4].caption.label.ru = ''; // half-filled caption pair
   writeJson('cases/glint-owl.json', glint);
 
+  // Slice B: background grammar and the optional stable block id.
+  const vega = readJson('cases/vega-shell.json');
+  // CSS escape: the tokenizer decodes "u\72l(" back into url() — the literal
+  // "url(" ban alone does not catch it (adversarial review, P1).
+  vega.case.media[0].bg = 'linear-gradient(red,blue),u\\72l(https://evil.example/pixel.png)';
+  vega.case.media[1].bg = 'red; position:fixed; inset:0'; // declaration break-out
+  // Second top-level background layer smuggled past the shape regex.
+  vega.case.media[2].bg = 'linear-gradient(red,blue),url(https://evil.example/p.png)';
+  vega.case.media[2].id = 'Slot One'; // not [a-z0-9-]
+  vega.case.media[3].id = 'hero';
+  vega.case.media[3].bg = 'linear-gradient(red,blue)/*x*/'; // CSS comment
+  vega.case.media[4].id = 'hero'; // duplicate id inside the same case
+  writeJson('cases/vega-shell.json', vega);
+
+  // Slice B: poster is mandatory on a video block (it is the only frame shown
+  // under reduced motion) and forbidden on an image block.
+  const apex = readJson('cases/apex-frame.json');
+  apex.case.media[0].type = 'video';
+  apex.case.media[0].src = './assets/cases/orbital-mk-ii/orbital-shell-idle.webm';
+  apex.case.media[0].poster = null; // video without a poster
+  apex.case.media[1].poster = './assets/cases/apex-frame/01.svg'; // poster on an image block
+  writeJson('cases/apex-frame.json', apex);
+
   const arc = readJson('cases/arc-motion.json');
   arc.case.captions = []; // mixed schema: legacy array alongside case.media
   writeJson('cases/arc-motion.json', arc);
@@ -138,6 +161,14 @@ try {
     'case.media[2].src: a video block must point at a .webm file',
     'case.media[3].bg: must be a non-empty string',
     'case.media[4].caption: must have label and desc with non-empty "en" and "ru"',
+    'content/cases/vega-shell.json: case.media[0].bg: must be a single var(--token), #hex colour or linear/radial-gradient',
+    'content/cases/vega-shell.json: case.media[1].bg: must be a single var(--token), #hex colour or linear/radial-gradient',
+    'content/cases/vega-shell.json: case.media[2].bg: must be a single var(--token), #hex colour or linear/radial-gradient',
+    'content/cases/vega-shell.json: case.media[3].bg: must be a single var(--token), #hex colour or linear/radial-gradient',
+    'case.media[2].id: must be lowercase letters, digits and dashes (got "Slot One")',
+    'case.media[4].id: duplicate block id "hero" in this case',
+    'content/cases/apex-frame.json: case.media[0].poster: a video block needs a poster image',
+    'content/cases/apex-frame.json: case.media[1].poster: only a video block may carry a poster',
     'content/cases/arc-motion.json: case.captions is obsolete — case.media[] is the only media schema',
     'must not contain ".." segments',
     'missing-loop.webm',

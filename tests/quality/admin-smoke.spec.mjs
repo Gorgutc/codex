@@ -128,6 +128,13 @@ async function loginWithPat(page) {
 }
 
 test('экран входа: русский заголовок и оба способа авторизации', async ({ page }) => {
+  // Кнопка GitHub показывается только там, где живёт Netlify-функция OAuth
+  // (слайс B: на статическом хостинге она 404-ит, и панель её прячет).
+  // Здесь проверяется полный Netlify-контур, поэтому пробе отвечаем как
+  // настоящая функция — редиректом на github.com.
+  await page.route('**/.netlify/functions/cms-auth*', (route) =>
+    route.fulfill({ status: 302, headers: { Location: 'https://github.com/login/oauth/authorize' }, body: '' })
+  );
   await page.goto(`${base}/admin/`);
   await expect(page.locator('h1')).toHaveText('Вход в админ-панель');
   await expect(page.locator('#login-github')).toBeVisible();

@@ -42,6 +42,11 @@
   // Формат живёт в самом блоке case.media (enum генератора wide|tall);
   // здесь только человекочитаемые подписи слотов.
   const MEDIA_FORMAT_LABELS = { wide: 'широкий', tall: 'высокий' };
+  // Зеркало MEDIA_MAX_BLOCKS обоих валидаторов: на пределе кнопки «добавить»
+  // прячутся, чтобы владелец не упирался в ошибку публикации. Мягкий порог —
+  // предупреждение о длине кейса, публикацию не блокирует.
+  const MEDIA_MAX_BLOCKS = 12;
+  const MEDIA_WARN_BLOCKS = 8;
 
   const els = {
     topbar: document.getElementById('topbar'),
@@ -166,6 +171,32 @@
       if (!match) return dot;
       if (accept && !accept(match)) return dot;
       return build(match, movedIndex(Number(match[slot]), from, to));
+    });
+  }
+
+  // Слайс B: структурные правки списка двигают pending-медиа так же, как
+  // remapListIndex двигает их при перестановке — иначе загруженный, но ещё не
+  // опубликованный файл после «добавить»/«удалить» адресовал бы чужой блок.
+  //   insertListIndex — вставка в позицию index: индексы >= index уезжают на +1;
+  //   removeListIndex — удаление index: его собственные пути выбрасываются
+  //     (State отменяет pending-байты и revoke'ает object-URL), индексы
+  //     > index уезжают на −1.
+  function insertListIndex(filePath, regex, slot, index, build) {
+    State.remapMediaEdits(filePath, (dot) => {
+      const match = dot.match(regex);
+      if (!match) return dot;
+      const i = Number(match[slot]);
+      return i >= index ? build(match, i + 1) : dot;
+    });
+  }
+
+  function removeListIndex(filePath, regex, slot, index, build) {
+    State.remapMediaEdits(filePath, (dot) => {
+      const match = dot.match(regex);
+      if (!match) return dot;
+      const i = Number(match[slot]);
+      if (i === index) return null;
+      return i > index ? build(match, i - 1) : dot;
     });
   }
 
@@ -370,6 +401,14 @@
           file,
           opts.valueMode
         );
+        if (result.cancelled) {
+          // Слайс B: блок удалили или переключили, пока файл читался — байты
+          // выброшены, чтобы не уехать в чужой слот.
+          toast('Загрузка отменена: блок изменился, пока файл читался. Повторите загрузку.', 'warn');
+          render();
+          input.value = '';
+          return;
+        }
         if (result.unchanged) {
           toast('Этот файл уже опубликован под тем же именем — заменять нечего.', 'info');
         } else if (result.warning) {
@@ -565,11 +604,29 @@
       if (!patForm.hidden) patInput.focus();
     });
 
+    // OAuth-контур живёт в Netlify-функции; на статическом хостинге (Beget)
+    // её нет, и кнопка вела бы в popup с 404. Проба асинхронная: кнопка
+    // рисуется сразу (fail-open) и прячется, только если функция явно 404.
+    const oauthNote = el('p', {
+      className: 'hint',
+      id: 'login-oauth-note',
+      hidden: true,
+      text: 'На этом хостинге вход выполняется по токену — кнопка входа через GitHub недоступна.'
+    });
+    // Форму токена НЕ раскрываем сами: «Войти с токеном» — переключатель, и
+    // предраскрытая форма закрывалась бы первым же нажатием на неё.
+    API.probeOAuthAvailable().then((available) => {
+      if (available) return;
+      githubBtn.hidden = true;
+      oauthNote.hidden = false;
+    });
+
     els.app.replaceChildren(
       el('section', { className: 'login' }, [
         el('p', { className: 'login__brand', text: 'CODEX STUDIO' }),
         el('h1', { text: 'Вход в админ-панель' }),
         el('div', { className: 'login__buttons' }, [githubBtn, patToggle]),
+        oauthNote,
         patForm,
         errorMsg
       ])
@@ -1439,7 +1496,9 @@
 
   // F5: строгий enum-<select> для motion-полей (layout/playback), редактируемых
   // владельцем. data-field позволяет inline-ошибке валидатора привязаться к полю.
-  function enumSelect(path, dotBase, field, current, fallback, options) {
+  // labelText (слайс B): человекочитаемая подпись для слотов иллюстраций;
+  // motion-поля по-прежнему подписаны именем поля.
+  function enumSelect(path, dotBase, field, current, fallback, options, labelText) {
     const select = el('select', { 'data-field': path + '::' + dotBase + '.' + field },
       options.map((o) => el('option', { value: o.value, text: o.text })));
     // Легаси/ручной out-of-enum значение: добавляем его опцией, чтобы <select> не
@@ -1453,7 +1512,7 @@
       State.setValue(path, dotBase + '.' + field, select.value);
       clearFieldError(select);
     });
-    return el('div', {}, [el('label', { text: field }), select]);
+    return el('div', {}, [el('label', { text: labelText || field }), select]);
   }
 
   /* ── motion-блок: источник local/vimeo, файлы, Vimeo ID ──────────── */
@@ -1661,6 +1720,156 @@
       rerender(focusKey);
     }
 
+    /* ── слайс B: структура иллюстраций (добавить / удалить / тип) ──────
+       Структурные правки имеют смысл только при ручном порядке: в seeded
+       раскладку собирает сид по id кейса, и «добавил блок в конец» ничего не
+       значит для сайта. Поэтому в seeded сначала спрашиваем, переключить ли
+       режим; без подтверждения черновик НЕ меняется. */
+    function ensureManualLayout(action) {
+      if (State.getValue(path, 'layoutMode') === 'manual') return true;
+      const agreed = window.confirm(
+        action +
+          ' доступно только при ручном порядке блоков.\n\n' +
+          'Включить ручной порядок? Стартовый порядок — авторский порядок файлов кейса; ' +
+          'он может отличаться от того, что показывала автоматическая раскладка.'
+      );
+      if (!agreed) {
+        toast('Черновик не изменён: ручной порядок остался выключенным.', 'info');
+        return false;
+      }
+      State.setValue(path, 'layoutMode', 'manual');
+      toast('Ручной порядок включён — теперь блоки можно добавлять, удалять и переставлять.', 'info');
+      return true;
+    }
+
+    // Стабильный id блока: адресация pending-медиа остаётся позиционной
+    // (case.media.N.src), а id нужен админке как «личность» блока и уезжает в
+    // content-JSON. Формат — зеркало MEDIA_ID_RE обоих валидаторов.
+    function nextMediaId(blocks) {
+      const used = {};
+      blocks.forEach((block) => {
+        if (block && typeof block.id === 'string') used[block.id] = true;
+      });
+      const stamp = Date.now().toString(36);
+      let candidate = 'media-' + stamp;
+      let n = 1;
+      while (used[candidate]) {
+        candidate = 'media-' + stamp + '-' + n;
+        n += 1;
+      }
+      return candidate;
+    }
+
+    function addMediaBlock(type) {
+      const blocks = State.getValue(path, 'case.media') || [];
+      if (blocks.length >= MEDIA_MAX_BLOCKS) {
+        toast('В кейсе не может быть больше ' + MEDIA_MAX_BLOCKS + ' блоков иллюстраций.', 'error');
+        return;
+      }
+      // Тот же заслон, что и у перестановки (D-09): i18nOverrides адресуются
+      // номерами слотов, и любая структурная правка уводит их на чужие блоки
+      // молча. Добавление сегодня всегда в конец, но заслон общий для всех
+      // структурных операций — иначе он развалится на первой вставке в середину.
+      if (reorderBlockedByOverrides()) return;
+      if (!ensureManualLayout(type === 'video' ? 'Добавление видео-блока' : 'Добавление фото-блока')) return;
+      // Фон нового блока — последний использованный в кейсе (кейс держит один
+      // визуальный ряд); если кейс пуст, безопасный токен темы.
+      let bg = 'var(--color-surface)';
+      for (let i = blocks.length - 1; i >= 0; i -= 1) {
+        if (blocks[i] && typeof blocks[i].bg === 'string' && blocks[i].bg.trim()) {
+          bg = blocks[i].bg;
+          break;
+        }
+      }
+      const index = blocks.length;
+      const block = {
+        id: nextMediaId(blocks),
+        // Пустой src: валидатор потребует файл, а drop-зона блока сразу зовёт
+        // его загрузить — публикация «пустого» блока невозможна.
+        src: '',
+        format: 'tall',
+        type: type === 'video' ? 'video' : 'image',
+        poster: null,
+        bg,
+        caption: { label: { en: '', ru: '' }, desc: { en: '', ru: '' } }
+      };
+      State.setValue(path, 'case.media', blocks.concat([block]));
+      insertListIndex(
+        path,
+        /^case\.media\.(\d+)\.(.+)$/,
+        1,
+        index,
+        (match, newIndex) => 'case.media.' + newIndex + '.' + match[2]
+      );
+      toast(
+        'Блок ' +
+          (index + 1) +
+          ' добавлен в черновик. ' +
+          (type === 'video'
+            ? 'Загрузите .webm И постер, заполните подписи — без них публикация не пройдёт.'
+            : 'Загрузите файл и заполните подписи — без них публикация не пройдёт.'),
+        'info'
+      );
+      rerender();
+    }
+
+    function removeMediaBlock(i) {
+      const blocks = State.getValue(path, 'case.media') || [];
+      if (blocks.length <= 1) {
+        toast('Нельзя удалить последний блок: в кейсе должна остаться хотя бы одна иллюстрация.', 'error');
+        return;
+      }
+      if (reorderBlockedByOverrides()) return;
+      if (!ensureManualLayout('Удаление блока')) return;
+      if (
+        !window.confirm(
+          'Удалить блок ' +
+            (i + 1) +
+            '? Подпись, фон и ссылка на файл пропадут из кейса.\n\n' +
+            'Сам файл останется в репозитории — его не удаляют, чтобы страницы не отдавали 404 до пересборки сайта.'
+        )
+      ) {
+        // НЕ обещаем «черновик не изменён»: выше мог сработать переход в
+        // ручной режим, и это уже правка черновика.
+        toast('Удаление отменено — блок оставлен на месте.', 'info');
+        return;
+      }
+      const next = blocks.slice();
+      next.splice(i, 1);
+      State.setValue(path, 'case.media', next);
+      removeListIndex(
+        path,
+        /^case\.media\.(\d+)\.(.+)$/,
+        1,
+        i,
+        (match, newIndex) => 'case.media.' + newIndex + '.' + match[2]
+      );
+      toast('Блок ' + (i + 1) + ' удалён из черновика.', 'info');
+      rerender();
+    }
+
+    // Смена типа блока. Файл прежнего типа несовместим с новым (image ждёт
+    // картинку, video — .webm), поэтому src чистится вместе с pending-байтами;
+    // постер имеет смысл только у видео. Подпись, фон и формат остаются.
+    function setMediaType(i, nextType) {
+      const dotBase = 'case.media.' + i;
+      if (State.getValue(path, dotBase + '.type') === nextType) return;
+      State.setValue(path, dotBase + '.type', nextType);
+      State.discardMediaEdit(path, dotBase + '.src');
+      State.setValue(path, dotBase + '.src', '');
+      if (nextType !== 'video') {
+        State.discardMediaEdit(path, dotBase + '.poster');
+        if (State.getValue(path, dotBase + '.poster') !== undefined) State.setValue(path, dotBase + '.poster', null);
+      }
+      toast(
+        nextType === 'video'
+          ? 'Блок ' + (i + 1) + ' стал видео — загрузите .webm (постер необязателен).'
+          : 'Блок ' + (i + 1) + ' стал изображением — загрузите картинку.',
+        'info'
+      );
+      rerender();
+    }
+
     function moveMotionBlock(from, to, focusKey) {
       const blocks = State.getValue(path, 'case.motionBlocks') || [];
       if (from === to || to < 0 || to >= blocks.length) return;
@@ -1774,51 +1983,142 @@
 
     const mediaBlocks = Array.isArray(draft.case.media) ? draft.case.media : [];
     const mediaStrip = el('div', { className: 'media-strip', id: 'media-strip' });
-    mediaBlocks.forEach((block, i) => {
+
+    function mediaSlotEditor(block, i, count) {
+      const dotBase = 'case.media.' + i;
+      const isVideo = block.type === 'video';
       // Имя загружаемого файла по-прежнему привязано к ПОЗИЦИИ слота
-      // (./assets/cases/<id>/0N.<ext>) — это же имя даёт mediaBaseName.
-      const namingPath = './assets/cases/' + id + '/0' + (i + 1) + '.svg';
-      mediaStrip.appendChild(
-        el('figure', { className: 'media-slot' }, [
-          manualLayout
-            ? reorderControls({
-                label: 'Слот ' + (i + 1),
-                index: i,
-                count: mediaBlocks.length,
-                focusKey: 'slot::' + i,
-                onMove: moveMediaSlot
-              })
-            : null,
+      // (./assets/cases/<id>/NN.<ext>) — это же имя даёт mediaBaseName.
+      // padStart, а не '0' + (i + 1): десятый блок иначе стал бы «010».
+      const nn = String(i + 1).padStart(2, '0');
+      const namingPath = './assets/cases/' + id + '/' + nn + (isVideo ? '.webm' : '.svg');
+      const slot = el('figure', { className: 'media-slot', 'data-media-slot': String(i) });
+      if (manualLayout) {
+        slot.appendChild(
+          reorderControls({
+            label: 'Слот ' + (i + 1),
+            index: i,
+            count,
+            focusKey: 'slot::' + i,
+            onMove: moveMediaSlot
+          })
+        );
+      }
+      slot.appendChild(
+        dropZone({
+          filePath: path,
+          dotPath: dotBase + '.src',
+          kind: isVideo ? 'video' : 'image',
+          namingPath,
+          // Пустой src = файла ещё нет. Раньше фото-блок в этом случае
+          // показывал конвенционный путь слота, которого на диске не
+          // существует — новый блок выглядел «уже с картинкой».
+          currentPath: block.src || null,
+          preview: isVideo ? 'video' : 'image',
+          hint: isVideo ? 'Только WebM · до 20 МБ (жёсткий предел 40 МБ)' : null
+        })
+      );
+      if (isVideo) {
+        slot.appendChild(
           dropZone({
             filePath: path,
-            dotPath: 'case.media.' + i + '.src',
+            dotPath: dotBase + '.poster',
             kind: 'image',
-            namingPath: namingPath,
-            currentPath: (block && block.src) || namingPath,
-            preview: 'image'
-          }),
-          el('figcaption', {
-            text:
-              'Слот ' + (i + 1) + ' · ' + (MEDIA_FORMAT_LABELS[block && block.format] || (block && block.format) || '—')
+            namingPath: './assets/cases/' + id + '/' + nn + '-poster.png',
+            currentPath: block.poster || null,
+            preview: 'image',
+            label: 'постер (обязателен)',
+            hint: 'Единственный кадр до запуска ролика и при отключённой анимации · SVG, PNG, JPG или WebP · до 200 КБ'
           })
+        );
+      }
+
+      const typeSelect = el('select', { 'data-field': path + '::' + dotBase + '.type' }, [
+        el('option', { value: 'image', text: 'фото — изображение' }),
+        el('option', { value: 'video', text: 'видео — ролик .webm' })
+      ]);
+      if (block.type && ['image', 'video'].indexOf(block.type) === -1) {
+        typeSelect.appendChild(el('option', { value: block.type, text: block.type + ' — недопустимо' }));
+      }
+      typeSelect.value = block.type || 'image';
+      typeSelect.addEventListener('change', () => setMediaType(i, typeSelect.value));
+
+      const removeBtn = el('button', {
+        type: 'button',
+        className: 'btn btn--ghost media-slot__remove',
+        'data-media-remove': String(i),
+        'aria-label': 'Удалить блок ' + (i + 1),
+        text: 'Удалить блок'
+      });
+      removeBtn.addEventListener('click', () => removeMediaBlock(i));
+
+      slot.appendChild(
+        el('div', { className: 'media-slot__controls' }, [
+          enumSelect(
+            path,
+            dotBase,
+            'format',
+            block.format,
+            'tall',
+            [
+              { value: 'wide', text: 'wide — ' + MEDIA_FORMAT_LABELS.wide },
+              { value: 'tall', text: 'tall — ' + MEDIA_FORMAT_LABELS.tall }
+            ],
+            'формат'
+          ),
+          el('div', {}, [el('label', { text: 'тип' }), typeSelect]),
+          removeBtn
         ])
       );
+      slot.appendChild(el('figcaption', { text: 'Слот ' + (i + 1) }));
+      return slot;
+    }
+
+    mediaBlocks.forEach((block, i) => {
+      mediaStrip.appendChild(mediaSlotEditor(block && typeof block === 'object' ? block : {}, i, mediaBlocks.length));
     });
     if (manualLayout) makeSortable(mediaStrip, '.media-slot', moveMediaSlot);
-    sections.push(
-      el('section', { className: 'editor-section' }, [
-        el('h2', { text: 'Иллюстрации кейса' }),
-        mediaStrip,
+
+    const mediaSection = el('section', { className: 'editor-section' }, [
+      el('h2', { text: 'Иллюстрации кейса' }),
+      mediaStrip,
+      el('p', {
+        className: 'hint',
+        text:
+          'Фото: SVG, PNG, JPG или WebP до 200 КБ. Видео: WebM до 20 МБ, с необязательным постером. ' +
+          'Подписи к блокам редактируются ниже.' +
+          (manualLayout
+            ? ' При перестановке блок переезжает целиком: файл, фон, подпись, формат и тип.'
+            : ' Добавление, удаление и перестановка блоков доступны при ручном порядке.')
+      })
+    ]);
+    if (mediaBlocks.length > MEDIA_WARN_BLOCKS) {
+      mediaSection.appendChild(
         el('p', {
-          className: 'hint',
+          className: 'hint hint--warn',
+          id: 'media-count-warning',
           text:
-            'SVG, PNG, JPG или WebP · до 200 КБ на изображение. Подписи к слотам редактируются ниже.' +
-            (manualLayout
-              ? ' При перестановке блок переезжает целиком: изображение, фон, подпись и формат (широкий/высокий).'
-              : '')
+            'Длинный кейс: ' +
+            mediaBlocks.length +
+            ' блоков. Проверьте, что страница остаётся быстрой — каждый блок это отдельный файл.'
         })
-      ])
-    );
+      );
+    }
+    const addRow = el('div', { className: 'media-add-row' });
+    if (mediaBlocks.length < MEDIA_MAX_BLOCKS) {
+      const addPhoto = el('button', { type: 'button', className: 'btn', id: 'media-add-photo', text: '+ Фото' });
+      addPhoto.addEventListener('click', () => addMediaBlock('image'));
+      const addVideo = el('button', { type: 'button', className: 'btn', id: 'media-add-video', text: '+ Видео' });
+      addVideo.addEventListener('click', () => addMediaBlock('video'));
+      addRow.appendChild(addPhoto);
+      addRow.appendChild(addVideo);
+    } else {
+      addRow.appendChild(
+        el('p', { className: 'hint', id: 'media-cap-note', text: 'Достигнут предел: ' + MEDIA_MAX_BLOCKS + ' блоков.' })
+      );
+    }
+    mediaSection.appendChild(addRow);
+    sections.push(mediaSection);
 
     if (mediaBlocks.length > 0) {
       const captionSection = el('section', { className: 'editor-section' }, [
@@ -2144,6 +2444,9 @@
       toast('Не удалось получить актуальные файлы с GitHub: ' + (error.message || error), 'error');
       return;
     }
+    // ensureAllDrafts мог отбросить черновик, снятый с другой версии файла —
+    // владелец должен узнать об этом ДО того, как увидит план публикации.
+    flushDraftNotices();
     const errors = State.validateAll();
     // Итерация H (Fix #5): блокирующие ошибки медиа-слотов free-assets
     // («файла ещё нет в репозитории») останавливают публикацию наравне с
@@ -2212,7 +2515,12 @@
     updateChrome();
     try {
       await State.publishPrecheck();
-      const plan = publishPlan || (await State.buildPublishPlan());
+      // План ПЕРЕСОБИРАЕТСЯ после precheck, а не берётся из кэша диалога:
+      // precheck обновляет sha базы каждого изменённого файла, и именно они
+      // едут в TOCTOU-проверку publish. Кэш диалога был снят ДО precheck, и на
+      // второй публикации в той же вкладке нёс sha, устаревший на один коммит,
+      // — публикация падала бы «файл изменился» на пустом месте.
+      const plan = await State.buildPublishPlan();
       const message = 'content: ' + description + ' [admin]';
       const result = await API.publish(plan, message);
       State.markPublished();
@@ -2248,10 +2556,20 @@
     );
   }
 
+  // Черновик мог быть отброшен как устаревший — и при загрузке (старый
+  // конверт sessionStorage), и позже, в ensureFile, когда база на GitHub
+  // уехала из-под восстановленного черновика. Вычерпываем очередь после
+  // каждой навигации и перед публикацией: сообщение никогда не теряется.
+  function flushDraftNotices() {
+    const notice = State.consumeDraftNotice();
+    if (notice) toast(notice, 'warn');
+  }
+
   async function route() {
     updateChrome();
     if (!API.getToken()) {
       renderLogin();
+      flushDraftNotices();
       return;
     }
     const hash = window.location.hash || '#/cases';
@@ -2269,6 +2587,7 @@
     }
     setActiveNav(parts[0]);
     applyPendingErrors();
+    flushDraftNotices();
   }
 
   /* ── инициализация ───────────────────────────────────────────────── */

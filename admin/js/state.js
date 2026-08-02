@@ -33,6 +33,11 @@
   'use strict';
 
   const DRAFTS_KEY = 'codexAdminDrafts';
+  // Слайс B: черновики лежат в конверте { version, files }. Версия отделяет
+  // схему хранилища от схемы контента: вкладка, открытая до релиза case.media,
+  // держит в sessionStorage кейс со старыми srcs/captions/palette, и накатить
+  // такой черновик поверх нового base — это молча опубликовать мёртвую схему.
+  const DRAFTS_VERSION = 2;
   const FA_PATH = 'content/free-assets.json';
   const files = new Map(); // path → { base, sha, draft }
   let orphanDrafts = {}; // черновики из sessionStorage для ещё не загруженных файлов
@@ -192,24 +197,97 @@
 
   /* ── автосохранение в sessionStorage (debounce) ──────────────────── */
 
+  /* Сообщения о сброшенных черновиках. Сброс случается и при загрузке (старый
+     конверт), и позже — в ensureFile, когда база на GitHub уехала из-под
+     восстановленного черновика. Поэтому это очередь, а не одна строка:
+     ui.js вычерпывает её при старте и после каждой навигации/публикации. */
+  const draftNotices = [];
+
+  function pushDraftNotice(message) {
+    if (draftNotices.indexOf(message) === -1) draftNotices.push(message);
+  }
+
+  function consumeDraftNotice() {
+    if (draftNotices.length === 0) return '';
+    return draftNotices.splice(0, draftNotices.length).join(' ');
+  }
+
+  /* Черновик V1 (плоская карта path → draft, до слайса B) НЕ мигрируется.
+     Соблазн был: пересобрать case.media из srcs/captions/palette тем же
+     преобразованием, что и одноразовый мигратор контента. Но у V1-документа
+     нет provenance — неизвестно, от какой базы он был снят, а ensureFile
+     кладёт восстановленный черновик ЦЕЛИКОМ поверх свежей базы. Любое поле,
+     появившееся в файле после того, как вкладку оставили открытой (новый
+     блок, id, motion-блок), молча исчезло бы, publishPrecheck сравнивает
+     base с сервером и ничего не заметил бы, и мы опубликовали бы документ,
+     собранный из устаревшего снимка. Поэтому V1 — fail-closed сброс.
+     V2 хранит baseShas: sha базы, на которой черновик был создан. */
+  let orphanDraftShas = {};
+
   function loadStoredDrafts() {
+    orphanDrafts = {};
+    orphanDraftShas = {};
+    let raw;
     try {
-      const parsed = JSON.parse(sessionStorage.getItem(DRAFTS_KEY) || '{}');
-      orphanDrafts = parsed && typeof parsed === 'object' ? parsed : {};
+      raw = sessionStorage.getItem(DRAFTS_KEY);
     } catch (_e) {
-      orphanDrafts = {};
+      raw = null;
     }
+    if (!raw) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (_e) {
+      parsed = undefined;
+    }
+    const legacyOrBroken =
+      'Сохранённый черновик был в устаревшем формате — он сброшен. Правки на сайте не тронуты, внесите их в панели заново.';
+    if (parsed === undefined || parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      pushDraftNotice(legacyOrBroken);
+      return;
+    }
+    if (parsed.version !== DRAFTS_VERSION) {
+      // Либо V1 (ключа version нет), либо конверт от более новой версии панели
+      // (другая вкладка после деплоя) — семантику мы не знаем. Оба случая
+      // fail-closed, с явным сообщением.
+      pushDraftNotice(
+        'version' in parsed
+          ? 'Сохранённый черновик от другой версии панели — он сброшен. Правки на сайте не тронуты, внесите их заново.'
+          : legacyOrBroken
+      );
+      return;
+    }
+    const stored = parsed.files;
+    if (stored === null || typeof stored !== 'object' || Array.isArray(stored)) {
+      pushDraftNotice(legacyOrBroken);
+      return;
+    }
+    const shas = parsed.baseShas;
+    orphanDrafts = stored;
+    orphanDraftShas = shas !== null && typeof shas === 'object' && !Array.isArray(shas) ? shas : {};
   }
 
   function persistNow() {
     const store = {};
-    for (const path of Object.keys(orphanDrafts)) store[path] = orphanDrafts[path];
+    const shas = {};
+    for (const path of Object.keys(orphanDrafts)) {
+      store[path] = orphanDrafts[path];
+      if (orphanDraftShas[path]) shas[path] = orphanDraftShas[path];
+    }
     files.forEach((entry, path) => {
-      if (!draftEqualsBase(entry)) store[path] = entry.draft;
+      if (!draftEqualsBase(entry)) {
+        store[path] = entry.draft;
+        if (entry.sha) shas[path] = entry.sha;
+      }
     });
     try {
       if (Object.keys(store).length === 0) sessionStorage.removeItem(DRAFTS_KEY);
-      else sessionStorage.setItem(DRAFTS_KEY, JSON.stringify(store));
+      else {
+        sessionStorage.setItem(
+          DRAFTS_KEY,
+          JSON.stringify({ version: DRAFTS_VERSION, files: store, baseShas: shas })
+        );
+      }
     } catch (_e) {
       /* квота/приватный режим — черновик живёт хотя бы в памяти */
     }
@@ -254,8 +332,21 @@
     const base = JSON.parse(fresh.text);
     let draft = deepClone(base);
     if (orphanDrafts[path] !== undefined) {
-      draft = orphanDrafts[path];
+      // Provenance: черновик накладывается ЦЕЛИКОМ поверх свежей базы, поэтому
+      // он применим, только если снят с этой же базы. Если файл на GitHub
+      // уехал (публикация из другой вкладки, ручной коммит, bot-коммит
+      // конвейера), восстановление стёрло бы всё, что появилось в файле с тех
+      // пор, а publishPrecheck сравнивает base с сервером и подмены не увидел
+      // бы. Fail-closed: черновик сбрасываем и говорим об этом.
+      if (orphanDraftShas[path] === fresh.sha) {
+        draft = orphanDrafts[path];
+      } else {
+        pushDraftNotice(
+          'Черновик файла ' + path + ' снят с другой версии файла — он сброшен. Внесите правки заново.'
+        );
+      }
       delete orphanDrafts[path];
+      delete orphanDraftShas[path];
     }
     const entry = { base, sha: fresh.sha, draft };
     files.set(path, entry);
@@ -459,44 +550,110 @@
     });
   }
 
+  /* Staging-тикеты (ревью слайса B, гонка in-flight загрузок).
+     stageMedia читает файл асинхронно (arrayBuffer + SHA-256), и за эти
+     миллисекунды владелец успевает удалить блок, переставить его или сменить
+     тип. Раньше запись создавалась ПОСЛЕ await по исходному dot-пути — и
+     байты уезжали в коммит по чужому адресу: бинарник 01-<hash>.png ложился в
+     JSON соседнего блока, а оба валидатора видели идеально валидный документ.
+     Теперь тикет резервируется СИНХРОННО до первого await; структурные
+     операции переадресуют его (reorder/insert) или гасят (remove/смена типа
+     через discardMediaEdit), а stageMedia перед записью сверяет, жив ли он и
+     куда он теперь указывает. */
+  const stagingTickets = new Map(); // filePath → Set(ticket)
+
+  function openStagingTicket(filePath, dotPath) {
+    let tickets = stagingTickets.get(filePath);
+    if (!tickets) {
+      tickets = new Set();
+      stagingTickets.set(filePath, tickets);
+    }
+    const ticket = { dotPath, alive: true };
+    tickets.add(ticket);
+    return ticket;
+  }
+
+  function closeStagingTicket(filePath, ticket) {
+    const tickets = stagingTickets.get(filePath);
+    if (tickets) tickets.delete(ticket);
+  }
+
+  // renameFn(dotPath) → новый путь, или null/undefined чтобы погасить тикет.
+  function remapStagingTickets(filePath, renameFn) {
+    const tickets = stagingTickets.get(filePath);
+    if (!tickets || tickets.size === 0) return;
+    tickets.forEach((ticket) => {
+      if (!ticket.alive) return;
+      const next = renameFn(ticket.dotPath);
+      if (next === null || next === undefined) ticket.alive = false;
+      else ticket.dotPath = next;
+    });
+  }
+
+  function cancelStagingTicketsAt(filePath, dotPath) {
+    const tickets = stagingTickets.get(filePath);
+    if (!tickets || tickets.size === 0) return;
+    tickets.forEach((ticket) => {
+      if (ticket.dotPath === dotPath) ticket.alive = false;
+    });
+  }
+
   async function stageMedia(filePath, dotPath, kind, namingPath, currentPath, file, valueMode) {
     const rule = MEDIA_RULES[kind];
-    const ext = assertUploadAllowed(rule, file);
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const hash8 = await hashBytes(bytes);
-
-    let edits = mediaEdits.get(filePath);
-    if (!edits) {
-      edits = new Map();
-      mediaEdits.set(filePath, edits);
-    }
-    const previous = edits.get(dotPath) || null;
-    const originalPath = previous ? previous.originalPath : currentPath || null;
-    const baseFrom = previous ? previous.namingPath : namingPath;
-    const newBase = mediaBaseName(baseFrom) + '-' + hash8;
-    const assetPath = mediaDirName(baseFrom) + '/' + newBase + '.' + ext;
-
-    if (assetPath === originalPath) {
-      // Загружен файл, байты которого уже опубликованы под этим именем.
-      if (previous) {
-        URL.revokeObjectURL(previous.objectURL);
-        edits.delete(dotPath);
-        notify();
+    const ext = assertUploadAllowed(rule, file); // синхронно: бросает до тикета
+    const ticket = openStagingTicket(filePath, dotPath);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const hash8 = await hashBytes(bytes);
+      // Блок мог исчезнуть или сменить тип, пока файл читался: байты выбрасываем.
+      if (!ticket.alive) {
+        return { assetPath: null, objectURL: null, size: file.size, warning: null, cancelled: true };
       }
-      return { assetPath, objectURL: null, size: file.size, warning: null, unchanged: true };
-    }
+      // …или переехать: пишем по АКТУАЛЬНОМУ адресу тикета, а не по исходному.
+      const target = ticket.dotPath;
 
-    if (previous) URL.revokeObjectURL(previous.objectURL);
-    const objectURL = URL.createObjectURL(new Blob([bytes], { type: file.type || '' }));
-    edits.set(dotPath, {
-      value: valueMode === 'baseName' ? newBase : assetPath,
-      originalPath,
-      namingPath: baseFrom,
-      uploadPath: assetPath.replace(/^\.\//, ''),
-      bytes,
-      size: file.size,
-      objectURL
-    });
+      let edits = mediaEdits.get(filePath);
+      if (!edits) {
+        edits = new Map();
+        mediaEdits.set(filePath, edits);
+      }
+      const previous = edits.get(target) || null;
+      const originalPath = previous ? previous.originalPath : currentPath || null;
+      const baseFrom = previous ? previous.namingPath : namingPath;
+      const newBase = mediaBaseName(baseFrom) + '-' + hash8;
+      const assetPath = mediaDirName(baseFrom) + '/' + newBase + '.' + ext;
+
+      if (assetPath === originalPath) {
+        // Загружен файл, байты которого уже опубликованы под этим именем.
+        if (previous) {
+          URL.revokeObjectURL(previous.objectURL);
+          edits.delete(target);
+          notify();
+        }
+        return { assetPath, objectURL: null, size: file.size, warning: null, unchanged: true };
+      }
+
+      if (previous) URL.revokeObjectURL(previous.objectURL);
+      const objectURL = URL.createObjectURL(new Blob([bytes], { type: file.type || '' }));
+      edits.set(target, {
+        value: valueMode === 'baseName' ? newBase : assetPath,
+        originalPath,
+        namingPath: baseFrom,
+        uploadPath: assetPath.replace(/^\.\//, ''),
+        bytes,
+        size: file.size,
+        objectURL
+      });
+      return await finishStageMedia(rule, file, bytes, assetPath, objectURL);
+    } finally {
+      closeStagingTicket(filePath, ticket);
+    }
+  }
+
+  // Хвост stageMedia: мягкие предупреждения по размеру и пикселям. Запись уже
+  // лежит в mediaEdits, поэтому дальнейшие структурные правки обслуживает
+  // обычный путь remap/discard — тикет здесь больше не нужен.
+  async function finishStageMedia(rule, file, bytes, assetPath, objectURL) {
     let warning = file.size > rule.warnBytes ? 'Файл ' + formatBytes(file.size) + ' — ' + rule.warnText + '.' : null;
     // F5: для слотов с ЦЕЛЕВЫМ размером (OG-картинки) читаем реальные пиксели и
     // мягко предупреждаем, если соотношение далеко от целевого ~1200×630 (превью
@@ -537,6 +694,10 @@
   // Итерация H: сброс pending-загрузки слота (например, при выключении
   // 3D-превью/постера free-asset — файл больше не должен уйти в коммит).
   function discardMediaEdit(filePath, dotPath) {
+    // Слайс B: гасим и ЕЩЁ НЕ ДОЧИТАННУЮ загрузку в этот слот. Смена типа
+    // блока (video→image) вызывает discard для src и poster; без этого поздний
+    // результат чтения материализовал бы постер обратно в уже не-видео блок.
+    cancelStagingTicketsAt(filePath, dotPath);
     const edits = mediaEdits.get(filePath);
     const record = edits && edits.get(dotPath);
     if (!record) return;
@@ -549,12 +710,26 @@
   // motion-блоки) pending-медиа должны переехать вместе со своим слотом —
   // иначе загруженный файл лёг бы в чужую позицию. renameFn(dotPath) →
   // новый dot-путь (или тот же).
+  // Слайс B: renameFn может вернуть null — запись выбрасывается вместе с
+  // object-URL (удаление блока отменяет его pending-байты, иначе файл ушёл бы
+  // в коммит без единой ссылки на него в JSON). Коллизия путей тоже гасит
+  // проигравшую запись, чтобы blob-URL не утёк.
   function remapMediaEdits(filePath, renameFn) {
+    // In-flight загрузки едут по тому же правилу, что и завершённые записи:
+    // переставили блок — тикет переезжает, удалили — тикет гаснет.
+    remapStagingTickets(filePath, renameFn);
     const edits = mediaEdits.get(filePath);
     if (!edits || edits.size === 0) return;
     const next = new Map();
     edits.forEach((record, dotPath) => {
-      next.set(renameFn(dotPath), record);
+      const target = renameFn(dotPath);
+      if (target === null || target === undefined) {
+        URL.revokeObjectURL(record.objectURL);
+        return;
+      }
+      const collision = next.get(target);
+      if (collision) URL.revokeObjectURL(collision.objectURL);
+      next.set(target, record);
     });
     mediaEdits.set(filePath, next);
     notify();
@@ -701,6 +876,53 @@
   const MEDIA_FORMAT_VALUES = ['wide', 'tall'];
   const MEDIA_TYPE_VALUES = ['image', 'video'];
   const MEDIA_IMAGE_EXT_RE = /\.(svg|png|jpg|jpeg|webp)$/i;
+  // Зеркала слайса B (правь ОБА файла разом — канон в generate-content.mjs):
+  // необязательный стабильный id блока и грамматика фона.
+  const MEDIA_ID_RE = /^[a-z0-9-]+$/;
+  /* Фон уходит в style="background:…", то есть его разбирает CSS-токенизатор,
+     а не эта регулярка. Разрешена ОДНА безопасная форма, проверка в 4 шага
+     (см. развёрнутый комментарий у канона):
+       SHAPE     — значение целиком равно одной из трёх форм;
+       FORBIDDEN — обратный слэш (эскейп «u\72l(» токенизатор развернёт в
+                   url()), кавычки, комментарии, @, !, ;, {}, <>;
+       CONTROL   — управляющие символы (по коду, чтобы в литерале не было
+                   сырых байтов);
+       LAYERS    — ровно один top-level слой: запятая вне скобок открыла бы
+                   второй фон, который SHAPE пропускает. */
+  const MEDIA_BG_SHAPE_RE = /^(?:var\(--[a-z0-9-]+\)|#[0-9a-fA-F]{3,8}|(?:linear|radial)-gradient\([^;{}<>]*\))$/;
+  const MEDIA_BG_FORBIDDEN_RE = /[\\"'@!;{}<>]|\/\*|\*\/|url\(/i;
+
+  function mediaBgHasControlChars(value) {
+    for (let i = 0; i < value.length; i += 1) {
+      const code = value.charCodeAt(i);
+      if (code < 0x20 || code === 0x7f) return true;
+    }
+    return false;
+  }
+
+  function mediaBgSingleLayer(value) {
+    let depth = 0;
+    let layers = 1;
+    for (let i = 0; i < value.length; i += 1) {
+      const ch = value[i];
+      if (ch === '(') depth += 1;
+      else if (ch === ')') {
+        depth -= 1;
+        if (depth < 0) return false;
+      } else if (ch === ',' && depth === 0) layers += 1;
+    }
+    return depth === 0 && layers === 1;
+  }
+
+  function isSafeMediaBg(value) {
+    return (
+      typeof value === 'string' &&
+      MEDIA_BG_SHAPE_RE.test(value) &&
+      !MEDIA_BG_FORBIDDEN_RE.test(value) &&
+      !mediaBgHasControlChars(value) &&
+      mediaBgSingleLayer(value)
+    );
+  }
 
   function validateCaseMediaDraft(errors, path, media) {
     if (!Array.isArray(media) || media.length === 0) {
@@ -714,12 +936,30 @@
         message: 'Иллюстрации: не больше ' + MEDIA_MAX_BLOCKS + ' блоков (сейчас ' + media.length + ')'
       });
     }
+    const seenIds = {};
     media.forEach(function (block, i) {
       const where = 'Слот ' + (i + 1);
       const dotBase = 'case.media.' + i;
       if (block === null || typeof block !== 'object' || Array.isArray(block)) {
         errors.push({ path, field: dotBase, message: where + ': блок повреждён — обновите страницу' });
         return;
+      }
+      if (block.id !== undefined && block.id !== null) {
+        if (typeof block.id !== 'string' || !MEDIA_ID_RE.test(block.id)) {
+          errors.push({
+            path,
+            field: dotBase + '.id',
+            message: where + ': служебный id блока повреждён — удалите блок и создайте заново'
+          });
+        } else if (seenIds[block.id]) {
+          errors.push({
+            path,
+            field: dotBase + '.id',
+            message: where + ': служебный id «' + block.id + '» повторяется — удалите блок и создайте заново'
+          });
+        } else {
+          seenIds[block.id] = true;
+        }
       }
       if (MEDIA_FORMAT_VALUES.indexOf(block.format) === -1) {
         errors.push({
@@ -752,11 +992,41 @@
           message: where + ': изображению нужен файл SVG, PNG, JPG или WebP'
         });
       }
-      if (block.poster !== null && block.poster !== undefined && !isAssetPath(block.poster)) {
-        errors.push({ path, field: dotBase + '.poster', message: where + ': постер должен лежать внутри ./assets/' });
+      // Постер ОБЯЗАТЕЛЕН у видео-блока и запрещён у остальных (зеркало
+      // генератора): при prefers-reduced-motion ролик не запускается, и постер
+      // — единственное, что посетитель вообще увидит в этом слоте.
+      if (block.type === 'video') {
+        if (!isFilled(block.poster)) {
+          errors.push({
+            path,
+            field: dotBase + '.poster',
+            message: where + ': видео-блоку нужен постер — это единственный кадр до запуска ролика'
+          });
+        } else if (!isAssetPath(block.poster) || !MEDIA_IMAGE_EXT_RE.test(block.poster)) {
+          errors.push({
+            path,
+            field: dotBase + '.poster',
+            message: where + ': постеру нужен файл SVG, PNG, JPG или WebP внутри ./assets/'
+          });
+        }
+      } else if (block.poster !== null && block.poster !== undefined) {
+        errors.push({
+          path,
+          field: dotBase + '.poster',
+          message: where + ': постер бывает только у видео-блока'
+        });
       }
       if (!isFilled(block.bg)) {
         errors.push({ path, field: dotBase + '.bg', message: where + ': фон (CSS-градиент) не может быть пустым' });
+      } else if (!isSafeMediaBg(block.bg)) {
+        errors.push({
+          path,
+          field: dotBase + '.bg',
+          message:
+            where +
+            ': фон должен быть ОДНИМ слоем — var(--токен), #hex-цвет или linear/radial-gradient(…), ' +
+            'без url(), обратных слэшей, кавычек, комментариев, «;», «{}», «@», «!» и второго слоя через запятую'
+        });
       }
       pushMarkupError(errors, path, dotBase + '.bg', block.bg, where + ' — фон');
       const caption = block.caption;
@@ -1368,12 +1638,31 @@
   // Бинарные файлы дедуплицируются по пути: два слота с одинаковыми байтами
   // и назначением дают одно cache-bust-имя, а git-tree не терпит дублей path.
   function buildPublishPlan() {
-    const planFiles = changedPaths().map((path) => ({ path, content: serializeDraft(effectiveDraft(path)) }));
+    const planFiles = changedPaths().map((path) => {
+      const entry = files.get(path);
+      const file = { path, content: serializeDraft(effectiveDraft(path)) };
+      // Слайс B (TOCTOU): sha блоба, от которого редактировали — publishPrecheck
+      // обновляет его непосредственно перед сборкой плана. AdminAPI.publish
+      // сверит его с деревом head-коммита и откажется коммитить, если файл увели
+      // из-под нас между проверкой и созданием дерева. Заслон
+      // non-fast-forward остаётся вторым рубежом.
+      if (entry && entry.sha) file.expectedSha = entry.sha;
+      return file;
+    });
 
     const binariesByPath = new Map();
     mediaEdits.forEach((edits) => {
       edits.forEach((record) => {
-        binariesByPath.set(record.uploadPath, { path: record.uploadPath, bytes: record.bytes });
+        // expectedAbsent (слайс B, ревью): имя файла несёт hash8 его
+        // содержимого, поэтому на head его быть НЕ должно. Если оно там уже
+        // есть, кто-то занял путь между сборкой плана и коммитом — публикуем
+        // не то, что показали владельцу. AdminAPI.publish проверит это на
+        // запиненном head-коммите до создания хоть одного блоба.
+        binariesByPath.set(record.uploadPath, {
+          path: record.uploadPath,
+          bytes: record.bytes,
+          expectedAbsent: true
+        });
       });
     });
 
@@ -1389,6 +1678,16 @@
       if (binary.path.indexOf('assets/') !== 0) {
         throw new Error('Публикация остановлена: неожиданный путь медиа «' + binary.path + '» (ожидается assets/…)');
       }
+    }
+    // Один путь — одна tree-entry. Дубли внутри binaries уже сняты Map'ой, но
+    // пересечение content-файла с бинарником (или с будущим deletions) git-tree
+    // не терпит, а GitHub выбрал бы победителя молча.
+    const seenPaths = new Set();
+    for (const entry of planFiles.concat(Array.from(binariesByPath.values()))) {
+      if (seenPaths.has(entry.path)) {
+        throw new Error('Публикация остановлена: путь «' + entry.path + '» встречается в плане дважды');
+      }
+      seenPaths.add(entry.path);
     }
 
     return { files: planFiles, binaries: Array.from(binariesByPath.values()) };
@@ -1425,6 +1724,11 @@
       entry.draft = effectiveDraft(path);
       entry.base = deepClone(entry.draft);
       entry.baseString = undefined; // base переприсвоен — кэш сериализации сбросить
+      // Слайс B (ревью): коммит создал НОВЫЙ блоб, старый sha больше не
+      // описывает файл на сервере. Обнуляем: publishPrecheck подставит свежий
+      // перед следующей публикацией, а до тех пор план просто не несёт
+      // expectedSha вместо того, чтобы нести заведомо ложный.
+      entry.sha = null;
     });
     mediaEdits.forEach((edits) => {
       edits.forEach((record) => {
@@ -1468,6 +1772,8 @@
     defaultCommitDescription,
     markPublished,
     onChange,
+    // слайс B: сообщение о сброшенном устаревшем черновике (одноразовое)
+    consumeDraftNotice,
     // итерация E: медиа
     getMediaRule,
     stageMedia,

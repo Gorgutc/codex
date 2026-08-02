@@ -64,7 +64,7 @@ test('правка RU-описания ассета: индикатор черн
 
   await expect(page.locator('#draft-indicator')).toBeVisible();
   await page.waitForFunction(() => {
-    const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     const draft = drafts['content/free-assets.json'];
     return !!draft && draft.categories[0].items[0].desc.ru === 'Новое русское описание ассета.';
   });
@@ -88,7 +88,7 @@ test('выключение ассета: затемнение, бейдж «ск
   // обновляет его, а не только список).
   await expect(headerBadge).toBeVisible();
   await page.waitForFunction((id) => {
-    const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     const draft = drafts['content/free-assets.json'];
     if (!draft) return false;
     const item = draft.categories[0].items.find((entry) => entry.id === id);
@@ -119,7 +119,7 @@ test('перестановка ассета кнопками ↑/↓ меняе�
 
   await page.waitForFunction(
     ([a, b]) => {
-      const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+      const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
       const draft = drafts['content/free-assets.json'];
       return !!draft && draft.categories[0].items[0].id === b && draft.categories[0].items[1].id === a;
     },
@@ -227,7 +227,12 @@ test('guard: последний видимый ассет выключить н�
   });
   await page.addInitScript(
     (store) => {
-      sessionStorage.setItem('codexAdminDrafts', JSON.stringify(store));
+      // baseShas: провенанс черновика. ensureFile принимает восстановленный
+      // черновик, только если он снят с ТОЙ ЖЕ версии файла; мок Contents
+      // API отдаёт sha вида `sha-<path>`.
+      const baseShas = {};
+      for (const key of Object.keys(store)) baseShas[key] = 'sha-' + key;
+      sessionStorage.setItem('codexAdminDrafts', JSON.stringify({ version: 2, files: store, baseShas }));
     },
     { [FA_PATH]: draft }
   );
@@ -255,7 +260,12 @@ test('Fix #5: восстановленный из sessionStorage чернови�
   draft.categories[0].items[0].thumb = 'ghost-poster-missing'; // assets/cards/ghost-poster-missing.svg не существует
   await page.addInitScript(
     (store) => {
-      sessionStorage.setItem('codexAdminDrafts', JSON.stringify(store));
+      // baseShas: провенанс черновика. ensureFile принимает восстановленный
+      // черновик, только если он снят с ТОЙ ЖЕ версии файла; мок Contents
+      // API отдаёт sha вида `sha-<path>`.
+      const baseShas = {};
+      for (const key of Object.keys(store)) baseShas[key] = 'sha-' + key;
+      sessionStorage.setItem('codexAdminDrafts', JSON.stringify({ version: 2, files: store, baseShas }));
     },
     { [FA_PATH]: draft }
   );
@@ -289,7 +299,7 @@ test('выключение категории: ассеты с бейджем «
   await expect(dimmedRows.first().locator('.switch input')).toBeChecked();
 
   await page.waitForFunction((key) => {
-    const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     const draft = drafts['content/free-assets.json'];
     if (!draft) return false;
     const category = draft.categories.find((entry) => entry.key === key);

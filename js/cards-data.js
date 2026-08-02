@@ -5,8 +5,9 @@
 
    window.CARDS_DATA — финальная развёрнутая структура кейсов (бывший
    makeItems() из js/main.js портирован в генератор):
-     items.media[5] — 2 wide + 3 tall, src по умолчанию
-       ./assets/cases/<id>/01..05.svg (переопределяется case.srcs[i]);
+     items.media[] — от 1 до 12 самодостаточных блоков из case.media[]:
+       type (image | video), format (wide | tall), явный путь src, фон bg,
+       EN-подписи label/desc, плюс необязательные poster и id;
      items.text / items.inline — текстовые блоки (или null);
      items.motionBlocks — fixed motion-секции (или null).
    Подключается ПЕРЕД js/main.js (classic script, без defer/async).

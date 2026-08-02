@@ -696,15 +696,49 @@ textarea[disabled] {
   flex-wrap: wrap;
 }
 
+/* Слайс B: число блоков теперь произвольное (1..12), поэтому колонки
+   подбираются под ширину, а не фиксированы на пяти слотах. */
 .media-strip {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.6rem;
 }
 
 .media-slot {
   margin: 0;
   position: relative;
+}
+
+/* Слайс B: формат/тип/удаление блока под его drop-зоной. */
+.media-slot__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.media-slot__controls label {
+  font-size: 0.71875rem;
+  color: var(--a-faint);
+}
+
+.media-slot__controls select {
+  width: 100%;
+}
+
+.media-slot__remove {
+  align-self: flex-start;
+}
+
+.media-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.hint--warn {
+  color: var(--a-text);
 }
 
 .media-slot figcaption {
@@ -1193,7 +1227,7 @@ body.preview-open {
   }
 
   .media-strip {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 
   .media-warning {

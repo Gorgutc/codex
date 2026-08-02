@@ -255,6 +255,64 @@ const MEDIA_TYPE_VALUES = ['image', 'video'];
 // Image slots render through <img>; the video slot is the same self-hosted
 // WebM contract the motion blocks already use (validateMotionBlock).
 const MEDIA_IMAGE_EXT_RE = /\.(svg|png|jpg|jpeg|webp)$/i;
+// Optional stable block id (slice B): the admin panel mints one for every block
+// it creates so pending uploads can be addressed by identity instead of by
+// array position. Absent on authored content — the generator only forwards it
+// when set, so existing js/cards-data.js bytes stay untouched.
+const MEDIA_ID_RE = /^[a-z0-9-]+$/;
+/* bg is emitted verbatim into style="background:…" of the case gallery slot,
+ * so it is parsed by the CSS tokenizer, not by this regex. One safe shape is
+ * allowed — var(--token) | #hex | linear/radial-gradient(…) — and the check
+ * runs in three steps, because a single pattern cannot express it honestly:
+ *
+ *   1. SHAPE      — the whole value is exactly one of the three forms;
+ *   2. FORBIDDEN  — characters the tokenizer can rebuild a url() or a new
+ *                   declaration from: a backslash (CSS escapes: "u\72l(" is
+ *                   decoded to "url("), quotes, comments, "@", "!", ";", "{}",
+ *                   "<>";
+ *   3. CONTROL    — no C0/DEL characters (checked by char code, not by a
+ *                   regex class, so the literal never carries raw bytes);
+ *   4. LAYERS     — exactly one top-level layer. A comma outside parentheses
+ *                   starts a second background layer, and step 1 happily
+ *                   accepts it because the gradient's own char class swallows
+ *                   ")" and "," ("linear-gradient(a,b),url(x)").
+ *
+ * Mirrored verbatim in admin/js/state.js — change both files together.
+ */
+const MEDIA_BG_SHAPE_RE = /^(?:var\(--[a-z0-9-]+\)|#[0-9a-fA-F]{3,8}|(?:linear|radial)-gradient\([^;{}<>]*\))$/;
+const MEDIA_BG_FORBIDDEN_RE = /[\\"'@!;{}<>]|\/\*|\*\/|url\(/i;
+
+function mediaBgHasControlChars(value) {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
+function mediaBgSingleLayer(value) {
+  let depth = 0;
+  let layers = 1;
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value[i];
+    if (ch === '(') depth += 1;
+    else if (ch === ')') {
+      depth -= 1;
+      if (depth < 0) return false;
+    } else if (ch === ',' && depth === 0) layers += 1;
+  }
+  return depth === 0 && layers === 1;
+}
+
+function isSafeMediaBg(value) {
+  return (
+    typeof value === 'string' &&
+    MEDIA_BG_SHAPE_RE.test(value) &&
+    !MEDIA_BG_FORBIDDEN_RE.test(value) &&
+    !mediaBgHasControlChars(value) &&
+    mediaBgSingleLayer(value)
+  );
+}
 
 function validateCaseMedia(violations, where, media) {
   if (!Array.isArray(media) || media.length === 0) {
@@ -264,11 +322,21 @@ function validateCaseMedia(violations, where, media) {
   if (media.length > MEDIA_MAX_BLOCKS) {
     violations.push(`${where}: case.media must have at most ${MEDIA_MAX_BLOCKS} blocks (got ${media.length})`);
   }
+  const seenIds = new Set();
   media.forEach((block, i) => {
     const w = `${where}: case.media[${i}]`;
     if (block === null || typeof block !== 'object' || Array.isArray(block)) {
       violations.push(`${w}: must be an object`);
       return;
+    }
+    if (block.id !== undefined && block.id !== null) {
+      if (typeof block.id !== 'string' || !MEDIA_ID_RE.test(block.id)) {
+        violations.push(`${w}.id: must be lowercase letters, digits and dashes (got ${JSON.stringify(block.id)})`);
+      } else if (seenIds.has(block.id)) {
+        violations.push(`${w}.id: duplicate block id "${block.id}" in this case`);
+      } else {
+        seenIds.add(block.id);
+      }
     }
     if (!MEDIA_FORMAT_VALUES.includes(block.format)) {
       violations.push(`${w}.format: must be "wide" or "tall" (got ${JSON.stringify(block.format)})`);
@@ -286,14 +354,35 @@ function validateCaseMedia(violations, where, media) {
         violations.push(`${w}.src: an image block must be .svg/.png/.jpg/.jpeg/.webp ("${block.src}")`);
       }
     }
-    // poster is the still frame of a video block; null/absent means none.
-    if (block.poster !== null && block.poster !== undefined) {
-      checkAssetFile(violations, `${w}.poster`, block.poster);
+    // poster (slice B review): MANDATORY on a video block and forbidden
+    // anywhere else. Under prefers-reduced-motion the runtime never starts the
+    // clip, so the poster is the only thing the visitor ever sees of that
+    // slot — a posterless video block renders as an empty box. No content
+    // carries a video block yet, so tightening this is free.
+    if (block.type === 'video') {
+      if (!isNonEmptyString(block.poster)) {
+        violations.push(
+          `${w}.poster: a video block needs a poster image — it is the only frame shown before playback and under reduced motion`
+        );
+      } else {
+        checkAssetFile(violations, `${w}.poster`, block.poster);
+        if (!MEDIA_IMAGE_EXT_RE.test(block.poster)) {
+          violations.push(`${w}.poster: must be .svg/.png/.jpg/.jpeg/.webp ("${block.poster}")`);
+        }
+      }
+    } else if (block.poster !== null && block.poster !== undefined) {
+      violations.push(
+        `${w}.poster: only a video block may carry a poster (got ${JSON.stringify(block.poster)} on type "${block.type}")`
+      );
     }
     // bg lands in the style="background:…" attribute of the case gallery
     // (escaped at runtime, guarded here as defense in depth).
     if (!isNonEmptyString(block.bg)) {
       violations.push(`${w}.bg: must be a non-empty string (CSS background of the slot)`);
+    } else if (!isSafeMediaBg(block.bg)) {
+      violations.push(
+        `${w}.bg: must be a single var(--token), #hex colour or linear/radial-gradient(…) layer — no url(), backslash escapes, quotes, comments, ";", "{}", "@", "!" or extra comma-separated layers ("${block.bg}")`
+      );
     }
     const caption = block.caption;
     if (
@@ -895,7 +984,12 @@ function buildCaseEntry(c) {
   // Runtime shape consumed by js/main.js: flat EN label/desc, no caption
   // nesting. Key order is part of the generated bytes — do not reorder.
   const media = cs.media.map((block) => {
-    const out = {
+    const out = {};
+    // Slice B: the optional stable block id travels only when the content
+    // actually carries one (admin-created blocks). Authored content has no id,
+    // so this key never appears and the generated bytes stay unchanged.
+    if (block.id) out.id = block.id;
+    Object.assign(out, {
       type: block.type,
       format: block.format,
       src: block.src,
@@ -903,7 +997,7 @@ function buildCaseEntry(c) {
       label: block.caption.label.en,
       desc: block.caption.desc.en,
       enabled: true
-    };
+    });
     // poster travels only when set: js/main.js renders it on video blocks, but
     // every current block stores poster:null and an unconditional key would
     // change the generated bytes. Truthy check, NOT `'poster' in block`.
@@ -956,8 +1050,9 @@ function buildCardsDataJs(content) {
 
    window.CARDS_DATA — финальная развёрнутая структура кейсов (бывший
    makeItems() из js/main.js портирован в генератор):
-     items.media[5] — 2 wide + 3 tall, src по умолчанию
-       ./assets/cases/<id>/01..05.svg (переопределяется case.srcs[i]);
+     items.media[] — от 1 до 12 самодостаточных блоков из case.media[]:
+       type (image | video), format (wide | tall), явный путь src, фон bg,
+       EN-подписи label/desc, плюс необязательные poster и id;
      items.text / items.inline — текстовые блоки (или null);
      items.motionBlocks — fixed motion-секции (или null).
    Подключается ПЕРЕД js/main.js (classic script, без defer/async).
