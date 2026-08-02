@@ -633,8 +633,8 @@
           }
         ],
         text: {
-          title: 'Material approach',
-          body: 'The Corten oxidation is procedural, not painted. A single material graph drives rust density, micro-pitting and runoff stains — each chair variant reads as a unique piece without repeating textures.'
+          title: 'Product visualization development',
+          body: 'Only drawings and raw materials were received from the customer. The materials and textures were finalized. The model was optimized for constant product renders. The GLB was prepared for placement on the website. The drawings were adapted for possible product improvements.'
         },
         inline: {
           title: 'Patina system',
@@ -742,8 +742,8 @@
           }
         ],
         text: {
-          title: 'Материальный подход',
-          body: 'Corten-оксидация процедурная, не нарисованная. Один material-graph рулит плотностью ржавчины, micro-pitting и потёками — каждый стул выглядит уникально, без повторяющихся текстур.'
+          title: 'Разработка продуктовой визуализации',
+          body: 'Был получены только чертежи и сырые материалы от заказчика. Довели до ума материалы и текстуры. Модель была оптимизирована  для постоянных продуктовых рендеров. Была проведена подготовка под GLB для размещения на сайте. Адаптированы чертежи для возможного улучшения продукта.'
         },
         inline: {
           title: 'Patina-система',

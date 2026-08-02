@@ -80,7 +80,7 @@ window.CARDS_DATA = {
         {
           id: 'media-msbvd19y',
           type: 'image',
-          format: 'tall',
+          format: 'wide',
           src: './assets/cases/corten-series/06-164177c7.jpg',
           bg: 'linear-gradient(135deg,#1e1410 0%,#2c2018 100%)',
           label: '',
@@ -99,8 +99,8 @@ window.CARDS_DATA = {
         }
       ],
       text: {
-        title: 'Material approach',
-        body: 'The Corten oxidation is procedural, not painted. A single material graph drives rust density, micro-pitting and runoff stains — each chair variant reads as a unique piece without repeating textures.'
+        title: 'Product visualization development',
+        body: 'Only drawings and raw materials were received from the customer. The materials and textures were finalized. The model was optimized for constant product renders. The GLB was prepared for placement on the website. The drawings were adapted for possible product improvements.'
       },
       inline: {
         title: 'Patina system',
@@ -119,6 +119,7 @@ window.CARDS_DATA = {
       'Inkscape'
     ],
     modelSrc: './assets/models/lumen-one.glb',
+    layoutMode: 'manual',
     modelStats: {
       triangles: '1,352',
       vertices: '690',
