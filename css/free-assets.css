@@ -209,6 +209,16 @@
     );
   opacity: 0.72;
 }
+/* FA-POSTER-01: растровый постер (PNG/JPG/WebP) — это настоящий фото-рендер
+   продукта. Фирменная диагональная штриховка и primary-заливка поверх него
+   читаются как дефект печати, поэтому у растра остаётся только лёгкая нижняя
+   подложка (контраст под бейджем и подписью слота). Атрибута нет = вектор =
+   прежняя вуаль без изменений; chamber/hybrid переопределяют ::before целиком
+   на своей специфичности, и их (уже безштриховочное) оформление сохраняется. */
+.fa-card__thumb[data-poster-kind="raster"]::before {
+  background: linear-gradient(180deg, transparent 58%, oklch(0 0 0 / 0.42) 100%);
+  opacity: 0.55;
+}
 .fa-card__preview-btn {
   position: absolute;
   inset: 0;
@@ -639,6 +649,12 @@
       transparent 33px
     );
   opacity: 0.72;
+}
+/* FA-POSTER-01: обложка категории с растровым постером — см. комментарий у
+   .fa-card__thumb[data-poster-kind="raster"]::before. */
+.tag-card__thumb[data-poster-kind="raster"]::before {
+  background: linear-gradient(180deg, transparent 58%, oklch(0 0 0 / 0.42) 100%);
+  opacity: 0.55;
 }
 .tag-card__thumb::after {
   content: attr(data-label);

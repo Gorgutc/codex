@@ -23,6 +23,13 @@
  *   - bad FA "enabled" type       → validation error (item AND category);
  *   - thumb null / custom base    → fa-data emits the convention verbatim,
  *                                   JSON-LD thumbnail falls back to the FA OG;
+ *   - raster poster path          → fa-data, tag card and JSON-LD follow the
+ *                                   full './assets/…' path and the tag-card
+ *                                   thumb gains data-poster-kind="raster",
+ *                                   while a vector catalog stays attribute-free
+ *                                   (FA-POSTER-01);
+ *   - bad poster path             → foreign extension, "..", missing file and
+ *                                   non-"./assets/" values are all rejected;
  *   - all FA items disabled       → "at least one free asset" guard fires;
  *   - disable an FA category      → its tag-card leaves the fa-tag-cards
  *                                   overview region (XSS/visibility batch);
@@ -33,12 +40,12 @@
  * --write output goes to a temp CONTENT_OUT_DIR (the working tree is never
  * touched). Plain node test — no Playwright. Wired into test:content-validate.
  */
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildReferenceSet, findOrphans } from '../../scripts/clean-orphan-assets.mjs';
+import { buildReferenceSet, findOrphans, findPosterProblems } from '../../scripts/clean-orphan-assets.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const generatorPath = path.join(root, 'scripts', 'generate-content.mjs');
@@ -730,6 +737,62 @@ function faTagCardsSection(html) {
   const missing = liveFiles.filter((p) => !referenceSet.has(p));
   if (missing.length) fail('orphan audit: live files missing from the reference set (would be FALSE orphans): ' + missing.join(', '));
 
+  // FA-POSTER-01: the reference the audit stores must be the path the file
+  // actually has. Against the live repo an FA poster is ALSO referenced by a
+  // portfolio card or by the scanned HTML, so a broken poster resolver would
+  // still look green here — hence a throwaway root whose ONLY reference to the
+  // PNG is the FA poster value.
+  {
+    const posterRoot = mkdtempSync(path.join(tmpdir(), 'codex-orphan-poster-'));
+    try {
+      const write = (relPath, body) => {
+        mkdirSync(path.join(posterRoot, path.dirname(relPath)), { recursive: true });
+        writeFileSync(path.join(posterRoot, relPath), body);
+      };
+      write('content/settings.json', JSON.stringify({ filters: [], cardOrder: [] }));
+      write('content/meta.json', JSON.stringify({ ogImages: {} }));
+      write('assets/cards/fa-only-poster.png', 'png');
+      write('assets/cards/solo-cover.svg', 'svg');
+      write('assets/cards/nothing-points-here.png', 'png');
+      const faOf = (thumb) =>
+        JSON.stringify({
+          categories: [
+            { key: 'solo', tagCard: { thumb: 'solo-cover' }, items: [{ id: 'only', thumb, model: null }] }
+          ]
+        });
+
+      write('content/free-assets.json', faOf('./assets/cards/fa-only-poster.png'));
+      const posterOrphans = findOrphans(buildReferenceSet(posterRoot), posterRoot).map((o) => o.path);
+      if (posterOrphans.includes('./assets/cards/fa-only-poster.png')) {
+        fail('orphan audit: a poster referenced ONLY by an FA item was reported as an orphan — --delete would eat it');
+      }
+      if (posterOrphans.includes('./assets/cards/solo-cover.svg')) {
+        fail('orphan audit: a category cover was reported as an orphan');
+      }
+      // Positive control: the audit still finds a genuinely unreferenced file.
+      if (!posterOrphans.includes('./assets/cards/nothing-points-here.png')) {
+        fail('orphan audit: the throwaway root must still report its genuinely unreferenced file', posterOrphans.join(', '));
+      }
+      if (findPosterProblems(posterRoot).length !== 0) {
+        fail('orphan audit: a canonical poster value must not be reported as a problem');
+      }
+
+      // A non-canonical value cannot be resolved, so the reference set is
+      // INCOMPLETE — the audit has to say so, because `--delete` would
+      // otherwise remove the live file the value meant to point at.
+      write('content/free-assets.json', faOf('./assets/cards//fa-only-poster.png'));
+      const problems = findPosterProblems(posterRoot);
+      if (problems.length === 0) {
+        fail('orphan audit: a non-canonical poster value must be reported so --delete refuses to run');
+      }
+      if (!problems.join(' ').includes('fa-only-poster')) {
+        fail('orphan audit: the reported problem must name the offending value', problems.join(' | '));
+      }
+    } finally {
+      rmSync(posterRoot, { recursive: true, force: true });
+    }
+  }
+
   const orphans = findOrphans(referenceSet);
   const orphanPaths = new Set(orphans.map((o) => o.path));
   const falseOrphans = liveFiles.filter((p) => orphanPaths.has(p));
@@ -799,6 +862,15 @@ function faTagCardsSection(html) {
   const sandbox = makeSandbox('case-cta');
   try {
     const CTA_URL = 'https://www.behance.net/gallery/12345/orbital';
+    // Сколько кнопок ждать — считаем из песочницы: владелец включает CTA на
+    // своих кейсах штатно (ради этого фича и делалась), поэтому «ровно одна»
+    // было бы утверждением о его контенте, а не о семантике генератора.
+    const enabledElsewhere = readdirSync(path.join(sandbox.contentDir, 'cases'))
+      .filter((name) => name.endsWith('.json') && name !== 'orbital-mk-ii.json' && name !== 'vega-shell.json')
+      .filter((name) => {
+        const cta = JSON.parse(readFileSync(path.join(sandbox.contentDir, 'cases', name), 'utf8')).case?.cta;
+        return Boolean(cta && cta.enabled);
+      }).length;
     const orbital = sandbox.readJson('cases/orbital-mk-ii.json');
     orbital.case.cta = { enabled: true, url: CTA_URL };
     sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
@@ -815,18 +887,20 @@ function faTagCardsSection(html) {
     if (!cardsData.includes(`cta: {\n        url: '${CTA_URL}'`)) {
       fail('an enabled cta must travel into items.cta of cards-data', cardsData.slice(0, 400));
     }
-    if ((cardsData.match(/cta: \{/g) || []).length !== 1) {
-      fail('only the enabled case may carry a cta key in cards-data');
+    if ((cardsData.match(/cta: \{/g) || []).length !== enabledElsewhere + 1) {
+      fail(`only enabled cases may carry a cta key in cards-data (expected ${enabledElsewhere + 1})`);
     }
     if (cardsData.includes('artstation.com/artwork/vega')) fail('a disabled cta must not reach the runtime payload');
 
-    // Switching the same link off removes the key again (no ghost buttons).
+    // Switching the same link off removes the key again (no ghost buttons):
+    // остаются ровно те кнопки, что владелец включил на своих кейсах.
     orbital.case.cta.enabled = false;
     sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
     const off = sandbox.run('--write');
     if (off.status !== 0) fail('--write must accept a disabled case.cta', off.output);
-    if (sandbox.readOut('js/cards-data.js').includes('cta: {')) {
-      fail('no cta key may survive in cards-data once every link is switched off');
+    const afterOff = (sandbox.readOut('js/cards-data.js').match(/cta: \{/g) || []).length;
+    if (afterOff !== enabledElsewhere) {
+      fail(`switching a link off must drop its cta key (expected ${enabledElsewhere}, got ${afterOff})`);
     }
     console.log('case.cta: enabled+valid emits items.cta, disabled emits nothing');
   } finally {
@@ -847,6 +921,15 @@ function faTagCardsSection(html) {
       // handed that exact form, not the raw input.
       { id: 'nightshard', url: 'https://dprofile.ru' }
     ];
+    const touched = new Set(platforms.map((platform) => `${platform.id}.json`));
+    // Кнопки, включённые владельцем на прочих кейсах, — легитимная часть
+    // ожидаемого количества (см. сценарий 21).
+    const enabledElsewhere = readdirSync(path.join(sandbox.contentDir, 'cases'))
+      .filter((name) => name.endsWith('.json') && !touched.has(name))
+      .filter((name) => {
+        const cta = JSON.parse(readFileSync(path.join(sandbox.contentDir, 'cases', name), 'utf8')).case?.cta;
+        return Boolean(cta && cta.enabled);
+      }).length;
     for (const platform of platforms) {
       const data = sandbox.readJson(`cases/${platform.id}.json`);
       data.case.cta = { enabled: true, url: platform.url };
@@ -857,8 +940,9 @@ function faTagCardsSection(html) {
     if (result.status !== 0) fail('--write must accept every allowlisted CTA platform', result.output);
 
     const cardsData = sandbox.readOut('js/cards-data.js');
-    if ((cardsData.match(/cta: \{/g) || []).length !== platforms.length) {
-      fail(`every enabled cta must reach cards-data (expected ${platforms.length})`);
+    const expectedCtas = platforms.length + enabledElsewhere;
+    if ((cardsData.match(/cta: \{/g) || []).length !== expectedCtas) {
+      fail(`every enabled cta must reach cards-data (expected ${expectedCtas})`);
     }
     for (const platform of platforms) {
       const expected = new URL(platform.url).href;
@@ -898,6 +982,165 @@ function faTagCardsSection(html) {
     // key appears on the untouched blocks.
     if (cardsData.includes('seamless: false')) fail('an unset seamless flag must not be emitted at all');
     console.log('seamless: flag emitted only when switched on');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 23 (FA-POSTER-01) — a RASTER poster (full './assets/…' path with its own
+ *      extension) reaches fa-data verbatim, the overview tag card and the
+ *      JSON-LD thumbnail, and marks the slot with data-poster-kind="raster";
+ *      an all-vector catalog emits NO such attribute (byte identity). */
+{
+  // Any committed raster under assets/ works as the fixture — the validator
+  // only requires a './assets/…' path with a poster extension. Prefer a real
+  // card poster, fall back to any raster so the scenario is not hostage to the
+  // owner's current uploads.
+  const rasterPoster = (() => {
+    const isRaster = (name) => /\.(?:png|jpe?g|webp)$/i.test(name);
+    const cardsDir = path.join(root, 'assets', 'cards');
+    const card = readdirSync(cardsDir).find(isRaster);
+    if (card) return `./assets/cards/${card}`;
+    const walkAssets = (dir) => {
+      for (const name of readdirSync(dir, { withFileTypes: true })) {
+        const abs = path.join(dir, name.name);
+        if (name.isDirectory()) {
+          const nested = walkAssets(abs);
+          if (nested) return nested;
+        } else if (isRaster(name.name)) {
+          return './' + path.relative(root, abs).split(path.sep).join('/');
+        }
+      }
+      return null;
+    };
+    return walkAssets(path.join(root, 'assets'));
+  })();
+  // Deterministic VECTOR control (a base name, i.e. the historical convention),
+  // authored into the sandbox rather than assumed of the owner's content.
+  const vectorPoster = (() => {
+    const svg = readdirSync(path.join(root, 'assets', 'cards')).find((name) => name.endsWith('.svg'));
+    return svg ? svg.replace(/\.svg$/, '') : null;
+  })();
+
+  if (!rasterPoster || !vectorPoster) {
+    console.log('SKIP raster poster: assets/cards needs both a raster and an SVG file to build the fixture pair');
+  } else {
+    const sandbox = makeSandbox('fa-raster-poster');
+    try {
+      // A baseline run tells us which ids the curated JSON-LD ItemList actually
+      // carries — derived from content, never hardcoded.
+      const baseline = sandbox.run('--write');
+      if (baseline.status !== 0) fail('baseline --write must succeed', baseline.output);
+      const baselineHtml = sandbox.readOut('free-assets.html');
+      const curatedIds = [...baselineHtml.matchAll(/free-assets\.html#([A-Za-z0-9-]+)/g)].map((m) => m[1]);
+
+      const fa = sandbox.readJson('free-assets.json');
+      const pairs = fa.categories.flatMap((category) => category.items.map((item) => ({ category, item })));
+      const target = pairs.find(({ item }) => curatedIds.includes(item.id)) || pairs[0];
+      if (!target) fail('raster poster: the catalog has no items to test with');
+      target.item.thumb = rasterPoster;
+      target.category.tagCard = { ...(target.category.tagCard || {}), thumb: rasterPoster };
+      // EXPLICIT vector control. Asserting "no data-poster-kind anywhere" would
+      // have been a claim about the OWNER'S content: the first legitimate raster
+      // cover published through the admin panel would then fail this mandatory
+      // gate (test:content-validate runs inside codex:ship) before the raster
+      // assertions below ever ran. The control is authored here instead.
+      const otherCategory = fa.categories.find((c) => c.key !== target.category.key) || null;
+      if (otherCategory) otherCategory.tagCard = { ...(otherCategory.tagCard || {}), thumb: vectorPoster };
+      sandbox.writeJson('free-assets.json', fa);
+
+      const result = sandbox.run('--write');
+      if (result.status !== 0) fail('--write must accept a raster poster path', result.output);
+
+      // 1. fa-data carries the path VERBATIM — the runtime resolver, not the
+      //    generator, owns the extension.
+      const faData = sandbox.readOut('js/fa-data.js');
+      const emitted = (faData.match(new RegExp(`thumb: '${rasterPoster.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`, 'g')) || []);
+      if (emitted.length !== 1) fail('fa-data must emit the raster poster path verbatim exactly once', faData.slice(0, 1200));
+
+      // 2. the overview tag card requests the raster and marks the slot.
+      const html = sandbox.readOut('free-assets.html');
+      const tagBlock = (key) => {
+        const start = html.indexOf(`id="tag-${key}"`);
+        if (start < 0) return '';
+        return html.slice(start, html.indexOf('</a>', start));
+      };
+      const targetTag = tagBlock(target.category.key);
+      if (!targetTag) fail(`raster poster: no tag card emitted for category "${target.category.key}"`);
+      if (!targetTag.includes(`src="${rasterPoster}"`)) {
+        fail('the tag card must request the raster cover verbatim', targetTag);
+      }
+      if (!targetTag.includes('data-poster-kind="raster"')) {
+        fail('a raster cover must mark the tag-card thumb with data-poster-kind="raster"', targetTag);
+      }
+      // The <img> contract verify-frozen pins (D3-img-required-attrs /
+      // FA-cards-sprint-b-anatomy) survives the new attribute.
+      for (const attr of ['alt=', 'width="800"', 'height="600"', 'decoding="async"', 'loading=']) {
+        if (!targetTag.includes(attr)) fail(`the raster tag-card <img> lost ${attr}`, targetTag);
+      }
+      if (otherCategory) {
+        const otherTag = tagBlock(otherCategory.key);
+        if (otherTag && otherTag.includes('data-poster-kind')) {
+          fail('a vector cover must stay attribute-free (its bytes must not move)', otherTag);
+        }
+      }
+
+      // 3. JSON-LD advertises the raster thumbnail when the item is curated.
+      if (curatedIds.includes(target.item.id)) {
+        const entry = html.slice(html.indexOf(`#${target.item.id}`));
+        const expected = `"thumbnailUrl": "https://codex.promo/${rasterPoster.replace(/^\.\//, '')}"`;
+        if (!entry.slice(0, 1500).includes(expected)) {
+          fail('the JSON-LD thumbnail must follow the raster poster path', entry.slice(0, 1500));
+        }
+      }
+      console.log('FA raster poster: path emitted verbatim, tag card marked raster, vector covers untouched');
+    } finally {
+      sandbox.cleanup();
+    }
+  }
+}
+
+/* 24 (FA-POSTER-01) — poster paths are fenced AND canonical. The non-canonical
+ *      spellings matter as much as the traversal ones: './assets/cards//x.png'
+ *      used to pass validation (path.resolve normalizes it), render nothing at
+ *      runtime, and enter the orphan reference set with the doubled slash — so
+ *      `clean-orphan-assets --delete` would have removed a LIVE poster. */
+{
+  const sandbox = makeSandbox('fa-poster-guards');
+  try {
+    const cases = [
+      { value: './assets/cards/nope.gif', expected: 'must end with one of' },
+      { value: './assets/cards/../secrets.png', expected: 'no empty, "." or ".." segments' },
+      { value: './assets/cards//poster.png', expected: 'no empty, "." or ".." segments' },
+      { value: './assets/cards/./poster.png', expected: 'no empty, "." or ".." segments' },
+      { value: './assets/cards/', expected: 'no empty, "." or ".." segments' },
+      { value: '.\\assets\\cards\\poster.png', expected: 'must use forward slashes' },
+      { value: './assets/cards/product render.png', expected: '[A-Za-z0-9._-] characters only' },
+      { value: './assets/cards/definitely-missing-poster.png', expected: 'file not found on disk' },
+      { value: 'covers/hero.png', expected: 'must be a plain base name' },
+      { value: 'https://evil.example/hero.png', expected: 'must be a plain base name' }
+    ];
+    for (const { value, expected } of cases) {
+      const fa = sandbox.readJson('free-assets.json');
+      fa.categories[0].items[0].thumb = value;
+      sandbox.writeJson('free-assets.json', fa);
+      const result = sandbox.run('--check');
+      if (result.status === 0) fail(`--check must reject the poster value ${JSON.stringify(value)}`, result.output);
+      if (!result.output.includes(expected)) {
+        fail(`expected "${expected}" for the poster value ${JSON.stringify(value)}`, result.output);
+      }
+    }
+    // The same fence protects the category cover.
+    const fa = sandbox.readJson('free-assets.json');
+    delete fa.categories[0].items[0].thumb;
+    fa.categories[0].tagCard = { ...(fa.categories[0].tagCard || {}), thumb: './assets/cards/nope.gif' };
+    sandbox.writeJson('free-assets.json', fa);
+    const coverResult = sandbox.run('--check');
+    if (coverResult.status === 0) fail('--check must reject a category cover with a foreign extension', coverResult.output);
+    if (!coverResult.output.includes('tagCard.thumb')) {
+      fail('the category cover violation must name tagCard.thumb', coverResult.output);
+    }
+    console.log('FA poster guards: extension, traversal, non-canonical spellings and non-assets paths rejected');
   } finally {
     sandbox.cleanup();
   }

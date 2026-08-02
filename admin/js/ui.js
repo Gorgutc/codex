@@ -12,8 +12,9 @@
      #/free-assets         — каталог Free Assets: группы категорий, вкл/выкл
                              и порядок категорий и ассетов (итерация H);
      #/free-assets/<id>    — редактор ассета: тексты, архив, фон, замена
-                             GLB-превью и SVG-постера (конвенция thumb/model:
-                             поле отсутствует → id, null → выключено);
+                             GLB-превью и постера (конвенция thumb/model:
+                             поле отсутствует → id, null → выключено;
+                             постер принимает и растр — FA-POSTER-01);
      #/meta                — мета-теги + OG-изображения (content/meta.json);
      #/ui                  — тексты интерфейса (content/i18n-ui.json).
 
@@ -327,8 +328,10 @@
   //         currentPath — текущий файл на GitHub или null,
   //         preview     — 'image' | 'video' | 'file',
   //         hint        — строка с целевыми размерами/форматами,
-  //         valueMode   — 'baseName' для слотов free-assets (в JSON пишется
-  //                       базовое имя, не путь; см. State.stageMedia),
+  //         valueMode   — 'baseName' для слота модели free-assets (в JSON
+  //                       пишется базовое имя, не путь; см. State.stageMedia).
+  //                       Слот постера FA его НЕ передаёт: только полный путь
+  //                       несёт расширение растрового файла (FA-POSTER-01),
   //         resolveValue— значение поля → site-путь файла (для превью и
   //                       строки пути; по умолчанию значение УЖЕ путь) }
   function dropZone(opts) {
@@ -1303,7 +1306,10 @@
 
   // Тогл «3D-превью» / «постер» (конвенция thumb/model в free-assets.json:
   // поле отсутствует → файл по умолчанию = id, null → выключено, строка →
-  // базовое имя). Выключение сбрасывает и pending-загрузку слота.
+  // базовое имя, а у постера ещё и полный './assets/…'-путь с расширением —
+  // FA-POSTER-01). Выключение сбрасывает и pending-загрузку слота.
+  // opts.valueMode передаётся в State.stageMedia: 'baseName' у модели,
+  // отсутствует (= полный путь) у постера.
   function faMediaSection(id, dotBase, key, opts, rerender) {
     const dot = dotBase + '.' + key;
     const errorKey = id + '::' + key;
@@ -1329,32 +1335,44 @@
         const baseValue = baseItem && typeof baseItem[key] === 'string' && baseItem[key] ? baseItem[key] : null;
         if (baseValue) State.setValue(FA_PATH, dot, baseValue);
         else State.deleteValue(FA_PATH, dot);
+        // FA-POSTER-01: resolveValue (State.faSlotPath) fail-closed отдаёт null
+        // на значении, которое не проходит правила слота. Такой путь НЕЛЬЗЯ
+        // отправлять в fetch — 'https://evil.example/x.png' из повреждённого
+        // черновика ушёл бы внешним HEAD-запросом. Показываем ошибку поля.
         const checkPath = opts.resolveValue(baseValue || id);
-        fetch(toAdminAssetPath(checkPath), { method: 'HEAD' })
-          .then((res) => {
-            // Пока шёл HEAD-запрос состояние слота могло измениться: слот
-            // выключили (null) ЛИБО появилась staged-загрузка — в обоих
-            // случаях ошибка «файла нет» неактуальна (staged-файл уйдёт в
-            // коммит). Снимаем возможную ошибку и не навешиваем новую.
-            if (State.getValue(FA_PATH, dot) === null || State.getMediaEdit(FA_PATH, dot)) {
-              if (faMediaErrors.delete(errorKey)) rerender();
-              return;
-            }
-            // Перерисовываем только при реальном изменении карты ошибок —
-            // иначе HEAD на существующий файл крал бы фокус/каретку у
-            // печатающего владельца лишним перестроением редактора.
-            if (!res.ok) {
-              const message =
-                'Файла ' + checkPath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
-              if (faMediaErrors.get(errorKey) !== message) {
-                faMediaErrors.set(errorKey, message);
+        if (!checkPath) {
+          faMediaErrors.set(
+            errorKey,
+            'Значение слота повреждено — ожидается имя файла или путь ./assets/… с расширением; ' +
+              'исправьте его в репозитории или выключите тогл, публикация заблокирована.'
+          );
+        } else {
+          fetch(toAdminAssetPath(checkPath), { method: 'HEAD' })
+            .then((res) => {
+              // Пока шёл HEAD-запрос состояние слота могло измениться: слот
+              // выключили (null) ЛИБО появилась staged-загрузка — в обоих
+              // случаях ошибка «файла нет» неактуальна (staged-файл уйдёт в
+              // коммит). Снимаем возможную ошибку и не навешиваем новую.
+              if (State.getValue(FA_PATH, dot) === null || State.getMediaEdit(FA_PATH, dot)) {
+                if (faMediaErrors.delete(errorKey)) rerender();
+                return;
+              }
+              // Перерисовываем только при реальном изменении карты ошибок —
+              // иначе HEAD на существующий файл крал бы фокус/каретку у
+              // печатающего владельца лишним перестроением редактора.
+              if (!res.ok) {
+                const message =
+                  'Файла ' + checkPath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+                if (faMediaErrors.get(errorKey) !== message) {
+                  faMediaErrors.set(errorKey, message);
+                  rerender();
+                }
+              } else if (faMediaErrors.delete(errorKey)) {
                 rerender();
               }
-            } else if (faMediaErrors.delete(errorKey)) {
-              rerender();
-            }
-          })
-          .catch(() => {});
+            })
+            .catch(() => {});
+        }
       } else {
         faMediaErrors.delete(errorKey);
         State.discardMediaEdit(FA_PATH, dot);
@@ -1375,7 +1393,7 @@
           filePath: FA_PATH,
           dotPath: dot,
           kind: opts.kind,
-          valueMode: 'baseName',
+          valueMode: opts.valueMode,
           namingPath: opts.resolveValue(id),
           currentPath: base ? opts.resolveValue(base) : null,
           resolveValue: opts.resolveValue,
@@ -1453,22 +1471,26 @@
         faMediaSection(id, dotBase, 'model', {
           kind: 'model',
           preview: 'file',
+          // В JSON у модели по-прежнему уходит БАЗОВОЕ имя (конвенция
+          // resolveAssetMedia), поэтому valueMode остаётся 'baseName'.
+          valueMode: 'baseName',
           toggleLabel: '3D-превью (вращающаяся модель)',
           zoneLabel: 'GLB-файл 3D-превью',
           hint: 'Только GLB · до 15 МБ (жёсткий предел 50 МБ) · файл получит новое имя вида ' + id + '-xxxxxxxx.glb',
           offHint: '3D-превью выключено (model: null) — карточка покажет постер или фон.',
-          resolveValue: (b) => './assets/models/free/' + b + '.glb'
+          resolveValue: State.faSlotPath.bind(null, 'model')
         }, rerender),
+        // FA-POSTER-01: постер принимает и растр (фото-рендер продукта вместо
+        // вращающейся 3D-модели), поэтому valueMode здесь НЕ 'baseName': в JSON
+        // уходит полный путь с фактическим расширением файла.
         faMediaSection(id, dotBase, 'thumb', {
           kind: 'faThumb',
           preview: 'image',
-          toggleLabel: 'Постер (SVG-картинка карточки)',
-          zoneLabel: 'SVG-постер карточки',
-          hint:
-            'Только SVG — сайт жёстко подставляет расширение .svg · до 200 КБ · ' +
-            'файл получит новое имя вида ' + id + '-xxxxxxxx.svg',
+          toggleLabel: 'Постер (картинка карточки)',
+          zoneLabel: 'Постер карточки',
+          hint: 'SVG, PNG, JPG или WebP · 800×600 (4:3) · до 200 КБ · файл получит новое имя вида ' + id + '-xxxxxxxx',
           offHint: 'Постер выключен (thumb: null) — до загрузки 3D карточка покажет только фон.',
-          resolveValue: (b) => './assets/cards/' + b + '.svg'
+          resolveValue: State.faSlotPath.bind(null, 'thumb')
         }, rerender)
       ])
     );
@@ -2601,14 +2623,22 @@
     // (State.findMissingFaMediaFiles) и сетевую HEAD-проверку мы awaitим
     // здесь — слот со staged-загрузкой проверку проходит (файл уйдёт в
     // коммит). faMediaErrors при этом синхронизируем, чтобы поля подсветились.
-    let missingMedia;
-    try {
-      missingMedia = await State.findMissingFaMediaFiles((sitePath) =>
-        fetch(toAdminAssetPath(sitePath), { method: 'HEAD' }).then((res) => res.ok)
-      );
-    } catch (error) {
-      toast('Не удалось проверить файлы медиа: ' + (error.message || error), 'error');
-      return;
+    // FA-POSTER-01: media-пробы выполняем ТОЛЬКО когда валидация уже чистая.
+    // Иначе восстановленный черновик с испорченным путём («…evil.example/…»)
+    // успевал спровоцировать сетевые запросы до того, как публикация всё равно
+    // останавливалась на ошибке поля. Дешевле и безопаснее: сперва форма, потом
+    // сеть. (faSlotPath дополнительно fail-closed — из мусора он не собирает
+    // URL вовсе, так что это второй рубеж, а не единственный.)
+    let missingMedia = [];
+    if (errors.length === 0) {
+      try {
+        missingMedia = await State.findMissingFaMediaFiles((sitePath) =>
+          fetch(toAdminAssetPath(sitePath), { method: 'HEAD' }).then((res) => res.ok)
+        );
+      } catch (error) {
+        toast('Не удалось проверить файлы медиа: ' + (error.message || error), 'error');
+        return;
+      }
     }
     faMediaErrors.clear();
     for (const slot of missingMedia) {

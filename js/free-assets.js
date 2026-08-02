@@ -161,14 +161,59 @@ function append(parent) {
   return parent;
 }
 
+/* Постер карточки (FA-POSTER-01). Значение thumb — ЛИБО историческое базовое
+   имя (→ ./assets/cards/<base>.svg), ЛИБО полный './assets/…'-путь с
+   собственным расширением: так на карточку попадает полноценный растровый
+   рендер (PNG/JPG/WebP) вместо SVG-заглушки. Отсутствие ключа по-прежнему
+   значит «файл по умолчанию <id>.svg», null — постер выключен.
+
+   ЭТО ЗЕРКАЛО КАНОНА scripts/fa-poster-path.mjs (classic script не умеет
+   import). Правила сегментов обязаны совпадать байт-в-байт с каноном: тот же
+   путь валидирует генератор, тем же путём scripts/clean-orphan-assets.mjs
+   решает, жив ли файл. Разошлись → удалённый живой постер.
+
+   v0.x [A2-11]: раньше здесь стоял encodeURIComponent. Канон теперь ЗАПРЕЩАЕТ
+   в сегменте всё вне [A-Za-z0-9._-], поэтому кодировать нечего: генератор
+   пишет путь в HTML как есть, рантайм присваивает его img.src как есть — URL
+   идентичны. Отказ строже кодирования: враждебное значение отбрасывается, а не
+   превращается в другой, но рабочий URL. */
+var FA_POSTER_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
+var FA_RASTER_EXT_RE = /\.(?:png|jpe?g|webp)$/i;
+
+function faPosterSrc(value) {
+  if (typeof value !== 'string' || value === '') return null;
+  if (value.indexOf('\\') !== -1) return null;
+  if (value.indexOf('/') === -1) {
+    if (value.indexOf('..') !== -1 || !FA_POSTER_SEGMENT_RE.test(value)) return null;
+    return './assets/cards/' + value + '.svg';
+  }
+  if (value.indexOf('./assets/') !== 0) return null;
+  var segments = value.slice(2).split('/');
+  for (var i = 0; i < segments.length; i++) {
+    if (!FA_POSTER_SEGMENT_RE.test(segments[i]) || segments[i] === '.' || segments[i] === '..') return null;
+  }
+  return /\.(?:svg|png|jpe?g|webp)$/i.test(value) ? value : null;
+}
+
+// 'raster' — фото-рендер (PNG/JPG/WebP), 'vector' — SVG-заглушка. Считаем по
+// РАЗРЕШЁННОМУ пути: базовое имя вида "render.png" резолвится в
+// "render.png.svg" и остаётся вектором. Признак уезжает в data-poster-kind на
+// .fa-card__thumb — у растра CSS ослабляет вуаль (css/free-assets.css).
+function faPosterKind(src) {
+  return FA_RASTER_EXT_RE.test(src) ? 'raster' : 'vector';
+}
+
 function resolveAssetMedia(asset) {
   var thumb = Object.prototype.hasOwnProperty.call(asset, 'thumb') ? asset.thumb : asset.id;
   var model = Object.prototype.hasOwnProperty.call(asset, 'model') ? asset.model : asset.id;
+  var thumbSrc = faPosterSrc(thumb);
   return {
     thumb: thumb,
+    thumbSrc: thumbSrc,
+    thumbKind: thumbSrc ? faPosterKind(thumbSrc) : null,
     model: model,
-    previewState: model ? '3d' : (thumb ? 'poster' : 'fallback'),
-    previewStateLabel: model ? '3D' : (thumb ? 'Poster' : 'Fallback'),
+    previewState: model ? '3d' : (thumbSrc ? 'poster' : 'fallback'),
+    previewStateLabel: model ? '3D' : (thumbSrc ? 'Poster' : 'Fallback'),
   };
 }
 
@@ -187,11 +232,9 @@ function createPreviewThumb(asset, media, reducedMotion) {
   thumb.dataset.previewState = media.previewState;
   setSafeBackground(thumb, asset.bg);
 
-  if (media.thumb) {
+  if (media.thumbSrc) {
     var img = el('img');
-    // v0.x [A2-11]: encode admin-имени файла, чтобы ? # .. или пробелы не
-    // переформировали URL.
-    img.src = './assets/cards/' + encodeURIComponent(media.thumb) + '.svg';
+    img.src = media.thumbSrc;
     img.alt = '';
     img.setAttribute('aria-hidden', 'true');
     img.loading = 'lazy';
@@ -199,6 +242,10 @@ function createPreviewThumb(asset, media, reducedMotion) {
     img.width = 800;
     img.height = 600;
     thumb.appendChild(img);
+    // FA-POSTER-01: атрибут ставим ТОЛЬКО растру. Его отсутствие = прежнее
+    // SVG-оформление, поэтому байты GEN-региона tag-card на текущем каталоге
+    // не сдвигаются (то же правило в scripts/generate-content.mjs).
+    if (media.thumbKind === 'raster') thumb.dataset.posterKind = 'raster';
   }
 
   if (media.model) {
@@ -221,6 +268,10 @@ function createPreviewThumb(asset, media, reducedMotion) {
     mv.addEventListener('load', function() {
       mv.classList.add('is-ready');
       thumb.classList.add('is-model-ready');
+      // FA-POSTER-01: постер скрыт (.is-model-ready img { opacity: 0 }), значит
+      // ослаблять вуаль больше не за чем — над 3D-рендером слот возвращается к
+      // фирменному оформлению вместе с самим постером.
+      delete thumb.dataset.posterKind;
     });
     mv.addEventListener('error', function() {
       mv.classList.add('fa-card__thumb-mv--failed');
@@ -228,7 +279,7 @@ function createPreviewThumb(asset, media, reducedMotion) {
     thumb.appendChild(mv);
   }
 
-  if (media.thumb || media.model) {
+  if (media.thumbSrc || media.model) {
     var previewButton = el('button', 'fa-card__preview-btn');
     previewButton.type = 'button';
     previewButton.setAttribute('aria-label', 'Open preview of ' + asset.title);

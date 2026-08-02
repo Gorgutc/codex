@@ -18,7 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 import { normalizeVisibility } from './fixtures/admin-harness.mjs';
-import { visibleCaseIds } from '../../scripts/content-expectations.mjs';
+import { visibleCaseIds, visibleFaCategories } from '../../scripts/content-expectations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const CASE_PATH = 'content/cases/orbital-mk-ii.json';
@@ -466,4 +466,61 @@ test('превью Free Assets (F5): скрытая категория выпа�
   await page.click('#preview-close');
   await expect(page.locator('#preview-overlay')).toBeHidden();
   await expect(page.locator('#draft-indicator')).toBeVisible();
+});
+
+/* FA-POSTER-01: обложка категории в превью берётся из ЧЕРНОВИКА, в том числе у
+ * уже отрисованной карточки. rebuildFaTagCards переиспользует разметку
+ * опубликованной страницы ради i18n-fidelity — до этого фикса переиспользованная
+ * карточка сохраняла ОПУБЛИКОВАННУЮ обложку, поэтому правка обложки (и тем более
+ * переход на растр) не доезжала до превью вообще, а растровая ветка buildTagCard
+ * срабатывала только для вновь включённой категории. */
+test('превью Free Assets: растровая обложка категории из черновика доезжает до tag-карточки', async ({ page }) => {
+  await mockNetwork(page);
+  const FA_PATH = 'content/free-assets.json';
+  const RASTER_COVER = './assets/cards/zz-preview-cover-fixture.png';
+  const draft = JSON.parse(normalizeVisibility(FA_PATH, fs.readFileSync(path.join(ROOT, FA_PATH))).toString('utf8'));
+  // The target MUST be a category the published free-assets.html already
+  // renders — that is the reuse path (rebuildFaTagCards keeps the shipped
+  // markup for i18n fidelity), which is exactly where the draft cover used to
+  // be dropped. A category the published page never rendered would take the
+  // buildTagCard path instead and prove nothing about the regression.
+  const shippedKey = visibleFaCategories(ROOT)[0] && visibleFaCategories(ROOT)[0].key;
+  test.skip(!shippedKey, 'skipped: no visible Free Assets category in the shipped page');
+  const target = draft.categories.find((category) => category.key === shippedKey);
+  const targetKey = target.key;
+  const vectorKey = (draft.categories.find((category) => category.key !== targetKey) || {}).key || null;
+  target.tagCard = { ...(target.tagCard || {}), thumb: RASTER_COVER };
+  await page.addInitScript(
+    (store) => {
+      const baseShas = {};
+      for (const key of Object.keys(store)) baseShas[key] = 'sha-' + key;
+      sessionStorage.setItem('codexAdminDrafts', JSON.stringify({ version: 2, files: store, baseShas }));
+    },
+    { [FA_PATH]: draft }
+  );
+
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await expect(page.locator('#topbar')).toBeVisible();
+  await page.click('a[href="#/free-assets"]');
+  await expect(page.locator('#fa-cat-list')).toBeVisible();
+
+  await page.click('#preview-btn');
+  await expect(page.locator('#preview-overlay')).toBeVisible();
+  const frame = page.frameLocator('#preview-frame');
+
+  const cover = frame.locator(`a.tag-card[data-tag="${targetKey}"] .tag-card__thumb`);
+  await expect(cover).toHaveAttribute('data-poster-kind', 'raster');
+  await expect(cover.locator('img')).toHaveAttribute('src', RASTER_COVER);
+  if (vectorKey) {
+    // Контроль: нетронутая категория осталась вектором и без атрибута.
+    const vectorCover = frame.locator(`a.tag-card[data-tag="${vectorKey}"] .tag-card__thumb`);
+    await expect(vectorCover).not.toHaveAttribute('data-poster-kind', /.*/);
+    await expect(vectorCover.locator('img')).toHaveAttribute('src', /\.svg$/);
+  }
+
+  await page.click('#preview-close');
+  await expect(page.locator('#preview-overlay')).toBeHidden();
 });

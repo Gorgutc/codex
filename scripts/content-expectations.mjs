@@ -13,6 +13,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { faPosterPath, faTagCoverValue } from './fa-poster-path.mjs';
 
 function readJson(root, ...segments) {
   return JSON.parse(fs.readFileSync(path.join(root, 'content', ...segments), 'utf8'));
@@ -36,7 +37,11 @@ export function allCaseIds(root) {
   return readJson(root, 'settings.json').cardOrder.slice();
 }
 
-// Visible FA categories with their visible items, in authored order.
+// Visible FA categories with their visible items, in authored order. `poster`
+// is the resolved cover path the generated tag card actually requests (through
+// the SHARED parser in scripts/fa-poster-path.mjs — including its single
+// category-key fallback), so no consumer has to re-derive, re-spell or hardcode
+// the naming convention.
 export function visibleFaCategories(root) {
   const fa = readJson(root, 'free-assets.json');
   return (fa.categories || [])
@@ -44,6 +49,7 @@ export function visibleFaCategories(root) {
     .map((cat) => ({
       key: cat.key,
       gameAsset: !!(cat.tagCard && cat.tagCard.gameAsset === true),
+      poster: faPosterPath(faTagCoverValue(cat)),
       items: (Array.isArray(cat.items) ? cat.items : []).filter(
         (item) => item && item.enabled !== false
       )

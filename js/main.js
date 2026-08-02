@@ -1326,11 +1326,6 @@
           all.push({ kind: 'wide', a: block });
           return;
         }
-        if (items.inline && !inlinePlaced) {
-          inlinePlaced = true;
-          all.push({ kind: 'tall-text', a: block });
-          return;
-        }
         // Пара 50/50 — только со СЛЕДУЮЩИМ высоким блоком списка (не с любым
         // свободным): иначе пара перепрыгивала бы через авторских соседей.
         var partner = -1;
@@ -1342,11 +1337,20 @@
           break;
         }
         if (partner !== -1) {
+          // Соседние высокие блоки — авторская пара, и она важнее носителя для
+          // инлайн-текста: владелец, поставив два высоких подряд, ожидает их в
+          // одном ряду. Текст займёт ОДИНОЧНЫЙ высокий блок ниже либо получит
+          // собственный ряд (ветка inline-text в конце).
           consumed[partner] = true;
           all.push({ kind: 'tall-2', a: block, b: visibleMedia[partner] });
-        } else {
-          all.push({ kind: 'tall-1', a: block });
+          return;
         }
+        if (items.inline && !inlinePlaced) {
+          inlinePlaced = true;
+          all.push({ kind: 'tall-text', a: block });
+          return;
+        }
+        all.push({ kind: 'tall-1', a: block });
       });
       // Носителя для инлайн-текста не нашлось — он идёт отдельным рядом в
       // конце ленты (та же ветка, что и в автоматической раскладке).

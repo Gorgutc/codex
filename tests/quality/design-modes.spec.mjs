@@ -24,11 +24,16 @@ const CONTROLLED_MOTION_CASE =
         (block) => block?.source === 'vimeo' && block.playback === 'controlled'
       )
   ) || null;
+// Тест меряет геометрию подписи внутри inline-stage, поэтому носителем должен
+// быть кейс, у которого высокий блок НЕСЁТ подпись: с раунда C подписи
+// необязательны, и кейс без них — валидный контент, а не повод падать.
 const INLINE_CASE =
   VISIBLE_CASES.find(
     (project) =>
       project.case?.inline?.title?.en &&
-      project.case?.media?.some((media) => media?.format === 'tall' && media.src)
+      project.case?.media?.some(
+        (media) => media?.format === 'tall' && media.src && media.caption?.label?.en && media.caption?.desc?.en
+      )
   ) || null;
 const VISIBLE_FA_CATEGORIES = visibleFaCategories(ROOT);
 const NON_GAME_FA_CATEGORY = VISIBLE_FA_CATEGORIES.find((category) => !category.gameAsset) || null;
@@ -151,7 +156,10 @@ async function waitForDesign(page, mode, surface) {
   );
 }
 
-async function waitForHybridHome(page) {
+// timeout: сценарии, которые НАМЕРЕННО тормозят загрузку (watchdog-тест держит
+// базовый рантайм 4.3с), под нагрузкой полного прогона не укладываются в
+// дефолтные 10с — им передаётся запас.
+async function waitForHybridHome(page, timeout = 10000) {
   await page.waitForFunction(() => {
     const root = document.documentElement;
     const styles = Array.from(document.querySelectorAll('link[data-codex-design-asset="style"]'));
@@ -169,7 +177,7 @@ async function waitForHybridHome(page) {
       Boolean(document.querySelector('[data-design-home="hybrid"]')) &&
       document.body.classList.contains('chamber-page-portfolio')
     );
-  });
+  }, null, { timeout });
 }
 
 async function waitForHybridCase(page, projectId) {
@@ -1259,13 +1267,27 @@ test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog
   releaseBaseRuntime();
   await navigation;
   await page.unroute('**/js/i18n-data.js');
-  if (fallbackEntry) {
-    // Экстремальный CPU-столл: fallback уже наступил (законно, позже 4300мс) —
-    // hybrid из fallback не поднимается by design, fail-open покрыт соседними
-    // тестами; контракт watchdog'а выше уже проверен.
-    await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback');
+  // Оба исхода законны, и снимок timeline выше не может их различить надёжно:
+  // watchdog срабатывает ровно на границе измеряемого окна, поэтому fallback
+  // может наступить уже ПОСЛЕ снятия снимка. Ждём, пока состояние осядет, и
+  // проверяем контракт по финальному timeline, а не по промежуточному.
+  await page.waitForFunction(
+    () => {
+      const state = document.documentElement.getAttribute('data-design-runtime-state');
+      return state === 'ready' || state === 'fallback';
+    },
+    null,
+    { timeout: 20000 }
+  );
+  const finalState = await page.locator('html').getAttribute('data-design-runtime-state');
+  if (finalState === 'fallback') {
+    // hybrid из fallback не поднимается by design; fail-open покрыт соседними
+    // тестами. Контракт watchdog'а проверяем по финальному timeline.
+    const finalTimeline = await page.evaluate(() => window.__designStates);
+    const finalFallback = finalTimeline.find((entry) => entry.state === 'fallback');
+    expect(finalFallback.at - pendingAt).toBeGreaterThanOrEqual(4300);
   } else {
-    await waitForHybridHome(page);
+    await waitForHybridHome(page, 20000);
   }
 });
 
@@ -1366,16 +1388,28 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
   const next = page.locator('.chamber-home__pager-button').last();
   await next.click();
   await expect(home).toHaveAttribute('data-active-project', nextCase.id);
-  await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent()
-  );
+  await expect
+    .poll(async () => {
+      const title = await page.locator('.chamber-home__title').textContent();
+      const card = await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent();
+      return `${(title || '').trim()}|${(card || '').trim()}`;
+    })
+    .toMatch(/^(.+)\|\1$/);
   await page.locator('#lang-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(home).toHaveAttribute('data-requested-project', nextCase.id);
   await expect(home).toHaveAttribute('data-active-project', nextCase.id);
-  await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent()
-  );
+  // Обе стороны читаются заново на каждой попытке: заголовок Hybrid-главной и
+  // карточка обновляются разными подписчиками i18n:changed, и захват ожидаемого
+  // значения ОДИН раз делал ассерт гонкой (проявилось, когда у кейса появились
+  // реально разные EN/RU-заголовки — до этого сравнение было пустым).
+  await expect
+    .poll(async () => {
+      const title = await page.locator('.chamber-home__title').textContent();
+      const card = await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent();
+      return `${(title || '').trim()}|${(card || '').trim()}`;
+    })
+    .toMatch(/^(.+)\|\1$/);
   await page.locator('#lang-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
   await expect(home).toHaveAttribute('data-active-project', nextCase.id);
@@ -1913,10 +1947,10 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
 test('hybrid: Case inline notes share one wide desktop stage and keep mobile flow', async ({ page }) => {
   const inlineCase = requireFixture(
     INLINE_CASE,
-    'skipped: no visible case has an inline note with tall media'
+    'skipped: no visible case pairs an inline note with a captioned tall block'
   );
   const tallMediaPaths = inlineCase.case.media
-    .filter((media) => media?.format === 'tall' && media.src)
+    .filter((media) => media?.format === 'tall' && media.src && media.caption?.label?.en)
     .map((media) => assetPath(media.src));
   await page.emulateMedia({ reducedMotion: 'reduce' });
 
@@ -2112,9 +2146,15 @@ test('hybrid: decode barrier coalesces rapid requests and commits only the lates
   await page.evaluate(() => window.__hybridTargetReleases.splice(0).forEach((release) => release()));
   await expect(home).toHaveAttribute('data-active-project', second.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
-  await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator(`.work-card[data-id="${second.id}"] .work-card__title`).textContent()
-  );
+  // Обе стороны читаются заново на каждой попытке (см. тот же приём выше):
+  // заголовок Hybrid-главной и карточка — разные подписчики i18n:changed.
+  await expect
+    .poll(async () => {
+      const title = await page.locator('.chamber-home__title').textContent();
+      const card = await page.locator(`.work-card[data-id="${second.id}"] .work-card__title`).textContent();
+      return `${(title || '').trim()}|${(card || '').trim()}`;
+    })
+    .toMatch(/^(.+)\|\1$/);
 
   await page.locator(`[data-design-project="${primary.id}"]`).dispatchEvent('mouseenter');
   await expect(home).toHaveAttribute('data-active-project', primary.id);
@@ -2128,7 +2168,10 @@ test('hybrid: decode barrier coalesces rapid requests and commits only the lates
   await expect(home).toHaveAttribute('data-transition-state', 'decoding');
   await expect.poll(() => page.evaluate(() => window.__hybridTargetReleases.length)).toBeGreaterThanOrEqual(1);
   await expect(home).toHaveAttribute('data-active-project', primary.id);
-  await expect(page.locator('.chamber-home__title')).toHaveText(primary.card.title.en);
+  // Страница переключена на RU выше по сценарию, поэтому и ожидание — из
+  // RU-локали. Раньше здесь стояло title.en и проходило лишь потому, что
+  // русские названия кейсов были копией английских (плейсхолдеры).
+  await expect(page.locator('.chamber-home__title')).toHaveText(primary.card.title.ru);
 
   await next.click();
   await expect(home).toHaveAttribute('data-requested-project', third.id);
@@ -2138,7 +2181,7 @@ test('hybrid: decode barrier coalesces rapid requests and commits only the lates
   await expect(home).toHaveAttribute('data-active-project', third.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
   await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
-  await expect(page.locator('.chamber-home__title')).toHaveText(third.card.title.en);
+  await expect(page.locator('.chamber-home__title')).toHaveText(third.card.title.ru);
   await expect(page.locator('.chamber-home__view')).toHaveAttribute('href', `#${third.id}`);
   await expect(page.locator('.chamber-home__image--active')).toHaveAttribute('src', assetPathPattern(third.card.thumb));
   await expect(page.locator(`[data-design-project="${third.id}"]`)).toHaveAttribute('aria-current', 'true');
@@ -2656,4 +2699,203 @@ test('specimen: RU mode translates Design Lab controls', async ({ page }) => {
   await expect(page.locator('.specimen-stage__top .specimen-kicker')).toHaveText('ЖИВОЙ ОБРАЗЕЦ');
   await expect(page.locator('.specimen-filter[data-filter="all"]')).toHaveText('ВСЕ');
   await expect(page.locator('.specimen-dossier__table dt').first()).toHaveText('ГОД');
+});
+
+/* ── FA-POSTER-01: растровые постеры Free Assets ──────────────────────────────
+ *
+ * The catalog poster slot now accepts a full './assets/…' path with its own
+ * extension, so a real photo render can replace the SVG placeholder. Two
+ * contracts are gated here:
+ *   1. the runtime renders the path VERBATIM (no hardcoded ".svg" suffix) and
+ *      marks the slot with data-poster-kind="raster";
+ *   2. the branded veil (.fa-card__thumb::before) is WEAKENED for a raster —
+ *      the diagonal hatching and the primary wash would read as a print defect
+ *      over a photograph — while a vector poster keeps the historical look.
+ * Chamber and Hybrid replace ::before wholesale at a higher specificity, so
+ * their (already hatch-free) veil must stay exactly as it is; Specimen leaves
+ * ::before to the base sheet and therefore inherits the weakening.
+ * The generator side (fa-data, tag-card region, JSON-LD) is gated in
+ * tests/quality/content-visibility.test.mjs scenario 23.
+ */
+/* Deterministic, content-INDEPENDENT fixtures. An earlier revision hunted for a
+ * raster inside the owner's live assets/cards and skipped the whole gate when
+ * there wasn't one — meaning this feature's entire runtime + CSS gate could
+ * silently verify nothing. Both posters are now SERVED by the test: a 1x1 PNG
+ * for the raster slot and a tiny SVG for the vector control, at fixed URLs that
+ * page.route fulfils. The vector control is an INJECTED FA_DATA entry rather
+ * than "some sibling card from content", because a single-item (or all-raster)
+ * category would otherwise leave nothing to compare the raster against. */
+const RASTER_FIXTURE = './assets/cards/zz-fa-poster-fixture.png';
+const VECTOR_FIXTURE = './assets/cards/zz-fa-poster-fixture.svg';
+const VECTOR_CONTROL_ID = 'zz-vector-control';
+// 1x1 transparent PNG.
+const RASTER_FIXTURE_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+);
+const VECTOR_FIXTURE_BYTES = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 6"><rect width="8" height="6" fill="#222"/></svg>',
+  'utf8'
+);
+// The DEFAULT rendered category — the first visible tag card, so no tag click
+// is needed in any design mode.
+const RASTER_FA_CATEGORY = VISIBLE_FA_CATEGORIES[0] || null;
+
+async function installRasterPosterFixture(page, category, options = {}) {
+  const targetId = category.items[0].id;
+  const dropModel = options.keepModel !== true;
+  await page.route(`**${RASTER_FIXTURE.slice(1)}`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: RASTER_FIXTURE_BYTES })
+  );
+  await page.route(`**${VECTOR_FIXTURE.slice(1)}`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/svg+xml', body: VECTOR_FIXTURE_BYTES })
+  );
+  // fa-data.js is a classic script defining `var FA_DATA`; appending a patch
+  // statement is the least invasive way to hand the runtime a raster item and
+  // an independent vector control without touching content/.
+  await page.route('**/js/fa-data.js', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    await route.fulfill({
+      response,
+      body:
+        body +
+        '\n;(function () {\n' +
+        `  var list = FA_DATA[${JSON.stringify(category.key)}] || [];\n` +
+        '  var target = null;\n' +
+        '  for (var i = 0; i < list.length; i += 1) {\n' +
+        `    if (list[i].id === ${JSON.stringify(targetId)}) { target = list[i]; }\n` +
+        '  }\n' +
+        '  if (!target) { return; }\n' +
+        '  var control = JSON.parse(JSON.stringify(target));\n' +
+        `  target.thumb = ${JSON.stringify(RASTER_FIXTURE)};\n` +
+        (dropModel ? '  target.model = null;\n' : '') +
+        `  control.id = ${JSON.stringify(VECTOR_CONTROL_ID)};\n` +
+        `  control.thumb = ${JSON.stringify(VECTOR_FIXTURE)};\n` +
+        '  control.model = null;\n' +
+        '  list.splice(list.indexOf(target) + 1, 0, control);\n' +
+        '})();\n'
+    });
+  });
+  // Tag-card covers live in the generated region, so the raster variant is
+  // installed on the SERVED html (the generator side is gated in
+  // tests/quality/content-visibility.test.mjs scenario 23).
+  await page.route('**/free-assets.html*', async (route) => {
+    const response = await route.fetch();
+    const html = await response.text();
+    const start = html.indexOf('<div class="tag-card__thumb');
+    if (start < 0) {
+      await route.fulfill({ response, body: html });
+      return;
+    }
+    const end = html.indexOf('>', html.indexOf('<img ', start));
+    const block = html
+      .slice(start, end + 1)
+      .replace('<div class="tag-card__thumb', '<div data-poster-kind="raster" class="tag-card__thumb')
+      .replace(/src="[^"]*"/, `src="${RASTER_FIXTURE}"`);
+    await route.fulfill({ response, body: html.slice(0, start) + block + html.slice(end + 1) });
+  });
+  return targetId;
+}
+
+// Computed ::before of a thumb — the veil contract is a computed-style
+// contract, not a class-name one.
+function readVeil(page, selector) {
+  return page.evaluate((sel) => {
+    const node = document.querySelector(sel);
+    if (!node) return null;
+    const style = getComputedStyle(node, '::before');
+    return {
+      posterKind: node.getAttribute('data-poster-kind'),
+      backgroundImage: style.backgroundImage,
+      opacity: Number.parseFloat(style.opacity)
+    };
+  }, selector);
+}
+
+for (const mode of ['original', 'specimen', 'chamber', 'hybrid']) {
+  test(`${mode}: a raster Free Assets poster renders verbatim and wears the right veil`, async ({ page }) => {
+    const category = requireFixture(RASTER_FA_CATEGORY, 'skipped: no visible Free Assets category');
+    const targetId = await installRasterPosterFixture(page, category);
+
+    await page.setViewportSize({ width: 1440, height: 1024 });
+    const design = mode === 'original' ? '' : `&design=${mode}`;
+    await page.goto(`${server.base}/free-assets.html?lang=en${design}`, { waitUntil: 'networkidle' });
+    if (mode === 'specimen' || mode === 'chamber') await waitForDesign(page, mode, 'free-assets');
+    else if (mode === 'hybrid') await waitForHybridFreeAssets(page);
+    await page.waitForFunction(
+      (controlId) => Boolean(document.querySelector(`#fa-grid .fa-card[id="${controlId}"]`)),
+      VECTOR_CONTROL_ID
+    );
+
+    // 1. the runtime resolver honours the extension instead of appending .svg.
+    const rasterThumb = page.locator(`#fa-grid .fa-card[id="${targetId}"] .fa-card__thumb`);
+    const vectorThumb = page.locator(`#fa-grid .fa-card[id="${VECTOR_CONTROL_ID}"] .fa-card__thumb`);
+    await expect(rasterThumb).toHaveAttribute('data-poster-kind', 'raster');
+    await expect(rasterThumb.locator('img')).toHaveAttribute('src', RASTER_FIXTURE);
+    await expect(vectorThumb).not.toHaveAttribute('data-poster-kind', /.*/);
+    await expect(vectorThumb.locator('img')).toHaveAttribute('src', VECTOR_FIXTURE);
+    // The decorative contract verify-frozen pins (D2-axe budget 0) survives.
+    for (const thumb of [rasterThumb, vectorThumb]) {
+      await expect(thumb.locator('img')).toHaveAttribute('alt', '');
+      await expect(thumb.locator('img')).toHaveAttribute('aria-hidden', 'true');
+    }
+
+    // 2. the veil: raster weakened in Original/Specimen, mode styling intact in
+    //    Chamber/Hybrid (both already replace ::before without hatching).
+    const raster = await readVeil(page, `#fa-grid .fa-card[id="${targetId}"] .fa-card__thumb`);
+    const vector = await readVeil(page, `#fa-grid .fa-card[id="${VECTOR_CONTROL_ID}"] .fa-card__thumb`);
+    expect(raster, 'the raster card must be rendered').toBeTruthy();
+    expect(vector, 'the injected vector control must be rendered').toBeTruthy();
+
+    if (mode === 'original' || mode === 'specimen') {
+      expect(vector.backgroundImage).toContain('repeating-linear-gradient');
+      expect(raster.backgroundImage).not.toContain('repeating-linear-gradient');
+      expect(raster.opacity).toBeLessThan(vector.opacity);
+    } else {
+      expect(raster.backgroundImage).toBe(vector.backgroundImage);
+      expect(raster.opacity).toBe(vector.opacity);
+    }
+
+    // 3. the category cover uses the same mechanism. Only Original renders the
+    //    tag-card thumb — Specimen, Chamber and Hybrid all hide it.
+    if (mode === 'original') {
+      const rasterCover = await readVeil(page, '.tag-card__thumb[data-poster-kind="raster"]');
+      expect(rasterCover, 'the raster category cover must be rendered').toBeTruthy();
+      expect(rasterCover.backgroundImage).not.toContain('repeating-linear-gradient');
+      const vectorCover = await readVeil(page, '.tag-card__thumb:not([data-poster-kind])');
+      if (vectorCover) {
+        expect(vectorCover.backgroundImage).toContain('repeating-linear-gradient');
+        expect(rasterCover.opacity).toBeLessThan(vectorCover.opacity);
+      }
+    } else {
+      await expect(page.locator('.tag-card__thumb').first()).toBeHidden();
+    }
+  });
+}
+
+test('original: a raster poster drops its weakened veil once the 3D model takes over', async ({ page }) => {
+  const category = requireFixture(RASTER_FA_CATEGORY, 'skipped: no visible Free Assets category');
+  const targetId = await installRasterPosterFixture(page, category, { keepModel: true });
+  // Block the GLB so the real load event cannot race the assertions — the card
+  // keeps its poster until this test fires the event itself.
+  await page.route('**/assets/models/free/*.glb', (route) => route.abort());
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await page.goto(`${server.base}/free-assets.html?lang=en`, { waitUntil: 'networkidle' });
+  const thumb = page.locator(`#fa-grid .fa-card[id="${targetId}"] .fa-card__thumb`);
+  await expect(thumb).toHaveAttribute('data-poster-kind', 'raster');
+
+  // Once the GLB is ready the poster is hidden (.is-model-ready img{opacity:0}),
+  // so the slot must go back to the branded veil instead of keeping the
+  // photo-friendly one over a 3D render. The real load event is what the
+  // runtime listens for; the GLB itself never has to arrive.
+  await page.evaluate((id) => {
+    const viewer = document.querySelector(`#fa-grid .fa-card[id="${id}"] .fa-card__thumb-mv`);
+    viewer.dispatchEvent(new Event('load'));
+  }, targetId);
+
+  await expect(thumb).toHaveClass(/is-model-ready/);
+  await expect(thumb).not.toHaveAttribute('data-poster-kind', /.*/);
+  const veil = await readVeil(page, `#fa-grid .fa-card[id="${targetId}"] .fa-card__thumb`);
+  expect(veil.backgroundImage).toContain('repeating-linear-gradient');
 });

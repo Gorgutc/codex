@@ -17,13 +17,18 @@
  *   6) выключение категории → её ассеты с бейджем «категория скрыта»;
  *   7) тогл постера вкл→выкл у ассета с thumb:null в base возвращает чистый
  *      черновик (deepEqual канонизирует порядок ключей), а отсутствующий
- *      файл по умолчанию даёт русскую ошибку, блокирующую публикацию.
+ *      файл по умолчанию даёт русскую ошибку, блокирующую публикацию;
+ *   8) FA-POSTER-01: загрузка PNG в слот постера уходит в коммит бинарником
+ *      assets/cards/{id}-{hash8}.png, а в free-assets.json пишется ПОЛНЫЙ
+ *      путь с расширением (не базовое имя) — иначе сайт снова подставил бы
+ *      .svg к растровому файлу.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { ROOT, hash8, startStaticServer, mockGitHub, normalizeVisibility } from './fixtures/admin-harness.mjs';
+import { faPosterPath } from '../../scripts/fa-poster-path.mjs';
 
 const FA_PATH = 'content/free-assets.json';
 const FIRST_ITEM_BASE = 'categories.0.items.0';
@@ -34,8 +39,18 @@ const faJson = JSON.parse(fs.readFileSync(path.join(ROOT, FA_PATH), 'utf8'));
 const FIRST_CATEGORY = faJson.categories[0];
 const FIRST_ID = FIRST_CATEGORY.items[0].id;
 const SECOND_ID = FIRST_CATEGORY.items[1].id;
+// FA-POSTER-01: first asset whose poster slot is ON by convention (key absent
+// → the <id> default, or an explicit non-null value) — the drop zone only
+// renders for an enabled slot. Derived from content, never a hardcoded id.
+const POSTER_ON = faJson.categories
+  .flatMap((category) => category.items)
+  .find((item) => !('thumb' in item) || item.thumb !== null) || null;
 
 const GLB_BUFFER = Buffer.concat([Buffer.from('676c5446', 'hex'), crypto.randomBytes(8192)]);
+const PNG_BUFFER = Buffer.concat([
+  Buffer.from('89504e470d0a1a0a', 'hex'), // PNG-сигнатура
+  crypto.randomBytes(4096)
+]);
 
 const ctx = startStaticServer();
 
@@ -210,6 +225,128 @@ test('тогл постера вкл→выкл: черновик снова ч�
   await expect(page.locator('[data-fa-media-toggle="thumb"]')).not.toBeChecked();
   await expect(page.locator('.field-error-msg')).toHaveCount(0);
   await expect(page.locator('#draft-indicator')).toBeHidden();
+});
+
+test('FA-POSTER-01: растровый постер публикуется полным путём с расширением .png', async ({ page }) => {
+  test.skip(!POSTER_ON, 'нет ассета с включённым слотом постера в content/free-assets.json');
+  const calls = await mockGitHub(page);
+  await page.addInitScript(() => {
+    window.ADMIN_POLL_INTERVAL_MS = 25;
+    window.ADMIN_POLL_TIMEOUT_MS = 3000;
+  });
+  await openFreeAssets(page);
+  await page.click(`a[href="#/free-assets/${POSTER_ON.id}"]`);
+
+  const thumbInput = page.locator('[data-media$="thumb"]');
+  await expect(thumbInput).toBeAttached();
+  // Слот больше не «только SVG»: accept перечисляет и растровые форматы.
+  await expect(thumbInput).toHaveAttribute('accept', '.svg,.png,.jpg,.jpeg,.webp');
+
+  await thumbInput.setInputFiles({ name: 'product-render.png', mimeType: 'image/png', buffer: PNG_BUFFER });
+
+  const pngHash = hash8(PNG_BUFFER);
+  const newPosterPath = `assets/cards/${POSTER_ON.id}-${pngHash}.png`;
+  await expect(page.locator('#media-warning')).toBeVisible();
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  await expect(page.locator('#publish-files')).toContainText(newPosterPath);
+  await page.click('#publish-confirm');
+  await expect(page.locator('.toast--success')).toContainText('Опубликовано');
+
+  const treePaths = calls.tree.map((entry) => entry.path);
+  expect(treePaths).toContain(FA_PATH);
+  expect(treePaths).toContain(newPosterPath);
+
+  const blobBySha = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
+  const posterEntry = calls.tree.find((entry) => entry.path === newPosterPath);
+  expect(blobBySha.get(posterEntry.sha).content).toBe(PNG_BUFFER.toString('base64'));
+
+  // Ключевая регрессия раунда D: в JSON уходит ПОЛНЫЙ путь с расширением
+  // (валидатор генератора и рантайм сайта разбирают именно его), а НЕ базовое
+  // имя — иначе сайт снова подставил бы .svg к растровому файлу.
+  const faEntry = calls.tree.find((entry) => entry.path === FA_PATH);
+  const published = JSON.parse(Buffer.from(blobBySha.get(faEntry.sha).content, 'base64').toString('utf8'));
+  const publishedItem = published.categories
+    .flatMap((category) => category.items)
+    .find((item) => item.id === POSTER_ON.id);
+  expect(publishedItem.thumb).toBe(`./${newPosterPath}`);
+});
+
+/* FA-POSTER-01: зеркало админки обязано принимать РОВНО то же множество путей,
+ * что канон scripts/fa-poster-path.mjs, и резолвить их в тот же файл.
+ *   • строже канона → уже опубликованный владельцем путь заблокирует ему ВСЕ
+ *     последующие публикации каталога (валидация черновика — блокирующая);
+ *   • мягче канона → публикация уйдёт на сервер и упадёт в CI с авто-ревертом.
+ * State.faSlotPath — единственная точка резолва слота в админке, поэтому
+ * сравниваем именно её: null ⇔ значение отвергнуто, иначе путь. */
+const POSTER_PARITY_VALUES = [
+  'orbital-mk-ii',
+  'render.png',
+  './assets/cards/product-1a2b3c4d.png',
+  './assets/cards/product.JPG',
+  './assets/cards/product.jpeg',
+  './assets/cards/product.webp',
+  './assets/cards/product.svg',
+  './assets/img/og-image.png',
+  './assets/cards//product.png',
+  './assets/cards/./product.png',
+  './assets/cards/../product.png',
+  './assets/cards/',
+  '.\\assets\\cards\\product.png',
+  './assets/cards/product render.png',
+  './assets/cards/продукт.png',
+  './assets/cards/product.gif',
+  'covers/hero.png',
+  'https://evil.example/hero.png',
+  '../secrets.svg',
+  '',
+  '..'
+];
+
+test('FA-POSTER-01: зеркало путей постера в админке совпадает с каноном', async ({ page }) => {
+  await mockGitHub(page);
+  await openFreeAssets(page);
+
+  const mirrored = await page.evaluate(
+    (values) => values.map((value) => window.AdminState.faSlotPath('thumb', value)),
+    POSTER_PARITY_VALUES
+  );
+  const canonical = POSTER_PARITY_VALUES.map((value) => faPosterPath(value));
+  expect(mirrored).toEqual(canonical);
+  // Санити: таблица реально содержит и принимаемые, и отвергаемые значения —
+  // иначе «совпадение» ничего не доказывало бы.
+  expect(canonical.filter((entry) => entry !== null).length).toBeGreaterThan(3);
+  expect(canonical.filter((entry) => entry === null).length).toBeGreaterThan(6);
+});
+
+test('FA-POSTER-01: испорченный путь постера блокирует публикацию и НЕ уходит внешним запросом', async ({ page }) => {
+  // Регрессия: публикация делала HEAD-пробы медиа-слотов ДО того, как её
+  // останавливали ошибки валидации, а faSlotPath собирал «путь» конкатенацией.
+  // Восстановленный из sessionStorage черновик с внешним URL в thumb успевал
+  // спровоцировать запрос на чужой домен из админ-панели владельца.
+  await mockGitHub(page);
+  const external = [];
+  page.on('request', (request) => {
+    if (!request.url().startsWith(ctx.base)) external.push(request.url());
+  });
+
+  const draft = JSON.parse(normalizeVisibility(FA_PATH, fs.readFileSync(path.join(ROOT, FA_PATH))).toString('utf8'));
+  draft.categories[0].items[0].thumb = 'https://evil.example/poster.png';
+  await page.addInitScript(
+    (store) => {
+      const baseShas = {};
+      for (const key of Object.keys(store)) baseShas[key] = 'sha-' + key;
+      sessionStorage.setItem('codexAdminDrafts', JSON.stringify({ version: 2, files: store, baseShas }));
+    },
+    { [FA_PATH]: draft }
+  );
+  await openFreeAssets(page);
+
+  await page.click('#publish-btn');
+  await expect(page.locator('.toast--error')).toContainText('Публикация остановлена');
+  await expect(page.locator('#publish-dialog')).not.toBeVisible();
+  expect(external.filter((url) => url.includes('evil.example'))).toEqual([]);
 });
 
 test('guard: последний видимый ассет выключить нельзя (русское сообщение)', async ({ page }) => {
