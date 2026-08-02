@@ -862,6 +862,15 @@ function faTagCardsSection(html) {
   const sandbox = makeSandbox('case-cta');
   try {
     const CTA_URL = 'https://www.behance.net/gallery/12345/orbital';
+    // Сколько кнопок ждать — считаем из песочницы: владелец включает CTA на
+    // своих кейсах штатно (ради этого фича и делалась), поэтому «ровно одна»
+    // было бы утверждением о его контенте, а не о семантике генератора.
+    const enabledElsewhere = readdirSync(path.join(sandbox.contentDir, 'cases'))
+      .filter((name) => name.endsWith('.json') && name !== 'orbital-mk-ii.json' && name !== 'vega-shell.json')
+      .filter((name) => {
+        const cta = JSON.parse(readFileSync(path.join(sandbox.contentDir, 'cases', name), 'utf8')).case?.cta;
+        return Boolean(cta && cta.enabled);
+      }).length;
     const orbital = sandbox.readJson('cases/orbital-mk-ii.json');
     orbital.case.cta = { enabled: true, url: CTA_URL };
     sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
@@ -878,18 +887,20 @@ function faTagCardsSection(html) {
     if (!cardsData.includes(`cta: {\n        url: '${CTA_URL}'`)) {
       fail('an enabled cta must travel into items.cta of cards-data', cardsData.slice(0, 400));
     }
-    if ((cardsData.match(/cta: \{/g) || []).length !== 1) {
-      fail('only the enabled case may carry a cta key in cards-data');
+    if ((cardsData.match(/cta: \{/g) || []).length !== enabledElsewhere + 1) {
+      fail(`only enabled cases may carry a cta key in cards-data (expected ${enabledElsewhere + 1})`);
     }
     if (cardsData.includes('artstation.com/artwork/vega')) fail('a disabled cta must not reach the runtime payload');
 
-    // Switching the same link off removes the key again (no ghost buttons).
+    // Switching the same link off removes the key again (no ghost buttons):
+    // остаются ровно те кнопки, что владелец включил на своих кейсах.
     orbital.case.cta.enabled = false;
     sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
     const off = sandbox.run('--write');
     if (off.status !== 0) fail('--write must accept a disabled case.cta', off.output);
-    if (sandbox.readOut('js/cards-data.js').includes('cta: {')) {
-      fail('no cta key may survive in cards-data once every link is switched off');
+    const afterOff = (sandbox.readOut('js/cards-data.js').match(/cta: \{/g) || []).length;
+    if (afterOff !== enabledElsewhere) {
+      fail(`switching a link off must drop its cta key (expected ${enabledElsewhere}, got ${afterOff})`);
     }
     console.log('case.cta: enabled+valid emits items.cta, disabled emits nothing');
   } finally {
@@ -910,6 +921,15 @@ function faTagCardsSection(html) {
       // handed that exact form, not the raw input.
       { id: 'nightshard', url: 'https://dprofile.ru' }
     ];
+    const touched = new Set(platforms.map((platform) => `${platform.id}.json`));
+    // Кнопки, включённые владельцем на прочих кейсах, — легитимная часть
+    // ожидаемого количества (см. сценарий 21).
+    const enabledElsewhere = readdirSync(path.join(sandbox.contentDir, 'cases'))
+      .filter((name) => name.endsWith('.json') && !touched.has(name))
+      .filter((name) => {
+        const cta = JSON.parse(readFileSync(path.join(sandbox.contentDir, 'cases', name), 'utf8')).case?.cta;
+        return Boolean(cta && cta.enabled);
+      }).length;
     for (const platform of platforms) {
       const data = sandbox.readJson(`cases/${platform.id}.json`);
       data.case.cta = { enabled: true, url: platform.url };
@@ -920,8 +940,9 @@ function faTagCardsSection(html) {
     if (result.status !== 0) fail('--write must accept every allowlisted CTA platform', result.output);
 
     const cardsData = sandbox.readOut('js/cards-data.js');
-    if ((cardsData.match(/cta: \{/g) || []).length !== platforms.length) {
-      fail(`every enabled cta must reach cards-data (expected ${platforms.length})`);
+    const expectedCtas = platforms.length + enabledElsewhere;
+    if ((cardsData.match(/cta: \{/g) || []).length !== expectedCtas) {
+      fail(`every enabled cta must reach cards-data (expected ${expectedCtas})`);
     }
     for (const platform of platforms) {
       const expected = new URL(platform.url).href;

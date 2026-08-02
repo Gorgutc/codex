@@ -24,11 +24,16 @@ const CONTROLLED_MOTION_CASE =
         (block) => block?.source === 'vimeo' && block.playback === 'controlled'
       )
   ) || null;
+// Тест меряет геометрию подписи внутри inline-stage, поэтому носителем должен
+// быть кейс, у которого высокий блок НЕСЁТ подпись: с раунда C подписи
+// необязательны, и кейс без них — валидный контент, а не повод падать.
 const INLINE_CASE =
   VISIBLE_CASES.find(
     (project) =>
       project.case?.inline?.title?.en &&
-      project.case?.media?.some((media) => media?.format === 'tall' && media.src)
+      project.case?.media?.some(
+        (media) => media?.format === 'tall' && media.src && media.caption?.label?.en && media.caption?.desc?.en
+      )
   ) || null;
 const VISIBLE_FA_CATEGORIES = visibleFaCategories(ROOT);
 const NON_GAME_FA_CATEGORY = VISIBLE_FA_CATEGORIES.find((category) => !category.gameAsset) || null;
@@ -151,7 +156,10 @@ async function waitForDesign(page, mode, surface) {
   );
 }
 
-async function waitForHybridHome(page) {
+// timeout: сценарии, которые НАМЕРЕННО тормозят загрузку (watchdog-тест держит
+// базовый рантайм 4.3с), под нагрузкой полного прогона не укладываются в
+// дефолтные 10с — им передаётся запас.
+async function waitForHybridHome(page, timeout = 10000) {
   await page.waitForFunction(() => {
     const root = document.documentElement;
     const styles = Array.from(document.querySelectorAll('link[data-codex-design-asset="style"]'));
@@ -169,7 +177,7 @@ async function waitForHybridHome(page) {
       Boolean(document.querySelector('[data-design-home="hybrid"]')) &&
       document.body.classList.contains('chamber-page-portfolio')
     );
-  });
+  }, null, { timeout });
 }
 
 async function waitForHybridCase(page, projectId) {
@@ -1259,13 +1267,27 @@ test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog
   releaseBaseRuntime();
   await navigation;
   await page.unroute('**/js/i18n-data.js');
-  if (fallbackEntry) {
-    // Экстремальный CPU-столл: fallback уже наступил (законно, позже 4300мс) —
-    // hybrid из fallback не поднимается by design, fail-open покрыт соседними
-    // тестами; контракт watchdog'а выше уже проверен.
-    await expect(page.locator('html')).toHaveAttribute('data-design-runtime-state', 'fallback');
+  // Оба исхода законны, и снимок timeline выше не может их различить надёжно:
+  // watchdog срабатывает ровно на границе измеряемого окна, поэтому fallback
+  // может наступить уже ПОСЛЕ снятия снимка. Ждём, пока состояние осядет, и
+  // проверяем контракт по финальному timeline, а не по промежуточному.
+  await page.waitForFunction(
+    () => {
+      const state = document.documentElement.getAttribute('data-design-runtime-state');
+      return state === 'ready' || state === 'fallback';
+    },
+    null,
+    { timeout: 20000 }
+  );
+  const finalState = await page.locator('html').getAttribute('data-design-runtime-state');
+  if (finalState === 'fallback') {
+    // hybrid из fallback не поднимается by design; fail-open покрыт соседними
+    // тестами. Контракт watchdog'а проверяем по финальному timeline.
+    const finalTimeline = await page.evaluate(() => window.__designStates);
+    const finalFallback = finalTimeline.find((entry) => entry.state === 'fallback');
+    expect(finalFallback.at - pendingAt).toBeGreaterThanOrEqual(4300);
   } else {
-    await waitForHybridHome(page);
+    await waitForHybridHome(page, 20000);
   }
 });
 
@@ -1366,16 +1388,28 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
   const next = page.locator('.chamber-home__pager-button').last();
   await next.click();
   await expect(home).toHaveAttribute('data-active-project', nextCase.id);
-  await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent()
-  );
+  await expect
+    .poll(async () => {
+      const title = await page.locator('.chamber-home__title').textContent();
+      const card = await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent();
+      return `${(title || '').trim()}|${(card || '').trim()}`;
+    })
+    .toMatch(/^(.+)\|\1$/);
   await page.locator('#lang-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(home).toHaveAttribute('data-requested-project', nextCase.id);
   await expect(home).toHaveAttribute('data-active-project', nextCase.id);
-  await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent()
-  );
+  // Обе стороны читаются заново на каждой попытке: заголовок Hybrid-главной и
+  // карточка обновляются разными подписчиками i18n:changed, и захват ожидаемого
+  // значения ОДИН раз делал ассерт гонкой (проявилось, когда у кейса появились
+  // реально разные EN/RU-заголовки — до этого сравнение было пустым).
+  await expect
+    .poll(async () => {
+      const title = await page.locator('.chamber-home__title').textContent();
+      const card = await page.locator(`.work-card[data-id="${nextCase.id}"] .work-card__title`).textContent();
+      return `${(title || '').trim()}|${(card || '').trim()}`;
+    })
+    .toMatch(/^(.+)\|\1$/);
   await page.locator('#lang-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
   await expect(home).toHaveAttribute('data-active-project', nextCase.id);
@@ -1913,10 +1947,10 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
 test('hybrid: Case inline notes share one wide desktop stage and keep mobile flow', async ({ page }) => {
   const inlineCase = requireFixture(
     INLINE_CASE,
-    'skipped: no visible case has an inline note with tall media'
+    'skipped: no visible case pairs an inline note with a captioned tall block'
   );
   const tallMediaPaths = inlineCase.case.media
-    .filter((media) => media?.format === 'tall' && media.src)
+    .filter((media) => media?.format === 'tall' && media.src && media.caption?.label?.en)
     .map((media) => assetPath(media.src));
   await page.emulateMedia({ reducedMotion: 'reduce' });
 
@@ -2112,9 +2146,15 @@ test('hybrid: decode barrier coalesces rapid requests and commits only the lates
   await page.evaluate(() => window.__hybridTargetReleases.splice(0).forEach((release) => release()));
   await expect(home).toHaveAttribute('data-active-project', second.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
-  await expect(page.locator('.chamber-home__title')).toHaveText(
-    await page.locator(`.work-card[data-id="${second.id}"] .work-card__title`).textContent()
-  );
+  // Обе стороны читаются заново на каждой попытке (см. тот же приём выше):
+  // заголовок Hybrid-главной и карточка — разные подписчики i18n:changed.
+  await expect
+    .poll(async () => {
+      const title = await page.locator('.chamber-home__title').textContent();
+      const card = await page.locator(`.work-card[data-id="${second.id}"] .work-card__title`).textContent();
+      return `${(title || '').trim()}|${(card || '').trim()}`;
+    })
+    .toMatch(/^(.+)\|\1$/);
 
   await page.locator(`[data-design-project="${primary.id}"]`).dispatchEvent('mouseenter');
   await expect(home).toHaveAttribute('data-active-project', primary.id);
@@ -2128,7 +2168,10 @@ test('hybrid: decode barrier coalesces rapid requests and commits only the lates
   await expect(home).toHaveAttribute('data-transition-state', 'decoding');
   await expect.poll(() => page.evaluate(() => window.__hybridTargetReleases.length)).toBeGreaterThanOrEqual(1);
   await expect(home).toHaveAttribute('data-active-project', primary.id);
-  await expect(page.locator('.chamber-home__title')).toHaveText(primary.card.title.en);
+  // Страница переключена на RU выше по сценарию, поэтому и ожидание — из
+  // RU-локали. Раньше здесь стояло title.en и проходило лишь потому, что
+  // русские названия кейсов были копией английских (плейсхолдеры).
+  await expect(page.locator('.chamber-home__title')).toHaveText(primary.card.title.ru);
 
   await next.click();
   await expect(home).toHaveAttribute('data-requested-project', third.id);
@@ -2138,7 +2181,7 @@ test('hybrid: decode barrier coalesces rapid requests and commits only the lates
   await expect(home).toHaveAttribute('data-active-project', third.id);
   await expect.poll(() => home.getAttribute('data-transition-state')).toBeNull();
   await expect(home).not.toHaveClass(/is-transitioning|is-content-changing/);
-  await expect(page.locator('.chamber-home__title')).toHaveText(third.card.title.en);
+  await expect(page.locator('.chamber-home__title')).toHaveText(third.card.title.ru);
   await expect(page.locator('.chamber-home__view')).toHaveAttribute('href', `#${third.id}`);
   await expect(page.locator('.chamber-home__image--active')).toHaveAttribute('src', assetPathPattern(third.card.thumb));
   await expect(page.locator(`[data-design-project="${third.id}"]`)).toHaveAttribute('aria-current', 'true');

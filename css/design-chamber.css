@@ -381,6 +381,14 @@ html:is([data-design="chamber"], .design-chamber-home) .chamber-home__meta {
 
 html:is([data-design="chamber"], .design-chamber-home) .chamber-home__title {
   max-width: 12ch;
+  /* Пейджер переключает проекты на месте, поэтому высота заголовка обязана быть
+     стабильной: односложное имя («Lumen One») и двухстрочное («The dehydrator
+     Happfe») иначе двигают описание под собой на каждом переходе — измеренный
+     layout-shift 0.12 при бюджете 0.01. Резервируем две строки: короткие имена
+     прижимаются к низу блока, длинные занимают тот же бокс. */
+  min-height: calc(2em * 0.82);
+  display: flex;
+  align-items: flex-end;
   margin: 0;
   color: var(--chamber-text);
   font-family: var(--font-display);
@@ -393,6 +401,11 @@ html:is([data-design="chamber"], .design-chamber-home) .chamber-home__title {
 
 html:is([data-design="chamber"], .design-chamber-home) .chamber-home__description {
   max-width: 38rem;
+  /* Та же причина, что у .chamber-home__title: блок прижат к низу, поэтому
+     описание в две строки поднимает всё над собой и даёт layout-shift на
+     каждом переходе пейджера. Резервируем две строки — короткое описание
+     прижимается к верху своего бокса, длинное занимает тот же. */
+  min-height: calc(2em * 1.55);
   margin: var(--space-4) 0 0;
   color: var(--chamber-muted);
   font-size: var(--text-sm);
