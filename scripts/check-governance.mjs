@@ -145,6 +145,22 @@ check(
   'package: case-media runtime gate is explicit',
   packageJson.scripts['test:case-media'] === 'playwright test tests/quality/case-media-runtime.spec.mjs'
 );
+// BP-UPLOAD-01: чертежи получили СВОЙ гейт, а не приписку к case-media. Правило
+// выше пришпиливает test:case-media к ровно одному спеку, и дописывание туда
+// второго его ломает — что и произошло при первой попытке. Отдельный скрипт
+// сохраняет оба инварианта явными и позволяет гонять гейты по отдельности.
+check(
+  'package: case-blueprints runtime gate is explicit',
+  packageJson.scripts['test:case-blueprints'] === 'playwright test tests/quality/case-blueprints-runtime.spec.mjs'
+);
+check(
+  'package: codex:ship includes the case-blueprints runtime gate',
+  /\btest:case-blueprints\b/.test(packageJson.scripts['codex:ship'] || '')
+);
+check(
+  'package: admin gate lists the case-blueprints editor spec',
+  /tests\/quality\/admin-case-blueprints\.spec\.mjs/.test(packageJson.scripts['test:admin'] || '')
+);
 check(
   'package: visual snapshots stay out of fast hooks',
   !/\btest:visual\b/.test(packageJson.scripts['quality:fast'] || '')

@@ -273,6 +273,14 @@
           m.desc  = bm.desc;
         });
       }
+      // Подписи листов чертежа (BP-DECISION-01) — источник alt у <img> листа.
+      if (Array.isArray(it.blueprints) && Array.isArray(bi.blueprints)) {
+        it.blueprints.forEach((s, i) => {
+          const bs = bi.blueprints[i];
+          if (!bs) return;
+          s.label = bs.label;
+        });
+      }
     });
 
     // 2) Overlay для нового языка. Для DEFAULT_LANG шаг 1 уже дал EN — выходим.
@@ -307,6 +315,15 @@
           if (!it.motionBlocks[i] || !block) return;
           if (typeof block.label === 'string') it.motionBlocks[i].label = block.label;
           if (typeof block.desc  === 'string') it.motionBlocks[i].desc  = block.desc;
+        });
+      }
+      // Подписи листов чертежа — позиционно, как captions/motionBlocks.
+      // Пустая строка означает «подписи нет»: alt тогда собирается из
+      // i18n-ключей в main.js, а не остаётся английским.
+      if (Array.isArray(tr.blueprints) && Array.isArray(it.blueprints)) {
+        tr.blueprints.forEach((sheet, i) => {
+          if (!it.blueprints[i] || !sheet) return;
+          if (typeof sheet.label === 'string') it.blueprints[i].label = sheet.label;
         });
       }
     });

@@ -179,6 +179,44 @@ try {
   arc.case.captions = []; // mixed schema: legacy array alongside case.media
   writeJson('cases/arc-motion.json', arc);
 
+  // case.blueprints[] (BP-DECISION-01/02): the owner authors and uploads the
+  // sheet; the site only shows and serves it. The key is optional and its
+  // ABSENCE is the default, so an EMPTY array must be rejected rather than
+  // silently meaning "none" — one stored shape, one meaning.
+  const cadStrutBp = readJson('cases/cad-strut.json');
+  cadStrutBp.case.blueprints = []; // present but empty
+  writeJson('cases/cad-strut.json', cadStrutBp);
+
+  const mechLinkBp = readJson('cases/mech-link.json');
+  // Over the sheet cap. A real .svg of this case keeps the failure attributable
+  // to the count alone (a missing file would add its own violation).
+  mechLinkBp.case.blueprints = Array.from({ length: 9 }, () => ({
+    src: './assets/cases/mech-link/01.svg'
+  }));
+  writeJson('cases/mech-link.json', mechLinkBp);
+
+  // src is confined to the case's OWN directory: borrowing another case's file
+  // survives that case being deleted, and traversal/absolute URLs must die here.
+  const apexBp = readJson('cases/apex-frame.json');
+  apexBp.case.blueprints = [
+    { src: './assets/cases/vega-shell/01.svg' }, // another case's directory
+    { src: './assets/cases/apex-frame/01.png' }, // not an .svg
+    { src: 'https://evil.example/sheet.svg' }, // absolute URL
+    { src: './assets/cases/apex-frame/../vega-shell/01.svg' } // traversal
+  ];
+  writeJson('cases/apex-frame.json', apexBp);
+
+  // Labels follow the SAME optional-pair rule as media captions: both locales
+  // or neither. A half-filled label shows English to a Russian visitor.
+  const nightshardBp = readJson('cases/nightshard.json');
+  nightshardBp.case.blueprints = [
+    { src: './assets/cases/nightshard/01.svg', label: { en: 'Section A-A', ru: '' } },
+    { src: './assets/cases/nightshard/02.svg', id: 'Sheet One' }, // not [a-z0-9-]
+    { src: './assets/cases/nightshard/03.svg', id: 'front' },
+    { src: './assets/cases/nightshard/04.svg', id: 'front' } // duplicate in one case
+  ];
+  writeJson('cases/nightshard.json', nightshardBp);
+
   const orbital = readJson('cases/orbital-mk-ii.json');
   orbital.case.motionBlocks[0].src = './assets/cases/orbital-mk-ii/missing-loop.webm'; // not on disk
   orbital.case.motionBlocks[1].vimeoId = 'not-digits'; // invalid Vimeo id
@@ -256,6 +294,15 @@ try {
     'content/cases/apex-frame.json: case.media[0].poster: a video block needs a poster image',
     'content/cases/apex-frame.json: case.media[1].poster: only a video block may carry a poster',
     'content/cases/arc-motion.json: case.captions is obsolete — case.media[] is the only media schema',
+    'content/cases/cad-strut.json: case.blueprints, when present, must be a non-empty array of sheets',
+    'content/cases/mech-link.json: case.blueprints must have at most 8 sheets (got 9)',
+    'content/cases/apex-frame.json: case.blueprints[0].src: must live under "./assets/cases/apex-frame/"',
+    'content/cases/apex-frame.json: case.blueprints[1].src: "./assets/cases/apex-frame/01.png" must end with .svg',
+    'content/cases/apex-frame.json: case.blueprints[2].src: "https://evil.example/sheet.svg" must start with "./assets/"',
+    'content/cases/apex-frame.json: case.blueprints[3].src: "./assets/cases/apex-frame/../vega-shell/01.svg" must not contain ".." segments',
+    'content/cases/nightshard.json: case.blueprints[0].label: fill both "en" and "ru" or leave both empty',
+    'content/cases/nightshard.json: case.blueprints[1].id: must be lowercase letters, digits and dashes (got "Sheet One")',
+    'content/cases/nightshard.json: case.blueprints[3].id: duplicate sheet id "front" in this case',
     'must not contain ".." segments',
     'missing-loop.webm',
     'must be a string of digits ("not-digits")',

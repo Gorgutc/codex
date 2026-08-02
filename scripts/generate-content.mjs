@@ -513,6 +513,69 @@ function checkOptionalLocalePair(violations, where, pair) {
   }
 }
 
+/* ── case.blueprints (BP-DECISION-01/02) ──────────────────────────────────
+ *
+ * A blueprint sheet is an SVG the OWNER authors and uploads. The site only
+ * displays it and offers the original file for download — it never draws a
+ * drawing (the procedural renderer that used to fake one is deleted).
+ *
+ * The key is OPTIONAL and its ABSENCE is the default: a case without sheets
+ * carries no "blueprints" key at all, the generator emits nothing, and
+ * js/main.js hides the Blueprints tab (fail-closed). An EMPTY ARRAY is a
+ * violation rather than a synonym for "none", so the stored shape has exactly
+ * one meaning — same rule case.motionBlocks already uses.
+ *
+ * src is confined to the case's OWN asset directory. The generic ./assets/
+ * guard in checkAssetFile already stops traversal and absolute URLs; the
+ * per-case prefix additionally stops one case from linking another case's
+ * (or a shared) file, which would survive that case being deleted.
+ *
+ * Mirrored in admin/js/state.js (validateCaseBlueprintsDraft) — change both.
+ * The admin mirror is what the owner sees BEFORE publishing; this file stays
+ * canonical (it alone can check the file is actually on disk).
+ */
+const BLUEPRINTS_MAX_SHEETS = 8;
+// Same id grammar as case.media[].id — a stable handle for a sheet so the
+// admin panel can address it by identity instead of by array position.
+const BLUEPRINT_ID_RE = MEDIA_ID_RE;
+
+function validateCaseBlueprints(violations, where, caseId, blueprints) {
+  if (!Array.isArray(blueprints) || blueprints.length === 0) {
+    violations.push(
+      `${where}: case.blueprints, when present, must be a non-empty array of sheets (remove the key entirely when the case has no blueprints)`
+    );
+    return;
+  }
+  if (blueprints.length > BLUEPRINTS_MAX_SHEETS) {
+    violations.push(
+      `${where}: case.blueprints must have at most ${BLUEPRINTS_MAX_SHEETS} sheets (got ${blueprints.length})`
+    );
+  }
+  const seenIds = new Set();
+  const ownDir = `./assets/cases/${caseId}/`;
+  blueprints.forEach((sheet, i) => {
+    const w = `${where}: case.blueprints[${i}]`;
+    if (sheet === null || typeof sheet !== 'object' || Array.isArray(sheet)) {
+      violations.push(`${w}: must be an object`);
+      return;
+    }
+    if (sheet.id !== undefined && sheet.id !== null) {
+      if (typeof sheet.id !== 'string' || !BLUEPRINT_ID_RE.test(sheet.id)) {
+        violations.push(`${w}.id: must be lowercase letters, digits and dashes (got ${JSON.stringify(sheet.id)})`);
+      } else if (seenIds.has(sheet.id)) {
+        violations.push(`${w}.id: duplicate sheet id "${sheet.id}" in this case`);
+      } else {
+        seenIds.add(sheet.id);
+      }
+    }
+    checkAssetFile(violations, `${w}.src`, sheet.src, '.svg');
+    if (isNonEmptyString(sheet.src) && !sheet.src.startsWith(ownDir)) {
+      violations.push(`${w}.src: must live under "${ownDir}" (got "${sheet.src}")`);
+    }
+    checkOptionalLocalePair(violations, `${w}.label`, sheet.label);
+  });
+}
+
 /* ── case.cta (CASE-CTA-01) ───────────────────────────────────────────────
  *
  * Optional per-case external link. Absent key = no button (that is why the 18
@@ -768,6 +831,9 @@ function validateCase(violations, entry, filterKeys) {
       );
     }
   }
+  if ('blueprints' in cs) {
+    validateCaseBlueprints(violations, where, c.id, cs.blueprints);
+  }
 
   // "<>"/control guard over every HTML-emitted case text field (prod-review
   // F1, findings C-03/D-05/D-06 — the Free-Assets fields already had this).
@@ -791,6 +857,15 @@ function validateCase(violations, entry, filterKeys) {
       if (caption !== null && typeof caption === 'object') {
         checkPlainTextPair(violations, where, `case.media[${i}].caption.label`, caption.label);
         checkPlainTextPair(violations, where, `case.media[${i}].caption.desc`, caption.desc);
+      }
+    });
+  }
+  // Blueprint sheet labels land in the alt of the drawing <img> (and in the
+  // fullscreen announcer) — same defense-in-depth guard as the captions.
+  if (Array.isArray(cs.blueprints)) {
+    cs.blueprints.forEach((sheet, i) => {
+      if (sheet !== null && typeof sheet === 'object') {
+        checkPlainTextPair(violations, where, `case.blueprints[${i}].label`, sheet.label);
       }
     });
   }
@@ -1257,6 +1332,14 @@ function captionText(caption, part, lang) {
   return value.trim().length === 0 ? '' : value;
 }
 
+/* One locale out of a bare {en, ru} pair (case.blueprints[].label). Same
+ * empty-degradation rule as captionText: a blank or absent side reads as "no
+ * text", so an optional label emits no key at all instead of an empty string. */
+function localeText(pair, lang) {
+  const value = pair !== null && typeof pair === 'object' && typeof pair[lang] === 'string' ? pair[lang] : '';
+  return value.trim().length === 0 ? '' : value;
+}
+
 function buildCaseEntry(c) {
   const cs = c.case;
   // Runtime shape consumed by js/main.js: flat EN label/desc, no caption
@@ -1324,6 +1407,22 @@ function buildCaseEntry(c) {
   // runtime, so nothing but the address needs to be emitted.
   const ctaUrl = caseCtaLink(cs.cta);
   if (ctaUrl) entry.items.cta = { url: ctaUrl };
+  // BP-DECISION-02: the Blueprints tab is fail-closed — js/main.js reads
+  // items.blueprints and hides the tab when it is absent. No authored case
+  // carries a sheet today, so this key never appears and js/cards-data.js
+  // stays byte-identical. Same truthy-only rule as poster/seamless/cta.
+  // Only src and the EN label travel: the RU label rides the CASE_LOCALES
+  // overlay in js/i18n-data.js, exactly like media captions and motionBlocks.
+  if (Array.isArray(cs.blueprints) && cs.blueprints.length > 0) {
+    entry.items.blueprints = cs.blueprints.map((sheet) => {
+      const out = {};
+      if (sheet.id) out.id = sheet.id;
+      out.src = sheet.src;
+      const label = localeText(sheet.label, 'en');
+      if (label) out.label = label;
+      return out;
+    });
+  }
   return entry;
 }
 
@@ -1457,6 +1556,13 @@ function buildCaseLocales(content) {
     if (Array.isArray(cs.motionBlocks)) {
       enCandidate.motionBlocks = cs.motionBlocks.map((b) => ({ label: b.label.en, desc: b.desc.en }));
       ruEntry.motionBlocks = cs.motionBlocks.map((b) => ({ label: b.label.ru, desc: b.desc.ru }));
+    }
+    // Blueprint sheet labels feed the <img> alt of the drawing (BP-DECISION-01),
+    // so they need the same positional overlay the captions use: one entry per
+    // sheet, empty string for an unlabelled one — never a hole.
+    if (Array.isArray(cs.blueprints) && cs.blueprints.length > 0) {
+      enCandidate.blueprints = cs.blueprints.map((sheet) => ({ label: localeText(sheet.label, 'en') }));
+      ruEntry.blueprints = cs.blueprints.map((sheet) => ({ label: localeText(sheet.label, 'ru') }));
     }
     const overrides = c.i18nOverrides && c.i18nOverrides.caseEn;
     en[c.id] = applySparse(enCandidate, overrides);

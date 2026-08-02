@@ -61,6 +61,24 @@ function requireFixture(fixture, reason) {
   return fixture;
 }
 
+/* BP-DECISION-02: вкладка Blueprints существует ТОЛЬКО у кейса, которому
+ * владелец загрузил лист. Раньше чертёж рисовался процедурно и вкладка была у
+ * всех, поэтому здесь её кликали как обычный переключатель панелей. Теперь
+ * ожидание выводится из content-слоя конкретного кейса. */
+function caseSheets(project) {
+  const sheets = project && project.case && project.case.blueprints;
+  return Array.isArray(sheets) ? sheets : [];
+}
+
+/* Триггер вкладки всегда в разметке (CASE-tabs-3 считает ровно 3 .case-tab),
+ * но ПОКАЗАН ровно тогда, когда у кейса есть листы. Проверка живая в обе
+ * стороны — «скрыта» это тоже утверждение, а не пропуск. */
+async function expectBlueprintTabMatchesContent(page, project) {
+  const tab = page.locator('#case-tab-bp');
+  if (caseSheets(project).length > 0) await expect(tab).toBeVisible();
+  else await expect(tab).toBeHidden();
+}
+
 function assetPath(value) {
   return String(value || '').replace(/^\.\//, '');
 }
@@ -357,10 +375,13 @@ for (const mode of MODES) {
       .poll(async () => Number(await firstCaseItem.evaluate((node) => getComputedStyle(node).opacity)))
       .toBeGreaterThan(0.99);
 
-    await page.locator('#case-tab-bp').click();
-    await expect(page.locator('#case-tab-bp')).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('#case-blueprints')).toBeVisible();
-    await page.locator('#case-tab-2d').click();
+    await expectBlueprintTabMatchesContent(page, primary);
+    if (caseSheets(primary).length > 0) {
+      await page.locator('#case-tab-bp').click();
+      await expect(page.locator('#case-tab-bp')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#case-blueprints')).toBeVisible();
+      await page.locator('#case-tab-2d').click();
+    }
     await page.locator('#case-next').click();
     await expect.poll(() => new URL(page.url()).hash).toBe(`#${next.id}`);
     expect(new URL(page.url()).searchParams.get('design')).toBe(mode);
@@ -423,7 +444,7 @@ for (const mode of MODES) {
       if (index === 0) {
         await expect(page.locator('#case-tab-2d')).toBeVisible();
         await expect(page.locator('#case-tab-3d')).toBeVisible();
-        await expect(page.locator('#case-tab-bp')).toBeVisible();
+        await expectBlueprintTabMatchesContent(page, CASE_BY_ID.get(project.id));
         await page.locator('#case-share-desktop').click();
         const copiedUrl = new URL(await page.evaluate(() => navigator.clipboard.readText()));
         expect(copiedUrl.searchParams.get('design')).toBe(mode);
@@ -1484,7 +1505,7 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
     if (index === 0) {
       await expect(page.locator('#case-tab-2d')).toBeVisible();
       await expect(page.locator('#case-tab-3d')).toBeVisible();
-      await expect(page.locator('#case-tab-bp')).toBeVisible();
+      await expectBlueprintTabMatchesContent(page, contentProject);
       await page.locator('#case-share-desktop').click();
       const copiedUrl = new URL(await page.evaluate(() => navigator.clipboard.readText()));
       expect(copiedUrl.searchParams.get('design')).toBe('hybrid');
@@ -1534,13 +1555,22 @@ test('hybrid: Case media modes tear down before returning to Home', async ({ pag
   await projectLink.click();
   await waitForHybridCase(page, modelCase.id);
 
-  await page.locator('#case-tab-bp').click();
-  await expect(page.locator('#case-tab-bp')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#case-blueprints')).toBeVisible();
-  await expect(page.locator('#case-scroll')).toBeHidden();
+  // Панель чертежей участвует в этом сценарии только если владелец загрузил
+  // лист именно этому кейсу (BP-DECISION-02). Вкладка проверяется в обе
+  // стороны, а переключение панелей ниже опирается на 2D↔3D, которые есть
+  // всегда — иначе тест зависел бы от наличия чертежа.
+  await expectBlueprintTabMatchesContent(page, modelCase);
+  if (caseSheets(modelCase).length > 0) {
+    await page.locator('#case-tab-bp').click();
+    await expect(page.locator('#case-tab-bp')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#case-blueprints')).toBeVisible();
+    await expect(page.locator('#case-scroll')).toBeHidden();
 
-  await page.locator('#case-tab-2d').click();
-  await expect(page.locator('#case-tab-2d')).toHaveAttribute('aria-selected', 'true');
+    await page.locator('#case-tab-2d').click();
+    await expect(page.locator('#case-tab-2d')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#case-scroll')).toBeVisible();
+    await expect(page.locator('#case-blueprints')).toBeHidden();
+  }
   await expect(page.locator('#case-scroll')).toBeVisible();
   await expect(page.locator('#case-blueprints')).toBeHidden();
 

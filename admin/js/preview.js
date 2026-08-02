@@ -136,6 +136,31 @@
     return value.trim().length === 0 ? '' : value;
   }
 
+  /* Листы чертежа (BP-DECISION-01/02). Записи без файла выпадают: лист,
+     который владелец только что добавил и ещё не загрузил, на сайте дал бы
+     <img> с пустым src. Фильтр ОДИН и тот же в buildRuntimeEntry и
+     buildCaseLocale — иначе позиционный оверлей подписей (js/i18n.js) уехал бы
+     на чужой лист. Уже загруженный, но ещё не опубликованный файл сюда
+     приходит blob-адресом из previewDraft, поэтому виден в превью сразу. */
+  function blueprintSheets(cs) {
+    return (Array.isArray(cs.blueprints) ? cs.blueprints : []).filter(
+      (sheet) =>
+        sheet !== null &&
+        typeof sheet === 'object' &&
+        !Array.isArray(sheet) &&
+        typeof sheet.src === 'string' &&
+        sheet.src !== ''
+    );
+  }
+
+  // Зеркало localeText генератора: отсутствующая и пробельная подпись
+  // одинаково схлопываются в '' — тогда alt листа собирается из i18n-ключей
+  // (js/main.js), а не остаётся английским в русской версии.
+  function localeText(pair, lang) {
+    const value = pair !== null && typeof pair === 'object' && typeof pair[lang] === 'string' ? pair[lang] : '';
+    return value.trim().length === 0 ? '' : value;
+  }
+
   // content/cases/{id}.json → запись window.CARDS_DATA[id]
   // (зеркало buildCaseEntry из generate-content.mjs).
   function buildRuntimeEntry(c) {
@@ -191,6 +216,21 @@
     if (cta && typeof cta === 'object' && cta.enabled === true && !State.ctaUrlProblem(cta.url)) {
       entry.items.cta = { url: new URL(cta.url).href };
     }
+    // BP-DECISION-02: вкладка «Чертежи» fail-closed — js/main.js читает
+    // items.blueprints и без ключа прячет вкладку. Ключ эмитится ТОЛЬКО когда
+    // лист есть (зеркало buildCaseEntry), иначе превью показало бы вкладку там,
+    // где сайт её не нарисует.
+    const sheets = blueprintSheets(cs);
+    if (sheets.length > 0) {
+      entry.items.blueprints = sheets.map((sheet) => {
+        const out = {};
+        if (sheet.id) out.id = sheet.id;
+        out.src = sheet.src;
+        const label = localeText(sheet.label, 'en');
+        if (label) out.label = label;
+        return out;
+      });
+    }
     return entry;
   }
 
@@ -218,6 +258,10 @@
     if (Array.isArray(cs.motionBlocks)) {
       entry.motionBlocks = cs.motionBlocks.map((b) => ({ label: b.label[lang], desc: b.desc[lang] }));
     }
+    // Подписи листов — такой же позиционный массив, как captions: одна запись
+    // на лист, пустая строка у неподписанного, никогда не дыра.
+    const sheets = blueprintSheets(cs);
+    if (sheets.length > 0) entry.blueprints = sheets.map((sheet) => ({ label: localeText(sheet.label, lang) }));
     if (lang === 'en') return applySparse(entry, c.i18nOverrides && c.i18nOverrides.caseEn);
     return entry;
   }
