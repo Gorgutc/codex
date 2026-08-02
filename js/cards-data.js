@@ -14,7 +14,7 @@
 ═══════════════════════════════════════════════════════════════════════ */
 window.CARDS_DATA = {
   'corten-series': {
-    role: 'Client',
+    role: 'Client: Happfe',
     tools: [
       'Blender',
       'Substance Painter'
@@ -33,7 +33,7 @@ window.CARDS_DATA = {
         {
           type: 'image',
           format: 'wide',
-          src: './assets/cases/corten-series/01-e4a28f4d.png',
+          src: './assets/cases/corten-series/01-d1b75be2.jpg',
           bg: 'linear-gradient(135deg,#2a2018 0%,#3a2e22 100%)',
           label: 'Studio render',
           desc: 'Product viz for an industrial furniture brand. Corten steel material, HDR studio lighting.',
@@ -60,8 +60,8 @@ window.CARDS_DATA = {
         {
           id: 'media-msbj0s97',
           type: 'image',
-          format: 'tall',
-          src: './assets/cases/corten-series/04-e4a28f4d.png',
+          format: 'wide',
+          src: './assets/cases/corten-series/04-57e7bbf6.jpg',
           bg: 'linear-gradient(135deg,#1e1410 0%,#2c2018 100%)',
           label: 'Material passes',
           desc: 'Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web.',
@@ -76,7 +76,10 @@ window.CARDS_DATA = {
         title: 'Patina system',
         body: 'Rust generated from curvature + ambient occlusion masks. Two layers: oxide underneath, flake breakup on top, roughness offset per layer.'
       },
-      motionBlocks: null
+      motionBlocks: null,
+      cta: {
+        url: 'https://www.behance.net/gallery/227387887/Dehydrator'
+      }
     }
   },
   'lumen-one': {

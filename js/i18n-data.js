@@ -563,9 +563,9 @@
   const CARDS_LOCALES = {
     en: {
       'corten-series': {
-        title: 'Corten Series',
-        desc: 'Product viz for an industrial furniture brand. Launch-ready renders.',
-        alt: 'Corten Series — industrial furniture product viz'
+        title: 'The dehydrator Happfe',
+        desc: 'Product renders of the dehydrator for the Happfe brand. The dehydrator has been put into operation.',
+        alt: 'Happfe Dehydrator - Product Renders of a Dehydrator'
       },
       'lumen-one': {
         title: 'Lumen One',
@@ -580,9 +580,9 @@
     },
     ru: {
       'corten-series': {
-        title: 'Corten Series',
-        desc: 'Product viz для бренда промышленной мебели. Рендеры готовы к запуску.',
-        alt: 'Corten Series — индустриальная мебель, product viz'
+        title: 'Дегидратор Happfe',
+        desc: 'Продуктовые рендеры дегидратора для бренда Happfe. Дегидратор был запущен в работу.',
+        alt: 'Дегидратор Happfe — Продуктовые рендеры дегидратора'
       },
       'lumen-one': {
         title: 'Lumen One',
@@ -601,7 +601,7 @@
   const CASE_LOCALES = {
     en: {
       'corten-series': {
-        role: 'Client',
+        role: 'Client: Happfe',
         captions: [
           {
             label: 'Studio render',
@@ -698,7 +698,7 @@
     },
     ru: {
       'corten-series': {
-        role: 'Клиент',
+        role: 'Клиент: Happfe',
         captions: [
           {
             label: 'Studio-рендер',
