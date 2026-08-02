@@ -33,7 +33,7 @@
  * --write output goes to a temp CONTENT_OUT_DIR (the working tree is never
  * touched). Plain node test — no Playwright. Wired into test:content-validate.
  */
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -227,8 +227,17 @@ function caseLocalesSection(i18n) {
     if (!orbitalEntry.includes("layoutMode: 'manual'")) {
       fail('the manual case entry must carry layoutMode in cards-data');
     }
-    if ((cardsData.match(/layoutMode/g) || []).length !== 1) {
-      fail('seeded cases must not carry the layoutMode flag');
+    // Сколько manual-кейсов ждать — считаем из содержимого песочницы, а не из
+    // допущения «manual только тот, что выставил тест»: владелец переводит кейсы
+    // в ручной порядок штатно (это условие структурных операций со слотами).
+    const expectedManual = readdirSync(path.join(sandbox.contentDir, 'cases'))
+      .filter((name) => name.endsWith('.json'))
+      .filter(
+        (name) =>
+          JSON.parse(readFileSync(path.join(sandbox.contentDir, 'cases', name), 'utf8')).layoutMode === 'manual'
+      ).length;
+    if ((cardsData.match(/layoutMode/g) || []).length !== expectedManual) {
+      fail(`seeded cases must not carry the layoutMode flag (expected ${expectedManual} manual case(s))`);
     }
     console.log('layoutMode manual: flag emitted into cards-data');
   } finally {
