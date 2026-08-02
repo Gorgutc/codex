@@ -131,10 +131,31 @@ test('/free-assets.html releases preloader without waiting for lazy tag previews
     });
   });
 
-  await page.route(/\/assets\/cards\/(?:corten-series|nightshard|nyx-panther|helix-reveal|mech-link)\.svg$/i, async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 4000));
-    await route.continue();
-  });
+  // Delay every card poster EXCEPT the eager one the preloader legitimately
+  // waits for (the generator gives tag card #0 loading="eager"
+  // fetchpriority="high"; everything else — the lazy tag covers and all
+  // asset-card posters — is outside the preloader's tracking selector).
+  //
+  // This used to be a hardcoded basename+".svg" regex, which is exactly the
+  // failure mode it was supposed to guard against: after the owner hid every
+  // category but one, that literal list no longer described "the lazy covers"
+  // — it described the EAGER cover of the now-first category, so the test
+  // stalled the very image the preloader is allowed to wait for and inverted
+  // its own contract. Deriving the exclusion from content/ (FA-POSTER-01 also
+  // makes the extension owner-editable) keeps it true through any publish.
+  const eagerPoster = FA_CATS[0].poster.replace(/^\./, '');
+  let delayedRequests = 0;
+  await page.route(
+    (url) => {
+      const pathname = decodeURIComponent(url.pathname);
+      return pathname.startsWith('/assets/cards/') && pathname !== eagerPoster;
+    },
+    async (route) => {
+      delayedRequests += 1;
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      await route.continue();
+    }
+  );
 
   const started = Date.now();
   await page.goto(`${base}/free-assets.html`, { waitUntil: 'domcontentloaded' });
@@ -152,6 +173,9 @@ test('/free-assets.html releases preloader without waiting for lazy tag previews
   // granularity — a wait that succeeded at ~3.89s could still fail the
   // elapsed check (cross-review F2).
   expect(Date.now() - started).toBeLessThan(4000);
+  // Anti-vacuity: the release above only proves the contract if something was
+  // actually stalled. Zero interceptions means the route matcher went stale.
+  expect(delayedRequests, 'no card poster was delayed — the route matcher went stale').toBeGreaterThan(0);
   await expect(page.locator('html')).not.toHaveClass(/is-loading/);
   await expect(page.locator('#preloader')).toHaveCount(0);
 });

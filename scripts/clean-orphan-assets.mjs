@@ -24,18 +24,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execSync } from 'node:child_process';
+import { faPosterPath, faPosterProblem, faTagCoverValue } from './fa-poster-path.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 
 // Repo-relative POSIX path with a leading './' (the form content/*.json uses).
-function rel(absPath) {
-  return './' + path.relative(ROOT, absPath).split(path.sep).join('/');
+function rel(absPath, root) {
+  return './' + path.relative(root, absPath).split(path.sep).join('/');
 }
 
-function readJson(...segments) {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, ...segments), 'utf8'));
+function readJson(root, ...segments) {
+  return JSON.parse(fs.readFileSync(path.join(root, ...segments), 'utf8'));
 }
 
 // Mirror of generate-content.mjs faEffectiveBase: an absent key defaults to the
@@ -60,12 +61,12 @@ function addRef(set, p) {
 
 /* ── (A1) references from content/*.json + convention defaults ───────────── */
 
-function addContentRefs(set) {
-  const settings = readJson('content', 'settings.json');
+function addContentRefs(set, root, posterProblems) {
+  const settings = readJson(root, 'content', 'settings.json');
   for (const id of settings.cardOrder) {
     let c;
     try {
-      c = readJson('content', 'cases', id + '.json');
+      c = readJson(root, 'content', 'cases', id + '.json');
     } catch (_e) {
       continue;
     }
@@ -86,21 +87,33 @@ function addContentRefs(set) {
     }
   }
 
-  const fa = readJson('content', 'free-assets.json');
+  // FA-POSTER-01: poster values resolve through the SHARED canonical parser
+  // (scripts/fa-poster-path.mjs). A value this script cannot resolve is NOT
+  // silently skipped: skipping it would turn a live file into an orphan, and
+  // string-concatenating a raw non-canonical value ('./assets/cards//x.png')
+  // would produce a reference that never matches the real file — which is how
+  // `--delete` would eat a poster the catalog is actually rendering. Every
+  // unresolvable value is collected and `--delete` refuses to run.
+  const fa = readJson(root, 'content', 'free-assets.json');
   for (const category of fa.categories || []) {
-    if (category.tagCard && category.tagCard.thumb) {
-      addRef(set, `./assets/cards/${category.tagCard.thumb}.svg`);
-    }
+    const cover = faTagCoverValue(category);
+    const coverPath = faPosterPath(cover);
+    if (coverPath) addRef(set, coverPath);
+    else posterProblems.push(`category "${category.key}" tagCard.thumb: ${JSON.stringify(cover)} — ${faPosterProblem(cover)}`);
     for (const item of category.items || []) {
       const thumbBase = faEffectiveBase(item, 'thumb');
-      if (thumbBase) addRef(set, `./assets/cards/${thumbBase}.svg`);
+      if (thumbBase !== null && thumbBase !== undefined) {
+        const thumbPath = faPosterPath(thumbBase);
+        if (thumbPath) addRef(set, thumbPath);
+        else posterProblems.push(`${item.id} thumb: ${JSON.stringify(thumbBase)} — ${faPosterProblem(thumbBase)}`);
+      }
       const modelBase = faEffectiveBase(item, 'model');
       if (modelBase) addRef(set, `./assets/models/free/${modelBase}.glb`);
       if (item.file) addRef(set, `./downloads/${item.file}`);
     }
   }
 
-  const meta = readJson('content', 'meta.json');
+  const meta = readJson(root, 'content', 'meta.json');
   const og = meta.ogImages || {};
   addRef(set, og.index);
   addRef(set, og.fa);
@@ -113,7 +126,7 @@ function addContentRefs(set) {
   // that the assets/downloads regex cannot see — resolve them against the
   // manifest's own dir so a manifest-only icon is never a false orphan.
   try {
-    const manifest = readJson('assets', 'favicon', 'site.webmanifest');
+    const manifest = readJson(root, 'assets', 'favicon', 'site.webmanifest');
     for (const icon of manifest.icons || []) {
       if (icon && typeof icon.src === 'string') {
         addRef(set, './assets/favicon/' + icon.src.replace(/^\.?\//, ''));
@@ -140,10 +153,10 @@ const SCAN_FILES = [
 
 const ASSET_REF_RE = /(?:\.\/)?(?:assets|downloads)\/[A-Za-z0-9._/-]+/g;
 
-function addScannedRefs(set) {
-  const absFiles = SCAN_FILES.map((relPath) => path.join(ROOT, relPath));
+function addScannedRefs(set, root) {
+  const absFiles = SCAN_FILES.map((relPath) => path.join(root, relPath));
   // every CSS file
-  const cssDir = path.join(ROOT, 'css');
+  const cssDir = path.join(root, 'css');
   if (fs.existsSync(cssDir)) {
     for (const f of fs.readdirSync(cssDir)) {
       if (f.endsWith('.css')) absFiles.push(path.join(cssDir, f));
@@ -152,7 +165,7 @@ function addScannedRefs(set) {
   // every JS file under js/ (incl. vendor + the lazy 3D viewer's hardcoded HDR):
   // walking the tree avoids a hardcoded list omitting an asset reference.
   const jsFiles = [];
-  walk(path.join(ROOT, 'js'), jsFiles);
+  walk(path.join(root, 'js'), jsFiles);
   for (const abs of jsFiles) {
     if (abs.endsWith('.js')) absFiles.push(abs);
   }
@@ -164,11 +177,24 @@ function addScannedRefs(set) {
   }
 }
 
-export function buildReferenceSet() {
+/* `root` is a parameter (defaulting to the repo) purely so the self-test can
+ * build a throwaway tree whose ONLY reference to a file is an FA poster value —
+ * against the live repo an FA poster is also referenced by a portfolio card or
+ * by the scanned HTML, so a broken poster resolver would still look green. */
+export function buildReferenceSet(root = ROOT) {
   const set = new Set();
-  addContentRefs(set);
-  addScannedRefs(set);
+  addContentRefs(set, root, []);
+  addScannedRefs(set, root);
   return set;
+}
+
+/* Poster values this script cannot resolve to a canonical path. Non-empty means
+ * the reference set is INCOMPLETE, so `--delete` refuses to run: an unresolved
+ * poster is a live file that would be reported (and removed) as an orphan. */
+export function findPosterProblems(root = ROOT) {
+  const problems = [];
+  addContentRefs(new Set(), root, problems);
+  return problems;
 }
 
 /* ── walk assets/ + downloads/ and diff ──────────────────────────────────── */
@@ -189,13 +215,13 @@ function isProtected(relPath) {
   return lower.endsWith('.md') || lower.endsWith('/site.webmanifest') || lower.endsWith('.gitkeep');
 }
 
-export function findOrphans(referenceSet) {
+export function findOrphans(referenceSet, root = ROOT) {
   const files = [];
-  walk(path.join(ROOT, 'assets'), files);
-  walk(path.join(ROOT, 'downloads'), files);
+  walk(path.join(root, 'assets'), files);
+  walk(path.join(root, 'downloads'), files);
   const orphans = [];
   for (const abs of files) {
-    const relPath = rel(abs);
+    const relPath = rel(abs, root);
     if (isProtected(relPath)) continue;
     if (!referenceSet.has(relPath)) orphans.push({ path: relPath, abs, size: fs.statSync(abs).size });
   }
@@ -216,6 +242,18 @@ function dirOf(relPath) {
 
 function main() {
   const del = process.argv.includes('--delete');
+  const posterProblems = findPosterProblems();
+  if (posterProblems.length) {
+    console.error('Free Assets poster values that do not resolve to a canonical path:');
+    for (const problem of posterProblems) console.error(`  ${problem}`);
+    console.error(
+      '\nThe reference set is INCOMPLETE while these exist — the files they meant to point at would be reported as orphans. Fix content/free-assets.json (npm run content:check names the same violations) before cleaning.'
+    );
+    if (del) {
+      process.exitCode = 1;
+      return;
+    }
+  }
   const referenceSet = buildReferenceSet();
   const orphans = findOrphans(referenceSet);
 

@@ -35,6 +35,41 @@
   const State = window.AdminState;
   const SETTINGS_PATH = 'content/settings.json';
   const FA_PATH = 'content/free-assets.json';
+  // FA-POSTER-01: зеркало канона scripts/fa-poster-path.mjs (classic script,
+  // import недоступен) — сегментные правила обязаны совпадать, иначе превью
+  // покажет не тот файл, который отрендерит сайт. faTagCover — ЕДИНСТВЕННЫЙ
+  // фолбэк обложки категории (ключ категории), общий с генератором, orphan-
+  // аудитом и scripts/content-expectations.mjs.
+  const FA_POSTER_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
+  const FA_RASTER_POSTER_RE = /\.(?:png|jpe?g|webp)$/i;
+  function faPosterPath(value) {
+    if (typeof value !== 'string' || value === '' || value.indexOf('\\') !== -1) return null;
+    if (value.indexOf('/') === -1) {
+      if (value.indexOf('..') !== -1 || !FA_POSTER_SEGMENT_RE.test(value)) return null;
+      return './assets/cards/' + value + '.svg';
+    }
+    if (value.indexOf('./assets/') !== 0) return null;
+    for (const segment of value.slice(2).split('/')) {
+      if (segment === '.' || segment === '..' || !FA_POSTER_SEGMENT_RE.test(segment)) return null;
+    }
+    return /\.(?:svg|png|jpe?g|webp)$/i.test(value) ? value : null;
+  }
+  function faTagCover(cat) {
+    const tagCard = cat && typeof cat === 'object' ? cat.tagCard : null;
+    const thumb = tagCard && typeof tagCard === 'object' ? tagCard.thumb : null;
+    return thumb === null || thumb === undefined ? cat && cat.key : thumb;
+  }
+  // Обложку рисуем ОДНОЙ функцией и для новой карточки, и для уже отрисованной
+  // (rebuildFaTagCards переиспользует опубликованную разметку — без этого
+  // правка обложки в черновике не доезжала до превью вообще, а растровая ветка
+  // buildTagCard была практически недостижима).
+  function applyTagCardCover(thumb, img, cat) {
+    const src = faPosterPath(faTagCover(cat));
+    if (!src) return;
+    img.setAttribute('src', src);
+    if (FA_RASTER_POSTER_RE.test(src)) thumb.setAttribute('data-poster-kind', 'raster');
+    else thumb.removeAttribute('data-poster-kind');
+  }
   // Зеркало generate-content.mjs: в runtime-запись motion-блока попадают
   // только эти ключи (формат слота теперь живёт в самом case.media-блоке).
   const MOTION_KEYS = ['source', 'layout', 'playback', 'src', 'vimeoId', 'vimeoHash', 'poster', 'title'];
@@ -527,8 +562,10 @@
   }
 
   // Медиа FA-ассета в превью. Черновик — главный (точно как генератор: thumb/model
-  // эмитятся `if (key in item)` его значением): явное base-имя honored, null
-  // выключает превью, отсутствие ключа → runtime берёт id-default. ИСКЛЮЧЕНИЕ:
+  // эмитятся `if (key in item)` его значением): явное значение honored, null
+  // выключает превью, отсутствие ключа → runtime берёт id-default. FA-POSTER-01:
+  // значением постера может быть и полный './assets/…'-путь — рантайм сайта
+  // разбирает обе формы, здесь оно просто переносится как есть. ИСКЛЮЧЕНИЕ:
   // pending-загрузка (previewDraft подставляет blob: вместо ещё не существующего
   // на сервере cache-bust-файла) — показываем СТАРОЕ закоммиченное медиа (pub),
   // иначе ./assets/cards/blob:….svg сломался бы (баннер про это предупреждает).
@@ -658,7 +695,7 @@
     thumb.className = 'tag-card__thumb work-card__thumb';
     thumb.setAttribute('data-label', label);
     const img = doc.createElement('img');
-    img.setAttribute('src', './assets/cards/' + (tag.thumb || key) + '.svg');
+    applyTagCardCover(thumb, img, cat);
     img.setAttribute('data-i18n-attr', 'alt:faTag.' + camel + '.alt');
     img.setAttribute('alt', '');
     img.setAttribute('loading', index === 0 ? 'eager' : 'lazy');
@@ -727,6 +764,15 @@
     visible.forEach((cat, index) => {
       let card = existing.get(cat.key);
       if (!card) card = buildTagCard(doc, cat, index, enFilter);
+      else {
+        // FA-POSTER-01: у переиспользованной карточки обложка пришла из
+        // ОПУБЛИКОВАННОЙ разметки — переносим на неё значение черновика тем же
+        // резолвером, что и у новой карточки. Без этого замена обложки (и тем
+        // более переход на растр) не была видна в превью вообще.
+        const thumb = card.querySelector('.tag-card__thumb');
+        const img = thumb && thumb.querySelector('img');
+        if (thumb && img) applyTagCardCover(thumb, img, cat);
+      }
       card.classList.toggle('tag-card--active', index === 0);
       list.appendChild(card);
     });

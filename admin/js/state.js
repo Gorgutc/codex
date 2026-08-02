@@ -127,14 +127,17 @@
       blockBytes: 50 * MB,
       blockText: 'модели тяжелее 50 МБ не публикуем'
     },
-    // Итерация H: постер карточки Free Assets. Рантайм каталога жёстко
-    // подставляет расширение .svg к базовому имени (resolveAssetMedia в
-    // js/free-assets.js), поэтому слот принимает ТОЛЬКО SVG.
+    // Итерация H → FA-POSTER-01: постер карточки Free Assets. Раньше рантайм
+    // жёстко подставлял .svg к базовому имени, и слот принимал только SVG.
+    // Теперь thumb может нести полный './assets/…'-путь с собственным
+    // расширением (resolveAssetMedia/faPosterSrc в js/free-assets.js), поэтому
+    // набор форматов совпадает с обычным слотом картинки: на карточку кладётся
+    // полноценный растровый рендер вместо SVG-заглушки.
     faThumb: {
-      exts: ['svg'],
-      mimes: ['image/svg+xml'],
-      accept: '.svg',
-      formatLabel: 'SVG',
+      exts: ['svg', 'png', 'jpg', 'jpeg', 'webp'],
+      mimes: ['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp'],
+      accept: '.svg,.png,.jpg,.jpeg,.webp',
+      formatLabel: 'SVG, PNG, JPG или WebP',
       warnBytes: 200 * KB,
       warnText: 'тяжелее 200 КБ — карточки каталога будут грузиться медленнее',
       blockBytes: 2 * MB,
@@ -527,7 +530,10 @@
   //   valueMode        — что писать в JSON: 'path' (по умолчанию — полный
   //                      './assets/...'-путь) или 'baseName' (итерация H,
   //                      free-assets: имя файла без папки и расширения —
-  //                      конвенция thumb/model в content/free-assets.json).
+  //                      конвенция model в content/free-assets.json).
+  //                      FA-POSTER-01: слот постера (thumb) вернулся к 'path' —
+  //                      только полный путь несёт фактическое расширение
+  //                      загруженного файла, а значит и растровый постер.
   // Возвращает { assetPath, objectURL, size, warning|null, unchanged }.
   // F5: читает реальные пиксельные размеры картинки из её байтов (Image-декод),
   // тихо возвращает null при ошибке декода — предупреждение никогда не блокирует.
@@ -1443,6 +1449,29 @@
     );
   }
 
+  // FA-POSTER-01: зеркало канона scripts/fa-poster-path.mjs (admin/js — classic
+  // script, import недоступен). Множество принимаемых значений обязано СОВПАДАТЬ
+  // с каноном: если админка строже, уже опубликованный владельцем путь заблокирует
+  // ему ВСЕ последующие публикации каталога; если мягче — публикация упадёт в CI
+  // с авто-ревертом. Поэтому здесь тот же посегментный обход, а не «похожая»
+  // регулярка. Эквивалентность пинится тестом admin-free-assets.spec.mjs.
+  const FA_POSTER_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
+  const FA_POSTER_EXT_RE = /\.(?:svg|png|jpe?g|webp)$/i;
+
+  function isFaPosterValue(value) {
+    if (!isFilled(value)) return false;
+    if (value.indexOf('\\') !== -1) return false;
+    if (value.indexOf('/') === -1) {
+      return value.indexOf('..') === -1 && FA_POSTER_SEGMENT_RE.test(value);
+    }
+    if (value.indexOf('./assets/') !== 0) return false;
+    const segments = value.slice(2).split('/');
+    for (const segment of segments) {
+      if (segment === '.' || segment === '..' || !FA_POSTER_SEGMENT_RE.test(segment)) return false;
+    }
+    return FA_POSTER_EXT_RE.test(value);
+  }
+
   // Единый предикат «ассет виден на сайте»: категория и сам ассет не
   // выключены (enabled !== false — конвенция «поле отсутствует = включено»).
   function faAssetVisible(category, item) {
@@ -1485,11 +1514,13 @@
         if (typeof tagCard !== 'object' || Array.isArray(tagCard)) {
           errors.push({ path, field: 'categories.' + ci + '.tagCard', message: 'Категория «' + category.key + '»: tagCard повреждён' });
         } else {
-          if ('thumb' in tagCard && tagCard.thumb !== null && !isPlainBaseName(tagCard.thumb)) {
+          if ('thumb' in tagCard && tagCard.thumb !== null && !isFaPosterValue(tagCard.thumb)) {
             errors.push({
               path,
               field: 'categories.' + ci + '.tagCard.thumb',
-              message: 'Категория «' + category.key + '»: thumb tag-карточки — базовое имя файла без папок'
+              message:
+                'Категория «' + category.key + '»: обложка tag-карточки — базовое имя файла без папок ' +
+                'или путь ./assets/… с расширением svg/png/jpg/webp'
             });
           }
           if ('gameAsset' in tagCard && typeof tagCard.gameAsset !== 'boolean') {
@@ -1557,16 +1588,25 @@
             message: label + ': список «архив содержит» должен иметь хотя бы одну непустую строку'
           });
         }
-        // thumb/model: отсутствие = базовое имя id, null = выключено,
+        // model: отсутствие = базовое имя id, null = выключено,
         // строка = базовое имя файла без папок и расширения.
-        for (const key of ['thumb', 'model']) {
-          if (key in item && item[key] !== null && !isPlainBaseName(item[key])) {
-            errors.push({
-              path,
-              field: dotBase + '.' + key,
-              message: label + ': «' + key + '» — базовое имя файла без папок и расширения'
-            });
-          }
+        if ('model' in item && item.model !== null && !isPlainBaseName(item.model)) {
+          errors.push({
+            path,
+            field: dotBase + '.model',
+            message: label + ': «model» — базовое имя файла без папок и расширения'
+          });
+        }
+        // FA-POSTER-01: у постера дополнительно разрешён полный './assets/…'-путь
+        // с собственным расширением — так публикуется растровый рендер.
+        if ('thumb' in item && item.thumb !== null && !isFaPosterValue(item.thumb)) {
+          errors.push({
+            path,
+            field: dotBase + '.thumb',
+            message:
+              label + ': «thumb» — базовое имя файла без папок и расширения ' +
+              'или путь ./assets/… с расширением svg/png/jpg/webp'
+          });
         }
       });
     });
@@ -1580,25 +1620,41 @@
   }
 
   // Итерация H (Fix #5): шаблоны путей файлов медиа-слотов free-assets.
-  // Рантайм каталога (resolveAssetMedia в js/free-assets.js) подставляет
-  // расширение к базовому имени, поэтому путь детерминирован по ключу слота.
   // Источник истины и для ui.js (resolveValue dropZone), и для проверки
   // существования файла перед публикацией.
+  // FA-POSTER-01: у слота постера значение может быть ЛИБО полным
+  // './assets/…'-путём с собственным расширением (так публикуется растровый
+  // рендер — именно это пишет stageMedia без valueMode), ЛИБО историческим
+  // базовым именем. Поэтому `ext` у thumb остаётся, но уже только как
+  // ЛЕГАСИ-расширение по умолчанию: без него ключ, отсутствующий в JSON
+  // (значение = id), перестал бы резолвиться в ./assets/cards/<id>.svg.
   const FA_MEDIA_SLOTS = {
-    thumb: { dir: './assets/cards/', ext: '.svg' },
+    thumb: { dir: './assets/cards/', ext: '.svg', poster: true },
     model: { dir: './assets/models/free/', ext: '.glb' }
   };
 
-  function faSlotPath(key, baseName) {
+  // FAIL-CLOSED: значение, не проходящее правила слота, даёт null, а не
+  // «путь», собранный конкатенацией. Иначе восстановленный из sessionStorage
+  // черновик с thumb: 'https://evil.example/poster.png' превращался бы в
+  // ВНЕШНИЙ HEAD-запрос из админки ещё до того, как валидация остановит
+  // публикацию. Вызывающие обязаны обрабатывать null (ui.js: показать ошибку
+  // поля, не ходить в сеть; findMissingFaMediaFiles: пропустить проверку).
+  function faSlotPath(key, value) {
     const slot = FA_MEDIA_SLOTS[key];
     if (!slot) return null;
-    return slot.dir + baseName + slot.ext;
+    if (slot.poster) {
+      if (!isFaPosterValue(value)) return null;
+      return value.indexOf('/') !== -1 ? value : slot.dir + value + slot.ext;
+    }
+    if (!isPlainBaseName(value)) return null;
+    return slot.dir + value + slot.ext;
   }
 
   // Перечень ВКЛЮЧЁННЫХ медиа-слотов free-assets, у которых эффективное
   // значение указывает на конкретный файл (конвенция: ключ отсутствует →
-  // файл по умолчанию <id>; строка → базовое имя; null → выключено).
-  // Возвращает [{ id, key, dot, baseName, sitePath, staged }].
+  // файл по умолчанию <id>; строка → базовое имя ИЛИ (постер) полный путь;
+  // null → выключено).
+  // Возвращает [{ id, key, dot, value, sitePath, staged }].
   // staged=true, если слот покрыт pending-загрузкой (файл уже в памяти и
   // уйдёт в коммит — проверять его наличие в репозитории не нужно).
   function faEnabledMediaSlots() {
@@ -1613,20 +1669,20 @@
         for (const key of Object.keys(FA_MEDIA_SLOTS)) {
           const dot = 'categories.' + ci + '.items.' + ii + '.' + key;
           const staged = Boolean(getMediaEdit(FA_PATH, dot));
-          // Значение слота: pending-загрузка важнее (её базовое имя уйдёт в
+          // Значение слота: pending-загрузка важнее (её значение уйдёт в
           // коммит); иначе draft-значение; отсутствие ключа = базовое имя id.
           let value;
           if (staged) value = getMediaEdit(FA_PATH, dot).value;
           else if (key in item) value = item[key];
           else value = item.id;
           if (value === null) continue; // слот выключен
-          const baseName = String(value);
+          const slotValue = String(value);
           out.push({
             id: item.id,
             key,
             dot,
-            baseName,
-            sitePath: faSlotPath(key, baseName),
+            value: slotValue,
+            sitePath: faSlotPath(key, slotValue),
             staged
           });
         }

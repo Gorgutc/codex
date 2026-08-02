@@ -2657,3 +2657,202 @@ test('specimen: RU mode translates Design Lab controls', async ({ page }) => {
   await expect(page.locator('.specimen-filter[data-filter="all"]')).toHaveText('ВСЕ');
   await expect(page.locator('.specimen-dossier__table dt').first()).toHaveText('ГОД');
 });
+
+/* ── FA-POSTER-01: растровые постеры Free Assets ──────────────────────────────
+ *
+ * The catalog poster slot now accepts a full './assets/…' path with its own
+ * extension, so a real photo render can replace the SVG placeholder. Two
+ * contracts are gated here:
+ *   1. the runtime renders the path VERBATIM (no hardcoded ".svg" suffix) and
+ *      marks the slot with data-poster-kind="raster";
+ *   2. the branded veil (.fa-card__thumb::before) is WEAKENED for a raster —
+ *      the diagonal hatching and the primary wash would read as a print defect
+ *      over a photograph — while a vector poster keeps the historical look.
+ * Chamber and Hybrid replace ::before wholesale at a higher specificity, so
+ * their (already hatch-free) veil must stay exactly as it is; Specimen leaves
+ * ::before to the base sheet and therefore inherits the weakening.
+ * The generator side (fa-data, tag-card region, JSON-LD) is gated in
+ * tests/quality/content-visibility.test.mjs scenario 23.
+ */
+/* Deterministic, content-INDEPENDENT fixtures. An earlier revision hunted for a
+ * raster inside the owner's live assets/cards and skipped the whole gate when
+ * there wasn't one — meaning this feature's entire runtime + CSS gate could
+ * silently verify nothing. Both posters are now SERVED by the test: a 1x1 PNG
+ * for the raster slot and a tiny SVG for the vector control, at fixed URLs that
+ * page.route fulfils. The vector control is an INJECTED FA_DATA entry rather
+ * than "some sibling card from content", because a single-item (or all-raster)
+ * category would otherwise leave nothing to compare the raster against. */
+const RASTER_FIXTURE = './assets/cards/zz-fa-poster-fixture.png';
+const VECTOR_FIXTURE = './assets/cards/zz-fa-poster-fixture.svg';
+const VECTOR_CONTROL_ID = 'zz-vector-control';
+// 1x1 transparent PNG.
+const RASTER_FIXTURE_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+);
+const VECTOR_FIXTURE_BYTES = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 6"><rect width="8" height="6" fill="#222"/></svg>',
+  'utf8'
+);
+// The DEFAULT rendered category — the first visible tag card, so no tag click
+// is needed in any design mode.
+const RASTER_FA_CATEGORY = VISIBLE_FA_CATEGORIES[0] || null;
+
+async function installRasterPosterFixture(page, category, options = {}) {
+  const targetId = category.items[0].id;
+  const dropModel = options.keepModel !== true;
+  await page.route(`**${RASTER_FIXTURE.slice(1)}`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: RASTER_FIXTURE_BYTES })
+  );
+  await page.route(`**${VECTOR_FIXTURE.slice(1)}`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/svg+xml', body: VECTOR_FIXTURE_BYTES })
+  );
+  // fa-data.js is a classic script defining `var FA_DATA`; appending a patch
+  // statement is the least invasive way to hand the runtime a raster item and
+  // an independent vector control without touching content/.
+  await page.route('**/js/fa-data.js', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    await route.fulfill({
+      response,
+      body:
+        body +
+        '\n;(function () {\n' +
+        `  var list = FA_DATA[${JSON.stringify(category.key)}] || [];\n` +
+        '  var target = null;\n' +
+        '  for (var i = 0; i < list.length; i += 1) {\n' +
+        `    if (list[i].id === ${JSON.stringify(targetId)}) { target = list[i]; }\n` +
+        '  }\n' +
+        '  if (!target) { return; }\n' +
+        '  var control = JSON.parse(JSON.stringify(target));\n' +
+        `  target.thumb = ${JSON.stringify(RASTER_FIXTURE)};\n` +
+        (dropModel ? '  target.model = null;\n' : '') +
+        `  control.id = ${JSON.stringify(VECTOR_CONTROL_ID)};\n` +
+        `  control.thumb = ${JSON.stringify(VECTOR_FIXTURE)};\n` +
+        '  control.model = null;\n' +
+        '  list.splice(list.indexOf(target) + 1, 0, control);\n' +
+        '})();\n'
+    });
+  });
+  // Tag-card covers live in the generated region, so the raster variant is
+  // installed on the SERVED html (the generator side is gated in
+  // tests/quality/content-visibility.test.mjs scenario 23).
+  await page.route('**/free-assets.html*', async (route) => {
+    const response = await route.fetch();
+    const html = await response.text();
+    const start = html.indexOf('<div class="tag-card__thumb');
+    if (start < 0) {
+      await route.fulfill({ response, body: html });
+      return;
+    }
+    const end = html.indexOf('>', html.indexOf('<img ', start));
+    const block = html
+      .slice(start, end + 1)
+      .replace('<div class="tag-card__thumb', '<div data-poster-kind="raster" class="tag-card__thumb')
+      .replace(/src="[^"]*"/, `src="${RASTER_FIXTURE}"`);
+    await route.fulfill({ response, body: html.slice(0, start) + block + html.slice(end + 1) });
+  });
+  return targetId;
+}
+
+// Computed ::before of a thumb — the veil contract is a computed-style
+// contract, not a class-name one.
+function readVeil(page, selector) {
+  return page.evaluate((sel) => {
+    const node = document.querySelector(sel);
+    if (!node) return null;
+    const style = getComputedStyle(node, '::before');
+    return {
+      posterKind: node.getAttribute('data-poster-kind'),
+      backgroundImage: style.backgroundImage,
+      opacity: Number.parseFloat(style.opacity)
+    };
+  }, selector);
+}
+
+for (const mode of ['original', 'specimen', 'chamber', 'hybrid']) {
+  test(`${mode}: a raster Free Assets poster renders verbatim and wears the right veil`, async ({ page }) => {
+    const category = requireFixture(RASTER_FA_CATEGORY, 'skipped: no visible Free Assets category');
+    const targetId = await installRasterPosterFixture(page, category);
+
+    await page.setViewportSize({ width: 1440, height: 1024 });
+    const design = mode === 'original' ? '' : `&design=${mode}`;
+    await page.goto(`${server.base}/free-assets.html?lang=en${design}`, { waitUntil: 'networkidle' });
+    if (mode === 'specimen' || mode === 'chamber') await waitForDesign(page, mode, 'free-assets');
+    else if (mode === 'hybrid') await waitForHybridFreeAssets(page);
+    await page.waitForFunction(
+      (controlId) => Boolean(document.querySelector(`#fa-grid .fa-card[id="${controlId}"]`)),
+      VECTOR_CONTROL_ID
+    );
+
+    // 1. the runtime resolver honours the extension instead of appending .svg.
+    const rasterThumb = page.locator(`#fa-grid .fa-card[id="${targetId}"] .fa-card__thumb`);
+    const vectorThumb = page.locator(`#fa-grid .fa-card[id="${VECTOR_CONTROL_ID}"] .fa-card__thumb`);
+    await expect(rasterThumb).toHaveAttribute('data-poster-kind', 'raster');
+    await expect(rasterThumb.locator('img')).toHaveAttribute('src', RASTER_FIXTURE);
+    await expect(vectorThumb).not.toHaveAttribute('data-poster-kind', /.*/);
+    await expect(vectorThumb.locator('img')).toHaveAttribute('src', VECTOR_FIXTURE);
+    // The decorative contract verify-frozen pins (D2-axe budget 0) survives.
+    for (const thumb of [rasterThumb, vectorThumb]) {
+      await expect(thumb.locator('img')).toHaveAttribute('alt', '');
+      await expect(thumb.locator('img')).toHaveAttribute('aria-hidden', 'true');
+    }
+
+    // 2. the veil: raster weakened in Original/Specimen, mode styling intact in
+    //    Chamber/Hybrid (both already replace ::before without hatching).
+    const raster = await readVeil(page, `#fa-grid .fa-card[id="${targetId}"] .fa-card__thumb`);
+    const vector = await readVeil(page, `#fa-grid .fa-card[id="${VECTOR_CONTROL_ID}"] .fa-card__thumb`);
+    expect(raster, 'the raster card must be rendered').toBeTruthy();
+    expect(vector, 'the injected vector control must be rendered').toBeTruthy();
+
+    if (mode === 'original' || mode === 'specimen') {
+      expect(vector.backgroundImage).toContain('repeating-linear-gradient');
+      expect(raster.backgroundImage).not.toContain('repeating-linear-gradient');
+      expect(raster.opacity).toBeLessThan(vector.opacity);
+    } else {
+      expect(raster.backgroundImage).toBe(vector.backgroundImage);
+      expect(raster.opacity).toBe(vector.opacity);
+    }
+
+    // 3. the category cover uses the same mechanism. Only Original renders the
+    //    tag-card thumb — Specimen, Chamber and Hybrid all hide it.
+    if (mode === 'original') {
+      const rasterCover = await readVeil(page, '.tag-card__thumb[data-poster-kind="raster"]');
+      expect(rasterCover, 'the raster category cover must be rendered').toBeTruthy();
+      expect(rasterCover.backgroundImage).not.toContain('repeating-linear-gradient');
+      const vectorCover = await readVeil(page, '.tag-card__thumb:not([data-poster-kind])');
+      if (vectorCover) {
+        expect(vectorCover.backgroundImage).toContain('repeating-linear-gradient');
+        expect(rasterCover.opacity).toBeLessThan(vectorCover.opacity);
+      }
+    } else {
+      await expect(page.locator('.tag-card__thumb').first()).toBeHidden();
+    }
+  });
+}
+
+test('original: a raster poster drops its weakened veil once the 3D model takes over', async ({ page }) => {
+  const category = requireFixture(RASTER_FA_CATEGORY, 'skipped: no visible Free Assets category');
+  const targetId = await installRasterPosterFixture(page, category, { keepModel: true });
+  // Block the GLB so the real load event cannot race the assertions — the card
+  // keeps its poster until this test fires the event itself.
+  await page.route('**/assets/models/free/*.glb', (route) => route.abort());
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await page.goto(`${server.base}/free-assets.html?lang=en`, { waitUntil: 'networkidle' });
+  const thumb = page.locator(`#fa-grid .fa-card[id="${targetId}"] .fa-card__thumb`);
+  await expect(thumb).toHaveAttribute('data-poster-kind', 'raster');
+
+  // Once the GLB is ready the poster is hidden (.is-model-ready img{opacity:0}),
+  // so the slot must go back to the branded veil instead of keeping the
+  // photo-friendly one over a 3D render. The real load event is what the
+  // runtime listens for; the GLB itself never has to arrive.
+  await page.evaluate((id) => {
+    const viewer = document.querySelector(`#fa-grid .fa-card[id="${id}"] .fa-card__thumb-mv`);
+    viewer.dispatchEvent(new Event('load'));
+  }, targetId);
+
+  await expect(thumb).toHaveClass(/is-model-ready/);
+  await expect(thumb).not.toHaveAttribute('data-poster-kind', /.*/);
+  const veil = await readVeil(page, `#fa-grid .fa-card[id="${targetId}"] .fa-card__thumb`);
+  expect(veil.backgroundImage).toContain('repeating-linear-gradient');
+});
