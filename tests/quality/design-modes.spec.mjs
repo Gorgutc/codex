@@ -1934,6 +1934,9 @@ test('hybrid: Case inline notes share one wide desktop stage and keep mobile flo
       const caption = item.querySelector(':scope > .case-item__caption');
       const note = item.querySelector(':scope > .case-text--overlay');
       const image = media.querySelector('.case-item__img');
+      // Подписи блоков стали необязательными: без узла подписи мерить нечего,
+      // и молчаливый TypeError внутри evaluate прятал бы причину падения.
+      if (!caption) throw new Error('inline-stage fixture must carry a caption block (case.media caption is empty)');
       const rowRect = row.getBoundingClientRect();
       const mediaRect = media.getBoundingClientRect();
       const captionRect = caption.getBoundingClientRect();
@@ -1976,6 +1979,7 @@ test('hybrid: Case inline notes share one wide desktop stage and keep mobile flo
     const media = item.querySelector(':scope > .case-item__media');
     const caption = item.querySelector(':scope > .case-item__caption');
     const note = item.querySelector(':scope > .case-text--overlay');
+    if (!caption) throw new Error('inline-stage fixture must carry a caption block (case.media caption is empty)');
     const rowRect = row.getBoundingClientRect();
     const noteRect = note.getBoundingClientRect();
     const captionRect = caption.getBoundingClientRect();

@@ -294,14 +294,40 @@ if (typeof SplitText !== 'undefined') {
   function killItemScrollTriggers() {
     ScrollTrigger.getAll().forEach(function (st) {
       var trig = st.vars && st.vars.trigger;
-      if (trig && trig.classList && trig.classList.contains('case-item')) {
+      if (
+        trig &&
+        trig.classList &&
+        (trig.classList.contains('case-item') || trig.classList.contains('case-row--seamless'))
+      ) {
         st.kill();
       }
     });
   }
 
+  /* «Биханс-приём»: полосы склеенного полотна — самостоятельные .case-item,
+     и покадровый lift поднимал бы их ПООЧЕРЁДНО (нижняя ещё висит на y=44,
+     верхняя уже приземлилась) — на стыке открывался бы разрыв в 44px, ровно
+     тот, против которого вводился gap:0. Поэтому единицей анимации для
+     .case-row--seamless выступает сам ряд, а его полосы своих set/триггеров
+     не получают.
+     Для всех остальных рядов список единиц ПОЭЛЕМЕНТНО совпадает с прежним
+     `.case-item` в том же порядке документа — значит и stagger (i < 2), и
+     триггеры, и вид анимации остаются прежними. */
+  function liftUnits(caseScroll) {
+    var units = [];
+    Array.prototype.slice.call(caseScroll.querySelectorAll('.case-item')).forEach(function (item) {
+      var row = item.parentElement;
+      if (!row || !row.classList || !row.classList.contains('case-row--seamless')) {
+        units.push(item);
+        return;
+      }
+      if (units.indexOf(row) === -1) units.push(row);
+    });
+    return units;
+  }
+
   function setupLift(caseScroll) {
-    var items = caseScroll.querySelectorAll('.case-item');
+    var items = liftUnits(caseScroll);
     if (!items.length) return;
 
     // Сбрасываем старые ScrollTriggers и кладём items в исходное положение
@@ -338,20 +364,40 @@ if (typeof SplitText !== 'undefined') {
        защита на будущее). */
     var media = caseScroll.querySelectorAll('.case-item__media img, .case-item__media video, .case-motion__poster');
     media.forEach(function (el) { el.classList.add('is-clip-reveal-case'); });
+    /* Та же единица анимации, что и у lift: полосы одного полотна вытираются
+       ОДНИМ твином с одним триггером на ряд — иначе маска проявляла бы полотно
+       N независимыми кусками. Вне склейки — по элементу на твин, как раньше. */
+    var clipUnits = [];
     media.forEach(function (el) {
-      gsap.to(el, {
+      var row = el.closest ? el.closest('.case-row--seamless') : null;
+      if (!row) {
+        clipUnits.push({ trigger: el, targets: [el] });
+        return;
+      }
+      for (var i = 0; i < clipUnits.length; i++) {
+        if (clipUnits[i].trigger === row) {
+          clipUnits[i].targets.push(el);
+          return;
+        }
+      }
+      clipUnits.push({ trigger: row, targets: [el] });
+    });
+    clipUnits.forEach(function (unit) {
+      gsap.to(unit.targets, {
         clipPath: 'inset(0 0% 0 0)',
         duration: 1.0,
         ease: 'power3.inOut',
         scrollTrigger: {
-          trigger: el,
+          trigger: unit.trigger,
           scroller: caseScroll,
           start: 'top 90%',
           once: true
         },
         onComplete: function () {
-          gsap.set(el, { clearProps: 'clipPath' });
-          el.classList.remove('is-clip-reveal-case');
+          unit.targets.forEach(function (el) {
+            gsap.set(el, { clearProps: 'clipPath' });
+            el.classList.remove('is-clip-reveal-case');
+          });
         }
       });
     });

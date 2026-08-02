@@ -858,6 +858,40 @@
     pushPairMarkupErrors(errors, path, dotBase, pair, label);
   }
 
+  // НЕобязательная двуязычная пара (подписи медиа-блоков). ПОЛНОЕ зеркало
+  // checkOptionalLocalePair из generate-content.mjs — включая проверки формы
+  // и типов: пара-массив или {en:5,ru:5} проходили бы публикацию и падали уже
+  // в CI на авто-revert'е, то есть владелец узнавал бы об ошибке из отката, а
+  // не из формы. Правило пары — «всё или ничего» по языкам: заполнен EN при
+  // пустом RU — недопереведённая подпись (русский посетитель увидит
+  // английский текст), обе пустые — валидный блок без подписи. Ошибка
+  // вешается на ПУСТОЕ поле: именно его надо заполнить (или очистить парное).
+  function pushOptionalPairTextErrors(errors, path, dotBase, pair, label) {
+    if (pair === undefined || pair === null) return;
+    if (typeof pair !== 'object' || Array.isArray(pair)) {
+      errors.push({ path, field: dotBase, message: label + ': поле повреждено — обновите страницу' });
+      return;
+    }
+    for (const lang of ['en', 'ru']) {
+      const value = pair[lang];
+      if (value !== undefined && value !== null && typeof value !== 'string') {
+        errors.push({
+          path,
+          field: dotBase + '.' + lang,
+          message: label + ' (' + lang.toUpperCase() + '): значение должно быть текстом — обновите страницу'
+        });
+        return;
+      }
+    }
+    pushPairMarkupErrors(errors, path, dotBase, pair, label);
+    if (isFilled(pair.en) === isFilled(pair.ru)) return;
+    errors.push({
+      path,
+      field: dotBase + (isFilled(pair.en) ? '.ru' : '.en'),
+      message: label + ': заполните обе локали или оставьте обе пустыми'
+    });
+  }
+
   // Зеркало traversal-guard валидатора: путь медиа строго внутрь ./assets/.
   function isAssetPath(value) {
     return (
@@ -924,7 +958,7 @@
     );
   }
 
-  function validateCaseMediaDraft(errors, path, media) {
+  function validateCaseMediaDraft(errors, path, media, manualLayout) {
     if (!Array.isArray(media) || media.length === 0) {
       errors.push({ path, field: 'case.media', message: 'Иллюстрации: нужен хотя бы один блок — обновите страницу' });
       return;
@@ -1029,10 +1063,226 @@
         });
       }
       pushMarkupError(errors, path, dotBase + '.bg', block.bg, where + ' — фон');
+      // Склейка «без отступа сверху» (зеркало validateCaseMedia): первому
+      // блоку клеиться не к чему, а в автоматическом порядке «предыдущий
+      // блок» — не тот, что в списке. Флаг НЕ снимается молча при
+      // перестановке: владелец должен увидеть, что склейка потеряла соседа.
+      if (block.seamless !== undefined) {
+        if (typeof block.seamless !== 'boolean') {
+          errors.push({
+            path,
+            field: dotBase + '.seamless',
+            message: where + ': флаг склейки повреждён — обновите страницу'
+          });
+        } else if (block.seamless === true) {
+          if (i === 0) {
+            errors.push({
+              path,
+              field: dotBase + '.seamless',
+              message: where + ': склейка возможна начиная со второго блока — над первым ничего нет'
+            });
+          }
+          if (!manualLayout) {
+            errors.push({
+              path,
+              field: dotBase + '.seamless',
+              message: where + ': склейка работает только при ручном порядке блоков — включите его в разделе «Порядок блоков»'
+            });
+          }
+        }
+      }
+      // Подписи необязательны (запрос владельца: серия иллюстраций без
+      // сопровождающего текста) — обязательна только парность локалей.
       const caption = block.caption;
-      pushPairTextErrors(errors, path, dotBase + '.caption.label', caption && caption.label, where + ' — заголовок');
-      pushPairTextErrors(errors, path, dotBase + '.caption.desc', caption && caption.desc, where + ' — описание');
+      pushOptionalPairTextErrors(
+        errors,
+        path,
+        dotBase + '.caption.label',
+        caption && caption.label,
+        where + ' — заголовок'
+      );
+      if (caption !== undefined && (caption === null || typeof caption !== 'object' || Array.isArray(caption))) {
+        errors.push({ path, field: dotBase + '.caption', message: where + ': подпись повреждена — обновите страницу' });
+      }
+      pushOptionalPairTextErrors(
+        errors,
+        path,
+        dotBase + '.caption.desc',
+        caption && caption.desc,
+        where + ' — описание'
+      );
     });
+    validateSeamlessChainsDraft(errors, path, media);
+  }
+
+  /* Целостность склеенной цепочки — зеркало validateSeamlessChains канона.
+     Подпись рисуется МЕЖДУ полосами и физически разрезает полотно, поэтому
+     она разрешена только у последней полосы; форматы внутри цепочки должны
+     совпадать (у tall своя ширина-потолок — смесь даёт лестницу). */
+  function seamlessChainsDraft(media) {
+    const chains = [];
+    let open = null;
+    media.forEach((block, i) => {
+      const glued = block !== null && typeof block === 'object' && block.seamless === true;
+      const prev = media[i - 1];
+      if (i > 0 && glued && prev !== null && typeof prev === 'object') {
+        if (!open) {
+          open = { start: i - 1, blocks: [prev] };
+          chains.push(open);
+        }
+        open.blocks.push(block);
+      } else {
+        open = null;
+      }
+    });
+    return chains;
+  }
+
+  function captionPairFilled(pair) {
+    return pair !== null && typeof pair === 'object' && (isFilled(pair.en) || isFilled(pair.ru));
+  }
+
+  function validateSeamlessChainsDraft(errors, path, media) {
+    if (!Array.isArray(media)) return;
+    for (const chain of seamlessChainsDraft(media)) {
+      chain.blocks.forEach((block, offset) => {
+        const index = chain.start + offset;
+        const where = 'Слот ' + (index + 1);
+        const dotBase = 'case.media.' + index;
+        if (block.format !== chain.blocks[0].format) {
+          errors.push({
+            path,
+            field: dotBase + '.format',
+            message:
+              where +
+              ': у склеенных блоков формат должен совпадать (полотно начинается с «' +
+              chain.blocks[0].format +
+              '») — иначе полосы разной ширины дают лестницу'
+          });
+        }
+        if (offset === chain.blocks.length - 1) return;
+        const caption = block.caption;
+        if (caption === null || typeof caption !== 'object') return;
+        if (captionPairFilled(caption.label) || captionPairFilled(caption.desc)) {
+          errors.push({
+            path,
+            field: dotBase + '.caption.label.ru',
+            message:
+              where +
+              ': подпись возможна только у ПОСЛЕДНЕГО блока полотна — здесь она встанет между полосами и разрежет картинку'
+          });
+        }
+      });
+    }
+  }
+
+  /* ── внешняя ссылка кейса (CASE-CTA-01) ─────────────────────────────
+     Зеркало validateCaseCta/ctaUrlProblem из generate-content.mjs. Поле
+     необязательное: у кейса без ссылки ключа case.cta просто нет.
+
+     Таблица CTA-платформ — ЕДИНЫЙ источник правды. ДОБАВЛЯЯ ПЛАТФОРМУ,
+     продублируй ту же запись в двух других зеркалах (таблица копируется
+     дословно, поэтому новая платформа — одна запись в каждом файле):
+       scripts/generate-content.mjs — валидация origin (канон);
+       admin/js/state.js            — этот файл (гейт публикации);
+       js/main.js                   — caseCtaHTML (подпись, aria, data-external).
+     hosts перечисляются ПОЛНОСТЬЮ (с www и без): сравнение точное по hostname,
+     а не по суффиксу — «evil-dprofile.ru» и «dprofile.ru.attacker.tld» мимо.
+     label/aria этот файл не использует — они здесь, чтобы три таблицы
+     оставались дословными копиями друг друга. */
+  const CTA_PLATFORMS = [
+    {
+      network: 'artstation',
+      hosts: ['artstation.com', 'www.artstation.com'],
+      label: { en: 'View on ArtStation', ru: 'Смотреть на ArtStation' },
+      aria: {
+        en: 'Open the project on ArtStation in a new tab',
+        ru: 'Открыть проект на ArtStation в новой вкладке'
+      }
+    },
+    {
+      network: 'behance',
+      hosts: ['behance.net', 'www.behance.net'],
+      label: { en: 'View on Behance', ru: 'Смотреть на Behance' },
+      aria: {
+        en: 'Open the project on Behance in a new tab',
+        ru: 'Открыть проект на Behance в новой вкладке'
+      }
+    },
+    {
+      network: 'dprofile',
+      hosts: ['dprofile.ru', 'www.dprofile.ru'],
+      label: { en: 'View on DPROFILE', ru: 'Смотреть на DPROFILE' },
+      aria: {
+        en: 'Open the project on DPROFILE in a new tab',
+        ru: 'Открыть проект на DPROFILE в новой вкладке'
+      }
+    }
+  ];
+  const CTA_HOSTS = CTA_PLATFORMS.reduce((all, platform) => all.concat(platform.hosts), []);
+  const CTA_ALLOWED_TEXT = CTA_PLATFORMS.map((platform) => platform.hosts[0]).join(', ');
+
+  /* Одна parser-семантика с каноном и рантаймом: всё, что рантайм не сможет
+     нарисовать, обязано падать ЗДЕСЬ — иначе владелец публикует адрес, а
+     кнопка на сайте молча не появляется. Отдельно про userinfo: адрес вида
+     https://user:token@artstation.com/x утащил бы креды в публичный
+     js/cards-data.js. */
+  function ctaUrlProblem(url) {
+    if (!isFilled(url)) return 'вставьте адрес проекта (ссылка начинается с https://)';
+    if (url.indexOf('REPLACE_WITH_REAL') !== -1) {
+      return 'это адрес-заглушка REPLACE_WITH_REAL — вставьте настоящую ссылку на проект';
+    }
+    if (FORBIDDEN_TEXT_RE.test(url)) return 'символы «<», «>» и управляющие недопустимы';
+    if (url !== url.trim()) return 'уберите пробелы в начале и в конце адреса';
+    if (url.indexOf('\\') !== -1) return 'в адресе не должно быть обратных слэшей — скопируйте ссылку из адресной строки';
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch (_) {
+      return 'это не похоже на адрес страницы — скопируйте ссылку из адресной строки';
+    }
+    if (parsed.protocol !== 'https:') return 'ссылка должна начинаться с https://';
+    if (parsed.username || parsed.password) return 'в адресе не должно быть логина и пароля перед доменом';
+    if (parsed.port) return 'в адресе не должно быть порта';
+    if (CTA_HOSTS.indexOf(parsed.hostname.toLowerCase()) === -1) {
+      return 'разрешены только ' + CTA_ALLOWED_TEXT + ' (получено «' + parsed.hostname + '»)';
+    }
+    return null;
+  }
+
+  function validateCaseCtaDraft(errors, path, cta) {
+    if (cta === undefined) return;
+    if (cta === null || typeof cta !== 'object' || Array.isArray(cta)) {
+      errors.push({ path, field: 'case.cta', message: 'Внешняя ссылка: блок повреждён — обновите страницу' });
+      return;
+    }
+    if (typeof cta.enabled !== 'boolean') {
+      errors.push({
+        path,
+        field: 'case.cta.enabled',
+        message: 'Внешняя ссылка: переключатель повреждён — обновите страницу'
+      });
+    }
+    if (cta.enabled === true) {
+      const problem = ctaUrlProblem(cta.url);
+      if (problem) errors.push({ path, field: 'case.cta.url', message: 'Внешняя ссылка: ' + problem });
+      return;
+    }
+    // Выключенная ссылка хранится как есть (чтобы не терять адрес), но
+    // заглушка недопустима ни в каком состоянии.
+    if (cta.url === undefined || cta.url === null) return;
+    if (typeof cta.url !== 'string') {
+      errors.push({ path, field: 'case.cta.url', message: 'Внешняя ссылка: адрес должен быть текстом' });
+      return;
+    }
+    if (cta.url.indexOf('REPLACE_WITH_REAL') !== -1) {
+      errors.push({
+        path,
+        field: 'case.cta.url',
+        message: 'Внешняя ссылка: это адрес-заглушка REPLACE_WITH_REAL — вставьте настоящую ссылку или очистите поле'
+      });
+    }
+    pushMarkupError(errors, path, 'case.cta.url', cta.url, 'Внешняя ссылка');
   }
 
   function validateCaseDraft(errors, path, draft) {
@@ -1079,7 +1329,8 @@
         });
       }
     });
-    validateCaseMediaDraft(errors, path, cs.media);
+    validateCaseMediaDraft(errors, path, cs.media, draft.layoutMode === 'manual');
+    validateCaseCtaDraft(errors, path, cs.cta);
     if (cs.text) {
       pushPairTextErrors(errors, path, 'case.text.title', cs.text.title, 'Текстовый блок — заголовок');
       pushPairTextErrors(errors, path, 'case.text.body', cs.text.body, 'Текстовый блок — текст');
@@ -1784,6 +2035,9 @@
     parseVimeoId,
     parseVimeoHash,
     // итерация G: превью
-    previewDraft
+    previewDraft,
+    // CASE-CTA-01: одна проверка адреса на весь админ-слой (валидатор
+    // публикации, подсказка формы и превью «как будет»).
+    ctaUrlProblem
   };
 })();

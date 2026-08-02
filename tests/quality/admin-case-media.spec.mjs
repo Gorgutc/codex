@@ -22,7 +22,14 @@
  *  11) 0N-нейминг на позициях 9/10/12 и граница предупреждения 8→9;
  *  12) зеркальный валидатор админки ловит грамматику фона, дубль id и
  *      беспостерное видео до публикации;
- *  13) probe OAuth-функции: 404 прячет кнопку «Войти через GitHub».
+ *  13) probe OAuth-функции: 404 прячет кнопку «Войти через GitHub»;
+ *  14) необязательные подписи: пустая пара публикуется, недоперевод (EN без
+ *      RU) блокирует публикацию русским сообщением у ПУСТОГО поля;
+ *  15) склейка seamless: чекбокс задизейблен на первом блоке и в
+ *      автоматическом порядке, публикуется флагом блока, а блок, ставший
+ *      первым, ловится валидацией, а не снимается молча;
+ *  16) внешняя ссылка кейса (CASE-CTA-01): тогл + адрес публикуются,
+ *      чужой домен и адрес-заглушка блокируются русским сообщением.
  *
  * Ожидания выводятся из content/ (владелец работает с частично скрытым
  * каталогом): фикстура кейса читается с диска, а не хардкодится.
@@ -689,6 +696,303 @@ test('зеркало валидатора: видео-блок без посте
   await page.click('#publish-btn');
   await expect(page.locator('#publish-dialog')).toBeHidden();
   await expect(page.locator('.toast--error')).toContainText('видео-блоку нужен постер');
+});
+
+/* ── необязательные подписи блоков ────────────────────────────────────── */
+
+test('пустые подписи публикуются: блок без текста — валидный кейс', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  const draft = caseWithBlocks(2);
+  // Владелец хочет серию иллюстраций без сопровождающего текста.
+  draft.case.media[0].caption = { label: { en: '', ru: '' }, desc: { en: '', ru: '' } };
+  await seedCaseDraft(page, draft);
+  await openCaseEditor(page);
+
+  const labelEn = page.locator(`[data-field="${CASE_PATH}::case.media.0.caption.label.en"]`);
+  await expect(labelEn).toHaveValue('');
+  await expect(page.locator('#caption-optional-hint')).toContainText('Подписи необязательны');
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  await page.click('#publish-confirm');
+  await expect(page.locator('.toast--success')).toContainText('Опубликовано');
+
+  const blobBySha = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
+  const caseEntry = calls.tree.find((entry) => entry.path === CASE_PATH);
+  const published = JSON.parse(Buffer.from(blobBySha.get(caseEntry.sha).content, 'base64').toString('utf8'));
+  expect(published.case.media[0].caption.label.en).toBe('');
+  expect(published.case.media[0].caption.desc.ru).toBe('');
+});
+
+test('подпись на одном языке блокирует публикацию русским сообщением у поля', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await openCaseEditor(page);
+
+  // Стираем RU-заголовок первого слота: EN остаётся — это недоперевод.
+  await page.locator(`[data-field="${CASE_PATH}::case.media.0.caption.label.ru"]`).fill('');
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error')).toContainText('заполните обе локали или оставьте обе пустыми');
+  // Ошибка встаёт у ПУСТОГО поля — именно его надо решить.
+  const ruField = page.locator(`[data-field="${CASE_PATH}::case.media.0.caption.label.ru"]`);
+  await expect(ruField).toHaveClass(/field-invalid/);
+  await expect(ruField.locator('xpath=following-sibling::p[1]')).toContainText('Слот 1 — заголовок');
+  expect(calls.tree).toHaveLength(0);
+
+  // Пустой EN рядом с пустым RU — уже валидно, публикация проходит.
+  await page.locator(`[data-field="${CASE_PATH}::case.media.0.caption.label.en"]`).fill('');
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  await page.click('#publish-confirm');
+  await expect(page.locator('.toast--success')).toContainText('Опубликовано');
+});
+
+/* ── склейка блоков «биханс-приёмом» (seamless) ───────────────────────── */
+
+const seamlessField = (i) => `[data-field="${CASE_PATH}::case.media.${i}.seamless"]`;
+
+test('seamless: чекбокс задизейблен на первом блоке и в автоматическом порядке', async ({ page }) => {
+  await mockGitHub(page);
+  await openCaseEditor(page);
+
+  // seeded: склейка недоступна нигде — порядок блоков подбирает раскладка.
+  await expect(page.locator(seamlessField(1))).toBeDisabled();
+  await expect(slot(page, 1)).toContainText('Доступно при ручном порядке блоков');
+
+  await enableManualLayout(page);
+  // Первому блоку клеиться не к чему даже при ручном порядке.
+  await expect(page.locator(seamlessField(0))).toBeDisabled();
+  await expect(slot(page, 0)).toContainText('Первый блок склеивать не с чем');
+  await expect(page.locator(seamlessField(1))).toBeEnabled();
+});
+
+test('seamless: чекбокс публикуется флагом блока', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  // Полотно по правилам цепочки: одинаковый формат и подпись только у
+  // последней полосы (у первой её чистим — иначе текст встал бы между полос).
+  const draft = JSON.parse(JSON.stringify(CASE_JSON));
+  draft.layoutMode = 'manual';
+  draft.case.media[1].format = draft.case.media[0].format;
+  draft.case.media[0].caption = { label: { en: '', ru: '' }, desc: { en: '', ru: '' } };
+  await seedCaseDraft(page, draft);
+  await openCaseEditor(page);
+
+  await page.check(seamlessField(1));
+  await page.waitForFunction(() => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case.media[1].seamless === true;
+  });
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  await page.click('#publish-confirm');
+  await expect(page.locator('.toast--success')).toContainText('Опубликовано');
+
+  const blobBySha = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
+  const caseEntry = calls.tree.find((entry) => entry.path === CASE_PATH);
+  const published = JSON.parse(Buffer.from(blobBySha.get(caseEntry.sha).content, 'base64').toString('utf8'));
+  expect(published.case.media[1].seamless).toBe(true);
+  expect(published.layoutMode).toBe('manual');
+  // Снятый флаг убирает ключ целиком — в JSON не остаётся seamless:false.
+  expect('seamless' in published.case.media[0]).toBe(false);
+});
+
+test('seamless: подпись на не-последней полосе блокирует публикацию', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  const draft = caseWithBlocks(3);
+  draft.case.media[1].seamless = true; // цепочка [0,1]
+  draft.case.media[1].format = draft.case.media[0].format;
+  // Подпись у ПЕРВОЙ полосы: она рисуется между двумя медиа и разрезает
+  // полотно — ровно то, ради чего склейку и включали.
+  draft.case.media[0].caption = { label: { en: 'Split', ru: 'Разрыв' }, desc: { en: '', ru: '' } };
+  await seedCaseDraft(page, draft);
+  await openCaseEditor(page);
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error')).toContainText('подпись возможна только у ПОСЛЕДНЕГО блока');
+  expect(calls.tree).toHaveLength(0);
+});
+
+test('seamless: смешанные форматы в цепочке блокируют публикацию', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  const draft = caseWithBlocks(3);
+  draft.case.media[0].format = 'wide';
+  draft.case.media[1].format = 'tall';
+  draft.case.media[1].seamless = true;
+  for (const block of draft.case.media) {
+    block.caption = { label: { en: '', ru: '' }, desc: { en: '', ru: '' } };
+  }
+  await seedCaseDraft(page, draft);
+  await openCaseEditor(page);
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error')).toContainText('формат должен совпадать');
+  expect(calls.tree).toHaveLength(0);
+});
+
+test('зеркало подписей: битая форма пары ловится в админке, а не в CI', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  // Формы, которые генератор отвергает: пара-массив и числа вместо строк.
+  // Без зеркала публикация уходила бы в коммит и возвращалась авто-revert'ом.
+  const draft = caseWithBlocks(2);
+  draft.case.media[0].caption.label = ['Slot', 'Слот'];
+  draft.case.media[1].caption.desc = { en: 5, ru: 5 };
+  await seedCaseDraft(page, draft);
+  await openCaseEditor(page);
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  const toast = page.locator('.toast--error');
+  await expect(toast).toContainText('Публикация остановлена');
+  await expect(toast).toContainText('поле повреждено');
+  await expect(toast).toContainText('значение должно быть текстом');
+  expect(calls.tree).toHaveLength(0);
+});
+
+test('seamless: блок, ставший первым, не публикуется молча', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  // Черновик, снятый ДО перестановки: склейка стоит на блоке, который теперь
+  // первый. Молча снимать флаг нельзя — это тихая правка вёрстки кейса.
+  const draft = caseWithBlocks(3);
+  draft.case.media[0].seamless = true;
+  await seedCaseDraft(page, draft);
+  await openCaseEditor(page);
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error')).toContainText('склейка возможна начиная со второго блока');
+  expect(calls.tree).toHaveLength(0);
+});
+
+/* ── внешняя ссылка кейса (CASE-CTA-01) ───────────────────────────────── */
+
+test('CTA: тогл + адрес публикуются в case.cta', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await openCaseEditor(page);
+
+  // У кейса ссылки нет — поля адреса тоже нет.
+  await expect(page.locator('#case-cta-section')).toBeVisible();
+  await expect(page.locator(`[data-field="${CASE_PATH}::case.cta.url"]`)).toHaveCount(0);
+  await expect(page.locator('#case-cta-hint')).toContainText('Кнопки в шапке кейса нет');
+
+  await page.click('#case-cta-toggle');
+  const urlField = page.locator(`[data-field="${CASE_PATH}::case.cta.url"]`);
+  await expect(urlField).toBeVisible();
+  await expect(page.locator('#case-cta-hint')).toContainText('artstation.com');
+
+  const CTA_URL = 'https://www.behance.net/gallery/12345/orbital';
+  await urlField.fill(CTA_URL);
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  await page.click('#publish-confirm');
+  await expect(page.locator('.toast--success')).toContainText('Опубликовано');
+
+  const blobBySha = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
+  const caseEntry = calls.tree.find((entry) => entry.path === CASE_PATH);
+  const published = JSON.parse(Buffer.from(blobBySha.get(caseEntry.sha).content, 'base64').toString('utf8'));
+  expect(published.case.cta).toEqual({ enabled: true, url: CTA_URL });
+});
+
+test('CTA: выключение сохраняет ПОСЛЕДНИЙ введённый адрес, а не адрес момента рендера', async ({ page }) => {
+  await mockGitHub(page);
+  await openCaseEditor(page);
+  await page.click('#case-cta-toggle');
+
+  const urlField = () => page.locator(`[data-field="${CASE_PATH}::case.cta.url"]`);
+  await expect(page.locator('#case-cta-toggle')).toBeChecked();
+  await urlField().fill('https://www.behance.net/gallery/1/first');
+  // Второй адрес вводится ПОСЛЕ включения тогла: обработчик обязан читать
+  // черновик, а не значение, замкнутое на момент отрисовки секции.
+  await urlField().fill('https://dprofile.ru/works/second');
+  await page.click('#case-cta-toggle'); // выключили
+  // Тогл перерисовывает секцию: ждём НОВЫЙ снятый чекбокс, иначе следующий
+  // клик уйдёт в узел, который вот-вот заменят. Запись черновика отложенная —
+  // ждём и её (sessionStorage), а не только перерисовку.
+  await expect(page.locator('#case-cta-toggle')).not.toBeChecked();
+  await page.waitForFunction(() => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case && draft.case.cta && draft.case.cta.enabled === false;
+  });
+  const off = await readDrafts(page);
+  expect(off[CASE_PATH].case.cta).toEqual({ enabled: false, url: 'https://dprofile.ru/works/second' });
+
+  // Включили обратно — адрес тот же, без «воскрешения» первого.
+  await page.click('#case-cta-toggle');
+  await expect(page.locator('#case-cta-toggle')).toBeChecked();
+  await expect(urlField()).toHaveValue('https://dprofile.ru/works/second');
+  await page.waitForFunction(() => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case && draft.case.cta && draft.case.cta.enabled === true;
+  });
+  const on = await readDrafts(page);
+  expect(on[CASE_PATH].case.cta).toEqual({ enabled: true, url: 'https://dprofile.ru/works/second' });
+});
+
+test('CTA: включённый тогл без адреса подсвечивает поле, а не только тост', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await openCaseEditor(page);
+  await page.click('#case-cta-toggle');
+
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error')).toContainText('вставьте адрес проекта');
+  // Якорь у поля: applyPendingErrors ищет [data-field], и без него ошибка
+  // осталась бы безликим тостом (у секции и тогла свои якоря).
+  const urlField = page.locator(`[data-field="${CASE_PATH}::case.cta.url"]`);
+  await expect(urlField).toHaveClass(/field-invalid/);
+  await expect(urlField.locator('xpath=following-sibling::p[1]')).toContainText('Внешняя ссылка');
+  expect(calls.tree).toHaveLength(0);
+});
+
+test('CTA: чужой домен и заглушка блокируют публикацию русским сообщением', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await openCaseEditor(page);
+  await page.click('#case-cta-toggle');
+  const urlField = page.locator(`[data-field="${CASE_PATH}::case.cta.url"]`);
+
+  await urlField.fill('https://portfolio.example.com/orbital');
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error')).toContainText(
+    'разрешены только artstation.com, behance.net, dprofile.ru'
+  );
+
+  // Суффиксный двойник разрешённого домена — сравнение точное, не «по концу».
+  await urlField.fill('https://evil-dprofile.ru/works/1');
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error').last()).toContainText('evil-dprofile.ru');
+
+  // Логин/пароль в адресе утащили бы креды в публичный js/cards-data.js.
+  await urlField.fill('https://user:token@dprofile.ru/works/1');
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error').last()).toContainText('логина и пароля');
+
+  await urlField.fill('https://dprofile.ru:8443/works/1');
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error').last()).toContainText('порта');
+  await expect(urlField).toHaveClass(/field-invalid/);
+  await expect(urlField.locator('xpath=following-sibling::p[1]')).toContainText('Внешняя ссылка');
+
+  // Адрес-заглушка — отдельное сообщение (это самый вероятный copy-paste).
+  await urlField.fill('https://www.behance.net/REPLACE_WITH_REAL');
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  await expect(page.locator('.toast--error').last()).toContainText('адрес-заглушка REPLACE_WITH_REAL');
+
+  // Выключенный тогл с пустым адресом убирает ключ целиком — кейс возвращается
+  // к состоянию «ссылки нет».
+  await urlField.fill('');
+  await page.click('#case-cta-toggle');
+  await expect(page.locator(`[data-field="${CASE_PATH}::case.cta.url"]`)).toHaveCount(0);
+  expect(calls.tree).toHaveLength(0);
 });
 
 test('вход: 404 на Netlify-функции прячет кнопку GitHub и объясняет вход по токену', async ({ page }) => {

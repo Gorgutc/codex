@@ -450,6 +450,41 @@
 .case-row--tall-1 { justify-content: flex-start; }
 .case-row > .case-item { width: 100%; }
 
+/* SEAMLESS («биханс-приём») — цепочка блоков без вертикального зазора:
+   длинная иллюстрация, нарезанная на полосы, читается одним полотном.
+   Ряд собирается в js/main.js (rowSeamless) целиком, поэтому склейка не
+   зависит от gap трека, который переопределяют режимы Design Lab.
+   Двойной класс (0,2,0) — чтобы правило пережило мобильный override
+   `.case-row { gap: … }` ниже по файлу без !important. */
+.case-row.case-row--seamless {
+  flex-direction: column;
+  gap: 0;
+}
+/* Стык: у верхней полосы гасим нижние радиусы, у нижней — верхние. */
+.case-row--seamless > .case-item:not(:first-child) > .case-item__media {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.case-row--seamless > .case-item:not(:last-child) > .case-item__media {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* Полоса внутри полотна живёт по СВОЕМУ аспекту (wide 16:9, tall 4:5), БЕЗ
+   потолка высоты — правило общее для обоих форматов.
+   Кламп (max-height) существует ради ОДИНОЧНОЙ иллюстрации: она должна влезать
+   в экран вместе с подписью. Внутри склейки он оставляет ширину прежней и
+   срезает высоту, коробка перестаёт держать аспект, а object-fit:cover у
+   .case-item__img режет КАЖДУЮ полосу независимо и по центру — на стыке
+   пропадает кусок изображения (замер до правки: 1440×900 ratio 1.778,
+   1920×1080 — 2.661, 2560×1440 — 3.846 при номинальных 1.778).
+   Специфичность (0,3,0) намеренно выше базовой (0,2,0), планшетной
+   `body:not(.cards-collapsed) .case-item--tall .case-item__media` (0,2,1) и
+   мобильной (0,2,0): там живёт тот же кламп. */
+.case-row--seamless > .case-item--tall > .case-item__media,
+.case-row--seamless > .case-item--wide > .case-item__media {
+  max-height: none;
+}
+
 /* tall-2 — две вертикальные 50/50 */
 .case-row--tall-2 > .case-item--tall { flex: 1 1 0; min-width: 0; }
 
@@ -1798,6 +1833,12 @@
   body:not(.cards-collapsed) .case-row {
     flex-direction: column;
     gap: var(--space-6);
+  }
+  /* Полотно склейки зазора не получает ни в одном контексте: правило выше
+     (0,2,1) перебило бы базовое `.case-row.case-row--seamless` (0,2,0). */
+  body:not(.cards-collapsed) .case-row--seamless {
+    flex-direction: column;
+    gap: 0;
   }
   body:not(.cards-collapsed) .case-row > .case-item,
   body:not(.cards-collapsed) .case-row--tall-1 > .case-item--tall,

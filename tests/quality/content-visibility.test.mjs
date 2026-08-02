@@ -33,7 +33,7 @@
  * --write output goes to a temp CONTENT_OUT_DIR (the working tree is never
  * touched). Plain node test — no Playwright. Wired into test:content-validate.
  */
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -227,8 +227,17 @@ function caseLocalesSection(i18n) {
     if (!orbitalEntry.includes("layoutMode: 'manual'")) {
       fail('the manual case entry must carry layoutMode in cards-data');
     }
-    if ((cardsData.match(/layoutMode/g) || []).length !== 1) {
-      fail('seeded cases must not carry the layoutMode flag');
+    // Сколько manual-кейсов ждать — считаем из содержимого песочницы, а не из
+    // допущения «manual только тот, что выставил тест»: владелец переводит кейсы
+    // в ручной порядок штатно (это условие структурных операций со слотами).
+    const expectedManual = readdirSync(path.join(sandbox.contentDir, 'cases'))
+      .filter((name) => name.endsWith('.json'))
+      .filter(
+        (name) =>
+          JSON.parse(readFileSync(path.join(sandbox.contentDir, 'cases', name), 'utf8')).layoutMode === 'manual'
+      ).length;
+    if ((cardsData.match(/layoutMode/g) || []).length !== expectedManual) {
+      fail(`seeded cases must not carry the layoutMode flag (expected ${expectedManual} manual case(s))`);
     }
     console.log('layoutMode manual: flag emitted into cards-data');
   } finally {
@@ -728,6 +737,170 @@ function faTagCardsSection(html) {
   const protectedFlagged = orphans.filter((o) => /\.md$/i.test(o.path) || /site\.webmanifest$/i.test(o.path));
   if (protectedFlagged.length) fail('orphan audit: protected files reported as orphans: ' + protectedFlagged.map((o) => o.path).join(', '));
   console.log('orphan audit: reference set complete (no false orphans for live content)');
+}
+
+/* 19 — optional media captions: a block with BOTH pairs empty is valid content
+ *      and travels into cards-data / CASE_LOCALES as empty strings, keeping the
+ *      positional captions array intact (contract B4). */
+{
+  const sandbox = makeSandbox('caption-optional');
+  try {
+    const orbital = sandbox.readJson('cases/orbital-mk-ii.json');
+    const secondLabel = orbital.case.media[1].caption.label.en;
+    orbital.case.media[0].caption = { label: { en: '', ru: '' }, desc: { en: '', ru: '' } };
+    sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must accept a media block with no caption at all', result.output);
+
+    const cardsData = sandbox.readOut('js/cards-data.js');
+    const entry = cardsData.slice(cardsData.indexOf("'orbital-mk-ii'"), cardsData.indexOf("'vega-shell'"));
+    if (!/label: '',\n\s+desc: '',/.test(entry)) {
+      fail('an uncaptioned block must emit empty label/desc into cards-data', entry);
+    }
+    // The other blocks keep their captions — emptying one is not contagious.
+    if (!entry.includes(`label: '${secondLabel}'`)) fail('captioned blocks must keep their text', entry);
+
+    // CASE_LOCALES stays positional: the empty block is entry [0], not a hole.
+    const locales = caseLocalesSection(sandbox.readOut('js/i18n-data.js'));
+    const caseEn = locales.slice(locales.indexOf('const CASE_LOCALES'));
+    if (!/captions: \[\s*\{\s*label: '',\s*desc: ''\s*\}/.test(caseEn)) {
+      fail('CASE_LOCALES must keep an empty positional captions entry for the uncaptioned block', caseEn.slice(0, 1200));
+    }
+    console.log('optional captions: empty pair accepted, emitted as empty strings, captions array stays positional');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 20 — half-filled caption pair is still a validation error (bilingual honesty:
+ *      a filled EN with an empty RU would show English to a Russian visitor). */
+{
+  const sandbox = makeSandbox('caption-half');
+  try {
+    const orbital = sandbox.readJson('cases/orbital-mk-ii.json');
+    orbital.case.media[0].caption.desc = { en: 'Only English', ru: '' };
+    sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
+
+    const result = sandbox.run('--check');
+    if (result.status === 0) fail('--check must fail on a half-filled caption pair', result.output);
+    if (!result.output.includes('case.media[0].caption.desc: fill both "en" and "ru" or leave both empty')) {
+      fail('expected the caption parity violation in the output', result.output);
+    }
+    console.log('optional captions: half-filled pair rejected');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 21 (CASE-CTA-01) — case.cta reaches the runtime ONLY when switched on with a
+ *      valid link; a switched-off link is kept in content but emits nothing. */
+{
+  const sandbox = makeSandbox('case-cta');
+  try {
+    const CTA_URL = 'https://www.behance.net/gallery/12345/orbital';
+    const orbital = sandbox.readJson('cases/orbital-mk-ii.json');
+    orbital.case.cta = { enabled: true, url: CTA_URL };
+    sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
+    // A second case keeps the link switched off — the address survives in
+    // content, the button does not reach cards-data.
+    const vega = sandbox.readJson('cases/vega-shell.json');
+    vega.case.cta = { enabled: false, url: 'https://www.artstation.com/artwork/vega' };
+    sandbox.writeJson('cases/vega-shell.json', vega);
+
+    const on = sandbox.run('--write');
+    if (on.status !== 0) fail('--write must accept an enabled case.cta with a valid url', on.output);
+
+    const cardsData = sandbox.readOut('js/cards-data.js');
+    if (!cardsData.includes(`cta: {\n        url: '${CTA_URL}'`)) {
+      fail('an enabled cta must travel into items.cta of cards-data', cardsData.slice(0, 400));
+    }
+    if ((cardsData.match(/cta: \{/g) || []).length !== 1) {
+      fail('only the enabled case may carry a cta key in cards-data');
+    }
+    if (cardsData.includes('artstation.com/artwork/vega')) fail('a disabled cta must not reach the runtime payload');
+
+    // Switching the same link off removes the key again (no ghost buttons).
+    orbital.case.cta.enabled = false;
+    sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
+    const off = sandbox.run('--write');
+    if (off.status !== 0) fail('--write must accept a disabled case.cta', off.output);
+    if (sandbox.readOut('js/cards-data.js').includes('cta: {')) {
+      fail('no cta key may survive in cards-data once every link is switched off');
+    }
+    console.log('case.cta: enabled+valid emits items.cta, disabled emits nothing');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 21b (CASE-CTA-01) — every allowlisted platform reaches the runtime, and the
+ *      emitted address is the NORMALIZED one (parsed.href): js/main.js parses
+ *      exactly the string the validator approved. */
+{
+  const sandbox = makeSandbox('case-cta-platforms');
+  try {
+    const platforms = [
+      { id: 'orbital-mk-ii', url: 'https://www.artstation.com/artwork/codex' },
+      { id: 'vega-shell', url: 'https://www.behance.net/gallery/12345/codex' },
+      // No path: URL() normalizes it to a trailing slash — the runtime must be
+      // handed that exact form, not the raw input.
+      { id: 'nightshard', url: 'https://dprofile.ru' }
+    ];
+    for (const platform of platforms) {
+      const data = sandbox.readJson(`cases/${platform.id}.json`);
+      data.case.cta = { enabled: true, url: platform.url };
+      sandbox.writeJson(`cases/${platform.id}.json`, data);
+    }
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must accept every allowlisted CTA platform', result.output);
+
+    const cardsData = sandbox.readOut('js/cards-data.js');
+    if ((cardsData.match(/cta: \{/g) || []).length !== platforms.length) {
+      fail(`every enabled cta must reach cards-data (expected ${platforms.length})`);
+    }
+    for (const platform of platforms) {
+      const expected = new URL(platform.url).href;
+      if (!cardsData.includes(`url: '${expected}'`)) {
+        fail(`cards-data must carry the normalized address ${expected}`, cardsData.slice(0, 400));
+      }
+    }
+    console.log('case.cta: artstation/behance/dprofile emitted, addresses normalized');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* 22 — seamless ("Behance trick"): the flag reaches the runtime only when set,
+ *      and only a manual-order case may carry it. */
+{
+  const sandbox = makeSandbox('case-seamless');
+  try {
+    const orbital = sandbox.readJson('cases/orbital-mk-ii.json');
+    orbital.layoutMode = 'manual';
+    orbital.case.media[1].seamless = true;
+    // A real chain: the strips share one format and only the LAST one keeps a
+    // caption (a caption on the first strip would be drawn between the two
+    // media boxes and split the canvas — the validator rejects it).
+    orbital.case.media[1].format = orbital.case.media[0].format;
+    orbital.case.media[0].caption = { label: { en: '', ru: '' }, desc: { en: '', ru: '' } };
+    sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must accept seamless on a manual-order case', result.output);
+
+    const cardsData = sandbox.readOut('js/cards-data.js');
+    if ((cardsData.match(/seamless: true/g) || []).length !== 1) {
+      fail('exactly the flagged block must carry seamless in cards-data');
+    }
+    // Byte safety: the flag is emitted ONLY when true — no `seamless: false`
+    // key appears on the untouched blocks.
+    if (cardsData.includes('seamless: false')) fail('an unset seamless flag must not be emitted at all');
+    console.log('seamless: flag emitted only when switched on');
+  } finally {
+    sandbox.cleanup();
+  }
 }
 
 console.log('iteration F/G/H visibility/layoutMode/jsonld/free-assets generator semantics verified');

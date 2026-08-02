@@ -314,7 +314,7 @@ function isSafeMediaBg(value) {
   );
 }
 
-function validateCaseMedia(violations, where, media) {
+function validateCaseMedia(violations, where, media, manualLayout) {
   if (!Array.isArray(media) || media.length === 0) {
     violations.push(`${where}: case.media must be a non-empty array of media blocks`);
     return;
@@ -384,16 +384,258 @@ function validateCaseMedia(violations, where, media) {
         `${w}.bg: must be a single var(--token), #hex colour or linear/radial-gradient(…) layer — no url(), backslash escapes, quotes, comments, ";", "{}", "@", "!" or extra comma-separated layers ("${block.bg}")`
       );
     }
+    /* seamless (the "Behance trick"): this block is glued to the block above,
+     * so a tall illustration cut into strips reads as one canvas. Two rules
+     * keep the promise honest:
+     *   • the FIRST block has nothing above it to glue to;
+     *   • the automatic (seeded) layout shuffles blocks by case id, so "the
+     *     previous block" is not the authored one — gluing would land on a
+     *     random neighbour. Stitching therefore requires layoutMode "manual".
+     * Mirrored in admin/js/state.js — change both.
+     */
+    if (block.seamless !== undefined) {
+      if (typeof block.seamless !== 'boolean') {
+        violations.push(`${w}.seamless: must be a boolean (got ${JSON.stringify(block.seamless)})`);
+      } else if (block.seamless === true) {
+        if (i === 0) {
+          violations.push(
+            `${w}.seamless: the first block has nothing above it to glue to — move the block or clear the flag`
+          );
+        }
+        if (!manualLayout) {
+          violations.push(
+            `${w}.seamless: needs layoutMode "manual" — the automatic layout reorders blocks, so a glued strip would land on a random neighbour`
+          );
+        }
+      }
+    }
     const caption = block.caption;
-    if (
-      caption === null ||
-      typeof caption !== 'object' ||
-      !hasLocalePair(caption.label) ||
-      !hasLocalePair(caption.desc)
-    ) {
-      violations.push(`${w}.caption: must have label and desc with non-empty "en" and "ru"`);
+    if (caption === null || typeof caption !== 'object' || Array.isArray(caption)) {
+      violations.push(`${w}.caption: must be an object with label and desc locale pairs`);
+    } else {
+      checkOptionalLocalePair(violations, `${w}.caption.label`, caption.label);
+      checkOptionalLocalePair(violations, `${w}.caption.desc`, caption.desc);
     }
   });
+  validateSeamlessChains(violations, where, media);
+}
+
+/* Chain integrity for glued blocks. A chain is a run of blocks where every
+ * block after the first carries seamless:true; js/main.js renders the whole run
+ * as ONE .case-row--seamless canvas.
+ *
+ * Two rules, both about the promise "this is a single picture":
+ *   • only the LAST strip may carry a caption. A caption on any earlier strip
+ *     is rendered BETWEEN two media boxes (with its own margin) and physically
+ *     splits the canvas in half — the flag would silently do the opposite of
+ *     what it says;
+ *   • every strip must share one format. wide and tall media have different
+ *     width ceilings (tall is capped at 1022px), so a mixed chain renders as a
+ *     staircase instead of a canvas.
+ * Mirrored in admin/js/state.js (validateCaseMediaDraft) — change both.
+ */
+function collectSeamlessChains(media) {
+  const chains = [];
+  let open = null;
+  media.forEach((block, i) => {
+    const glued = block !== null && typeof block === 'object' && block.seamless === true;
+    if (i > 0 && glued && media[i - 1] !== null && typeof media[i - 1] === 'object') {
+      if (!open) {
+        open = { start: i - 1, blocks: [media[i - 1]] };
+        chains.push(open);
+      }
+      open.blocks.push(block);
+    } else {
+      open = null;
+    }
+  });
+  return chains;
+}
+
+function captionPairHasText(pair) {
+  return pair !== null && typeof pair === 'object' && (isNonEmptyString(pair.en) || isNonEmptyString(pair.ru));
+}
+
+function validateSeamlessChains(violations, where, media) {
+  for (const chain of collectSeamlessChains(media)) {
+    chain.blocks.forEach((block, offset) => {
+      const index = chain.start + offset;
+      const format = chain.blocks[0].format;
+      if (block.format !== format) {
+        violations.push(
+          `${where}: case.media[${index}].format: every block of a glued chain must share one format (chain starts as "${format}", this block is "${JSON.stringify(block.format)}") — mixed formats render as a staircase, not one canvas`
+        );
+      }
+      if (offset === chain.blocks.length - 1) return; // the last strip may be captioned
+      const caption = block.caption;
+      if (caption === null || typeof caption !== 'object') return;
+      if (captionPairHasText(caption.label) || captionPairHasText(caption.desc)) {
+        violations.push(
+          `${where}: case.media[${index}].caption: only the LAST block of a glued chain may carry a caption — a caption here is drawn between two strips and splits the canvas (clear it or move the block to the end of the chain)`
+        );
+      }
+    });
+  }
+}
+
+/* Optional bilingual caption pair (owner request: "a series of illustrations
+ * without any accompanying text"). label and desc are judged INDEPENDENTLY and
+ * each is all-or-nothing across locales: either both "en" and "ru" carry text,
+ * or both are empty. A filled EN next to an empty RU is a half-translated
+ * caption, not an intentional blank — the site would show English text to a
+ * Russian visitor. Both pairs empty = a valid block with no caption at all,
+ * and js/main.js then renders no .case-item__caption node.
+ * Mirrored in admin/js/state.js (validateCaseMediaDraft) — change both.
+ */
+function checkOptionalLocalePair(violations, where, pair) {
+  if (pair === undefined || pair === null) return; // no caption text at all
+  if (typeof pair !== 'object' || Array.isArray(pair)) {
+    violations.push(`${where}: must be an object with "en" and "ru" strings`);
+    return;
+  }
+  for (const lang of ['en', 'ru']) {
+    const value = pair[lang];
+    if (value !== undefined && value !== null && typeof value !== 'string') {
+      violations.push(`${where}.${lang}: must be a string (got ${JSON.stringify(value)})`);
+      return;
+    }
+  }
+  if (isNonEmptyString(pair.en) !== isNonEmptyString(pair.ru)) {
+    violations.push(`${where}: fill both "en" and "ru" or leave both empty (captions are optional, half-filled ones are not)`);
+  }
+}
+
+/* ── case.cta (CASE-CTA-01) ───────────────────────────────────────────────
+ *
+ * Optional per-case external link. Absent key = no button (that is why the 18
+ * authored cases need no migration). The runtime used to render a hardcoded
+ * REPLACE_WITH_REAL placeholder on EVERY case; now the button exists only when
+ * the owner switched it on with a real project URL.
+ *
+ * enabled=false keeps whatever url was stored (so switching back on does not
+ * lose it) but never reaches the runtime. The placeholder literal is rejected
+ * in BOTH states — it is never a legitimate stored value.
+ * Mirrored in admin/js/state.js (validateCaseCtaDraft) — change both.
+ */
+/* ── CTA platform table — the single source of truth ─────────────────────
+ *
+ * ADDING A PLATFORM = one record here plus the SAME record in the two other
+ * mirrors (the table is copied verbatim, so a new platform is one line each):
+ *   scripts/generate-content.mjs — this file (origin validation);
+ *   admin/js/state.js            — ctaUrlProblem (admin publish gate);
+ *   js/main.js                   — caseCtaHTML (label, aria, data-external).
+ *
+ * `hosts` lists every accepted host IN FULL (with and without "www"), because
+ * the comparison is an EXACT hostname match, never a suffix test: otherwise
+ * "evil-dprofile.ru" and "dprofile.ru.attacker.tld" would slip through.
+ * label/aria are unused by this file — they are kept so the three tables stay
+ * literal copies of each other.
+ */
+const CTA_PLATFORMS = [
+  {
+    network: 'artstation',
+    hosts: ['artstation.com', 'www.artstation.com'],
+    label: { en: 'View on ArtStation', ru: 'Смотреть на ArtStation' },
+    aria: {
+      en: 'Open the project on ArtStation in a new tab',
+      ru: 'Открыть проект на ArtStation в новой вкладке'
+    }
+  },
+  {
+    network: 'behance',
+    hosts: ['behance.net', 'www.behance.net'],
+    label: { en: 'View on Behance', ru: 'Смотреть на Behance' },
+    aria: {
+      en: 'Open the project on Behance in a new tab',
+      ru: 'Открыть проект на Behance в новой вкладке'
+    }
+  },
+  {
+    network: 'dprofile',
+    hosts: ['dprofile.ru', 'www.dprofile.ru'],
+    label: { en: 'View on DPROFILE', ru: 'Смотреть на DPROFILE' },
+    aria: {
+      en: 'Open the project on DPROFILE in a new tab',
+      ru: 'Открыть проект на DPROFILE в новой вкладке'
+    }
+  }
+];
+
+const CTA_HOST_LIST = CTA_PLATFORMS.flatMap((platform) => platform.hosts);
+// Human-readable allowlist for the violation message ("artstation.com,
+// behance.net or dprofile.ru") — derived, so a new platform needs no edit.
+const CTA_ALLOWED_TEXT = CTA_PLATFORMS.map((platform) => platform.hosts[0]).join(', ');
+
+/* One parser semantic for all three mirrors. Everything the runtime cannot
+ * render must fail HERE, otherwise the generator emits an address that
+ * js/main.js silently refuses to draw (the button just disappears):
+ *   • userinfo — "https://user:token@artstation.com/x" also leaks credentials
+ *     into the public js/cards-data.js;
+ *   • an explicit port — a different origin than the allowlisted one;
+ *   • padding whitespace and backslashes — URL() forgives both ("https:\\host"
+ *     parses), the runtime host check does not.
+ * What survives is emitted NORMALIZED (parsed.href), so the runtime and the
+ * validator always look at the same string.
+ */
+function ctaUrlProblem(url) {
+  if (!isNonEmptyString(url)) return 'must be a non-empty https:// link to the project';
+  if (url.includes('REPLACE_WITH_REAL')) {
+    return 'still carries the REPLACE_WITH_REAL placeholder — paste the real project link';
+  }
+  if (MARKUP_OR_CONTROL_RE.test(url)) return 'must not contain "<", ">" or control characters';
+  if (url !== url.trim()) return 'must not start or end with spaces';
+  if (url.includes('\\')) return 'must not contain backslashes — copy the address from the browser bar';
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return 'must be an absolute URL';
+  }
+  if (parsed.protocol !== 'https:') return 'must start with https://';
+  if (parsed.username || parsed.password) return 'must not carry a user name or password before the host';
+  if (parsed.port) return 'must not carry a port';
+  if (!CTA_HOST_LIST.includes(parsed.hostname.toLowerCase())) {
+    return `must point at ${CTA_ALLOWED_TEXT} (got "${parsed.hostname}")`;
+  }
+  return null;
+}
+
+// The runtime payload is emitted only for a switched-on, valid link — and in
+// its NORMALIZED form, so js/main.js parses exactly what was validated.
+function caseCtaLink(cta) {
+  if (cta === null || typeof cta !== 'object' || Array.isArray(cta)) return null;
+  if (cta.enabled !== true) return null;
+  if (ctaUrlProblem(cta.url) !== null) return null;
+  return new URL(cta.url).href;
+}
+
+function validateCaseCta(violations, where, cta) {
+  if (cta === undefined) return; // no external link on this case
+  if (cta === null || typeof cta !== 'object' || Array.isArray(cta)) {
+    violations.push(`${where}: case.cta, when present, must be an object { enabled, url }`);
+    return;
+  }
+  if (typeof cta.enabled !== 'boolean') {
+    violations.push(`${where}: case.cta.enabled must be a boolean (got ${JSON.stringify(cta.enabled)})`);
+  }
+  if (cta.enabled === true) {
+    const problem = ctaUrlProblem(cta.url);
+    if (problem) violations.push(`${where}: case.cta.url ${problem} (got ${JSON.stringify(cta.url)})`);
+    return;
+  }
+  // Switched off: the stored address is kept as-is, but it still has to be a
+  // string (or null) and must never be the placeholder.
+  if (cta.url === undefined || cta.url === null) return;
+  if (typeof cta.url !== 'string') {
+    violations.push(`${where}: case.cta.url must be a string or null (got ${JSON.stringify(cta.url)})`);
+    return;
+  }
+  if (cta.url.includes('REPLACE_WITH_REAL')) {
+    violations.push(
+      `${where}: case.cta.url still carries the REPLACE_WITH_REAL placeholder — paste the real project link or clear the field`
+    );
+  }
+  checkPlainText(violations, where, 'case.cta.url', cta.url);
 }
 
 function validateMotionBlock(violations, where, block) {
@@ -501,7 +743,8 @@ function validateCase(violations, entry, filterKeys) {
       );
     }
   }
-  validateCaseMedia(violations, where, cs.media);
+  validateCaseMedia(violations, where, cs.media, c.layoutMode === 'manual');
+  validateCaseCta(violations, where, cs.cta);
   for (const block of ['text', 'inline']) {
     const value = cs[block];
     if (value === null || typeof value !== 'object' || !hasLocalePair(value.title) || !hasLocalePair(value.body)) {
@@ -979,6 +1222,20 @@ function applySparse(target, diff) {
 
 const MOTION_KEYS = ['source', 'layout', 'playback', 'src', 'vimeoId', 'vimeoHash', 'poster', 'title'];
 
+// Caption text of one locale. Captions are optional per pair (see
+// checkOptionalLocalePair), so a missing pair degrades into an empty string
+// instead of throwing — the runtime then skips the caption node entirely.
+// A whitespace-only value collapses to '' as well: the validator already reads
+// it as "empty" (isNonEmptyString trims), but emitting the raw spaces would
+// leave a truthy string, and js/main.js would draw an empty caption with its
+// margin — a blank gap under the illustration. Every authored block carries
+// real text in both locales, so the generated bytes are unchanged.
+function captionText(caption, part, lang) {
+  const pair = caption !== null && typeof caption === 'object' ? caption[part] : null;
+  const value = pair !== null && typeof pair === 'object' && typeof pair[lang] === 'string' ? pair[lang] : '';
+  return value.trim().length === 0 ? '' : value;
+}
+
 function buildCaseEntry(c) {
   const cs = c.case;
   // Runtime shape consumed by js/main.js: flat EN label/desc, no caption
@@ -994,14 +1251,17 @@ function buildCaseEntry(c) {
       format: block.format,
       src: block.src,
       bg: block.bg,
-      label: block.caption.label.en,
-      desc: block.caption.desc.en,
+      label: captionText(block.caption, 'label', 'en'),
+      desc: captionText(block.caption, 'desc', 'en'),
       enabled: true
     });
     // poster travels only when set: js/main.js renders it on video blocks, but
     // every current block stores poster:null and an unconditional key would
     // change the generated bytes. Truthy check, NOT `'poster' in block`.
     if (block.poster) out.poster = block.poster;
+    // seamless travels only when switched on — same byte-safety rule: no
+    // authored block carries the flag today, so cards-data.js is unchanged.
+    if (block.seamless === true) out.seamless = true;
     return out;
   });
 
@@ -1036,6 +1296,13 @@ function buildCaseEntry(c) {
     inline: cs.inline ? { title: cs.inline.title.en, body: cs.inline.body.en } : null,
     motionBlocks
   };
+  // CASE-CTA-01: the external-link payload travels ONLY for a switched-on case
+  // with a valid URL. A disabled (or absent) cta adds no key at all, so every
+  // current case keeps js/cards-data.js byte-identical, and js/main.js renders
+  // no button without items.cta. Label/aria are derived from the host at
+  // runtime, so nothing but the address needs to be emitted.
+  const ctaUrl = caseCtaLink(cs.cta);
+  if (ctaUrl) entry.items.cta = { url: ctaUrl };
   return entry;
 }
 
@@ -1138,15 +1405,24 @@ function buildCaseLocales(content) {
   const ru = {};
   for (const c of visibleCases(content)) {
     const cs = c.case;
+    // Contract B4: the captions array stays POSITIONAL and keeps its shape for
+    // every block — an uncaptioned block contributes empty strings, never a
+    // hole, so the i18n overlay in js/i18n.js keeps addressing media[i].
     const enCandidate = {
       role: cs.role.en,
-      captions: cs.media.map((block) => ({ label: block.caption.label.en, desc: block.caption.desc.en })),
+      captions: cs.media.map((block) => ({
+        label: captionText(block.caption, 'label', 'en'),
+        desc: captionText(block.caption, 'desc', 'en')
+      })),
       text: { title: cs.text.title.en, body: cs.text.body.en },
       inline: { title: cs.inline.title.en, body: cs.inline.body.en }
     };
     const ruEntry = {
       role: cs.role.ru,
-      captions: cs.media.map((block) => ({ label: block.caption.label.ru, desc: block.caption.desc.ru })),
+      captions: cs.media.map((block) => ({
+        label: captionText(block.caption, 'label', 'ru'),
+        desc: captionText(block.caption, 'desc', 'ru')
+      })),
       text: { title: cs.text.title.ru, body: cs.text.body.ru },
       inline: { title: cs.inline.title.ru, body: cs.inline.body.ru }
     };

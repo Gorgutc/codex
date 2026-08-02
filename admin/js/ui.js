@@ -472,6 +472,13 @@
     return match ? '#/case/' + encodeURIComponent(match[1]) : '#/cases';
   }
 
+  /* Разметка ошибок публикации по полям экрана.
+     Очередь очищается ТОЛЬКО если на смонтированном экране нашёлся хотя бы
+     один якорь. Раньше любой вызов до финального replaceChildren (редактор
+     собирался в отсоединённом поддереве) опустошал очередь вхолостую, и после
+     монтажа подсвечивать было уже нечего — публикация блокировалась «вслепую»,
+     с одним лишь тостом. Фокус уводится на первый проблемный контрол: экран
+     кейса длинный, и одного scrollIntoView мало для клавиатуры. */
   function applyPendingErrors() {
     if (pendingErrors.length === 0) return;
     const byField = {};
@@ -492,8 +499,10 @@
       }
       if (!firstNode) firstNode = node;
     }
+    if (!firstNode) return; // экран ещё не смонтирован — очередь ждёт следующего вызова
     pendingErrors = [];
-    if (firstNode) firstNode.scrollIntoView({ block: 'center' });
+    firstNode.scrollIntoView({ block: 'center' });
+    if (typeof firstNode.focus === 'function') firstNode.focus({ preventScroll: true });
   }
 
   /* ── шапка (индикатор черновика, публикация, пользователь) ───────── */
@@ -1652,7 +1661,9 @@
           multiline: true
         })
       );
-      applyPendingErrors();
+      // applyPendingErrors здесь НЕ вызывается: при первом рендере редактор
+      // ещё не в документе, и вызов только опустошил бы очередь ошибок вхолостую
+      // (её применяет route() после монтажа экрана).
     }
 
     renderBlock();
@@ -1806,8 +1817,8 @@
           (index + 1) +
           ' добавлен в черновик. ' +
           (type === 'video'
-            ? 'Загрузите .webm И постер, заполните подписи — без них публикация не пройдёт.'
-            : 'Загрузите файл и заполните подписи — без них публикация не пройдёт.'),
+            ? 'Загрузите .webm И постер — без них публикация не пройдёт. Подписи необязательны.'
+            : 'Загрузите файл — без него публикация не пройдёт. Подписи необязательны.'),
         'info'
       );
       rerender();
@@ -1929,6 +1940,99 @@
         ])
       ])
     );
+
+    /* ── CASE-CTA-01: внешняя ссылка кейса ────────────────────────────
+       Кнопка «View on …» в шапке кейса раньше стояла у ВСЕХ кейсов и вела
+       на адрес-заглушку. Теперь её включает владелец — на любом кейсе и в
+       любой момент; выключенная ссылка хранит адрес, но на сайт не едет. */
+    const ctaDraft = draft.case.cta && typeof draft.case.cta === 'object' ? draft.case.cta : null;
+    const ctaEnabled = !!(ctaDraft && ctaDraft.enabled === true);
+    const ctaUrl = ctaDraft && typeof ctaDraft.url === 'string' ? ctaDraft.url : '';
+
+    // data-field на секции и на тогле: без якорей ошибки case.cta /
+    // case.cta.enabled приходили бы только тостом (applyPendingErrors ищет
+    // именно [data-field]).
+    const ctaToggle = el('input', {
+      type: 'checkbox',
+      id: 'case-cta-toggle',
+      'data-field': path + '::case.cta.enabled',
+      'aria-label': ctaEnabled ? 'Внешняя ссылка показывается на сайте' : 'Внешняя ссылка скрыта'
+    });
+    ctaToggle.checked = ctaEnabled;
+    ctaToggle.addEventListener('change', () => {
+      // Адрес читается ИЗ ЧЕРНОВИКА в момент клика, а не из замыкания рендера:
+      // владелец успевает ввести новый URL и сразу выключить тогл, и замкнутое
+      // значение вернуло бы предыдущий адрес.
+      const currentUrl = State.getValue(path, 'case.cta.url');
+      const keepUrl = typeof currentUrl === 'string' ? currentUrl : '';
+      if (ctaToggle.checked) {
+        State.setValue(path, 'case.cta', { enabled: true, url: keepUrl });
+        toast('Кнопка включена — вставьте ссылку на проект, без неё публикация не пройдёт.', 'info');
+      } else if (keepUrl) {
+        // Адрес сохраняем: выключение — это «спрятать», а не «забыть».
+        State.setValue(path, 'case.cta', { enabled: false, url: keepUrl });
+        toast('Кнопка скрыта с сайта. Адрес сохранён — можно включить обратно.', 'info');
+      } else {
+        // Пустая выключенная ссылка = ключа в кейсе нет вовсе (так же, как у
+        // 17 остальных кейсов) — черновик не обрастает мусором.
+        State.deleteValue(path, 'case.cta');
+        toast('Кнопка выключена.', 'info');
+      }
+      rerender();
+    });
+
+    const ctaSection = el(
+      'section',
+      { className: 'editor-section', id: 'case-cta-section', 'data-field': path + '::case.cta' },
+      [
+        el('h2', { text: 'Внешняя ссылка (CTA)' }),
+        el('div', { className: 'pair' }, [
+          el('div', { className: 'pair__label', text: 'Показывать кнопку в шапке кейса' }),
+          el('div', { className: 'pair__col' }, [
+            el('label', { className: 'switch', title: ctaEnabled ? 'Скрыть кнопку' : 'Показать кнопку' }, [
+              ctaToggle,
+              el('span', { className: 'switch__track', 'aria-hidden': 'true' })
+            ])
+          ])
+        ])
+      ]
+    );
+
+    if (ctaDraft) {
+      const ctaInput = el('input', { type: 'url', 'data-field': path + '::case.cta.url' });
+      ctaInput.value = ctaUrl;
+      ctaInput.addEventListener('input', () => {
+        State.setValue(path, 'case.cta.url', ctaInput.value);
+        clearFieldError(ctaInput);
+      });
+      ctaSection.appendChild(
+        el('div', { className: 'pair' }, [
+          el('div', { className: 'pair__label', text: 'Ссылка на проект' }),
+          el('div', { className: 'pair__col' }, [ctaInput])
+        ])
+      );
+      ctaSection.appendChild(
+        el('p', {
+          className: 'hint',
+          id: 'case-cta-hint',
+          text:
+            'Полный адрес страницы проекта: только https:// и только artstation.com, behance.net или ' +
+            'dprofile.ru — подпись кнопки («View on ArtStation» / «View on Behance» / «View on DPROFILE») ' +
+            'сайт подставляет сам по адресу. Без логина, пароля и порта в адресе. Открывается в новой вкладке.'
+        })
+      );
+    } else {
+      ctaSection.appendChild(
+        el('p', {
+          className: 'hint',
+          id: 'case-cta-hint',
+          text:
+            'Кнопки в шапке кейса нет. Включите переключатель, чтобы добавить ссылку на ArtStation, ' +
+            'Behance или DPROFILE.'
+        })
+      );
+    }
+    sections.push(ctaSection);
 
     // Итерация F: режим порядка блоков (seeded — автоматическая раскладка,
     // manual — авторский порядок списков ниже).
@@ -2070,6 +2174,37 @@
           removeBtn
         ])
       );
+      /* «Биханс-приём»: склейка с предыдущим блоком. Недоступна на первом
+         блоке (клеиться не к чему) и в автоматическом порядке (там «предыдущий
+         блок» подбирает раскладка, а не список). Флаг переезжает вместе с
+         блоком: если склеенный блок стал первым, валидация публикации это
+         подсветит — молча снимать флаг нельзя, это молчаливая правка вёрстки. */
+      const seamlessAllowed = i > 0 && manualLayout;
+      const seamlessInput = el('input', {
+        type: 'checkbox',
+        'data-field': path + '::' + dotBase + '.seamless',
+        'aria-label': 'Блок ' + (i + 1) + ' без отступа сверху'
+      });
+      seamlessInput.checked = block.seamless === true;
+      seamlessInput.disabled = !seamlessAllowed;
+      seamlessInput.addEventListener('change', () => {
+        if (seamlessInput.checked) State.setValue(path, dotBase + '.seamless', true);
+        else State.deleteValue(path, dotBase + '.seamless');
+        clearFieldError(seamlessInput);
+      });
+      const seamlessHint = seamlessAllowed
+        ? 'Для длинной иллюстрации, нарезанной на полосы: блок встаёт вплотную к предыдущему. ' +
+          'Правила полотна: формат у склеенных блоков одинаковый, подпись — только у последней полосы ' +
+          '(иначе текст встанет между полосами и разрежет картинку).'
+        : i === 0
+          ? 'Первый блок склеивать не с чем — над ним ничего нет.'
+          : 'Доступно при ручном порядке блоков — включите его в разделе «Порядок блоков».';
+      slot.appendChild(
+        el('div', { className: 'media-slot__seamless' }, [
+          el('label', {}, [seamlessInput, ' Без отступа сверху — продолжение предыдущего блока']),
+          el('p', { className: 'hint', text: seamlessHint })
+        ])
+      );
       slot.appendChild(el('figcaption', { text: 'Слот ' + (i + 1) }));
       return slot;
     }
@@ -2122,7 +2257,15 @@
 
     if (mediaBlocks.length > 0) {
       const captionSection = el('section', { className: 'editor-section' }, [
-        el('h2', { text: 'Подписи к медиа-слотам' })
+        el('h2', { text: 'Подписи к медиа-слотам' }),
+        el('p', {
+          className: 'hint',
+          id: 'caption-optional-hint',
+          text:
+            'Подписи необязательны: оставьте заголовок и описание слота пустыми — на сайте под иллюстрацией ' +
+            'не будет ни текста, ни пустого места. Единственное правило — EN и RU идут парой: ' +
+            'заполнены оба поля или пусты оба.'
+        })
       ]);
       mediaBlocks.forEach((_block, i) => {
         const base = 'case.media.' + i + '.caption';
