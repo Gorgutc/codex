@@ -7,28 +7,28 @@
   "cadPlaceholder": false,
   "card": {
     "htmlComment": "4",
-    "thumb": "./assets/cards/corten-series-e4a28f4d.png",
+    "thumb": "./assets/cards/corten-series-7c6aff46.jpg",
     "thumbLabel": "Corten Series",
     "imgLoading": "lazy",
     "imgFetchPriority": null,
     "badge": null,
     "title": {
-      "en": "Corten Series",
-      "ru": "Corten Series"
+      "en": "The dehydrator Happfe",
+      "ru": "Дегидратор Happfe"
     },
     "desc": {
-      "en": "Product viz for an industrial furniture brand. Launch-ready renders.",
-      "ru": "Product viz для бренда промышленной мебели. Рендеры готовы к запуску."
+      "en": "Product renders of the dehydrator for the Happfe brand. The dehydrator has been put into operation.",
+      "ru": "Продуктовые рендеры дегидратора для бренда Happfe. Дегидратор был запущен в работу."
     },
     "alt": {
-      "en": "Corten Series — industrial furniture product viz",
-      "ru": "Corten Series — индустриальная мебель, product viz"
+      "en": "Happfe Dehydrator - Product Renders of a Dehydrator",
+      "ru": "Дегидратор Happfe — Продуктовые рендеры дегидратора"
     }
   },
   "case": {
     "role": {
-      "en": "Client",
-      "ru": "Клиент"
+      "en": "Client: Happfe",
+      "ru": "Клиент: Happfe"
     },
     "tools": [
       "Blender",
@@ -44,7 +44,7 @@
     },
     "media": [
       {
-        "src": "./assets/cases/corten-series/01-e4a28f4d.png",
+        "src": "./assets/cases/corten-series/01-d1b75be2.jpg",
         "format": "wide",
         "type": "image",
         "poster": null,
@@ -96,8 +96,8 @@
       },
       {
         "id": "media-msbj0s97",
-        "src": "./assets/cases/corten-series/04-e4a28f4d.png",
-        "format": "tall",
+        "src": "./assets/cases/corten-series/04-57e7bbf6.jpg",
+        "format": "wide",
         "type": "image",
         "poster": null,
         "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
@@ -132,6 +132,10 @@
         "en": "Rust generated from curvature + ambient occlusion masks. Two layers: oxide underneath, flake breakup on top, roughness offset per layer.",
         "ru": "Ржавчина генерируется из curvature + AO-маски. Два слоя: оксид снизу, чешуйчатый отрыв сверху, roughness-сдвиг на каждом слое."
       }
+    },
+    "cta": {
+      "enabled": true,
+      "url": "https://www.behance.net/gallery/227387887/Dehydrator"
     }
   },
   "layoutMode": "manual"
