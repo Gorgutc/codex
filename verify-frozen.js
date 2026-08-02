@@ -111,6 +111,18 @@ const MOTION_BLOCKS = MOTION_CASE_CONTENT.case && Array.isArray(MOTION_CASE_CONT
 const HAS_MOTION = MOTION_BLOCKS.length > 0;
 const MOTION_SKIP_DETAIL = 'skipped: no visible motion case';
 
+// BP-DECISION-02: чертёж — это SVG, который владелец начертил и загрузил сам.
+// Вкладка Blueprints обязана существовать ТОЛЬКО у кейса с загруженным листом,
+// поэтому ожидание выводится из content-слоя открытого кейса, а не из списка
+// id (прежний хардкод BLUEPRINT_META на 18 кейсов приписывал каждому кейсу
+// чужую геометрию). Ноль листов у всех кейсов — легитимное состояние.
+const caseSheetCount = (id) => {
+  const data = CONTENT_CASES.get(id);
+  const sheets = data && data.case && data.case.blueprints;
+  return Array.isArray(sheets) ? sheets.length : 0;
+};
+const MOTION_CASE_SHEETS = caseSheetCount(MOTION_CASE_ID);
+
 // Итерация G: OG-изображения обеих страниц владелец заменяет через админку
 // (cache-bust-имя), а sitemap.xml/JSON-LD генерируются из content/meta.json —
 // ожидаемые image-URL выводятся из контента, а не пинятся литералами.
@@ -860,17 +872,21 @@ async function testIndex(BASE) {
   add('index', 'CASE-motion-playback-controls', motionPlaybackOk,
       HAS_MOTION ? JSON.stringify(motionContract.dom) : MOTION_SKIP_DETAIL);
 
-  // BLUEPRINT
-  await page.click('.case-tab[data-viz="blueprints"]'); await page.waitForTimeout(400);
-  const stoppedMotionLazy = await page.evaluate(() => ({
-    localSrcs: [...document.querySelectorAll('.case-motion video')].map(video => video.getAttribute('src') || ''),
-    iframeCount: document.querySelectorAll('.case-motion iframe[src*="player.vimeo.com"]').length
-  }));
-  add('index', 'CASE-motion-stop-keeps-lazy-media',
-      stoppedMotionLazy.iframeCount === 0 && stoppedMotionLazy.localSrcs.every(src => src === ''),
-      HAS_MOTION ? JSON.stringify(stoppedMotionLazy) : MOTION_SKIP_DETAIL);
-  add('index', 'CASE-blueprint-svg', !!await page.$('.case-blueprints svg'));
-  await page.click('.case-tab[data-viz="2d"]'); await page.waitForTimeout(250);
+  // BLUEPRINT (BP-DECISION-02) — проверка стала чисто DOM-овой и НЕ навигирует.
+  // Раньше здесь кликали вкладку Blueprints: она существовала у всех 18 кейсов,
+  // потому что чертёж рисовался процедурно, и заодно служила способом «уйти с
+  // 2D» для teardown-проверки ниже. Теперь вкладка есть только у кейса с
+  // загруженным листом, поэтому: fail-closed проверяем чтением DOM, а teardown
+  // 2D-медиа переехал за первый клик по вкладке 3D (он и так был в прогоне).
+  // Fail-closed: триггер вкладки живёт в разметке всегда (CASE-tabs-3), но
+  // ПОКАЗАН обязан быть ровно тогда, когда у кейса есть загруженные листы.
+  const bpTab = await page.evaluate(() => {
+    const tab = document.getElementById('case-tab-bp');
+    return { present: !!tab, hidden: tab ? tab.hidden : null };
+  });
+  add('index', 'CASE-blueprint-tab-fail-closed',
+      bpTab.present && bpTab.hidden === (MOTION_CASE_SHEETS === 0),
+      `case=${MOTION_CASE_ID}, sheets=${MOTION_CASE_SHEETS}, tabHidden=${bpTab.hidden}`);
   // Кнопка play/pause существует только у controlled-блоков; их наличие —
   // тоже факт content-слоя, а не контракта рендерера.
   let motionSingleHandler = {
@@ -903,6 +919,16 @@ async function testIndex(BASE) {
     .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr/i.test(n)));
   add('index', 'CASE-3d-lazy-before-click', before3DResources.length === 0, before3DResources.join(', ') || 'clean');
   await page.click('.case-tab[data-viz="3d"]'); await page.waitForTimeout(800);
+  // Уход с 2D = teardown 2D-медиа. Раньше его выполняла вкладка Blueprints;
+  // после BP-DECISION-02 её у кейса может не быть, а вкладка 3D есть всегда,
+  // поэтому проверка переехала сюда — на тот же самый уход с 2D.
+  const stoppedMotionLazy = await page.evaluate(() => ({
+    localSrcs: [...document.querySelectorAll('.case-motion video')].map(video => video.getAttribute('src') || ''),
+    iframeCount: document.querySelectorAll('.case-motion iframe[src*="player.vimeo.com"]').length
+  }));
+  add('index', 'CASE-motion-stop-keeps-lazy-media',
+      stoppedMotionLazy.iframeCount === 0 && stoppedMotionLazy.localSrcs.every(src => src === ''),
+      HAS_MOTION ? JSON.stringify(stoppedMotionLazy) : MOTION_SKIP_DETAIL);
   await page.waitForSelector('#case-3d-canvas canvas.case-3d__three-canvas', { timeout: 5000 }).catch(() => {});
   const c3d = await page.evaluate(() => ({
     canvas: !!document.getElementById('case-3d-canvas'),

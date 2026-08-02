@@ -98,12 +98,17 @@ test.afterAll(async () => {
 
 // Патч поверх настоящего cards-data.js: первый блок остаётся картинкой (в
 // галерее должен остаться ровно один слайд), второй становится видео.
+// Плюс один синтетический лист чертежа: вкладка Blueprints существует ТОЛЬКО у
+// кейса с загруженным листом (BP-DECISION-02), а этому тесту она нужна как
+// способ уйти с вкладки 2D. Живой контент листов пока не содержит, поэтому
+// лист добавляется синтетикой, а не выводится из content/.
 function patchScript(caseId) {
   return `\n;(function(){var e=window.CARDS_DATA&&window.CARDS_DATA[${JSON.stringify(caseId)}];if(!e)return;` +
     `var first=e.items.media[0];first.format='wide';` +
     `e.items.media=[first,{type:'video',format:'tall',src:${JSON.stringify(VIDEO_SRC)},` +
     `poster:${JSON.stringify(POSTER_SRC)},bg:'var(--color-surface)',` +
-    `label:'Synthetic video slot',desc:'runtime spec',enabled:true}];})();\n`;
+    `label:'Synthetic video slot',desc:'runtime spec',enabled:true}];` +
+    `e.items.blueprints=[{src:'./assets/cases/'+${JSON.stringify(caseId)}+'/01.svg'}];})();\n`;
 }
 
 async function routeSyntheticCase(page, caseId) {

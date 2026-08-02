@@ -1146,4 +1146,72 @@ function faTagCardsSection(html) {
   }
 }
 
+/* case.blueprints[] (BP-DECISION-01/02) — the owner uploads the sheet, the
+ * generator only forwards it. Byte safety: a case without the key emits nothing,
+ * which is what keeps js/cards-data.js unchanged on day zero. */
+{
+  const sandbox = makeSandbox('case-blueprints');
+  try {
+    // Baseline: today NO case carries a sheet, so the key must be absent from
+    // the whole generated payload. This is the byte-safety guarantee.
+    const clean = sandbox.run('--write');
+    if (clean.status !== 0) fail('--write must succeed on pristine content', clean.output);
+    if (sandbox.readOut('js/cards-data.js').includes('blueprints')) {
+      fail('no case carries blueprints yet — the key must not appear in cards-data.js');
+    }
+
+    const orbital = sandbox.readJson('cases/orbital-mk-ii.json');
+    orbital.case.blueprints = [
+      { id: 'section-aa', src: './assets/cases/orbital-mk-ii/01.svg', label: { en: 'Section A-A', ru: 'Разрез А-А' } },
+      { src: './assets/cases/orbital-mk-ii/02.svg' }, // unlabelled — label is optional
+      // The shape the ADMIN PANEL actually writes for an unlabelled sheet: the
+      // pair exists with both locales empty. State.setValue cannot create
+      // missing containers, so the form materialises `label` up front (exactly
+      // as it does for a new media block's caption). That shape must be as
+      // valid as an absent key, and must emit no label either.
+      { src: './assets/cases/orbital-mk-ii/03.svg', label: { en: '', ru: '' } }
+    ];
+    sandbox.writeJson('cases/orbital-mk-ii.json', orbital);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must accept an authored blueprint sheet', result.output);
+
+    const cardsData = sandbox.readOut('js/cards-data.js');
+    // Assertions are scoped to the blueprints array: `label: ''` is a legitimate
+    // emission for an uncaptioned MEDIA block, so a file-wide substring check
+    // would pass (or fail) for the wrong reason.
+    const blueprintBlock = /\n(\s*)blueprints: \[\n([\s\S]*?)\n\1\]/.exec(cardsData);
+    if (!blueprintBlock) fail('the authored sheets must reach the runtime payload as items.blueprints');
+    const sheets = blueprintBlock[2];
+    if (!sheets.includes("src: './assets/cases/orbital-mk-ii/01.svg'")) {
+      fail('the authored sheet path must reach the runtime payload');
+    }
+    if (!sheets.includes("src: './assets/cases/orbital-mk-ii/02.svg'")) {
+      fail('the second authored sheet must travel too');
+    }
+    if (!sheets.includes("src: './assets/cases/orbital-mk-ii/03.svg'")) {
+      fail('the admin-shaped sheet (empty label pair) must travel too');
+    }
+    if (!sheets.includes("id: 'section-aa'")) fail('an authored sheet id must travel');
+    if (!sheets.includes("label: 'Section A-A'")) fail('the EN label must travel into cards-data');
+    // An absent label emits NO key at all — same truthy-only rule as poster.
+    // An empty PAIR (what the admin panel writes) must behave identically:
+    // three sheets, one label key.
+    if ((sheets.match(/label:/g) || []).length !== 1) {
+      fail('an absent label — and an empty label pair — must emit no key at all');
+    }
+    // The RU label rides the locale overlay, not cards-data.
+    if (cardsData.includes('Разрез')) fail('the RU label must not land in cards-data.js');
+    const i18nData = sandbox.readOut('js/i18n-data.js');
+    if (!i18nData.includes('Разрез А-А')) fail('the RU label must reach CASE_LOCALES in i18n-data.js');
+
+    // Only THIS case gained the key; the others stay untouched.
+    const carriers = (cardsData.match(/\bblueprints: \[/g) || []).length;
+    if (carriers !== 1) fail(`exactly one case must carry blueprints (got ${carriers})`);
+    console.log('case.blueprints: sheet path/id/EN label emitted, RU label in locales, absent key stays absent');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
 console.log('iteration F/G/H visibility/layoutMode/jsonld/free-assets generator semantics verified');

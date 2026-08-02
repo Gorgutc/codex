@@ -1659,10 +1659,12 @@
       build3D(id);                                  // v0.11 — перестраиваем 3D под новый кейс
     }
 
-    // prod-review F3 (A1-09): BLUEPRINT_META — ручной список 18 id. Новый ассет
-    // из админки без записи получал бы пустую вкладку Blueprints с no-op
-    // pager/export. Прячем триггер, если страниц нет; если он был активен —
-    // откатываемся на 2D. Для всех текущих кейсов pages>0 → вкладка остаётся
+    // BP-DECISION-02: вкладка Blueprints видна ТОЛЬКО там, где владелец
+    // загрузил лист. Раньше страницы брались из хардкод-таблицы BLUEPRINT_META
+    // на 18 id, и новый кейс из админки получал пустую вкладку с no-op
+    // pager/export; теперь источник — items.blueprints кейса, поэтому по
+    // умолчанию (ключа нет) вкладка скрыта — fail-closed. Если она была
+    // активна — откатываемся на 2D.
     // (hidden не убирает узел из querySelectorAll, CASE-tabs-3 не ломается).
     if (tabBp) {
       var hasBlueprints = getBpPages(id).length > 0;
@@ -1756,431 +1758,66 @@
   });
 
   /* ══════════════════════════════════
-     v0.22 — BLUEPRINT RENDERER (multi-page)
-     Каждый кейс хранит pages[] — массив страниц чертежа. Сейчас у всех
-     1 страница, но buildBlueprintSVG(id, pageIdx) и renderBlueprints
-     поддерживают 1..N. На desktop активна одна .case-blueprints__page,
-     листание — pager-overlay. На mobile все страницы выводятся колонкой
-     с per-page тулбаром (Export + Fullscreen).
+     BLUEPRINT SHEETS (multi-page) — BP-DECISION-01 / BP-DECISION-02
+     Кейс показывает ТОЛЬКО те чертежи, которые владелец начертил сам и
+     загрузил: content/cases/<id>.json → case.blueprints[] → items.blueprints.
+     Сайт ничего не чертит. Процедурный рендерер удалён вместе с таблицей
+     BLUEPRINT_META, которая приписывала кейсам чужую геометрию (corten-series
+     — дегидратор Happfe — описывался как СТУЛ и уехал в прод).
+     Лист рендерится как <img src="…svg">: в этом режиме SVG статичен —
+     скрипты и обработчики внутри файла не исполняются. Прод дополнительно
+     закрыт CSP `object-src 'none'` (.htaccess), поэтому <object> здесь
+     запрещён намеренно.
+     Листов нет → getBpPages() отдаёт [] → вкладка Blueprints скрыта
+     (fail-closed, см. openCase).
   ══════════════════════════════════ */
-  var BLUEPRINT_META = {
-    'orbital-mk-ii':  { pages: [
-      { view: 'Front view',  no: 'CS-001-A', unit: 'mm', overall: [1820, 1240], parts: ['Chassis', 'Thruster', 'Panel A', 'Panel B', 'Vent'] },
-      { view: 'Top view',    no: 'CS-001-B', unit: 'mm', overall: [1820, 1640], parts: ['Hub', 'Forward bay', 'Aft bay', 'Stabilizer L', 'Stabilizer R'] },
-      { view: 'Section A-A', no: 'CS-001-C', unit: 'mm', overall: [1240, 920],  parts: ['Coolant duct', 'Reactor core', 'Plenum'] }
-    ] },
-    'vega-shell':     { pages: [
-      { view: 'Exploded view', no: 'CS-002-A', unit: 'mm', overall: [1640, 1100], parts: ['Shoulder', 'Chest', 'Forearm', 'Greave'] },
-      { view: 'Front view',    no: 'CS-002-B', unit: 'mm', overall: [820, 1320],  parts: ['Pauldron', 'Cuirass', 'Vambrace'] },
-      { view: 'Side view',     no: 'CS-002-C', unit: 'mm', overall: [640, 1320],  parts: ['Spaulder', 'Backplate', 'Tasset'] }
-    ] },
-    'ironclad-frame': { pages: [{ view: 'Top view',      no: 'CS-003', unit: 'mm', overall: [2400, 1200], parts: ['Frame', 'Bracket', 'Flange', 'Bolt row'] }] },
-    'corten-series':  { pages: [{ view: 'Front view',    no: 'CS-004', unit: 'cm', overall: [85, 110],    parts: ['Seat', 'Back', 'Leg L', 'Leg R'] }] },
-    'lumen-one':      { pages: [{ view: 'Section A-A',   no: 'CS-005', unit: 'mm', overall: [320, 420],   parts: ['Shade', 'Stem', 'Base', 'Socket'] }] },
-    'flux-capsule':   { pages: [{ view: 'Front view',    no: 'CS-006', unit: 'mm', overall: [900, 1400],  parts: ['Capsule', 'Coil', 'Core', 'Port'] }] },
-    'nightshard':     { pages: [{ view: 'Front view',    no: 'CS-007', unit: 'mm', overall: [640, 1820],  parts: ['Blade', 'Guard', 'Grip', 'Pommel'] }] },
-    'recon-drone':    { pages: [{ view: 'Top view',      no: 'CS-008', unit: 'mm', overall: [1280, 1280], parts: ['Hub', 'Rotor NE', 'Rotor SE', 'Rotor SW', 'Rotor NW'] }] },
-    'apex-frame':     { pages: [{ view: 'Side view',     no: 'CS-009', unit: 'mm', overall: [1700, 900],  parts: ['Top rail', 'Bottom rail', 'Strut L', 'Strut R'] }] },
-    'core-rig':       { pages: [{ view: 'Front view',    no: 'CS-010', unit: 'mm', overall: [1200, 1600], parts: ['Mount', 'Arm', 'Yoke', 'Clamp'] }] },
-    'helix-reveal':   { pages: [{ view: 'Exploded view', no: 'CS-011', unit: 'mm', overall: [1440, 1440], parts: ['Ring A', 'Ring B', 'Spine', 'Cap'] }] },
-    'arc-motion':     { pages: [{ view: 'Side view',     no: 'CS-012', unit: 'mm', overall: [2000, 800],  parts: ['Arc', 'Pivot', 'Counterweight'] }] },
-    'nyx-panther':    { pages: [{ view: 'Side view',     no: 'CS-013', unit: 'cm', overall: [180, 80],    parts: ['Head', 'Torso', 'Foreleg', 'Hindleg', 'Tail'] }] },
-    'drift-koi':      { pages: [{ view: 'Top view',      no: 'CS-014', unit: 'cm', overall: [90, 40],     parts: ['Head', 'Body', 'Fin', 'Tail'] }] },
-    'glint-owl':      { pages: [{ view: 'Front view',    no: 'CS-015', unit: 'cm', overall: [55, 70],     parts: ['Head', 'Body', 'Wing L', 'Wing R'] }] },
-    'mech-link':      { pages: [{ view: 'Assembly view', no: 'CS-016', unit: 'mm', overall: [1200, 800],   parts: ['Link A', 'Link B', 'Pin', 'Bracket'] }] },
-    'flex-spine':     { pages: [{ view: 'Side view',     no: 'CS-017', unit: 'mm', overall: [1800, 600],   parts: ['Rib x8', 'Driver', 'Joint A', 'Joint B'] }] },
-    'cad-strut':      { pages: [{ view: 'Section A-A',   no: 'CS-018', unit: 'mm', overall: [600, 600],    parts: ['Hub', 'Strut N', 'Strut E', 'Mount'] }] }
-  };
   function getBpPages(id) {
-    var m = BLUEPRINT_META[id];
-    return (m && m.pages) ? m.pages : [];
+    var data = CARDS_DATA[id];
+    var sheets = data && data.items && data.items.blueprints;
+    return Array.isArray(sheets) ? sheets : [];
   }
 
-  var SVG_NS = 'http://www.w3.org/2000/svg';
-  function svgEl(tag, attrs, text) {
-    var el = document.createElementNS(SVG_NS, tag);
-    if (attrs) { for (var k in attrs) el.setAttribute(k, attrs[k]); }
-    if (text != null) el.textContent = text;
-    return el;
+  /* alt листа: подпись владельца, если он её задал. Иначе — из существующих
+     i18n-ключей: для набора «Чертёж N» (fs.blueprintPrefix), для одиночного
+     листа — title.technicalBlueprint. Пустой alt недопустим: картинка несёт
+     содержание, а не декор. */
+  function bpSheetAlt(sheet, pageIdx, total) {
+    if (sheet && typeof sheet.label === 'string' && sheet.label.trim()) return sheet.label;
+    var __I = window.I18N;
+    if (total > 1) {
+      var __pfx = (__I && __I.t) ? __I.t('fs.blueprintPrefix') : 'Blueprint';
+      return __pfx + ' ' + (pageIdx + 1);
+    }
+    return (__I && __I.t) ? __I.t('title.technicalBlueprint') : 'Technical blueprint view';
   }
 
-  /* Параметры canvas — SVG в координатах чертежного поля.
-     v0.22: grid тянется от края до края viewBox (xMidYMid meet),
-     отдельный inner frame убран. Пады описывают только область
-     самой схемы (drawing area) внутри grid. */
-  var BP_VIEW_W = 1200;
-  var BP_VIEW_H = 800;
-  var BP_GRID_MINOR = 20;
-  var BP_GRID_MAJOR = 100;
-  // Зоны вокруг drawing area — для view-tag, dim-линий, callouts и title-block.
-  var BP_PAD_LEFT   = 80;
-  var BP_PAD_TOP    = 40;
-  var BP_PAD_RIGHT  = 280;
-  var BP_PAD_BOTTOM = 140;
-
-  function buildBlueprintSVG(id, pageIdx, opts) {
-    opts = opts || {};
-    var forExport = !!opts.forExport;     // v0.22.3: runtime пропускает grid+title-block (живут CSS/HTML-оверлеями); export включает их обратно.
-    var pages = getBpPages(id);
-    var meta  = pages[pageIdx || 0];
-    var data  = CARDS_DATA[id];
-    if (!meta || !data) return null;
-    var card = document.querySelector('.work-card[data-id="' + id + '"]');
-    var year = card ? (card.querySelector('.work-card__year') || {}).textContent || '' : '';
-    var title = card ? (card.querySelector('.work-card__title') || {}).textContent || id : id;
-
-    var rng = mulberry32(hashStr(id + '-bp-' + (pageIdx || 0)));
-    // unique suffix для defs id (несколько SVG на странице — нельзя коллидить)
-    var uid = id + '-' + (pageIdx || 0);
-
-    /* — SVG корень — */
-    var svg = svgEl('svg', {
-      viewBox: '0 0 ' + BP_VIEW_W + ' ' + BP_VIEW_H,
-      preserveAspectRatio: 'xMidYMid meet',
-      'aria-label': 'Technical blueprint of ' + title +
-        (pages.length > 1 ? ' (page ' + ((pageIdx || 0) + 1) + ' of ' + pages.length + ')' : '')
-    });
-
-    /* — defs: размерные стрелки (нужны всегда), grid-pattern только для экспорта — */
-    var defs = svgEl('defs');
-    var markerStart = svgEl('marker', {
-      id: 'bp-arrow-start-' + uid, viewBox: '0 0 10 10',
-      refX: '2', refY: '5', markerWidth: '8', markerHeight: '8',
-      orient: 'auto-start-reverse'
-    });
-    markerStart.appendChild(svgEl('path', { class: 'blueprint__dim-arrow', d: 'M 0 5 L 10 0 L 8 5 L 10 10 Z' }));
-    var markerEnd = svgEl('marker', {
-      id: 'bp-arrow-end-' + uid, viewBox: '0 0 10 10',
-      refX: '8', refY: '5', markerWidth: '8', markerHeight: '8',
-      orient: 'auto'
-    });
-    markerEnd.appendChild(svgEl('path', { class: 'blueprint__dim-arrow', d: 'M 10 5 L 0 0 L 2 5 L 0 10 Z' }));
-    defs.appendChild(markerStart);
-    defs.appendChild(markerEnd);
-    if (forExport) {
-      var patMinor = svgEl('pattern', {
-        id: 'bp-grid-minor-' + uid,
-        width: BP_GRID_MINOR, height: BP_GRID_MINOR,
-        patternUnits: 'userSpaceOnUse'
-      });
-      patMinor.appendChild(svgEl('path', {
-        class: 'blueprint__grid-minor',
-        d: 'M ' + BP_GRID_MINOR + ' 0 L 0 0 0 ' + BP_GRID_MINOR
-      }));
-      var patMajor = svgEl('pattern', {
-        id: 'bp-grid-major-' + uid,
-        width: BP_GRID_MAJOR, height: BP_GRID_MAJOR,
-        patternUnits: 'userSpaceOnUse'
-      });
-      patMajor.appendChild(svgEl('path', {
-        class: 'blueprint__grid-major',
-        d: 'M ' + BP_GRID_MAJOR + ' 0 L 0 0 0 ' + BP_GRID_MAJOR
-      }));
-      defs.appendChild(patMinor);
-      defs.appendChild(patMajor);
-    }
-    svg.appendChild(defs);
-
-    /* — Grid от края до края viewBox (только в экспорте; runtime берёт CSS-сетку с canvas). — */
-    if (forExport) {
-      var gGrid = svgEl('g', { class: 'blueprint__grid' });
-      gGrid.appendChild(svgEl('rect', {
-        x: 0, y: 0, width: BP_VIEW_W, height: BP_VIEW_H,
-        fill: 'url(#bp-grid-minor-' + uid + ')'
-      }));
-      gGrid.appendChild(svgEl('rect', {
-        x: 0, y: 0, width: BP_VIEW_W, height: BP_VIEW_H,
-        fill: 'url(#bp-grid-major-' + uid + ')'
-      }));
-      svg.appendChild(gGrid);
-    }
-
-    /* — view tag (top-left) — */
-    var vg = svgEl('g');
-    vg.appendChild(svgEl('text', {
-      class: 'blueprint__view-tag',
-      x: 16, y: 28
-    }, meta.view.toUpperCase()));
-    svg.appendChild(vg);
-
-    /* — Drawing area (схема заполняет всё свободное пространство) — */
-    var ratio = meta.overall[0] / meta.overall[1];
-    var frameW = BP_VIEW_W - BP_PAD_LEFT - BP_PAD_RIGHT;
-    var frameH = BP_VIEW_H - BP_PAD_TOP  - BP_PAD_BOTTOM;
-    var drawW, drawH;
-    if (ratio >= 1) {
-      drawW = Math.min(frameW, frameH * ratio);
-      drawH = drawW / ratio;
-    } else {
-      drawH = Math.min(frameH, frameW / ratio);
-      drawW = drawH * ratio;
-    }
-    // Центрируем в пределах рабочей зоны
-    var drawX = BP_PAD_LEFT + (frameW - drawW) / 2;
-    var drawY = BP_PAD_TOP  + (frameH - drawH) / 2;
-
-    /* — main outline + internal parts (grid-split) — */
-    var partsG = svgEl('g', { class: 'blueprint__parts' });
-    // main outline
-    partsG.appendChild(svgEl('rect', {
-      class: 'blueprint__part',
-      x: drawX, y: drawY, width: drawW, height: drawH
-    }));
-
-    // Делим прямоугольник на N частей: horizontal или vertical режим
-    var parts = meta.parts;
-    var horizontal = ratio >= 1;
-    var positions = [];
-    if (parts.length <= 3) {
-      // простое разделение
-      var cuts = [];
-      for (var c = 1; c < parts.length; c++) {
-        cuts.push(0.25 + 0.5 * (c / parts.length) + (rng() - 0.5) * 0.1);
-      }
-      cuts.sort();
-      var prev = 0;
-      cuts.concat([1]).forEach(function (p) {
-        if (horizontal) {
-          positions.push({ x: drawX + drawW * prev, y: drawY, w: drawW * (p - prev), h: drawH });
-        } else {
-          positions.push({ x: drawX, y: drawY + drawH * prev, w: drawW, h: drawH * (p - prev) });
-        }
-        prev = p;
-      });
-    } else {
-      // сетка 2×N или N×2
-      var cols = horizontal ? Math.ceil(parts.length / 2) : 2;
-      var rows = horizontal ? 2 : Math.ceil(parts.length / 2);
-      for (var i2 = 0; i2 < parts.length; i2++) {
-        var cx = i2 % cols;
-        var ry = Math.floor(i2 / cols);
-        positions.push({
-          x: drawX + (drawW / cols) * cx,
-          y: drawY + (drawH / rows) * ry,
-          w: drawW / cols,
-          h: drawH / rows
-        });
-      }
-    }
-
-    // Рисуем разделы + лейблы частей
-    parts.forEach(function (name, idx) {
-      var p = positions[idx];
-      if (!p) return;
-      // подрезаем с паддингом для визуального отделения
-      var pad = 6;
-      partsG.appendChild(svgEl('rect', {
-        class: 'blueprint__part',
-        x: p.x + pad, y: p.y + pad,
-        width:  Math.max(0, p.w - pad * 2),
-        height: Math.max(0, p.h - pad * 2)
-      }));
-      partsG.appendChild(svgEl('text', {
-        class: 'blueprint__part-label',
-        x: p.x + p.w / 2, y: p.y + p.h / 2 + 4,
-        'text-anchor': 'middle'
-      }, name));
-    });
-    svg.appendChild(partsG);
-
-    /* — Размерные линии: overall width (снизу) + overall height (слева) — */
-    var dimsG = svgEl('g', { class: 'blueprint__dimensions' });
-    // Горизонтальная (overall width)
-    var yDim = drawY + drawH + 36;
-    dimsG.appendChild(svgEl('line', {
-      class: 'blueprint__dim-ext',
-      x1: drawX, y1: drawY + drawH + 4, x2: drawX, y2: yDim + 6
-    }));
-    dimsG.appendChild(svgEl('line', {
-      class: 'blueprint__dim-ext',
-      x1: drawX + drawW, y1: drawY + drawH + 4, x2: drawX + drawW, y2: yDim + 6
-    }));
-    dimsG.appendChild(svgEl('line', {
-      class: 'blueprint__dim-line',
-      x1: drawX, y1: yDim, x2: drawX + drawW, y2: yDim,
-      'marker-start': 'url(#bp-arrow-start-' + uid + ')',
-      'marker-end':   'url(#bp-arrow-end-'   + uid + ')'
-    }));
-    // лейбл с фоновой плашкой
-    var lblW = meta.overall[0] + ' ' + meta.unit;
-    dimsG.appendChild(svgEl('rect', {
-      class: 'blueprint__dim-label-bg',
-      x: drawX + drawW / 2 - 38, y: yDim - 8,
-      width: 76, height: 16
-    }));
-    dimsG.appendChild(svgEl('text', {
-      class: 'blueprint__dim-label',
-      x: drawX + drawW / 2, y: yDim + 4
-    }, lblW));
-
-    // Вертикальная (overall height)
-    var xDim = drawX - 36;
-    dimsG.appendChild(svgEl('line', {
-      class: 'blueprint__dim-ext',
-      x1: drawX - 4, y1: drawY, x2: xDim - 6, y2: drawY
-    }));
-    dimsG.appendChild(svgEl('line', {
-      class: 'blueprint__dim-ext',
-      x1: drawX - 4, y1: drawY + drawH, x2: xDim - 6, y2: drawY + drawH
-    }));
-    dimsG.appendChild(svgEl('line', {
-      class: 'blueprint__dim-line',
-      x1: xDim, y1: drawY, x2: xDim, y2: drawY + drawH,
-      'marker-start': 'url(#bp-arrow-start-' + uid + ')',
-      'marker-end':   'url(#bp-arrow-end-'   + uid + ')'
-    }));
-    var lblH = meta.overall[1] + ' ' + meta.unit;
-    dimsG.appendChild(svgEl('rect', {
-      class: 'blueprint__dim-label-bg',
-      x: xDim - 38, y: drawY + drawH / 2 - 8,
-      width: 76, height: 16
-    }));
-    dimsG.appendChild(svgEl('text', {
-      class: 'blueprint__dim-label',
-      x: xDim, y: drawY + drawH / 2 + 4,
-      transform: 'rotate(-90 ' + xDim + ' ' + (drawY + drawH / 2) + ')'
-    }, lblH));
-    svg.appendChild(dimsG);
-
-    /* — Callouts: до 4 частей, столбиком в правом свободном поле — */
-    var calloutsG = svgEl('g', { class: 'blueprint__callouts' });
-    var calloutTargets = parts.slice(0, Math.min(4, parts.length));
-    var calloutStartX = drawX + drawW + 80;           // правее drawing area
-    var calloutStartY = drawY + 30;
-    var calloutStep   = 40;
-    calloutTargets.forEach(function (name, idx) {
-      var p = positions[idx];
-      if (!p) return;
-      var cxC = p.x + p.w - 6;                        // правый край части
-      var cyC = p.y + p.h / 2;
-      var labelX = calloutStartX;
-      var labelY = calloutStartY + idx * calloutStep;
-      // leader: от части → между drawing и label → к label-кругу
-      var midX = drawX + drawW + 30;
-      calloutsG.appendChild(svgEl('path', {
-        class: 'blueprint__callout-leader',
-        d: 'M ' + cxC + ' ' + cyC + ' L ' + midX + ' ' + cyC + ' L ' + (labelX - 12) + ' ' + labelY
-      }));
-      calloutsG.appendChild(svgEl('circle', {
-        class: 'blueprint__callout-circle',
-        cx: labelX, cy: labelY, r: 11
-      }));
-      calloutsG.appendChild(svgEl('text', {
-        class: 'blueprint__callout-num',
-        x: labelX, y: labelY
-      }, String(idx + 1)));
-      calloutsG.appendChild(svgEl('text', {
-        class: 'blueprint__callout-label',
-        x: labelX + 20, y: labelY + 3
-      }, name));
-    });
-    svg.appendChild(calloutsG);
-
-    /* — Title block: только в экспорте (runtime использует HTML-оверлей,
-         который позиционируется относительно canvas, а не SVG viewBox,
-         поэтому не уезжает в letterbox на широких экранах). — */
-    if (forExport) {
-      var tbW = 320, tbH = 96;
-      var tbX = BP_VIEW_W - 16 - tbW;
-      var tbY = BP_VIEW_H - 16 - tbH;
-      var tbG = svgEl('g', { class: 'blueprint__title-block' });
-      tbG.appendChild(svgEl('rect', {
-        class: 'blueprint__title-block-frame',
-        x: tbX, y: tbY, width: tbW, height: tbH
-      }));
-      tbG.appendChild(svgEl('text', {
-        class: 'blueprint__title-block-key',
-        x: tbX + 12, y: tbY + 18
-      }, 'Project'));
-      tbG.appendChild(svgEl('text', {
-        class: 'blueprint__title-block-project',
-        x: tbX + 12, y: tbY + 38
-      }, title));
-      tbG.appendChild(svgEl('line', {
-        class: 'blueprint__title-block-divider',
-        x1: tbX, y1: tbY + 48, x2: tbX + tbW, y2: tbY + 48
-      }));
-      var colW = tbW / 3;
-      var cells = [
-        { k: 'Drawing No', v: meta.no },
-        { k: 'Scale',      v: '1:' + (meta.unit === 'cm' ? '4' : '8') },
-        { k: 'Date',       v: (year || '—') }
-      ];
-      cells.forEach(function (cell, idx) {
-        var cxTB = tbX + colW * idx + 12;
-        tbG.appendChild(svgEl('text', {
-          class: 'blueprint__title-block-key',
-          x: cxTB, y: tbY + 64
-        }, cell.k));
-        tbG.appendChild(svgEl('text', {
-          class: 'blueprint__title-block-val',
-          x: cxTB, y: tbY + 82
-        }, cell.v));
-        if (idx < 2) {
-          tbG.appendChild(svgEl('line', {
-            class: 'blueprint__title-block-divider',
-            x1: tbX + colW * (idx + 1), y1: tbY + 48,
-            x2: tbX + colW * (idx + 1), y2: tbY + tbH
-          }));
-        }
-      });
-      svg.appendChild(tbG);
-    }
-    return svg;
-  }
-  /* HTML title-block — fixed к нижнему-правому углу page-canvas, 16px от краёв.
-     Содержимое 1:1 с SVG-вариантом, но позиционируется по canvas, а не viewBox. */
-  function makeTitleBlockHTML(id, pageIdx) {
-    var pages = getBpPages(id);
-    var meta = pages[pageIdx || 0];
-    if (!meta) return null;
-    var card = document.querySelector('.work-card[data-id="' + id + '"]');
-    var year = card ? (card.querySelector('.work-card__year') || {}).textContent || '' : '';
-    var title = card ? (card.querySelector('.work-card__title') || {}).textContent || id : id;
-    var scale = '1:' + (meta.unit === 'cm' ? '4' : '8');
-
-    var wrap = document.createElement('div');
-    wrap.className = 'case-blueprints__title-block';
-    wrap.setAttribute('aria-hidden', 'true');
-    wrap.innerHTML =
-      '<div class="case-blueprints__title-block-top">' +
-        '<span class="case-blueprints__title-block-key">Project</span>' +
-        '<span class="case-blueprints__title-block-project"></span>' +
-      '</div>' +
-      '<div class="case-blueprints__title-block-bottom">' +
-        '<div class="case-blueprints__title-block-cell">' +
-          '<span class="case-blueprints__title-block-key">Drawing No</span>' +
-          '<span class="case-blueprints__title-block-val"></span>' +
-        '</div>' +
-        '<div class="case-blueprints__title-block-cell">' +
-          '<span class="case-blueprints__title-block-key">Scale</span>' +
-          '<span class="case-blueprints__title-block-val"></span>' +
-        '</div>' +
-        '<div class="case-blueprints__title-block-cell">' +
-          '<span class="case-blueprints__title-block-key">Date</span>' +
-          '<span class="case-blueprints__title-block-val"></span>' +
-        '</div>' +
-      '</div>';
-    var vals = wrap.querySelectorAll('.case-blueprints__title-block-val');
-    wrap.querySelector('.case-blueprints__title-block-project').textContent = title;
-    vals[0].textContent = meta.no;
-    vals[1].textContent = scale;
-    vals[2].textContent = year || '—';
-    return wrap;
+  /* Один лист = один <img>. Никакого inline-встраивания SVG в DOM и никакого
+     <object> — см. шапку секции. */
+  function makeBpSheetImg(sheet, pageIdx, total) {
+    var img = document.createElement('img');
+    img.className = 'case-blueprints__sheet';
+    img.src = sheet.src;
+    img.alt = bpSheetAlt(sheet, pageIdx, total);
+    img.setAttribute('loading', 'lazy');
+    img.setAttribute('decoding', 'async');
+    return img;
   }
 
-  function animateBlueprintReveal(svg) {
-    if (!svg || !window.gsap) return;
+  /* Имя файла при скачивании. Отдаётся ОРИГИНАЛ владельца, но с понятным
+     посетителю именем вместо хэша из пути. */
+  function bpDownloadName(id, pageIdx, total) {
+    var safe = String(id).replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
+    return 'codex-blueprint-' + (total > 1 ? safe + '-p' + (pageIdx + 1) : safe) + '.svg';
+  }
+
+  /* Reveal листа. Раньше анимировались внутренности сгенерированного SVG
+     (.blueprint__parts / __dimensions / __callouts) — их больше нет, лист
+     это один <img>. Reduced-motion уважается тем же ранним выходом по
+     matchMedia, что и остальные ревилы этого файла. */
+  function animateBlueprintReveal(el) {
+    if (!el || !window.gsap) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    // v0.22.3: grid и title-block теперь живут вне SVG (CSS + HTML), реveal только для самой схемы.
-    gsap.from(svg.querySelectorAll('.blueprint__parts > *'), {
-      opacity: 0, y: 6, duration: 0.35, ease: 'power2.out',
-      stagger: 0.04, delay: 0.05
-    });
-    gsap.from(svg.querySelectorAll('.blueprint__dimensions > *, .blueprint__callouts > *'), {
-      opacity: 0, duration: 0.3, ease: 'power1.out',
-      stagger: 0.03, delay: 0.25
-    });
+    gsap.from(el, { opacity: 0, y: 8, duration: 0.4, ease: 'power2.out' });
   }
 
   /* ──────────────────────────────────────────────────────────────────
@@ -2201,20 +1838,26 @@
     return '<svg viewBox="0 0 18 18" aria-hidden="true" focusable="false">' +
       '<path d="M2 7V2h5M11 2h5v5M16 11v5h-5M7 16H2v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>';
   }
-  function makePageExportBtn(pageIdx) {
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'bp-export-btn case-blueprints__page-export';
-    b.setAttribute('data-bp-page', pageIdx);
+  /* Скачивание листа = отдача ОРИГИНАЛЬНОГО файла владельца через
+     same-origin <a download>, а не пересборка DOM в новый SVG (старое
+     поведение отдавало посетителю сериализованный снимок разметки).
+     Классы и i18n-ключи сохранены — меняется только тег и то, что уезжает. */
+  function makePageExportBtn(pageIdx, sheet, caseId, total) {
+    var a = document.createElement('a');
+    a.className = 'bp-export-btn case-blueprints__page-export';
+    a.setAttribute('data-bp-page', pageIdx);
+    a.setAttribute('href', sheet.src);
+    a.setAttribute('download', bpDownloadName(caseId, pageIdx, total));
+    a.setAttribute('data-cursor', 'link');
     // Phase 4b — page aria через tFmt + label через t().
     var __I = window.I18N;
-    b.setAttribute('aria-label',
+    a.setAttribute('aria-label',
       (__I && __I.tFmt) ? __I.tFmt('bp.exportPage', { n: pageIdx + 1 })
                         : 'Export blueprint page ' + (pageIdx + 1) + ' as SVG');
     var __lbl = (__I && __I.t) ? __I.t('btn.exportSvg') : 'Export SVG';
-    b.innerHTML = fsIconSVG('export') + '<span class="bp-export-btn__label" data-i18n="btn.exportSvg">' + __lbl + '</span>';
-    b.querySelector('svg').setAttribute('class', 'bp-export-btn__icon');
-    return b;
+    a.innerHTML = fsIconSVG('export') + '<span class="bp-export-btn__label" data-i18n="btn.exportSvg">' + __lbl + '</span>';
+    a.querySelector('svg').setAttribute('class', 'bp-export-btn__icon');
+    return a;
   }
   function makePageFsBtn(pageIdx) {
     var b = document.createElement('button');
@@ -2276,22 +1919,19 @@
     caseBlueprintsCanvas.innerHTML = '';
     currentBpPage = 0;
 
-    pages.forEach(function (_, idx) {
+    pages.forEach(function (sheet, idx) {
       var pageEl = document.createElement('div');
       pageEl.className = 'case-blueprints__page' + (idx === 0 ? ' is-current' : '');
       pageEl.setAttribute('data-bp-page', idx);
 
       var canvas = document.createElement('div');
       canvas.className = 'case-blueprints__page-canvas';
-      var svg = buildBlueprintSVG(id, idx);
-      if (svg) canvas.appendChild(svg);
-      var titleBlock = makeTitleBlockHTML(id, idx);
-      if (titleBlock) canvas.appendChild(titleBlock);
+      canvas.appendChild(makeBpSheetImg(sheet, idx, pages.length));
       pageEl.appendChild(canvas);
 
       var bar = document.createElement('div');
       bar.className = 'case-blueprints__page-toolbar';
-      bar.appendChild(makePageExportBtn(idx));
+      bar.appendChild(makePageExportBtn(idx, sheet, id, pages.length));
       bar.appendChild(makePageFsBtn(idx));
       pageEl.appendChild(bar);
 
@@ -2306,8 +1946,8 @@
 
     // Reveal: только активная страница (одна на desktop; на mobile та же,
     // остальные подтянутся бесшумно — экономия GSAP-тиков на длинных списках).
-    var firstSvg = caseBlueprintsCanvas.querySelector('.case-blueprints__page.is-current svg');
-    animateBlueprintReveal(firstSvg);
+    var firstSheet = caseBlueprintsCanvas.querySelector('.case-blueprints__page.is-current .case-blueprints__sheet');
+    animateBlueprintReveal(firstSheet);
   }
   function updateBpPagerUI() {
     if (!caseBlueprintsCanvas) return;
@@ -2329,7 +1969,7 @@
     nextEl.classList.add('is-current');
     currentBpPage = idx;
     updateBpPagerUI();
-    animateBlueprintReveal(nextEl.querySelector('svg'));
+    animateBlueprintReveal(nextEl.querySelector('.case-blueprints__sheet'));
   }
 
   /* ══════════════════════════════════
@@ -3547,119 +3187,29 @@
   if (tab3d) tab3d.addEventListener('click', function () { setViz('3d'); });
   if (tabBp) tabBp.addEventListener('click', function () { setViz('blueprints'); });
 
-  /* v0.13.8.1 — SVG export с inline-стилями.
-     CSS-переменные (var(--color-primary) и т.п.) резолвятся только
-     внутри документа-источника. При открытии standalone .svg они
-     теряются и получается «чёрный экран». Решение: обходим клон
-     и исходник параллельно, копируем computedStyle в inline-style
-     для SVG-специфичных свойств. Плюс фоновый <rect> под содержимым. */
-  var SVG_STYLE_PROPS = [
-    'fill', 'fill-opacity', 'fill-rule',
-    'stroke', 'stroke-opacity', 'stroke-width',
-    'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit',
-    'opacity', 'visibility', 'display',
-    'font-family', 'font-size', 'font-weight', 'font-style', 'letter-spacing',
-    'text-anchor', 'dominant-baseline', 'text-transform',
-    'vector-effect', 'paint-order'
-  ];
-  function inlineComputedStyles(sourceEl, cloneEl) {
-    if (sourceEl.nodeType !== 1 || cloneEl.nodeType !== 1) return;
-    var cs = window.getComputedStyle(sourceEl);
-    var parts = [];
-    for (var i = 0; i < SVG_STYLE_PROPS.length; i++) {
-      var p = SVG_STYLE_PROPS[i];
-      var v = cs.getPropertyValue(p);
-      if (v && v !== '' && v !== 'normal' && v !== 'auto') {
-        parts.push(p + ':' + v);
-      }
-    }
-    if (parts.length) cloneEl.setAttribute('style', parts.join(';'));
-    var srcChildren = sourceEl.children;
-    var cloneChildren = cloneEl.children;
-    var n = Math.min(srcChildren.length, cloneChildren.length);
-    for (var j = 0; j < n; j++) inlineComputedStyles(srcChildren[j], cloneChildren[j]);
-  }
-  /* exportSvgElement — клонирует переданный <svg>, инлайнит стили, добавляет
-     фоновый rect, сохраняет как .svg через Blob+download. Используется
-     top-toolbar и per-page Export кнопками. */
-  function exportSvgElement(svg, filenameSuffix) {
-    if (!svg) return;
-    var clone = svg.cloneNode(true);
-    if (!clone.getAttribute('xmlns'))       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    if (!clone.getAttribute('xmlns:xlink')) clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-    inlineComputedStyles(svg, clone);
-
-    var bodyStyles = window.getComputedStyle(document.body);
-    var bgVar = bodyStyles.getPropertyValue('--color-bg').trim() ||
-                window.getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim();
-    var bgColor = bgVar || '#212121';
-    var vb = clone.getAttribute('viewBox');
-    var bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    if (vb) {
-      var vbParts = vb.split(/\s+/);
-      bgRect.setAttribute('x', vbParts[0]);
-      bgRect.setAttribute('y', vbParts[1]);
-      bgRect.setAttribute('width', vbParts[2]);
-      bgRect.setAttribute('height', vbParts[3]);
-    } else {
-      bgRect.setAttribute('width', '100%');
-      bgRect.setAttribute('height', '100%');
-    }
-    bgRect.setAttribute('fill', bgColor.trim());
-    clone.insertBefore(bgRect, clone.firstChild);
-
-    var src = new XMLSerializer().serializeToString(clone);
-    if (src.indexOf('<?xml') !== 0) src = '<?xml version="1.0" encoding="UTF-8"?>\n' + src;
-    var blob = new Blob([src], { type: 'image/svg+xml;charset=utf-8' });
-    var url  = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'codex-blueprint-' + filenameSuffix + '.svg';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 0);
-  }
-  function bpFileSuffix(id, pageIdx, total) {
-    var safe = String(id).replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
-    return total > 1 ? (safe + '-p' + (pageIdx + 1)) : safe;
-  }
-  function exportBpPage(pageIdx) {
+  /* Верхний тулбар отдаёт тот же ОРИГИНАЛЬНЫЙ файл, что и per-page кнопка.
+     В разметке это <button>, поэтому ссылка создаётся на лету. Пересборка
+     SVG из DOM (inlineComputedStyles/exportSvgElement) удалена вместе с
+     процедурным рендерером: сериализовать больше нечего и незачем.
+     Per-page кнопка — это уже <a download>, её браузер обрабатывает сам, поэтому
+     делегированного обработчика здесь больше нет (он давал бы двойную
+     загрузку). */
+  function downloadBpPage(pageIdx) {
     if (!currentCaseId) return;
     var pages = getBpPages(currentCaseId);
     if (!pages.length) return;
     pageIdx = Math.max(0, Math.min(pages.length - 1, pageIdx || 0));
-    // v0.22.3: runtime SVG не содержит grid/title-block (они в CSS/HTML).
-    // Для self-contained экспорта собираем полную версию SVG (forExport:true)
-    // и временно крепим её к canvas чтобы getComputedStyle разрешил CSS-классы.
-    var svg = buildBlueprintSVG(currentCaseId, pageIdx, { forExport: true });
-    if (!svg || !caseBlueprintsCanvas) return;
-    svg.style.position = 'absolute';
-    svg.style.left = '-9999px';
-    svg.style.top  = '-9999px';
-    svg.style.width  = BP_VIEW_W + 'px';
-    svg.style.height = BP_VIEW_H + 'px';
-    svg.style.pointerEvents = 'none';
-    caseBlueprintsCanvas.appendChild(svg);
-    try {
-      exportSvgElement(svg, bpFileSuffix(currentCaseId, pageIdx, pages.length));
-    } finally {
-      if (svg.parentNode) svg.parentNode.removeChild(svg);
-    }
+    var sheet = pages[pageIdx];
+    if (!sheet || !sheet.src) return;
+    var a = document.createElement('a');
+    a.href = sheet.src;
+    a.setAttribute('download', bpDownloadName(currentCaseId, pageIdx, pages.length));
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
   var bpExportBtn = document.getElementById('blueprint-export-svg');
-  if (bpExportBtn) bpExportBtn.addEventListener('click', function () { exportBpPage(currentBpPage); });
-
-  // Per-page Export (mobile mini-toolbar) — делегированный
-  if (caseBlueprintsCanvas) {
-    caseBlueprintsCanvas.addEventListener('click', function (e) {
-      var exportBtn = e.target.closest && e.target.closest('.case-blueprints__page-export');
-      if (exportBtn) {
-        e.preventDefault();
-        exportBpPage(parseInt(exportBtn.getAttribute('data-bp-page'), 10) || 0);
-      }
-    });
-  }
+  if (bpExportBtn) bpExportBtn.addEventListener('click', function () { downloadBpPage(currentBpPage); });
 
   // Экспорт для animations.js
   window.CodexCase = {
@@ -4689,14 +4239,13 @@
     fsCounter.hidden = !hasNav;
 
     while (fsStage.firstChild) fsStage.removeChild(fsStage.firstChild);
-    // v0.22.3: в FS нужен self-contained SVG (с сеткой и title-block),
-    // потому что fs-stage не имеет CSS-сетки фоном и HTML-overlay'я.
-    var svg = buildBlueprintSVG(id, blueprintFs.index, { forExport: true });
-    if (svg) {
-      svg.removeAttribute('style');
-      fsStage.appendChild(svg);
-      fsCurrentEl = svg;
-    }
+    // Тот же лист владельца, что и на странице кейса. loading снимается:
+    // фуллскрин открыт по явному действию, ленивая загрузка тут только
+    // задержала бы картинку.
+    var sheetImg = makeBpSheetImg(pages[blueprintFs.index], blueprintFs.index, pages.length);
+    sheetImg.removeAttribute('loading');
+    fsStage.appendChild(sheetImg);
+    fsCurrentEl = sheetImg;
 
     fsOverlay.hidden = false;
     void fsOverlay.offsetWidth;
@@ -4714,16 +4263,19 @@
     var wrapped =
       (direction === +1 && prev === n - 1) ||
       (direction === -1 && prev === 0);
-    swapBlueprintSvg(wrapped);
+    swapBlueprintSheet(wrapped);
   }
-  function swapBlueprintSvg(wrapped) {
+  function swapBlueprintSheet(wrapped) {
     if (typeof gsap !== 'undefined') gsap.killTweensOf(fsStage.children);
     Array.prototype.slice.call(fsStage.children).forEach(function (c) {
       if (c !== fsCurrentEl && c.parentNode) c.parentNode.removeChild(c);
     });
     var oldEl = fsCurrentEl;
-    var newEl = buildBlueprintSVG(blueprintFs.id, blueprintFs.index, { forExport: true });
-    if (!newEl) return;
+    var pages = getBpPages(blueprintFs.id);
+    var sheet = pages[blueprintFs.index];
+    if (!sheet) return;
+    var newEl = makeBpSheetImg(sheet, blueprintFs.index, pages.length);
+    newEl.removeAttribute('loading');
     fsStage.appendChild(newEl);
     fsCurrentEl = newEl;
 

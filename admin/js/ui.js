@@ -48,6 +48,10 @@
   // предупреждение о длине кейса, публикацию не блокирует.
   const MEDIA_MAX_BLOCKS = 12;
   const MEDIA_WARN_BLOCKS = 8;
+  // Зеркало BLUEPRINTS_MAX_SHEETS обоих валидаторов (BP-DECISION-01/02):
+  // на пределе кнопка «добавить лист» уступает место объяснению, чтобы
+  // владелец не упирался в ошибку публикации.
+  const BLUEPRINTS_MAX_SHEETS = 8;
 
   const els = {
     topbar: document.getElementById('topbar'),
@@ -1903,6 +1907,126 @@
       rerender();
     }
 
+    /* ── чертежи кейса (BP-DECISION-01/02) ─────────────────────────────
+       Лист чертежа — это SVG, который владелец начертил САМ и загружает сюда;
+       сайт его только показывает и отдаёт на скачивание. Раздел устроен как
+       «Иллюстрации кейса»: полоса слотов + drop-зона + перестановка + удаление
+       с подтверждением, только слот проще (файл + необязательная подпись).
+
+       Отличие от иллюстраций: порядок листов НЕ зависит от layoutMode. Тот
+       управляет сеткой иллюстраций, а листы идут страницами вкладки «Чертежи»
+       ровно в порядке этого списка — поэтому ensureManualLayout здесь не
+       спрашивается, а перестановка доступна всегда. */
+    function moveBlueprintSheet(from, to, focusKey) {
+      const sheets = State.getValue(path, 'case.blueprints') || [];
+      if (from === to || to < 0 || to >= sheets.length) return;
+      if (reorderBlockedByOverrides()) return;
+      State.setValue(path, 'case.blueprints', movedArray(sheets, from, to));
+      remapListIndex(
+        path,
+        /^case\.blueprints\.(\d+)\.(.+)$/,
+        1,
+        from,
+        to,
+        (match, newIndex) => 'case.blueprints.' + newIndex + '.' + match[2]
+      );
+      toast('Порядок листов сохранён в черновик', 'info');
+      rerender(focusKey);
+    }
+
+    // Стабильный id листа — та же роль и та же грамматика, что у id медиа-блока
+    // (зеркало MEDIA_ID_RE обоих валидаторов): адресация pending-медиа остаётся
+    // позиционной, а id даёт листу «личность» в content-JSON.
+    function nextBlueprintId(sheets) {
+      const used = {};
+      sheets.forEach((sheet) => {
+        if (sheet && typeof sheet.id === 'string') used[sheet.id] = true;
+      });
+      const stamp = Date.now().toString(36);
+      let candidate = 'bp-' + stamp;
+      let n = 1;
+      while (used[candidate]) {
+        candidate = 'bp-' + stamp + '-' + n;
+        n += 1;
+      }
+      return candidate;
+    }
+
+    function addBlueprintSheet() {
+      const sheets = State.getValue(path, 'case.blueprints') || [];
+      if (sheets.length >= BLUEPRINTS_MAX_SHEETS) {
+        toast('В кейсе не может быть больше ' + BLUEPRINTS_MAX_SHEETS + ' листов чертежа.', 'error');
+        return;
+      }
+      if (reorderBlockedByOverrides()) return;
+      const index = sheets.length;
+      // Пустой src: валидатор потребует файл, а drop-зона листа сразу зовёт его
+      // загрузить — «пустой» лист опубликовать невозможно.
+      // Пустая пара label создаётся СРАЗУ (как caption у нового медиа-блока):
+      // State.setValue не достраивает недостающие контейнеры и молча ничего не
+      // записал бы, если бы владелец начал с подписи, а не с файла. Обе пустые
+      // локали — валидный лист без подписи (checkOptionalLocalePair).
+      State.setValue(
+        path,
+        'case.blueprints',
+        sheets.concat([{ id: nextBlueprintId(sheets), src: '', label: { en: '', ru: '' } }])
+      );
+      insertListIndex(
+        path,
+        /^case\.blueprints\.(\d+)\.(.+)$/,
+        1,
+        index,
+        (match, newIndex) => 'case.blueprints.' + newIndex + '.' + match[2]
+      );
+      toast(
+        'Лист ' + (index + 1) + ' добавлен в черновик. Загрузите SVG — без файла публикация не пройдёт. ' +
+          'Подпись необязательна.',
+        'info'
+      );
+      rerender();
+    }
+
+    function removeBlueprintSheet(i) {
+      const sheets = State.getValue(path, 'case.blueprints') || [];
+      if (sheets.length === 0) return;
+      if (reorderBlockedByOverrides()) return;
+      const isLast = sheets.length === 1;
+      if (
+        !window.confirm(
+          'Удалить лист ' +
+            (i + 1) +
+            '? Подпись и ссылка на файл пропадут из кейса.\n\n' +
+            (isLast ? 'Это последний лист: вкладка «Чертежи» пропадёт со страницы кейса.\n\n' : '') +
+            'Сам файл останется в репозитории — его не удаляют, чтобы страницы не отдавали 404 до пересборки сайта.'
+        )
+      ) {
+        toast('Удаление отменено — лист оставлен на месте.', 'info');
+        return;
+      }
+      const next = sheets.slice();
+      next.splice(i, 1);
+      // Пустого массива в кейсе не бывает: «чертежей нет» — это ОТСУТСТВИЕ
+      // ключа (оба валидатора отвергают []). Поэтому последний лист уносит
+      // раздел целиком, и кейс возвращается ровно к тому виду, что был до
+      // первого чертежа.
+      if (next.length === 0) State.deleteValue(path, 'case.blueprints');
+      else State.setValue(path, 'case.blueprints', next);
+      removeListIndex(
+        path,
+        /^case\.blueprints\.(\d+)\.(.+)$/,
+        1,
+        i,
+        (match, newIndex) => 'case.blueprints.' + newIndex + '.' + match[2]
+      );
+      toast(
+        next.length === 0
+          ? 'Лист удалён. Чертежей у кейса больше нет — вкладка «Чертежи» на сайте скрыта.'
+          : 'Лист ' + (i + 1) + ' удалён из черновика.',
+        'info'
+      );
+      rerender();
+    }
+
     function moveMotionBlock(from, to, focusKey) {
       const blocks = State.getValue(path, 'case.motionBlocks') || [];
       if (from === to || to < 0 || to >= blocks.length) return;
@@ -2367,6 +2491,122 @@
       modelSection.appendChild(statsGrid);
     }
     sections.push(modelSection);
+
+    /* ── Чертежи (BP-DECISION-01/02) ────────────────────────────────────
+       Раздел стоит после 3D — в том же порядке, в каком идут вкладки на
+       странице кейса (2D → 3D → Чертежи). */
+    const blueprintSheets = Array.isArray(draft.case.blueprints) ? draft.case.blueprints : [];
+    const blueprintStrip = el('div', { className: 'blueprint-strip', id: 'blueprint-strip' });
+
+    function blueprintSlotEditor(sheet, i, count) {
+      const dotBase = 'case.blueprints.' + i;
+      // Имя загружаемого файла привязано к ПОЗИЦИИ листа, как у слотов
+      // иллюстраций: ./assets/cases/<id>/blueprints/NN-<hash>.svg. Отдельная
+      // папка blueprints/ отделяет чертежи от иллюстраций в одном каталоге
+      // кейса; префикс ./assets/cases/<id>/ требуют оба валидатора.
+      // padStart, а не '0' + (i + 1): восьмой лист остаётся «08».
+      const nn = String(i + 1).padStart(2, '0');
+      const namingPath = './assets/cases/' + id + '/blueprints/' + nn + '.svg';
+      // data-field на самом слоте: ошибки файла (не загружен, чужая папка, не
+      // .svg) висят на dot-пути .src, а у drop-зоны якорь data-media, который
+      // applyPendingErrors не видит. Без этого владелец получал бы только тост
+      // и не знал, КАКОЙ лист виноват.
+      const slot = el('figure', {
+        className: 'blueprint-slot',
+        'data-blueprint-slot': String(i),
+        'data-field': path + '::' + dotBase + '.src'
+      });
+      slot.appendChild(
+        reorderControls({
+          label: 'Лист ' + (i + 1),
+          index: i,
+          count,
+          focusKey: 'sheet::' + i,
+          onMove: moveBlueprintSheet
+        })
+      );
+      slot.appendChild(
+        dropZone({
+          filePath: path,
+          dotPath: dotBase + '.src',
+          kind: 'blueprint',
+          namingPath,
+          // Пустой src = файла ещё нет; конвенционный путь слота показывать
+          // нельзя — лист выглядел бы «уже с чертежом».
+          currentPath: sheet.src || null,
+          preview: 'image',
+          label: 'лист чертежа (.svg)',
+          hint: 'Только SVG · до 2 МБ · посетитель скачает ровно этот файл'
+        })
+      );
+      slot.appendChild(pairField(path, 'Лист ' + (i + 1) + ' — подпись', dotBase + '.label.en', dotBase + '.label.ru'));
+
+      const removeBtn = el('button', {
+        type: 'button',
+        className: 'btn btn--ghost blueprint-slot__remove',
+        'data-blueprint-remove': String(i),
+        'aria-label': 'Удалить лист ' + (i + 1),
+        text: 'Удалить лист'
+      });
+      removeBtn.addEventListener('click', () => removeBlueprintSheet(i));
+      slot.appendChild(el('div', { className: 'blueprint-slot__controls' }, [removeBtn]));
+      slot.appendChild(el('figcaption', { text: 'Лист ' + (i + 1) }));
+      return slot;
+    }
+
+    blueprintSheets.forEach((sheet, i) => {
+      blueprintStrip.appendChild(
+        blueprintSlotEditor(sheet && typeof sheet === 'object' ? sheet : {}, i, blueprintSheets.length)
+      );
+    });
+    makeSortable(blueprintStrip, '.blueprint-slot', moveBlueprintSheet);
+
+    // data-field на секции: ошибки уровня всего раздела (пустой список, предел
+    // листов) без якоря пришли бы одним безликим тостом — applyPendingErrors
+    // ищет именно [data-field].
+    const blueprintSection = el(
+      'section',
+      { className: 'editor-section', id: 'blueprint-section', 'data-field': path + '::case.blueprints' },
+      [
+        el('h2', { text: 'Чертежи' }),
+        el('p', {
+          className: 'hint',
+          id: 'blueprint-hint',
+          text:
+            blueprintSheets.length === 0
+              ? 'Чертежей нет — вкладка «Чертежи» на странице кейса скрыта. Добавьте лист и загрузите ' +
+                'свой SVG: сайт покажет его как есть и отдаст этот же файл по кнопке «Export SVG». ' +
+                'Сайт ничего не чертит сам.'
+              : 'Листы идут страницами вкладки «Чертежи» в порядке этого списка; по кнопке «Export SVG» ' +
+                'посетитель скачивает загруженный вами файл без изменений. Подписи необязательны: ' +
+                'EN и RU идут парой — заполнены оба поля или пусты оба. Не больше ' +
+                BLUEPRINTS_MAX_SHEETS +
+                ' листов.'
+        }),
+        blueprintStrip
+      ]
+    );
+    const blueprintAddRow = el('div', { className: 'media-add-row' });
+    if (blueprintSheets.length < BLUEPRINTS_MAX_SHEETS) {
+      const addSheet = el('button', {
+        type: 'button',
+        className: 'btn',
+        id: 'blueprint-add',
+        text: '+ Лист чертежа'
+      });
+      addSheet.addEventListener('click', addBlueprintSheet);
+      blueprintAddRow.appendChild(addSheet);
+    } else {
+      blueprintAddRow.appendChild(
+        el('p', {
+          className: 'hint',
+          id: 'blueprint-cap-note',
+          text: 'Достигнут предел: ' + BLUEPRINTS_MAX_SHEETS + ' листов. Удалите лишний лист, чтобы добавить новый.'
+        })
+      );
+    }
+    blueprintSection.appendChild(blueprintAddRow);
+    sections.push(blueprintSection);
 
     if (Array.isArray(draft.case.motionBlocks) && draft.case.motionBlocks.length > 0) {
       const motionCount = draft.case.motionBlocks.length;

@@ -63,6 +63,22 @@
       blockBytes: 2 * MB,
       blockText: 'изображения тяжелее 2 МБ не публикуем'
     },
+    /* Лист чертежа (BP-DECISION-01). Схема кейса принимает ТОЛЬКО .svg, и
+       отказать надо здесь, на загрузке: растр, принятый слотом, дожил бы до
+       публикации и вернулся владельцу ошибкой генератора («must end with
+       .svg») уже после коммита. Мягкий порог выше обычной картинки: чертёж —
+       это векторная схема на сотни путей, 200 КБ она перебирает штатно, а вот
+       за полмегабайта уже стоит вопрос, не растр ли внутри <image>. */
+    blueprint: {
+      exts: ['svg'],
+      mimes: ['image/svg+xml'],
+      accept: '.svg',
+      formatLabel: 'SVG',
+      warnBytes: 500 * KB,
+      warnText: 'тяжелее 500 КБ — вкладка «Чертежи» будет открываться медленнее',
+      blockBytes: 2 * MB,
+      blockText: 'чертежи тяжелее 2 МБ не публикуем'
+    },
     ogImage: {
       exts: ['jpg', 'jpeg', 'png', 'webp'],
       mimes: ['image/jpeg', 'image/png', 'image/webp'],
@@ -1182,6 +1198,92 @@
     }
   }
 
+  /* ── чертежи кейса (BP-DECISION-01/02) ──────────────────────────────
+     Зеркало validateCaseBlueprints из generate-content.mjs — правь ОБА файла
+     разом, канон в генераторе.
+
+     Ключ НЕОБЯЗАТЕЛЕН, и его ОТСУТСТВИЕ — состояние по умолчанию: у кейса без
+     листов ключа нет вовсе, генератор ничего не эмитит, вкладка «Чертежи» на
+     сайте скрыта. Пустой массив — НЕ синоним «чертежей нет», а ошибка: одна
+     форма хранения — один смысл. Поэтому удаление последнего листа в ui.js
+     уносит ключ целиком, а этот мирор ловит `[]`, доехавший из старого
+     черновика, ДО публикации, а не авто-revert'ом конвейера.
+
+     src заперт в СОБСТВЕННОЙ папке кейса: общий заслон isAssetPath уже режет
+     traversal и абсолютные URL, а префикс дополнительно не даёт кейсу
+     сослаться на файл соседа, который переживёт удаление того кейса. */
+  const BLUEPRINTS_MAX_SHEETS = 8;
+
+  function validateCaseBlueprintsDraft(errors, path, caseId, blueprints) {
+    if (!Array.isArray(blueprints) || blueprints.length === 0) {
+      errors.push({
+        path,
+        field: 'case.blueprints',
+        message: 'Чертежи: список пуст — добавьте лист или удалите раздел целиком кнопкой «Удалить лист»'
+      });
+      return;
+    }
+    if (blueprints.length > BLUEPRINTS_MAX_SHEETS) {
+      errors.push({
+        path,
+        field: 'case.blueprints',
+        message:
+          'Чертежи: не больше ' + BLUEPRINTS_MAX_SHEETS + ' листов (сейчас ' + blueprints.length + ')'
+      });
+    }
+    const seenIds = {};
+    const ownDir = './assets/cases/' + caseId + '/';
+    blueprints.forEach(function (sheet, i) {
+      const where = 'Лист ' + (i + 1);
+      const dotBase = 'case.blueprints.' + i;
+      if (sheet === null || typeof sheet !== 'object' || Array.isArray(sheet)) {
+        errors.push({ path, field: dotBase, message: where + ': запись повреждена — обновите страницу' });
+        return;
+      }
+      if (sheet.id !== undefined && sheet.id !== null) {
+        if (typeof sheet.id !== 'string' || !MEDIA_ID_RE.test(sheet.id)) {
+          errors.push({
+            path,
+            field: dotBase + '.id',
+            message: where + ': служебный id листа повреждён — удалите лист и создайте заново'
+          });
+        } else if (seenIds[sheet.id]) {
+          errors.push({
+            path,
+            field: dotBase + '.id',
+            message: where + ': служебный id «' + sheet.id + '» повторяется — удалите лист и создайте заново'
+          });
+        } else {
+          seenIds[sheet.id] = true;
+        }
+      }
+      // Пустой src — это только что добавленный лист без файла: сообщение
+      // зовёт загрузить чертёж, а не рассказывает про «путь внутри ./assets/».
+      if (!isFilled(sheet.src)) {
+        errors.push({
+          path,
+          field: dotBase + '.src',
+          message: where + ': загрузите SVG-файл чертежа — без него публикация не пройдёт'
+        });
+      } else if (!isAssetPath(sheet.src)) {
+        errors.push({
+          path,
+          field: dotBase + '.src',
+          message: where + ': путь файла должен лежать внутри ./assets/'
+        });
+      } else if (!/\.svg$/i.test(sheet.src)) {
+        errors.push({ path, field: dotBase + '.src', message: where + ': чертёж должен быть файлом .svg' });
+      } else if (sheet.src.indexOf(ownDir) !== 0) {
+        errors.push({
+          path,
+          field: dotBase + '.src',
+          message: where + ': файл чертежа должен лежать в папке этого кейса («' + ownDir + '»)'
+        });
+      }
+      pushOptionalPairTextErrors(errors, path, dotBase + '.label', sheet.label, where + ' — подпись');
+    });
+  }
+
   /* ── внешняя ссылка кейса (CASE-CTA-01) ─────────────────────────────
      Зеркало validateCaseCta/ctaUrlProblem из generate-content.mjs. Поле
      необязательное: у кейса без ссылки ключа case.cta просто нет.
@@ -1336,6 +1438,15 @@
       }
     });
     validateCaseMediaDraft(errors, path, cs.media, draft.layoutMode === 'manual');
+    // BP-DECISION-01/02: раздел проверяется ТОЛЬКО когда ключ есть — его
+    // отсутствие и есть «у кейса нет чертежей» (зеркало `if ('blueprints' in
+    // cs)` генератора). Папку-владельца берём из id кейса, а при повреждённом
+    // id — из имени файла: иначе заслон «чужая папка» молча отключился бы.
+    if ('blueprints' in cs) {
+      const idMatch = String(path).match(/^content\/cases\/(.+)\.json$/);
+      const caseId = isFilled(draft.id) ? draft.id : idMatch ? idMatch[1] : '';
+      validateCaseBlueprintsDraft(errors, path, caseId, cs.blueprints);
+    }
     validateCaseCtaDraft(errors, path, cs.cta);
     if (cs.text) {
       pushPairTextErrors(errors, path, 'case.text.title', cs.text.title, 'Текстовый блок — заголовок');

@@ -241,6 +241,16 @@
     background 160ms var(--ease-out),
     box-shadow 160ms var(--ease-out);
 }
+/* BP-DECISION-02 — fail-closed вкладки Blueprints.
+   `display: inline-flex` выше принадлежит author-origin и перебивает
+   `[hidden] { display: none }` из UA-таблицы, поэтому js/main.js мог ставить
+   tabBp.hidden = true, а вкладка ОСТАВАЛАСЬ видимой. Раньше это не всплывало:
+   чертёж рисовался процедурно и был у всех 18 кейсов, так что guard ни разу не
+   срабатывал. Теперь он срабатывает у каждого кейса без загруженного листа, и
+   без этого правила посетитель видел бы вкладку, открывающую пустую панель.
+   Специфичность 0,2,0 бьёт .case-tab (0,1,0); режимы Design Lab свойство
+   display у .case-tab не задают, поэтому одного правила достаточно. */
+.case-tab[hidden] { display: none; }
 /* v0.8.5: .case-tab--soon, .case-tab__badge удалены — классы не
    присутствуют в DOM (3 таба 2D/3D/Blueprints всегда активны).
    :not(.case-tab--soon) из :hover тоже убран. */
@@ -924,6 +934,8 @@
   border: 1px solid var(--color-border);
   border-radius: 4px;
   cursor: pointer;
+  /* Скачивание листа — это <a download>, а не <button>. */
+  text-decoration: none;
   transition: background 180ms var(--ease-out), border-color 180ms var(--ease-out), color 180ms var(--ease-out);
 }
 .bp-export-btn:hover {
@@ -979,10 +991,9 @@
   border: 1px solid var(--color-divider);
   border-radius: 4px;
   overflow: hidden;
-  /* v0.22.2 — CSS-сетка фоном: тянется до краёв page-canvas даже на 4K,
-     где SVG xMidYMid meet оставляет letterbox по бокам. Цвета/частота
-     соответствуют SVG-сетке (.blueprint__grid-minor/major) — оба слоя
-     накладываются внутри viewBox и сливаются визуально. */
+  /* Чертёжная сетка фоном подложки. Раньше она дублировала сетку внутри
+     сгенерированного SVG; теперь лист рисует владелец, и сетка осталась
+     только как поверхность самой панели. */
   background:
     repeating-linear-gradient(to right,  var(--bp-grid-major) 0 1px, transparent 1px 100px),
     repeating-linear-gradient(to bottom, var(--bp-grid-major) 0 1px, transparent 1px 100px),
@@ -991,83 +1002,19 @@
     radial-gradient(ellipse at top, var(--color-3d-canvas-glow) 0%, transparent 70%),
     var(--color-bg);
 }
-.case-blueprints__page-canvas svg {
+
+/* Лист владельца (BP-DECISION-01). Чертёж обязан быть виден ЦЕЛИКОМ:
+   object-fit: contain, не cover — обрезанный размер или штамп бесполезны.
+   Размеры листа заранее неизвестны, поэтому вписываем по обеим осям. */
+.case-blueprints__sheet {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 .case-blueprints__page-toolbar {
   display: none;       /* desktop: per-page тулбар скрыт, используется верхний */
-}
-
-/* v0.22.3 — Title-block HTML-оверлей: позиционируется по правому-нижнему
-   углу .case-blueprints__page-canvas (16px от краёв), не уезжает в SVG
-   letterbox на широких экранах. Визуал 1:1 со старой SVG-версией.
-   Для экспортированного .svg блок рендерится внутри SVG (см. buildBlueprintSVG
-   с forExport:true). */
-.case-blueprints__title-block {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  width: 320px;
-  max-width: calc(100% - 32px);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  z-index: 2;
-  pointer-events: none;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
-}
-.case-blueprints__title-block-top {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border);
-}
-.case-blueprints__title-block-bottom {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-}
-.case-blueprints__title-block-cell {
-  padding: 6px 12px;
-  border-left: 1px solid var(--color-border);
-  min-width: 0;
-}
-.case-blueprints__title-block-cell:first-child { border-left: none; }
-.case-blueprints__title-block-key {
-  display: block;
-  font-family: var(--font-body);
-  font-size: 8px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-text-faint);
-  line-height: 1.2;
-}
-.case-blueprints__title-block-project {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--color-primary);
-  margin-top: 4px;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.case-blueprints__title-block-val {
-  display: block;
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--color-text);
-  margin-top: 4px;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Pager overlay — стрелки + counter поверх canvas (desktop, при N>1). */
@@ -1121,124 +1068,6 @@
   user-select: none;
   font-variant-numeric: tabular-nums;
   z-index: 3;
-}
-
-/* Сетка */
-/* v0.13.8.3 GOLDEN — grid через токены (в light усилены для читаемости) */
-.blueprint__grid-minor { stroke: var(--bp-grid-minor); stroke-width: 0.5; fill: none; }
-.blueprint__grid-major { stroke: var(--bp-grid-major); stroke-width: 1;   fill: none; }
-
-/* Части — прямоугольники деталей */
-.blueprint__part {
-  fill: none;
-  stroke: var(--color-primary);
-  stroke-width: 1.2;
-  vector-effect: non-scaling-stroke;
-}
-.blueprint__part-label {
-  fill: var(--color-text-muted);
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Размерные линии */
-.blueprint__dim-line,
-.blueprint__dim-ext {
-  stroke: var(--color-text-muted);
-  stroke-width: 0.8;
-  fill: none;
-}
-.blueprint__dim-ext { stroke-dasharray: 2 3; opacity: 0.5; }
-.blueprint__dim-arrow { fill: var(--color-text-muted); stroke: none; }
-.blueprint__dim-label {
-  fill: var(--color-text);
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
-  text-anchor: middle;
-}
-.blueprint__dim-label-bg {
-  fill: var(--color-bg);
-}
-
-/* Коллауты — нумерованные аннотации */
-.blueprint__callout-leader {
-  stroke: var(--color-primary);
-  stroke-width: 0.8;
-  fill: none;
-}
-.blueprint__callout-circle {
-  fill: var(--color-bg);
-  stroke: var(--color-primary);
-  stroke-width: 1.2;
-}
-.blueprint__callout-num {
-  fill: var(--color-primary);
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 600;
-  text-anchor: middle;
-  dominant-baseline: central;
-  font-variant-numeric: tabular-nums;
-}
-.blueprint__callout-label {
-  fill: var(--color-text-muted);
-  font-family: var(--font-body);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/* Title block — правый нижний угол */
-.blueprint__title-block-frame {
-  fill: var(--color-surface);
-  stroke: var(--color-border);
-  stroke-width: 1;
-}
-.blueprint__title-block-divider {
-  stroke: var(--color-border);
-  stroke-width: 0.5;
-}
-.blueprint__title-block-key {
-  fill: var(--color-text-faint);
-  font-family: var(--font-body);
-  font-size: 8px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.blueprint__title-block-val {
-  fill: var(--color-text);
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
-}
-.blueprint__title-block-project {
-  fill: var(--color-primary);
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.blueprint__view-tag {
-  fill: var(--color-text-faint);
-  font-family: var(--font-body);
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
-/* Анимация раскрытия — управляется через JS, но базовое поведение в CSS */
-@media (prefers-reduced-motion: reduce) {
-  .case-blueprints svg * { animation: none !important; }
 }
 
 /* ═══════════════════════════════════
@@ -2003,30 +1832,6 @@
   /* Pager-overlay на mobile не нужен — заменяет native scroll */
   .case-blueprints__pager { display: none; }
 
-  /* v0.22.4 — mobile: title-block ~2.5× меньше (плашка с инфо не должна
-     перекрывать половину канваса). Сохраняем визуальный язык, режем
-     шрифты/паддинги/ширину пропорционально. */
-  .case-blueprints__title-block {
-    right: 8px;
-    bottom: 8px;
-    width: 132px;
-  }
-  .case-blueprints__title-block-top   { padding: 4px 6px; }
-  .case-blueprints__title-block-cell  { padding: 3px 6px; }
-  .case-blueprints__title-block-key {
-    font-size: 6px;
-    letter-spacing: 0.1em;
-  }
-  .case-blueprints__title-block-project {
-    font-size: 9px;
-    letter-spacing: 0.06em;
-    margin-top: 2px;
-  }
-  .case-blueprints__title-block-val {
-    font-size: 7px;
-    margin-top: 2px;
-  }
-
   /* Mobile (v0.11): 3D canvas — зеркальная логика с Blueprints */
   .case-3d { padding: 8px 0 16px; }
   .case-3d__canvas {
@@ -2295,8 +2100,7 @@
    с null rect, transform-остатки от FLIP). Теперь old+new естественно
    stack по центру → pure opacity crossfade без layout intervention. */
 .media-fs__stage > img,
-.media-fs__stage > video,
-.media-fs__stage > svg {
+.media-fs__stage > video {
   position: absolute;
   inset: 48px;
   margin: auto;
@@ -2322,8 +2126,7 @@
 }
 @media (max-width: 640px) {
   .media-fs__stage > img,
-  .media-fs__stage > video,
-  .media-fs__stage > svg {
+  .media-fs__stage > video {
     inset: 24px;
     max-width: calc(100% - 48px);
     max-height: calc(100% - 48px);

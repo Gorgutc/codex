@@ -769,6 +769,45 @@ textarea[disabled] {
   text-align: center;
 }
 
+/* Чертежи кейса (BP-DECISION-01/02). Тот же язык, что у полосы иллюстраций,
+   но колонка шире: в слот листа встаёт пара RU/EN подписи, а не только
+   drop-зона. Остальное (сама зона, ручка порядка, кнопка удаления) —
+   общие правила. */
+.blueprint-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0.9rem;
+}
+
+.blueprint-slot {
+  margin: 0;
+  position: relative;
+}
+
+.blueprint-slot > .reorder-bar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.blueprint-slot__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.blueprint-slot__remove {
+  align-self: flex-start;
+}
+
+.blueprint-slot figcaption {
+  font-size: 0.71875rem;
+  color: var(--a-faint);
+  margin-top: 0.25rem;
+  text-align: center;
+}
+
 /* Итерация F: ручка и кнопки порядка над слотом / motion-блоком */
 .media-slot > .reorder-bar {
   display: flex;
@@ -1249,6 +1288,10 @@ body.preview-open {
 
   .media-strip {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .blueprint-strip {
+    grid-template-columns: 1fr;
   }
 
   .media-warning {
