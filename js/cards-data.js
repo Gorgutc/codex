@@ -42,19 +42,49 @@ window.CARDS_DATA = {
         {
           type: 'image',
           format: 'wide',
-          src: './assets/cases/corten-series/02-e4a28f4d.png',
+          src: './assets/cases/corten-series/05-dc26ecf5.jpg',
+          bg: 'linear-gradient(135deg,#1e1410 0%,#2c2018 100%)',
+          label: 'Material passes',
+          desc: 'Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web.',
+          enabled: true
+        },
+        {
+          id: 'media-msbv5509',
+          type: 'image',
+          format: 'tall',
+          src: './assets/cases/corten-series/03-d35162b9.jpg',
+          bg: 'linear-gradient(135deg,#1e1410 0%,#2c2018 100%)',
+          label: '',
+          desc: '',
+          enabled: true
+        },
+        {
+          id: 'media-msbv5b5y',
+          type: 'image',
+          format: 'tall',
+          src: './assets/cases/corten-series/04-9dfa2fd8.jpg',
+          bg: 'linear-gradient(135deg,#1e1410 0%,#2c2018 100%)',
+          label: '',
+          desc: '',
+          enabled: true
+        },
+        {
+          type: 'image',
+          format: 'wide',
+          src: './assets/cases/corten-series/02-5598d4e4.jpg',
           bg: 'linear-gradient(135deg,#241a14 0%,#34281e 100%)',
           label: 'Context shot',
           desc: 'In-situ placement render in a concrete loft environment. Used as lead image for the launch deck.',
           enabled: true
         },
         {
+          id: 'media-msbvd19y',
           type: 'image',
-          format: 'wide',
-          src: './assets/cases/corten-series/03-e4a28f4d.png',
+          format: 'tall',
+          src: './assets/cases/corten-series/06-164177c7.jpg',
           bg: 'linear-gradient(135deg,#1e1410 0%,#2c2018 100%)',
-          label: 'Material passes',
-          desc: 'Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web.',
+          label: '',
+          desc: '',
           enabled: true
         },
         {

@@ -592,12 +592,24 @@
             "desc": "Product viz for an industrial furniture brand. Corten steel material, HDR studio lighting."
           },
           {
+            "label": "Material passes",
+            "desc": "Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web."
+          },
+          {
+            "label": "",
+            "desc": ""
+          },
+          {
+            "label": "",
+            "desc": ""
+          },
+          {
             "label": "Context shot",
             "desc": "In-situ placement render in a concrete loft environment. Used as lead image for the launch deck."
           },
           {
-            "label": "Material passes",
-            "desc": "Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web."
+            "label": "",
+            "desc": ""
           },
           {
             "label": "Material passes",
@@ -689,12 +701,24 @@
             "desc": "Product viz для бренда промышленной мебели. Материал — corten-сталь, HDR-свет студии."
           },
           {
+            "label": "Material passes",
+            "desc": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
+          },
+          {
+            "label": "",
+            "desc": ""
+          },
+          {
+            "label": "",
+            "desc": ""
+          },
+          {
             "label": "Context shot",
             "desc": "In-situ рендер в бетонном лофте. Использован как lead-image launch-deck."
           },
           {
-            "label": "Material passes",
-            "desc": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
+            "label": "",
+            "desc": ""
           },
           {
             "label": "Material passes",
