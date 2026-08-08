@@ -26,6 +26,20 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/pre-tool-guard.js\"",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"node (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/pre-tool-guard.js'); exit $LASTEXITCODE\"",
+            "timeout": 5,
+            "statusMessage": "Guarding generated Claude mirror"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "apply_patch|Edit|Write|MultiEdit",
