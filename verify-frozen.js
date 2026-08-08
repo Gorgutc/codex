@@ -25,13 +25,15 @@ const { chromium } = require('playwright');
 const { AxeBuilder } = require('@axe-core/playwright');
 const {
   GENERAL_MODEL_TIMEOUT_MS,
-  MODEL_RUNTIME_TIMEOUT_MS,
+  MODEL_RUNTIME_PHASE_TIMEOUT_MS,
+  MODEL_RUNTIME_WATCHDOG_MS,
   classifyContextLosses,
   classifyModelRuntime,
   consoleErrorForRuntime,
   firstPartyHttpFailure,
   generalModelPlan,
   lightweightPaginationPlan,
+  modelRuntimePhasePlan,
   modelRuntimeProblems,
   withAbsoluteDeadline
 } = require('./scripts/model-runtime-contract.cjs');
@@ -628,22 +630,55 @@ function runStaticChecks(assetAudit = null) {
   }
 }
 
-async function runHeaviestModelSmoke(page, observedErrors) {
+async function runHeaviestModelSmoke(page, observedErrors, startedAt, watchdogDeadlineAt) {
   const target = HEAVIEST_MODEL_CASE;
-  const targetIsOpen = await page.evaluate(expectedTitle =>
+  const beforeWatchdog = (operation, label) => withAbsoluteDeadline(
+    operation,
+    watchdogDeadlineAt,
+    `operational-watchdog: ${label}`,
+    MODEL_RUNTIME_WATCHDOG_MS
+  );
+  const startPhase = (phaseName) => {
+    const plan = modelRuntimePhasePlan(Date.now(), watchdogDeadlineAt);
+    const prefix = plan.kind === 'watchdog'
+      ? `operational-watchdog during ${phaseName}`
+      : `${phaseName} phase`;
+    return {
+      remainingMs(label) {
+        const remaining = plan.deadlineAt - Date.now();
+        if (remaining <= 0) {
+          throw new Error(`${prefix}: ${label}: absolute ${plan.timeoutMs} ms deadline exceeded`);
+        }
+        return remaining;
+      },
+      run(operation, label) {
+        return withAbsoluteDeadline(
+          operation,
+          plan.deadlineAt,
+          `${prefix}: ${label}`,
+          plan.timeoutMs
+        );
+      }
+    };
+  };
+
+  const targetIsOpen = await beforeWatchdog(() => page.evaluate(expectedTitle =>
     document.querySelector('#case-title')?.textContent?.includes(expectedTitle) || false,
-  cardTitleOf(target.caseId));
+  cardTitleOf(target.caseId)), 'heaviest case preflight');
   if (!targetIsOpen) {
-    await page.click(`.work-card[data-id="${target.caseId}"]`);
-    await page.waitForFunction(
+    await beforeWatchdog(
+      () => page.click(`.work-card[data-id="${target.caseId}"]`),
+      'heaviest case open'
+    );
+    await beforeWatchdog(() => page.waitForFunction(
       expectedTitle => document.querySelector('#case-title')?.textContent?.includes(expectedTitle),
       cardTitleOf(target.caseId)
-    );
+    ), 'heaviest case title');
   }
 
-  const before3DResources = await page.evaluate(() => performance.getEntriesByType('resource')
+  const before3DResources = await beforeWatchdog(() => page.evaluate(() => performance.getEntriesByType('resource')
     .map(entry => entry.name)
-    .filter(name => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr|\.glb/i.test(name)));
+    .filter(name => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr|\.glb/i.test(name))), 'lazy-resource preflight');
   add(
     'index',
     'CASE-3d-lazy-before-click',
@@ -652,19 +687,6 @@ async function runHeaviestModelSmoke(page, observedErrors) {
   );
 
   const expectedPathname = '/' + target.publicPath.replace(/^\.\//, '');
-  const startedAt = Date.now();
-  const deadlineAt = startedAt + MODEL_RUNTIME_TIMEOUT_MS;
-  const remainingMs = (label) => {
-    const remaining = deadlineAt - Date.now();
-    if (remaining <= 0) {
-      throw new Error(
-        `${label}: absolute ${MODEL_RUNTIME_TIMEOUT_MS} ms model runtime ceiling exceeded`
-      );
-    }
-    return remaining;
-  };
-  const beforeDeadline = (operation, label) =>
-    withAbsoluteDeadline(operation, deadlineAt, label);
   let exactResponse = null;
   let responseMs = null;
   let responseFinishedMs = null;
@@ -681,7 +703,7 @@ async function runHeaviestModelSmoke(page, observedErrors) {
   const errors = observedErrors || { pageErrors: [], consoleErrors: [] };
   let webglBefore = { loseContextCalls: 0, lostEvents: 0, restoredEvents: 0 };
   try {
-    webglBefore = await beforeDeadline(() => page.evaluate(() => {
+    webglBefore = await beforeWatchdog(() => page.evaluate(() => {
       const lifecycle = window.__codexWebglLifecycle;
       if (!lifecycle) throw new Error('WebGL lifecycle instrumentation unavailable');
       return {
@@ -695,34 +717,35 @@ async function runHeaviestModelSmoke(page, observedErrors) {
   }
 
   if (!runtimeError) try {
-    const responsePromise = beforeDeadline(() => page.waitForResponse(response => {
+    const loadPhase = startPhase('load-ready');
+    const responsePromise = loadPhase.run(() => page.waitForResponse(response => {
       try {
         return new URL(response.url()).pathname === expectedPathname;
       } catch (_error) {
         return false;
       }
-    }, { timeout: remainingMs('exact GLB response') }).then(async response => {
+    }, { timeout: loadPhase.remainingMs('exact GLB response') }).then(async response => {
       exactResponse = response;
       responseMs = Date.now() - startedAt;
       const status = response.status();
       if (status < 200 || status > 299) {
         throw new Error(`exact GLB response returned HTTP ${status}`);
       }
-      await beforeDeadline(() => response.finished(), 'exact GLB response body');
+      await loadPhase.run(() => response.finished(), 'exact GLB response body');
       responseFinishedMs = Date.now() - startedAt;
       return response;
     }), 'exact GLB response');
-    const readyPromise = beforeDeadline(() => page.waitForSelector(
+    const readyPromise = loadPhase.run(() => page.waitForSelector(
       '#case-3d-canvas.is-ready canvas.case-3d__three-canvas',
-      { timeout: remainingMs('heaviest model readiness') }
+      { timeout: loadPhase.remainingMs('heaviest model readiness') }
     ).then(result => {
       readyMs = Date.now() - startedAt;
       return result;
     }), 'heaviest model readiness');
-    const clickPromise = beforeDeadline(() => page.click('.case-tab[data-viz="3d"]', {
-      timeout: remainingMs('normal 3D tab click')
+    const clickPromise = loadPhase.run(() => page.click('.case-tab[data-viz="3d"]', {
+      timeout: loadPhase.remainingMs('normal 3D tab click')
     }), 'normal 3D tab click');
-    await beforeDeadline(
+    await loadPhase.run(
       Promise.all([responsePromise, readyPromise, clickPromise]),
       'GLB response and readiness'
     );
@@ -749,7 +772,7 @@ async function runHeaviestModelSmoke(page, observedErrors) {
 
   if (readyPassed) {
     try {
-      runtimeEnvironment = await beforeDeadline(() => page.evaluate(() => {
+      runtimeEnvironment = await beforeWatchdog(() => page.evaluate(() => {
         const canvas = document.querySelector(
           '#case-3d-canvas.is-ready canvas.case-3d__three-canvas'
         );
@@ -772,14 +795,15 @@ async function runHeaviestModelSmoke(page, observedErrors) {
     try {
       for (const mode of ['clay', 'xray', 'pbr']) {
         const modeStartedAt = Date.now();
-        await beforeDeadline(
+        const materialPhase = startPhase(`material-${mode}`);
+        await materialPhase.run(
           () => page.click(
             `.case-3d__mat-group [data-material-mode="${mode}"]`,
-            { timeout: remainingMs(`${mode} material click`) }
+            { timeout: materialPhase.remainingMs(`${mode} material click`) }
           ),
           `${mode} material click`
         );
-        await beforeDeadline(
+        await materialPhase.run(
           () => page.waitForFunction(expectedMode => {
             const active = document.querySelector('.case-3d__mat-group [data-material-mode].is-on');
             const expected = document.querySelector(
@@ -787,10 +811,10 @@ async function runHeaviestModelSmoke(page, observedErrors) {
             );
             return active?.dataset.materialMode === expectedMode &&
               expected?.getAttribute('aria-pressed') === 'true';
-          }, mode, { timeout: remainingMs(`${mode} material state`) }),
+          }, mode, { timeout: materialPhase.remainingMs(`${mode} material state`) }),
           `${mode} material state`
         );
-        materialStates.push(await beforeDeadline(() => page.evaluate(expectedMode => ({
+        materialStates.push(await materialPhase.run(() => page.evaluate(expectedMode => ({
           expected: expectedMode,
           active: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
           aria: document.querySelector(
@@ -813,7 +837,8 @@ async function runHeaviestModelSmoke(page, observedErrors) {
 
   let webglLifecycle = { intentionalReleases: 0, unexpectedLosses: [], restoredEvents: 0 };
   try {
-    const lifecycle = await beforeDeadline(() => page.evaluate(() => {
+    const lifecyclePhase = startPhase('final-lifecycle');
+    const lifecycle = await lifecyclePhase.run(() => page.evaluate(() => {
       const lifecycle = window.__codexWebglLifecycle;
       if (!lifecycle) throw new Error('WebGL lifecycle instrumentation unavailable');
       return {
@@ -855,6 +880,7 @@ async function runHeaviestModelSmoke(page, observedErrors) {
     (runtimeEnvironment.error ? `, rendererError=${runtimeEnvironment.error}` : '');
   const runtimeDetail =
     `${readyDetail}, ${environmentDetail}, materials=${materialTimings}, totalMs=${totalMs}, ` +
+    `phaseTimeoutMs=${MODEL_RUNTIME_PHASE_TIMEOUT_MS}, watchdogMs=${MODEL_RUNTIME_WATCHDOG_MS}, ` +
     `intentionalContextReleases=${webglLifecycle.intentionalReleases}, ` +
     `contextLosses=${contextLosses}, restoredEvents=${webglLifecycle.restoredEvents}, ` +
     `performance=${performance}` +
@@ -952,9 +978,21 @@ async function runDedicatedHeaviestModelSmoke(page, baseUrl) {
   page.on('pageerror', onPageError);
   page.on('console', onConsole);
   page.on('response', onResponse);
+  const startedAt = Date.now();
+  const watchdogDeadlineAt = startedAt + MODEL_RUNTIME_WATCHDOG_MS;
   try {
-    await page.goto(`${baseUrl}/index.html`, { waitUntil: 'networkidle', timeout: 30_000 });
-    return await runHeaviestModelSmoke(page, observedErrors);
+    await withAbsoluteDeadline(
+      () => page.goto(`${baseUrl}/index.html`, { waitUntil: 'networkidle', timeout: 30_000 }),
+      watchdogDeadlineAt,
+      'operational-watchdog: dedicated page navigation',
+      MODEL_RUNTIME_WATCHDOG_MS
+    );
+    return await runHeaviestModelSmoke(
+      page,
+      observedErrors,
+      startedAt,
+      watchdogDeadlineAt
+    );
   } catch (error) {
     if (error.codexModelResultRecorded) throw error;
     const detail =
@@ -979,6 +1017,7 @@ async function runDedicatedHeaviestModelSmoke(page, baseUrl) {
 async function testIndex(BASE) {
   console.log(`\n=== index.html · Desktop 1440×900 ===`);
   const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  try {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, hasTouch: false });
   await ctx.addInitScript(() => {
     const lifecycle = {
@@ -1583,7 +1622,6 @@ async function testIndex(BASE) {
       );
     } catch (error) {
       add('index', 'CASE-3d-pagination-transition-cover', false, error.message);
-      await browser.close().catch(() => {});
       throw error;
     }
     const transitionFrames = pagination3D.states.filter(state => !state.label.endsWith('-before') && !state.ready);
@@ -1860,7 +1898,7 @@ async function testIndex(BASE) {
   try {
     modelRuntime = await runDedicatedHeaviestModelSmoke(heavyPage, BASE);
   } finally {
-    await heavyPage.close();
+    await heavyPage.close().catch(() => {});
   }
   const materialStates = modelRuntime.materialStates;
   const materialSwitchOK = materialStates.every(state =>
@@ -1877,7 +1915,9 @@ async function testIndex(BASE) {
   const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|jsdelivr|fontshare|cloudflare)/i.test(e));
   add('index', 'CONSOLE-no-internal-errors', internalErrors.length === 0, internalErrors.slice(0,2).join(' | ') || 'clean');
 
-  await browser.close();
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

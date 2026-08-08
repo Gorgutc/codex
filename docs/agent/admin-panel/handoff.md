@@ -1587,3 +1587,31 @@ primary page с WebGL-контекстами открытой. Dedicated-сце�
 с `contextLosses=0` и буквальным `PERF_WARN`. Контракт остаётся `<=120,000` /
 `(120,000,210,000]` / `>210,000`; окончательная приёмка всё ещё требует зелёный
 `quality` на точном новом head PR #73.
+
+## 2026-08-08 — superseding addendum: phase timeout и operational watchdog
+
+Предыдущий addendum с единым ceiling 210,000 ms остаётся историей промежуточного
+решения, но superseded чистым Linux-измерением и данным ранее разрешением
+владельца пересмотреть runtime-границу после фактического замера.
+
+В exact-head run `31274544296` lightweight pagination прошла все девять
+переходов и lifecycle `9/0/0/0`. Внешний GLB закончил response/body за
+3,168/3,259 ms; `Linux x86_64` + `SwiftShader` достиг ready за 74,475 ms,
+Clay/Xray — за 81,919/33,010 ms, при `contextLosses=0`. Единый 210,000 ms
+deadline истёк во время обычного PBR click: network, byte gate, pagination и
+orphan cleanup уже не были причиной.
+
+Текущий контракт разделяет performance и operability:
+
+- `MODEL_RUNTIME_TARGET_MS = 120,000`: завершённый более медленный сценарий
+  получает буквальный `PERF_WARN`;
+- `MODEL_RUNTIME_PHASE_TIMEOUT_MS = 120,000`: load/readiness и каждый
+  Clay/Xray/PBR переход имеют один общий budget на click/state/snapshot;
+- `MODEL_RUNTIME_WATCHDOG_MS = 360,000`: один anti-hang deadline до финального
+  lifecycle snapshot; каждая phase обрезается этим watchdog;
+- любой phase/watchdog timeout и любое non-time нарушение падают без retry.
+
+Byte policy не меняется: GLB warning-free до 25 MiB включительно, advisory до
+50 MiB включительно и block только выше 50 MiB. Shipped viewer/model также не
+меняются. Финальная приёмка требует полный PBR, `contextLosses=0`, `PERF_WARN`
+и зелёный exact-head Linux `quality`.

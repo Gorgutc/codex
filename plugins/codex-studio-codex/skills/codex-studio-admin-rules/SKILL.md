@@ -77,9 +77,11 @@ rules.
 - Both case-editor and Free Assets model hints derive their 25/50 MiB values
   from `State.getMediaRule('model')`; do not add another numeric UI mirror.
 - Passing the upload byte gate does not prove 3D operability. Refer to
-  `docs/agent/verification.md` for the mandatory 120/210-second runtime gate,
+  `docs/agent/verification.md` for the 120-second performance target,
+  120-second functional phase deadlines, 360-second operational watchdog,
   smallest-model generic check, adjacent non-heaviest pagination pair, and
-  external heaviest-model proof after the primary page closes.
+  external heaviest-model proof after the primary page closes. Timeouts never
+  weaken the exact response, state, error, or context-loss assertions.
 
 ### Upload mechanics
 

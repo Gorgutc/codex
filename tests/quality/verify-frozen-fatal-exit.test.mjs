@@ -16,16 +16,22 @@ try {
   const contractSource = readFileSync(contractPath, 'utf8');
   const verifierRuntimeContract = [
     [/require\('\.\/scripts\/model-runtime-contract\.cjs'\)/, 'shared model runtime contract import'],
-    [/withAbsoluteDeadline\(operation, deadlineAt, label\)/, 'lazy absolute model runtime watchdog call'],
+    [/const beforeWatchdog = \(operation, label\) => withAbsoluteDeadline\(\s*operation,\s*watchdogDeadlineAt/, 'lazy absolute model runtime watchdog call'],
     [/async function runDedicatedHeaviestModelSmoke/, 'dedicated heaviest-model error boundary'],
+    [/const startedAt = Date\.now\(\);\s*const watchdogDeadlineAt = startedAt \+ MODEL_RUNTIME_WATCHDOG_MS;[\s\S]*?withAbsoluteDeadline\(\s*\(\) => page\.goto/, 'whole-scenario watchdog starts before dedicated navigation'],
+    [/runHeaviestModelSmoke\(page, observedErrors, startedAt, watchdogDeadlineAt\)/, 'whole-scenario watchdog is shared with the runtime phases'],
     [/firstPartyHttpFailure\(response\.url\(\), response\.status\(\), baseUrl\)/, 'first-party HTTP failure classifier call'],
     [/page\.on\('response', onResponse\)/, 'first-party response listener wiring'],
     [/classifyModelRuntime\(totalMs\)\.label/, 'runtime performance classification call'],
     [/await page\.close\(\);\s*const heavyPage = await ctx\.newPage\(\)/, 'primary-page isolation before the heaviest model'],
     [/lightweightPaginationPlan\([\s\S]*?GENERAL_MODEL_CASE\.caseId,[\s\S]*?HEAVIEST_MODEL_CASE\.caseId/, 'lightweight pagination plan call'],
-    [/beforeDeadline\(\s*Promise\.all\(\[responsePromise, readyPromise, clickPromise\]\)/, 'already-observed heaviest readiness aggregate'],
+    [/loadPhase\.run\(\s*Promise\.all\(\[responsePromise, readyPromise, clickPromise\]\)/, 'already-observed heaviest readiness aggregate'],
+    [/modelRuntimePhasePlan\(Date\.now\(\), watchdogDeadlineAt\)/, 'shared dedicated phase deadline planning'],
+    [/load-ready/, 'named load/readiness phase'],
+    [/material-\$\{mode\}/, 'named material phases'],
     [/withAbsoluteDeadline\(\s*\(\) => page\.evaluate\([\s\S]*?'pagination transition cover',[\s\S]*?GENERAL_MODEL_TIMEOUT_MS\s*\)/, 'absolute pagination wall-clock watchdog'],
     [/expectedSteps: paginationExpectedSteps/, 'per-step lightweight pagination targets'],
+    [/finally \{\s*await browser\.close\(\)\.catch\(\(\) => \{\}\);\s*\}/, 'index browser cleanup on every exit'],
     [/modelRuntime = await runDedicatedHeaviestModelSmoke\(heavyPage, BASE\)/, 'dedicated heaviest-model call site'],
     [/CASE-3d-heaviest-model-runtime/, 'named heaviest-model runtime result'],
     [/const status = response\.status\(\);\s*if \(status < 200 \|\| status > 299\)/, 'immediate exact-GLB non-2xx rejection']
@@ -38,9 +44,11 @@ try {
 
   const sharedRuntimeContract = [
     [/MODEL_RUNTIME_TARGET_MS = 120_000/, '120-second runtime target'],
-    [/MODEL_RUNTIME_TIMEOUT_MS = 210_000/, '210-second runtime ceiling'],
+    [/MODEL_RUNTIME_PHASE_TIMEOUT_MS = 120_000/, '120-second functional phase timeout'],
+    [/MODEL_RUNTIME_WATCHDOG_MS = 360_000/, '360-second operational watchdog'],
     [/label: 'PERF_WARN'/, 'explicit model runtime performance warning'],
     [/typeof operation === 'function' \? operation\(\) : operation/, 'lazy deadline operation factory'],
+    [/function modelRuntimePhasePlan/, 'shared runtime phase planner'],
     [/function lightweightPaginationPlan/, 'lightweight pagination planner']
   ];
   for (const [pattern, description] of sharedRuntimeContract) {
@@ -50,10 +58,21 @@ try {
   }
 
   const heaviestSmoke = source.match(
-    /async function runHeaviestModelSmoke\(page, observedErrors\) \{[\s\S]*?\n\}/
+    /async function runHeaviestModelSmoke\(page, observedErrors, startedAt, watchdogDeadlineAt\) \{[\s\S]*?\n\}/
   )?.[0] || '';
-  if (/force\s*:\s*true|dispatchEvent\s*\(\s*new MouseEvent/.test(heaviestSmoke)) {
+  if (!heaviestSmoke) {
+    throw new Error('Heaviest-model runtime smoke extraction failed closed.');
+  }
+  const forbiddenSyntheticClick = /force\s*:\s*true|dispatchEvent\s*\(\s*new MouseEvent/;
+  if (forbiddenSyntheticClick.test(heaviestSmoke)) {
     throw new Error('Heaviest-model runtime smoke must use normal Playwright clicks.');
+  }
+  const forcedClickMutation = heaviestSmoke.replace(
+    'const target = HEAVIEST_MODEL_CASE;',
+    'const target = HEAVIEST_MODEL_CASE;\n  const forbiddenMutation = { force: true };'
+  );
+  if (forcedClickMutation === heaviestSmoke || !forbiddenSyntheticClick.test(forcedClickMutation)) {
+    throw new Error('Heaviest-model synthetic-click regression guard is not mutation-sensitive.');
   }
 
   const browserPhase =

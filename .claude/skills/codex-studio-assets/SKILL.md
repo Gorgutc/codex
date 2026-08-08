@@ -45,10 +45,12 @@ A warning-free model is not runtime-approved by size alone. In `npm run verify`:
   requires an exact 2xx GLB response and normal Clay/Xray/PBR interactions, and
   starts only after the primary page closes and closes only after the verified
   return to PBR;
-- one absolute deadline covers the complete heaviest-model scenario:
-  `<= 120,000 ms` passes, `(120,000, 210,000] ms` passes with literal
-  `PERF_WARN`, and `> 210,000 ms` fails. It is not a per-phase timeout or a UX
-  performance SLA.
+- `120,000 ms` is the total-scenario performance target; a slower completed
+  scenario passes with literal `PERF_WARN`. Load/readiness and each
+  Clay/Xray/PBR transition have one shared `120,000 ms` functional phase
+  deadline, while a `360,000 ms` operational watchdog bounds the complete
+  dedicated scenario through lifecycle proof. Any phase/watchdog timeout fails
+  without retry. The watchdog is CI anti-hang protection, not a UX SLA.
 
 Run `npm run check:assets` after asset additions or reference changes. Run
 `npm run verify` after asset-reference changes in shipped HTML/CSS/JS or any

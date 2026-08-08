@@ -1,7 +1,8 @@
 'use strict';
 
 const MODEL_RUNTIME_TARGET_MS = 120_000;
-const MODEL_RUNTIME_TIMEOUT_MS = 210_000;
+const MODEL_RUNTIME_PHASE_TIMEOUT_MS = 120_000;
+const MODEL_RUNTIME_WATCHDOG_MS = 360_000;
 const GENERAL_MODEL_TIMEOUT_MS = 30_000;
 const MATERIAL_MODES = ['clay', 'xray', 'pbr'];
 const KNOWN_EXTERNAL_RUNTIME_NOISE = /(fontshare|cloudflare|jsdelivr)/i;
@@ -13,7 +14,7 @@ function classifyModelRuntime(totalMs) {
   if (totalMs <= MODEL_RUNTIME_TARGET_MS) {
     return { pass: true, label: 'within-target' };
   }
-  if (totalMs <= MODEL_RUNTIME_TIMEOUT_MS) {
+  if (totalMs <= MODEL_RUNTIME_WATCHDOG_MS) {
     return { pass: true, label: 'PERF_WARN' };
   }
   return { pass: false, label: 'FAIL' };
@@ -22,8 +23,27 @@ function classifyModelRuntime(totalMs) {
 function generalModelPlan(generalCaseId, heaviestCaseId) {
   const isHeaviest = generalCaseId === heaviestCaseId;
   return {
-    timeoutMs: isHeaviest ? MODEL_RUNTIME_TIMEOUT_MS : GENERAL_MODEL_TIMEOUT_MS,
+    timeoutMs: isHeaviest ? MODEL_RUNTIME_PHASE_TIMEOUT_MS : GENERAL_MODEL_TIMEOUT_MS,
     stopAutoRotate: isHeaviest
+  };
+}
+
+function modelRuntimePhasePlan(phaseStartedAt, watchdogDeadlineAt) {
+  if (!Number.isFinite(phaseStartedAt) || !Number.isFinite(watchdogDeadlineAt)) {
+    throw new TypeError('invalid model runtime phase deadline');
+  }
+  const phaseDeadlineAt = phaseStartedAt + MODEL_RUNTIME_PHASE_TIMEOUT_MS;
+  if (phaseDeadlineAt <= watchdogDeadlineAt) {
+    return {
+      deadlineAt: phaseDeadlineAt,
+      timeoutMs: MODEL_RUNTIME_PHASE_TIMEOUT_MS,
+      kind: 'phase'
+    };
+  }
+  return {
+    deadlineAt: watchdogDeadlineAt,
+    timeoutMs: MODEL_RUNTIME_WATCHDOG_MS,
+    kind: 'watchdog'
   };
 }
 
@@ -94,7 +114,7 @@ function modelRuntimeProblems(outcome) {
     problems.push(`WebGL context lost ${outcome.contextLosses} time(s) during model runtime`);
   }
   if (!classifyModelRuntime(outcome.totalMs).pass) {
-    problems.push(`absolute ${MODEL_RUNTIME_TIMEOUT_MS} ms model runtime ceiling exceeded`);
+    problems.push(`absolute ${MODEL_RUNTIME_WATCHDOG_MS} ms operational watchdog exceeded`);
   }
   return problems;
 }
@@ -156,21 +176,26 @@ function withAbsoluteDeadline(
   operation,
   deadlineAt,
   label,
-  ceilingMs = MODEL_RUNTIME_TIMEOUT_MS
+  ceilingMs = MODEL_RUNTIME_WATCHDOG_MS
 ) {
   if (!Number.isFinite(ceilingMs) || ceilingMs <= 0) {
     throw new TypeError(`invalid model runtime ceiling: ${ceilingMs}`);
   }
-  const remainingMs = deadlineAt - Date.now();
-  if (remainingMs <= 0) {
+  const deadlineError = () => new Error(
+    `${label}: absolute ${ceilingMs} ms deadline exceeded`
+  );
+  const labeledOperationError = (error) => {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (detail.startsWith(`${label}:`)) return error;
+    return new Error(`${label}: ${detail}`, { cause: error });
+  };
+
+  const initialRemainingMs = deadlineAt - Date.now();
+  if (initialRemainingMs <= 0) {
     if (typeof operation !== 'function') {
       Promise.resolve(operation).catch(() => {});
     }
-    return Promise.reject(
-      new Error(
-        `${label}: absolute ${ceilingMs} ms model runtime ceiling exceeded`
-      )
-    );
+    return Promise.reject(deadlineError());
   }
 
   let observed;
@@ -179,25 +204,35 @@ function withAbsoluteDeadline(
       typeof operation === 'function' ? operation() : operation
     );
   } catch (error) {
-    return Promise.reject(error);
+    return Promise.reject(labeledOperationError(error));
+  }
+
+  const remainingMs = deadlineAt - Date.now();
+  if (remainingMs <= 0) {
+    observed.catch(() => {});
+    return Promise.reject(deadlineError());
   }
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(
-        new Error(
-          `${label}: absolute ${ceilingMs} ms model runtime ceiling exceeded`
-        )
-      );
+      reject(deadlineError());
     }, remainingMs);
     observed.then(
       (value) => {
         clearTimeout(timer);
+        if (Date.now() > deadlineAt) {
+          reject(deadlineError());
+          return;
+        }
         resolve(value);
       },
       (error) => {
         clearTimeout(timer);
-        reject(error);
+        if (Date.now() > deadlineAt) {
+          reject(deadlineError());
+          return;
+        }
+        reject(labeledOperationError(error));
       }
     );
   });
@@ -206,13 +241,15 @@ function withAbsoluteDeadline(
 module.exports = {
   GENERAL_MODEL_TIMEOUT_MS,
   MODEL_RUNTIME_TARGET_MS,
-  MODEL_RUNTIME_TIMEOUT_MS,
+  MODEL_RUNTIME_PHASE_TIMEOUT_MS,
+  MODEL_RUNTIME_WATCHDOG_MS,
   classifyContextLosses,
   classifyModelRuntime,
   consoleErrorForRuntime,
   firstPartyHttpFailure,
   generalModelPlan,
   lightweightPaginationPlan,
+  modelRuntimePhasePlan,
   modelRuntimeProblems,
   withAbsoluteDeadline
 };

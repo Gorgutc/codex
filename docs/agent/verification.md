@@ -54,16 +54,26 @@ heaviest-model acceptance starts last on a dedicated normal-motion page. That
 acceptance requires an exact 2xx GLB response and normal Clay/Xray/PBR
 interactions and closes its page only after the verified return to PBR.
 
-One absolute deadline covers that complete heaviest-model scenario, not each
-phase separately:
+Performance and operability are separate contracts:
 
-- `<= 120,000 ms`: pass within target;
-- `(120,000, 210,000] ms`: pass with the literal marker `PERF_WARN`;
-- `> 210,000 ms`: fail as a runtime/model blocker.
+- a completed scenario at `<= 120,000 ms` passes within target;
+- a completed scenario in `(120,000, 360,000] ms` passes with the literal
+  marker `PERF_WARN`;
+- the load/readiness phase and each Clay/Xray/PBR phase have their own absolute
+  `120,000 ms` functional deadline; each click, state wait, and snapshot shares
+  one phase budget rather than restarting it;
+- one `360,000 ms` operational watchdog covers the whole dedicated scenario
+  through the final lifecycle snapshot. Every phase deadline is clipped by it.
+
+Any phase timeout or operational-watchdog timeout fails without retry, even if
+the elapsed total would otherwise only be advisory. The generic lightweight
+viewer and pagination keep their separate 30-second deadline; a same-model
+generic readiness fallback uses the 120-second phase deadline, never the
+360-second watchdog.
 
 Non-2xx response, missing readiness, wrong material state, page or console
 error, and unexpected WebGL context loss fail regardless of elapsed time. The
-210-second ceiling is CI-operability headroom, not an end-user performance SLA.
+360-second watchdog is CI anti-hang headroom, not an end-user performance SLA.
 
 ## Related Gates
 

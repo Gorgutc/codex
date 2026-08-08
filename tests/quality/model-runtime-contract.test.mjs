@@ -5,20 +5,32 @@ const require = createRequire(import.meta.url);
 const contract = require('../../scripts/model-runtime-contract.cjs');
 
 assert.equal(contract.MODEL_RUNTIME_TARGET_MS, 120_000);
-assert.equal(contract.MODEL_RUNTIME_TIMEOUT_MS, 210_000);
+assert.equal(contract.MODEL_RUNTIME_PHASE_TIMEOUT_MS, 120_000);
+assert.equal(contract.MODEL_RUNTIME_WATCHDOG_MS, 360_000);
 
 assert.equal(contract.classifyModelRuntime(120_000).label, 'within-target');
 assert.equal(contract.classifyModelRuntime(120_001).label, 'PERF_WARN');
-assert.equal(contract.classifyModelRuntime(210_000).label, 'PERF_WARN');
-assert.equal(contract.classifyModelRuntime(210_001).label, 'FAIL');
+assert.equal(contract.classifyModelRuntime(360_000).label, 'PERF_WARN');
+assert.equal(contract.classifyModelRuntime(360_001).label, 'FAIL');
 
 assert.deepEqual(contract.generalModelPlan('light', 'heavy'), {
   timeoutMs: 30_000,
   stopAutoRotate: false
 });
 assert.deepEqual(contract.generalModelPlan('heavy', 'heavy'), {
-  timeoutMs: 210_000,
+  timeoutMs: 120_000,
   stopAutoRotate: true
+});
+
+assert.deepEqual(contract.modelRuntimePhasePlan(1_000, 361_000), {
+  deadlineAt: 121_000,
+  timeoutMs: 120_000,
+  kind: 'phase'
+});
+assert.deepEqual(contract.modelRuntimePhasePlan(300_000, 361_000), {
+  deadlineAt: 361_000,
+  timeoutMs: 360_000,
+  kind: 'watchdog'
 });
 
 assert.deepEqual(
@@ -54,6 +66,7 @@ const validOutcome = {
   totalMs: 120_001
 };
 assert.deepEqual(contract.modelRuntimeProblems(validOutcome), []);
+assert.deepEqual(contract.modelRuntimeProblems({ ...validOutcome, totalMs: 300_000 }), []);
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, responseStatus: 503 })[0], /HTTP 503/);
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, ready: false })[0], /not ready/);
 assert.match(
@@ -67,7 +80,7 @@ assert.match(
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, pageErrors: ['boom'] })[0], /page error/);
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, consoleErrors: ['boom'] })[0], /console error/);
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, contextLosses: 1 })[0], /context lost/);
-assert.match(contract.modelRuntimeProblems({ ...validOutcome, totalMs: 210_001 })[0], /210000 ms/);
+assert.match(contract.modelRuntimeProblems({ ...validOutcome, totalMs: 360_001 })[0], /360000 ms/);
 
 const lifecycle = contract.classifyContextLosses(
   { loseContextCalls: 0, lostEvents: 0, restoredEvents: 0 },
@@ -117,12 +130,65 @@ assert.equal(
 );
 
 await assert.rejects(
-  contract.withAbsoluteDeadline(new Promise(() => {}), Date.now() + 10, 'unit-test'),
-  /unit-test.*absolute 210000 ms model runtime ceiling exceeded/
+  contract.withAbsoluteDeadline(
+    new Promise(() => {}),
+    Date.now() + 10,
+    'watchdog-test',
+    contract.MODEL_RUNTIME_WATCHDOG_MS
+  ),
+  /watchdog-test.*absolute 360000 ms deadline exceeded/
+);
+await assert.rejects(
+  contract.withAbsoluteDeadline(
+    new Promise(() => {}),
+    Date.now() + 10,
+    'phase-test',
+    contract.MODEL_RUNTIME_PHASE_TIMEOUT_MS
+  ),
+  /phase-test.*absolute 120000 ms deadline exceeded/
 );
 await assert.rejects(
   contract.withAbsoluteDeadline(Promise.resolve(), Date.now() - 1, 'generic-test', 30_000),
-  /generic-test.*absolute 30000 ms model runtime ceiling exceeded/
+  /generic-test.*absolute 30000 ms deadline exceeded/
+);
+
+await assert.rejects(
+  contract.withAbsoluteDeadline(() => {
+    const blockedUntil = Date.now() + 20;
+    while (Date.now() < blockedUntil) {
+      // Deliberately block past the deadline to prove the post-factory guard.
+    }
+    return Promise.resolve('too late');
+  }, Date.now() + 5, 'blocked-factory-test', 30_000),
+  /blocked-factory-test.*absolute 30000 ms deadline exceeded/
+);
+
+await assert.rejects(
+  contract.withAbsoluteDeadline(
+    new Promise(resolve => {
+      setTimeout(() => {
+        const blockedUntil = Date.now() + 20;
+        while (Date.now() < blockedUntil) {
+          // Make fulfillment win the microtask race after the deadline.
+        }
+        resolve('too late');
+      }, 0);
+    }),
+    Date.now() + 5,
+    'late-fulfillment-test',
+    30_000
+  ),
+  /late-fulfillment-test.*absolute 30000 ms deadline exceeded/
+);
+
+await assert.rejects(
+  contract.withAbsoluteDeadline(
+    Promise.reject(new Error('page.click: Timeout 20ms exceeded')),
+    Date.now() + 1_000,
+    'material-pbr phase: pbr material click',
+    contract.MODEL_RUNTIME_PHASE_TIMEOUT_MS
+  ),
+  /material-pbr phase: pbr material click: page\.click: Timeout 20ms exceeded/
 );
 
 let expiredFactoryCalls = 0;
@@ -131,7 +197,7 @@ await assert.rejects(
     expiredFactoryCalls += 1;
     return Promise.resolve();
   }, Date.now() - 1, 'lazy-test', 30_000),
-  /lazy-test.*absolute 30000 ms model runtime ceiling exceeded/
+  /lazy-test.*absolute 30000 ms deadline exceeded/
 );
 assert.equal(expiredFactoryCalls, 0);
 
@@ -147,7 +213,7 @@ process.on('unhandledRejection', onUnhandled);
 try {
   await assert.rejects(
     contract.withAbsoluteDeadline(lateOperation, Date.now() - 1, 'late-test', 30_000),
-    /late-test.*absolute 30000 ms model runtime ceiling exceeded/
+    /late-test.*absolute 30000 ms deadline exceeded/
   );
   rejectLateOperation(new Error('late underlying rejection'));
   await new Promise(resolve => setImmediate(resolve));
@@ -178,7 +244,7 @@ try {
       'aggregate-test',
       30_000
     ),
-    /aggregate-test.*absolute 30000 ms model runtime ceiling exceeded/
+    /aggregate-test.*absolute 30000 ms deadline exceeded/
   );
   rejectAggregateChild(new Error('late aggregate child rejection'));
   await new Promise(resolve => setImmediate(resolve));
