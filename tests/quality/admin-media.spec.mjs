@@ -44,6 +44,14 @@ const SVG_BUFFER = Buffer.from(
   'utf8'
 );
 
+function svgOfSize(bytes) {
+  const prefix = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><!--';
+  const suffix = '--></svg>';
+  const padding = bytes - Buffer.byteLength(prefix + suffix);
+  if (padding < 0) throw new Error(`SVG fixture size ${bytes} is too small`);
+  return Buffer.from(prefix + 'x'.repeat(padding) + suffix, 'utf8');
+}
+
 const ctx = startStaticServer();
 
 async function openCaseEditor(page) {
@@ -79,6 +87,16 @@ test('замена миниатюры и GLB: hash-пути, бинарные bl
     window.ADMIN_POLL_TIMEOUT_MS = 3000;
   });
   await openCaseEditor(page);
+
+  const modelRule = await page.evaluate(() => window.AdminState.getMediaRule('model'));
+  expect(modelRule.warnBytes).toBe(25 * MB);
+  expect(modelRule.blockBytes).toBe(50 * MB);
+  expect(modelRule.warnText).toContain('25 МБ');
+  expect(modelRule.blockText).toContain('50 МБ');
+  const modelZone = page.locator('.drop-zone-field', { has: page.locator(MODEL_INPUT) });
+  await expect(modelZone.locator('.hint')).toHaveText(
+    'Только GLB · до 25 МБ (жёсткий предел 50 МБ)'
+  );
 
   const cardSection = page.locator('.editor-section', { hasText: 'Карточка в списке работ' });
   await expect(cardSection.locator('.drop-zone__badge')).toBeHidden();
@@ -161,12 +179,29 @@ test('vimeo: URL парсится в ID, мусорный ввод блокир�
   await expect(page.locator('.field-error-msg').first()).toContainText('Vimeo ID должен состоять только из цифр');
 });
 
-test('изображение тяжелее жёсткого лимита блокируется русским сообщением', async ({ page }) => {
+test('изображение ровно на жёстком лимите принимается', async ({ page }) => {
   await mockGitHub(page);
   await openCaseEditor(page);
 
   const rasterBlock = ASSET_BUDGETS.raster.failBytes;
-  const oversize = Buffer.alloc(rasterBlock + 1024, 7);
+  await page.setInputFiles(THUMB_INPUT, {
+    name: 'exact-limit.png',
+    mimeType: 'image/png',
+    buffer: Buffer.alloc(rasterBlock, 7)
+  });
+
+  const cardSection = page.locator('.editor-section', { hasText: 'Карточка в списке работ' });
+  await expect(cardSection.locator('.drop-zone__badge')).toBeVisible();
+  await expect(page.locator('#draft-indicator')).toBeVisible();
+  await expect(page.locator('.toast--error')).toHaveCount(0);
+});
+
+test('изображение на байт тяжелее жёсткого лимита блокируется русским сообщением', async ({ page }) => {
+  await mockGitHub(page);
+  await openCaseEditor(page);
+
+  const rasterBlock = ASSET_BUDGETS.raster.failBytes;
+  const oversize = Buffer.alloc(rasterBlock + 1, 7);
   await page.setInputFiles(THUMB_INPUT, { name: 'huge.png', mimeType: 'image/png', buffer: oversize });
 
   await expect(page.locator('.toast--error')).toContainText('Файл слишком большой');
@@ -177,28 +212,35 @@ test('изображение тяжелее жёсткого лимита бло
   await expect(page.locator('#draft-indicator')).toBeHidden();
 });
 
-/* ASSET-BUDGET-01: SVG shares the image upload slot but NOT its budget — a
- * raster pasted into an .svg as base64 passes every extension check in the
- * stack, so the vector class fails 4x earlier. This asserts the per-extension
- * hard limit (MEDIA_RULES.blockBytesByExt) actually fires: the fixture sits
- * UNDER the raster limit and would have been accepted before. */
-test('SVG тяжелее векторного лимита блокируется, оставаясь под растровым', async ({ page }) => {
+/* ASSET-BUDGET-01: vector and raster currently share the 2 MiB hard stop.
+ * Their independent boundaries stay explicit so neither class can drift just
+ * to satisfy a cross-class ordering premise. */
+test('SVG ровно на собственном жёстком лимите принимается', async ({ page }) => {
   await mockGitHub(page);
   await openCaseEditor(page);
 
   const vectorBlock = ASSET_BUDGETS.vector.failBytes;
-  const rasterBlock = ASSET_BUDGETS.raster.failBytes;
-  expect(vectorBlock).toBeLessThan(rasterBlock); // иначе сценарий ничего не доказывает
-  const svg = Buffer.from(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><!--' + 'x'.repeat(vectorBlock + 1024) + '--></svg>',
-    'utf8'
-  );
-  expect(svg.length).toBeGreaterThan(vectorBlock);
-  expect(svg.length).toBeLessThan(rasterBlock);
-  await page.setInputFiles(THUMB_INPUT, { name: 'huge.svg', mimeType: 'image/svg+xml', buffer: svg });
+  const svg = svgOfSize(vectorBlock);
+  expect(svg).toHaveLength(vectorBlock);
+  await page.setInputFiles(THUMB_INPUT, { name: 'exact-limit.svg', mimeType: 'image/svg+xml', buffer: svg });
+
+  const cardSection = page.locator('.editor-section', { hasText: 'Карточка в списке работ' });
+  await expect(cardSection.locator('.drop-zone__badge')).toBeVisible();
+  await expect(page.locator('#draft-indicator')).toBeVisible();
+  await expect(page.locator('.toast--error')).toHaveCount(0);
+});
+
+test('SVG на байт тяжелее собственного жёсткого лимита блокируется', async ({ page }) => {
+  await mockGitHub(page);
+  await openCaseEditor(page);
+
+  const vectorBlock = ASSET_BUDGETS.vector.failBytes;
+  const svg = svgOfSize(vectorBlock + 1);
+  expect(svg).toHaveLength(vectorBlock + 1);
+  await page.setInputFiles(THUMB_INPUT, { name: 'over-limit.svg', mimeType: 'image/svg+xml', buffer: svg });
 
   await expect(page.locator('.toast--error')).toContainText('Файл слишком большой');
-  await expect(page.locator('.toast--error')).toContainText(`тяжелее ${vectorBlock / 1024} КБ не публикуем`);
+  await expect(page.locator('.toast--error')).toContainText(`тяжелее ${vectorBlock / MB} МБ не публикуем`);
   const cardSection = page.locator('.editor-section', { hasText: 'Карточка в списке работ' });
   await expect(cardSection.locator('.drop-zone__badge')).toBeHidden();
   await expect(page.locator('#draft-indicator')).toBeHidden();

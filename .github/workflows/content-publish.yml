@@ -6,7 +6,7 @@
 # (js/cards-data.js, js/fa-data.js, js/i18n-data.js, the index.html and
 # free-assets.html GEN regions, and sitemap.xml), verifies the result,
 # and either commits the regenerated files back
-# to main (Netlify then deploys the final state) or reverts the triggering
+# to main (`deploy-beget` then mirrors the final state to Beget production) or reverts the triggering
 # commits so main never carries content the site cannot render.
 #
 # test:golden is intentionally NOT run here: golden fixtures pin the CURRENT
@@ -129,9 +129,10 @@ jobs:
           git push origin HEAD:main
 
       # Verify (or the generator itself) failed: undo the triggering commits.
-      # Production stayed consistent the whole time - the content-only push
-      # never affected the rendered site - so reverting restores the invariant
-      # "repository = deployed site" without touching production.
+      # Production stayed consistent the whole time: deploy-beget holds the
+      # admin source revision (content plus optional assets) until this workflow
+      # settles it. Reverting restores the invariant "repository = deployed
+      # site" without publishing the rejected source revision.
       - name: Revert triggering commits on failure
         if: steps.regen.outcome == 'failure' || steps.verify.outcome == 'failure' || steps.recapture.outcome == 'failure'
         id: revert

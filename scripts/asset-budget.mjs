@@ -5,11 +5,11 @@
  * reached production. Nothing in the repo stated a maximum size for a shipped
  * asset: the only thresholds anywhere were the client-side MEDIA_RULES in
  * admin/js/state.js, whose model rule warned at 15 MB and blocked at 50 MB, so
- * the upload landed in the warn band and the owner clicked past it. The
- * consequence was not a red gate but an opaque one — `npm run verify` started
- * timing out after 30 s while Playwright waited for a 3D pane that was busy
- * downloading 21.85 MB. This module turns that into a named, actionable
- * failure that fires in ~1 s, before any browser is opened.
+ * the upload landed in the warn band and the owner clicked past it. The upload
+ * later exposed an opaque 30 s browser timeout, while the byte gate itself had
+ * no repository-side policy. This module makes byte policy named and
+ * actionable before a browser opens; runtime readiness remains a separate
+ * mandatory check.
  *
  * THE MODULE IS PURE. No fs, no deps, no I/O — exactly the shape of
  * scripts/fa-poster-path.mjs, and for the same reason: several consumers have
@@ -38,7 +38,8 @@
  *     invariant it enforces: for every class, admin blockBytes === failBytes
  *     here, so the panel refuses an upload the repo would later reject instead
  *     of the owner discovering it as a red X in Actions after the commit is
- *     already on main. Admin warnBytes is advisory and may be stricter.
+ *     already on main. Admin warnBytes is slot-specific and may be stricter;
+ *     model warnBytes is the focused exception that must match this canon.
  *
  * CLASS COMES FROM THE EXTENSION, NOT THE FIELD. case.media[].src carries an
  * image or a video depending on the block type, and an FA poster slot carries a
@@ -66,34 +67,20 @@ export const ASSET_CLASS_EXTS = {
  * against a round number — a budget that is red on arrival gets ignored, and a
  * budget that no real asset can reach is decoration.
  *
- *   model    15 MB warn / 50 MB fail. OWNER DECISION 2026-08-02, verbatim:
- *            "лучше расшири гейт до 50 мб так как модели мпогут быть разными".
- *            The owner ships real client work and needs headroom, so the hard
- *            line is theirs, not ours, and it deliberately mirrors the two
- *            thresholds admin/js/state.js has always used (warn 15 / block 50):
- *            the gate now says in CI exactly what the upload dialog already
- *            says in the browser, instead of inventing a stricter second rule
- *            the owner never agreed to.
- *            CONSEQUENCE, stated plainly rather than hidden: at 50 MB the
- *            21.85 MB model that triggered this work does NOT fail — it warns.
- *            That is the accepted trade. The warn is what keeps it named on
- *            every run; see ASSET_BUDGET_DEBT for why no grandfather entry is
- *            needed for it at this budget.
- *   raster   256 KB warn / 1 MB fail. Deliberately NOT 200 KB: the largest
- *            shipped image is 215,442 B, so a 200 KB warn would flag unmodified
- *            production content on day one. 256 KB sits just above today's
- *            worst case — green now, flags the very next upload heavier than
- *            anything currently shipped. The 1 MB fail is set for the gallery,
- *            not the single image: one case loads seven of these.
- *   vector   64 KB warn / 256 KB fail. Hand-authored diagram slides top out at
- *            11,774 B. The fail line exists for one failure mode nothing else
- *            in the stack can see: a base64-embedded raster inside an .svg,
- *            which passes every extension check in MEDIA_RULES, in
- *            fa-poster-path.mjs and in the generator.
- *   video    2 MB warn / 10 MB fail. Both existing clips are under 0.36 MB. The
- *            fail line can be aggressive because the schema already ships the
- *            escape hatch: motionBlocks[].source === 'vimeo' exists precisely
- *            for heavy clips, and the admin's own warn text says so.
+ *   model    25 MB warn / 50 MB fail. OWNER DECISIONS 2026-08-02 and
+ *            2026-08-08 keep the 50 MiB hard line while making models at or
+ *            below 25 MiB warning-free. The 21.85 MiB incident model therefore
+ *            passes the size gate without a warning, but still has to pass the
+ *            browser/runtime gate.
+ *   raster   256 KB warn / 2 MB fail. The repository advisory remains slightly
+ *            looser than the admin's 200 KB guidance; both surfaces block only
+ *            above the shared 2 MiB hard line.
+ *   vector   256 KB warn / 2 MB fail. Detailed hand-authored SVG blueprints can
+ *            legitimately exceed the old generated-slide sizes, while the
+ *            warning still exposes likely base64-embedded rasters.
+ *   video    2 MB warn / 40 MB fail. The admin warns at 20 MiB and recommends
+ *            Vimeo for heavy clips; repository warning and hard-stop values are
+ *            intentionally separate.
  *   hdr      2 MB warn / 4 MB fail. The three Polyhaven 1k maps in use are
  *            1,485,234 / 1,508,872 / 1,686,299 B — the intended shape of the
  *            class, sitting just under the warn on purpose. A 1k map must not
@@ -112,7 +99,7 @@ export const ASSET_BUDGETS = {
    * genuinely new signal lives in warnBytes, which blocks nothing.
    * Tightening any fail line below its admin counterpart is an owner decision,
    * not a maintenance detail — ask first. */
-  model: { warnBytes: 15 * MB, failBytes: 50 * MB, label: 'GLB model' },
+  model: { warnBytes: 25 * MB, failBytes: 50 * MB, label: 'GLB model' },
   hdr: { warnBytes: 2 * MB, failBytes: 4 * MB, label: 'HDR environment map' },
   video: { warnBytes: 2 * MB, failBytes: 40 * MB, label: 'video clip' },
   /* vector fail === the 2 MB image block; the warn is what actually catches a
@@ -159,13 +146,11 @@ const ASSET_BUDGET_HINT = {
  * model and they will re-upload it themselves.
  */
 export const ASSET_BUDGET_DEBT = [
-  /* NO model entries. At the owner's 50 MB model budget none is needed: the
+  /* NO model entries. At the owner's 25/50 MB model policy none is needed: the
    * corten incident file (22,908,588 B), car-paint (17,044,880 B) and
-   * humanoid-2 (13,193,600 B) all sit under the fail line and are reported as
-   * warnings instead. That is strictly better than grandfathering them — a
-   * warning stays visible on every run and needs no maintenance, whereas a
-   * debt entry has to be pruned by hand once the file changes. Do not add
-   * model entries here to silence a warning; raise it with the owner instead. */
+   * humanoid-2 (13,193,600 B) all sit at or below the warning-free line. They
+   * still pass the separate browser/runtime gate; debt entries are reserved
+   * for explicit over-hard-limit waivers and are unnecessary here. */
   {
     path: './assets/hdr/experimental/citrus-orchard-puresky-4k.hdr',
     bytes: 18459533,

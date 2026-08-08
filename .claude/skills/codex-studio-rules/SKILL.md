@@ -12,10 +12,17 @@ Authoritative order for this repository:
 1. Explicit user request in the current chat.
 2. `verify-frozen.js` and its current passing baseline.
 3. `AGENTS.md`.
-4. Migrated references in `references/claude-original/`.
-5. Older docs such as `README.md`, `RUN_INSTRUCTIONS.md`, and historical handoff files.
+4. Active plugin skills in `plugins/codex-studio-codex/skills/`.
+5. Supplemental docs in `docs/agent/`.
+6. Supplemental skills in `.agents/skills/`.
+7. Supplemental contracts in `.codex/`.
+8. Generated `.claude/skills/**` and `.claude/agents/**` mirrors, plus shared
+   hook configuration in `.claude/settings.json`.
+9. Migrated references in `references/claude-original/`.
 
-If a migrated Claude reference contradicts `verify-frozen.js`, treat the reference as stale and preserve the test unless the user explicitly asks to change the architecture.
+`AGENTS.md` owns the full authority order. If an active instruction drifts from
+live code or tests, repair its canonical source. Migrated Claude references are
+archived historical material, never current policy.
 
 ## Current verified baseline
 
@@ -35,19 +42,24 @@ For any change touching `index.html`, `free-assets.html`, `css/*.css`, `js/*.js`
 
 For purely documentation-only changes, run at least `npm run codex:verify-plugin`.
 
-## Migrated references
+## Current routes and archived references
 
 Load only what is needed:
 
+- Asset handling: `.agents/skills/codex-studio-assets/SKILL.md`, canonical byte
+  policy in `scripts/asset-budget.mjs`, and runtime proof in
+  `docs/agent/verification.md`; run `npm run check:assets` plus the applicable
+  `npm run verify` runtime gate.
 - `references/claude-original/project_brief.md` for positioning and frozen decisions.
 - `references/claude-original/build_rules.md` for design tokens and bans.
 - `references/claude-original/prompt_instructions.md` for high-level task rules and anti-drift behavior.
 - `references/claude-original/structure.md` for file layout.
 - `references/claude-original/motion_brief.md` for animation work.
-- `references/claude-original/assets_brief.md` for asset handling.
 - `references/claude-original/reference_brief.md` for visual reference interpretation.
 - `references/claude-original/texts.md` for copy guidance.
 - `references/claude-original/trusted_sources.md` for trusted external references.
 - `references/claude-original/skills_brief.md` for how the old skills were intended to work.
 
-The `references/claude-original/` folder is retained as migrated source material, not as active Claude Code configuration.
+The `references/claude-original/` folder is retained as migrated source
+material, not as active policy or Claude Code configuration. Never use it to
+override live asset budgets, runtime behavior, or current verification.

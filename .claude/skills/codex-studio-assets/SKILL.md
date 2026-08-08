@@ -13,4 +13,39 @@ description: Use for Codex Studio images, SVG cards and case slides, GLB models,
 - Downloads may be placeholders until the user supplies real archives; do not treat placeholder archives as dead runtime code without user confirmation.
 - OG images are page-specific: index uses `og-image.jpg`, free assets uses `og-free-assets.jpg`.
 
-Run `npm run verify` after asset-reference changes in shipped HTML/CSS/JS.
+## Byte Policy
+
+`scripts/asset-budget.mjs` is the repository canon. `admin/js/state.js` is an
+intentional classic-script mirror: every admin hard limit matches the canon,
+but advisory values remain slot-specific except for the focused model-warning
+parity check.
+
+| Surface and class | Advisory band | Block when |
+| --- | ---: | ---: |
+| Repository model and admin model | `(25 MiB, 50 MiB]` | `> 50 MiB` |
+| Repository vector or raster | `(256 KiB, 2 MiB]` | `> 2 MiB` |
+| Admin image, OG, logo, or Free Assets thumbnail | `(200 KiB, 2 MiB]` | `> 2 MiB` |
+| Admin blueprint | `(500 KiB, 2 MiB]` | `> 2 MiB` |
+
+Comparisons use binary units and strict `>` hard stops. Exactly 25 MiB is
+warning-free for GLB, exactly 50 MiB is advisory but allowed, and exactly
+2 MiB is allowed for SVG and raster uploads. Do not normalize the intentionally
+different repository and admin image advisories.
+
+## Runtime Proof
+
+A warning-free model is not runtime-approved by size alone. In `npm run verify`:
+
+- generic viewer/pagination checks run first on the smallest visible referenced
+  model and accept inline `model-data.js` or HTTP resolution;
+- the external heaviest model runs last on a dedicated normal-motion page,
+  requires an exact 2xx GLB response and normal Clay/Xray/PBR interactions, and
+  closes only after the verified return to PBR;
+- one absolute deadline covers the complete heaviest-model scenario:
+  `<= 120,000 ms` passes, `(120,000, 210,000] ms` passes with literal
+  `PERF_WARN`, and `> 210,000 ms` fails. It is not a per-phase timeout or a UX
+  performance SLA.
+
+Run `npm run check:assets` after asset additions or reference changes. Run
+`npm run verify` after asset-reference changes in shipped HTML/CSS/JS or any
+3D-model change; use `npm run test:verify-fatal` when changing the runtime gate.

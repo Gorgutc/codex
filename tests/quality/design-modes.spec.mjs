@@ -14,7 +14,18 @@ const CASE_BY_ID = new Map(VISIBLE_CASES.map((project) => [project.id, project])
 const PRIMARY_CASE = VISIBLE_CASES[0] || null;
 const SECOND_CASE = VISIBLE_CASES[1] || null;
 const THIRD_CASE = VISIBLE_CASES[2] || null;
-const THREE_D_CASE = VISIBLE_CASES.find((project) => project.case?.modelSrc) || null;
+// These tests exercise generic 3D mode transitions, not heaviest-model
+// performance. Use the smallest visible model so UI assertions cannot be
+// starved by a large decode; verify-frozen.js owns the dedicated heaviest gate.
+const LIGHTWEIGHT_3D_CASE = VISIBLE_CASES
+  .filter((project) => project.case?.modelSrc)
+  .sort((a, b) =>
+    fs.statSync(path.join(ROOT, a.case.modelSrc.replace(/^\.\//, ''))).size -
+    fs.statSync(path.join(ROOT, b.case.modelSrc.replace(/^\.\//, ''))).size
+  )[0] || null;
+const BLUEPRINT_CASE =
+  VISIBLE_CASES.find((project) => Array.isArray(project.case?.blueprints) && project.case.blueprints.length > 0) ||
+  null;
 const POSTER_CASE = VISIBLE_CASES.find((project) => project.card?.thumb) || null;
 const CONTROLLED_MOTION_CASE =
   VISIBLE_CASES.find(
@@ -81,6 +92,47 @@ async function expectBlueprintTabMatchesContent(page, project) {
 
 function assetPath(value) {
   return String(value || '').replace(/^\.\//, '');
+}
+
+function expectedHybridInlinePresentation(project) {
+  if (!project?.case?.inline) return { inlineOverlayCount: 0, fullWidthInlineCount: 0 };
+
+  const media = (project.case.media || []).filter((item) => item?.enabled !== false);
+  const chainHeads = new Set();
+  const chainTails = new Set();
+  let openHead = -1;
+  media.forEach((item, index) => {
+    if (index > 0 && item.seamless === true) {
+      if (openHead === -1) openHead = index - 1;
+      chainHeads.add(openHead);
+      chainTails.add(index);
+    } else {
+      openHead = -1;
+    }
+  });
+
+  const isStandaloneTall = (item, index) =>
+    item.format === 'tall' && !chainHeads.has(index) && !chainTails.has(index);
+
+  let hasInlineCarrier = false;
+  if (project.layoutMode === 'manual') {
+    let consecutiveTalls = 0;
+    const finishRun = () => {
+      if (consecutiveTalls % 2 === 1) hasInlineCarrier = true;
+      consecutiveTalls = 0;
+    };
+    media.forEach((item, index) => {
+      if (isStandaloneTall(item, index)) consecutiveTalls += 1;
+      else finishRun();
+    });
+    finishRun();
+  } else {
+    hasInlineCarrier = media.some(isStandaloneTall);
+  }
+
+  return hasInlineCarrier
+    ? { inlineOverlayCount: 1, fullWidthInlineCount: 0 }
+    : { inlineOverlayCount: 0, fullWidthInlineCount: 1 };
 }
 
 function escapeRegExp(value) {
@@ -469,10 +521,11 @@ for (const mode of MODES) {
           node.scrollTop = 500;
         });
         await expect.poll(() => caseScroll.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
-        if (mode === 'specimen') {
-          await page.locator('#case-tab-3d').click();
-          await expect(page.locator('#case-tab-3d')).toHaveAttribute('aria-selected', 'true');
-        }
+      }
+
+      if (mode === 'specimen' && project.id === LIGHTWEIGHT_3D_CASE?.id) {
+        await page.locator('#case-tab-3d').click();
+        await expect(page.locator('#case-tab-3d')).toHaveAttribute('aria-selected', 'true');
       }
 
       const backControls = page.locator('[data-design-back]:visible');
@@ -1471,12 +1524,16 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
       const inlineOverlays = track
         ? Array.from(track.querySelectorAll(':scope > .case-row--wide-text .case-text--overlay'))
         : [];
+      const fullWidthInlineRows = track
+        ? Array.from(track.querySelectorAll(':scope > .case-row--text .case-text--inline:not(.case-text--overlay)'))
+        : [];
       return {
         heroCount: track ? track.querySelectorAll('.hybrid-case-hero').length : 0,
         heroIsFirstMedia: Boolean(hero && hero === mediaRows[0]),
         heroOrder: hero ? getComputedStyle(hero).order : null,
         mediaCount: track ? track.querySelectorAll('.case-item__media').length : 0,
         inlineOverlayCount: inlineOverlays.length,
+        fullWidthInlineCount: fullWidthInlineRows.length,
         inlineOverlaysFit: inlineOverlays.every((note) => {
           const media = note.parentElement && note.parentElement.querySelector(':scope > .case-item__media');
           if (!media) return false;
@@ -1490,13 +1547,16 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
         )
       };
     });
+    const expectedInline = expectedHybridInlinePresentation(contentProject);
     expect(caseAnatomy).toEqual({
       heroCount: 1,
       heroIsFirstMedia: true,
       heroOrder: '-1',
       mediaCount: contentProject.case.media.length,
-      inlineOverlayCount:
-        contentProject.case.inline && contentProject.case.media.some((media) => media?.format === 'tall') ? 1 : 0,
+      // Manual layout keeps adjacent standalone tall media paired. Only an
+      // unpaired tall may carry the Hybrid overlay; otherwise the same copy
+      // must use the full-width fallback row.
+      ...expectedInline,
       inlineOverlaysFit: true,
       populatedFacts: true
     });
@@ -1544,23 +1604,17 @@ test('hybrid: Home opens every Hybrid Case dossier and Back and share preserve t
 });
 
 test('hybrid: Case media modes tear down before returning to Home', async ({ page }) => {
-  const modelCase = requireFixture(THREE_D_CASE, 'skipped: no visible case has a 3D model');
+  const modelCase = requireFixture(LIGHTWEIGHT_3D_CASE, 'skipped: no visible case has a 3D model');
   const errors = collectConsoleErrors(page);
   await page.setViewportSize({ width: 1440, height: 1024 });
   await page.goto(`${server.base}/index.html?design=hybrid&lang=en`, { waitUntil: 'networkidle' });
   await waitForHybridHome(page);
 
   const home = page.locator('[data-design-home="hybrid"]');
-  const projectLink = home.locator(`[data-design-project="${modelCase.id}"]`).first();
-  await projectLink.click();
-  await waitForHybridCase(page, modelCase.id);
-
-  // Панель чертежей участвует в этом сценарии только если владелец загрузил
-  // лист именно этому кейсу (BP-DECISION-02). Вкладка проверяется в обе
-  // стороны, а переключение панелей ниже опирается на 2D↔3D, которые есть
-  // всегда — иначе тест зависел бы от наличия чертежа.
-  await expectBlueprintTabMatchesContent(page, modelCase);
-  if (caseSheets(modelCase).length > 0) {
+  if (BLUEPRINT_CASE) {
+    await home.locator(`[data-design-project="${BLUEPRINT_CASE.id}"]`).first().click();
+    await waitForHybridCase(page, BLUEPRINT_CASE.id);
+    await expectBlueprintTabMatchesContent(page, BLUEPRINT_CASE);
     await page.locator('#case-tab-bp').click();
     await expect(page.locator('#case-tab-bp')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#case-blueprints')).toBeVisible();
@@ -1570,7 +1624,18 @@ test('hybrid: Case media modes tear down before returning to Home', async ({ pag
     await expect(page.locator('#case-tab-2d')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#case-scroll')).toBeVisible();
     await expect(page.locator('#case-blueprints')).toBeHidden();
+    await page.locator('[data-design-back]:visible').first().click();
+    await expect(home).toBeVisible();
   }
+
+  const projectLink = home.locator(`[data-design-project="${modelCase.id}"]`).first();
+  await projectLink.click();
+  await waitForHybridCase(page, modelCase.id);
+
+  // Positive Blueprint teardown uses its own content-derived fixture above;
+  // the lightweight 3D fixture still checks the tab's present/absent state.
+  // This keeps BP coverage without loading the heaviest model for generic UI.
+  await expectBlueprintTabMatchesContent(page, modelCase);
   await expect(page.locator('#case-scroll')).toBeVisible();
   await expect(page.locator('#case-blueprints')).toBeHidden();
 
@@ -1902,7 +1967,7 @@ test('hybrid: approved Home safe insets and mobile controls stay frozen', async 
 });
 
 test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geometry', async ({ page }) => {
-  const modelCase = requireFixture(THREE_D_CASE, 'skipped: no visible case has a 3D model');
+  const layoutCase = requireFixture(PRIMARY_CASE, 'skipped: no visible case exists');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const desktopFixtures = [
     { width: 1440, height: 1024, narrativePadding: 48 },
@@ -1915,10 +1980,10 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
     // same-document навигация, и вторая итерация мерила бы макет с JS-геометрией
     // предыдущего вьюпорта. Контракт фикстур — свежая загрузка на каждом размере.
     await page.goto('about:blank');
-    await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${modelCase.id}`, {
+    await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${layoutCase.id}`, {
       waitUntil: 'networkidle'
     });
-    await waitForHybridCase(page, modelCase.id);
+    await waitForHybridCase(page, layoutCase.id);
     const geometry = await page.locator('#case-view').evaluate((caseView) => {
       const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
       const scroll = caseView.querySelector('.case-scroll').getBoundingClientRect();
@@ -1938,8 +2003,8 @@ test('hybrid: Case keeps frozen narrative padding and compact mobile dossier geo
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('about:blank');
-  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${modelCase.id}`, { waitUntil: 'networkidle' });
-  await waitForHybridCase(page, modelCase.id);
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${layoutCase.id}`, { waitUntil: 'networkidle' });
+  await waitForHybridCase(page, layoutCase.id);
   const mobileGeometry = await page.locator('#case-view').evaluate((caseView) => {
     const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
     const scroll = caseView.querySelector('.case-scroll').getBoundingClientRect();
@@ -2080,11 +2145,11 @@ test('hybrid: Case inline notes share one wide desktop stage and keep mobile flo
 });
 
 test('hybrid: short mobile landscape keeps Case media and Free Assets grid scrollable', async ({ page }) => {
-  const modelCase = requireFixture(THREE_D_CASE, 'skipped: no visible case has a 3D model');
+  const layoutCase = requireFixture(PRIMARY_CASE, 'skipped: no visible case exists');
   await page.setViewportSize({ width: 667, height: 375 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${modelCase.id}`, { waitUntil: 'networkidle' });
-  await waitForHybridCase(page, modelCase.id);
+  await page.goto(`${server.base}/index.html?design=hybrid&lang=en#${layoutCase.id}`, { waitUntil: 'networkidle' });
+  await waitForHybridCase(page, layoutCase.id);
 
   const caseGeometry = await page.locator('#case-view').evaluate((caseView) => {
     const header = caseView.querySelector('.case-view__header').getBoundingClientRect();
@@ -2635,7 +2700,7 @@ test('specimen: Home keeps the hidden Case runtime idle', async ({ page }) => {
 });
 
 test('specimen: leaving during delayed 3D load prevents a hidden mount', async ({ page }) => {
-  const modelCase = requireFixture(THREE_D_CASE, 'skipped: no visible case has a 3D model');
+  const modelCase = requireFixture(LIGHTWEIGHT_3D_CASE, 'skipped: no visible case has a 3D model');
   let loaderReleased = false;
   await page.route('**/js/vendor/codex-three-viewer.js', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 900));
