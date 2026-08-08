@@ -119,6 +119,16 @@ npm run check:lighthouse
 - Agent eval prompts: `docs/agent/evals/`
 - Decisions: `docs/agent/adrs/`
 
+## Memory
+
+Cross-session memory lives in the owner's Obsidian vault `Second-brain`, a separate git repo; this repo keeps none of it.
+
+- Project home: `1-Projects/codex/` (`Sessions/`, `Decisions/`, `References/`, `Improvements.md`, `Tests.md`).
+- Project status lives ONLY in `1-Projects/codex/_INDEX.md`; never duplicate status elsewhere.
+- End a substantial session by writing a session note in `Sessions/` and updating `_INDEX.md`.
+- Pull the vault repo before writing to it.
+- Never put machine-absolute paths in this repo or in vault notes; machine paths live in the vault note `2-Areas/AI-collaboration/Machines`.
+
 ## GitHub
 
 - Remote: `https://github.com/Gorgutc/codex.git`.
