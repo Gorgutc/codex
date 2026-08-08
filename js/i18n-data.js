@@ -639,7 +639,18 @@
         inline: {
           title: 'Patina system',
           body: 'Rust generated from curvature + ambient occlusion masks. Two layers: oxide underneath, flake breakup on top, roughness offset per layer.'
-        }
+        },
+        blueprints: [
+          {
+            label: ''
+          },
+          {
+            label: ''
+          },
+          {
+            label: ''
+          }
+        ]
       },
       'lumen-one': {
         role: 'Client',
@@ -748,7 +759,18 @@
         inline: {
           title: 'Patina-система',
           body: 'Ржавчина генерируется из curvature + AO-маски. Два слоя: оксид снизу, чешуйчатый отрыв сверху, roughness-сдвиг на каждом слое.'
-        }
+        },
+        blueprints: [
+          {
+            label: ''
+          },
+          {
+            label: ''
+          },
+          {
+            label: ''
+          }
+        ]
       },
       'lumen-one': {
         role: 'Клиент',

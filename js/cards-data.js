@@ -109,7 +109,21 @@ window.CARDS_DATA = {
       motionBlocks: null,
       cta: {
         url: 'https://www.behance.net/gallery/227387887/Dehydrator'
-      }
+      },
+      blueprints: [
+        {
+          id: 'bp-msc7sivr',
+          src: './assets/cases/corten-series/blueprints/01-687c4903.svg'
+        },
+        {
+          id: 'bp-mskcpu5n',
+          src: './assets/cases/corten-series/blueprints/02-7ceb375d.svg'
+        },
+        {
+          id: 'bp-mskcpz2v',
+          src: './assets/cases/corten-series/blueprints/03-1e70f06c.svg'
+        }
+      ]
     }
   },
   'lumen-one': {
