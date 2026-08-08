@@ -1516,3 +1516,74 @@ without waiting for lazy tag previews» (`test:browser` внутри
 
 Следующий шаг: ревью (`/codex:review`) и мерж цепочки draft PR 0 → H;
 дальше — шаги владельца из чек-листа выше.
+
+## 2026-08-08 — superseding-решение по лимитам ассетов и 3D runtime
+
+Владелец утвердил новый контракт. Историческая запись итерации B выше про
+предупреждение GLB от 15 МБ и блокировку от 50 МБ остаётся свидетельством той
+итерации, но больше не задаёт текущую политику.
+
+Текущие диапазоны предупреждений и блокировок:
+
+- модель в репозитории и админке: `(25 MiB, 50 MiB]`, блокировка `> 50 MiB`;
+- вектор или растр в репозитории: `(256 KiB, 2 MiB]`, блокировка `> 2 MiB`;
+- картинка, OG, логотип или миниатюра Free Assets в админке:
+  `(200 KiB, 2 MiB]`, блокировка `> 2 MiB`;
+- чертёж в админке: `(500 KiB, 2 MiB]`, блокировка `> 2 MiB`.
+
+Жёсткие границы используют строгое `>`: ровно 25 MiB для GLB не вызывает
+предупреждение, ровно 50 MiB разрешены с предупреждением, ровно 2 MiB
+разрешены для SVG и растра. Канон репозитория — `scripts/asset-budget.mjs`;
+classic-script зеркало админки — `admin/js/state.js`. Общий паритет advisory
+не вводится: только модель зеркалит и предупреждение, и жёсткий лимит.
+
+Byte gate и runtime gate независимы. Полный normal-motion сценарий внешней
+тяжёлой модели использует один абсолютный deadline: `<= 120,000 ms` — pass,
+`(120,000, 180,000] ms` — pass с буквальным `PERF_WARN`, `> 180,000 ms` —
+fail/runtime blocker. Generic viewer сначала проверяет самую лёгкую видимую
+модель и принимает inline `model-data.js` или HTTP; heaviest acceptance идёт
+последним на отдельной странице, требует точный 2xx GLB и обычные
+Clay/Xray/PBR-переключения; после возврата в PBR страница закрывается.
+
+Текущие проверки: `npm run check:assets` для byte policy и `npm run verify`
+для browser/runtime. Технический контракт: `docs/agent/verification.md`.
+
+## 2026-08-08 — addendum к runtime ceiling после exact-final измерения
+
+Предыдущая запись про 180,000 ms сохраняет первоначальное решение, но её
+runtime-ceiling superseded этим addendum. Пять normal-motion прогонов
+`corten-series`
+дали полные времена 122,537 / 154,249 / 158,362 / 173,265 / 180,008 ms.
+Последний прогон завершил readiness и Clay/Xray/PBR, но финальный обязательный
+lifecycle snapshot пересёк прежнюю границу на 8 ms.
+
+По ранее данному владельцем разрешению пересмотреть измеренную границу финальный
+контракт: `<= 120,000 ms` — pass within target, `(120,000, 210,000] ms` — pass
+с буквальным `PERF_WARN`, `> 210,000 ms` — fail/runtime blocker. Retry по
+таймауту запрещён; 210,000 ms больше не расширяется в этой задаче. Все non-time
+ошибки (non-2xx, readiness, material state, page/console error, unexpected
+WebGL context loss) по-прежнему падают независимо от времени.
+
+## 2026-08-08 — addendum по изоляции PR #73 runtime-smoke
+
+Первый `quality`-прогон PR #73 не был чистым измерением тяжёлой модели:
+generic-пагинация делала девять `next`-переходов по циклу
+`corten-series` / `lumen-one` / `flux-capsule`, трижды монтировала
+`corten-series` до dedicated-smoke и оставляла
+primary page с WebGL-контекстами открытой. Dedicated-сценарий после этого
+достиг 210,004 ms до PBR. Это verifier isolation bug, а не основание повышать
+210,000 ms или ослаблять byte/runtime gates.
+
+Текущий verifier сначала открывает самую лёгкую модель, затем выполняет девять
+реальных `prev`/`next` remount между соседней non-heaviest парой. Каждый шаг
+обязан сохранить cover, прийти в ожидаемый кейс и полностью settled; отсутствие
+пары при двух или более видимых кейсах падает fail-closed. Primary page
+закрывается до отдельного `corten-series` smoke. Deadline-операции запускаются
+лениво, а уже стартовавшие promises объединяются до deadline-wrapper, поэтому timeout
+не оставляет вторичный `Target page closed`/`unhandledRejection`.
+
+Два свежих локальных прогона после изоляции завершились с `0 FAIL`;
+`corten-series` прошёл exact 2xx, readiness и Clay/Xray/PBR за 171,512 и 158,145 ms,
+с `contextLosses=0` и буквальным `PERF_WARN`. Контракт остаётся `<=120,000` /
+`(120,000,210,000]` / `>210,000`; окончательная приёмка всё ещё требует зелёный
+`quality` на точном новом head PR #73.

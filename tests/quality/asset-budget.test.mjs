@@ -43,6 +43,7 @@ import {
   ASSET_BUDGETS,
   ASSET_BUDGET_DEBT,
   ASSET_CLASS_EXTS,
+  MB,
   assetBudgetViolation,
   assetClassOf,
   budgetProblem,
@@ -70,8 +71,32 @@ function skip(name, reason) {
 
 /* ── 1. budget table sanity (pure, no repo content) ──────────────────────── */
 {
+  const expectedHardLimits = {
+    model: 50 * MB,
+    hdr: 4 * MB,
+    video: 40 * MB,
+    vector: 2 * MB,
+    raster: 2 * MB,
+    download: null
+  };
   const classes = Object.keys(ASSET_BUDGETS);
   if (classes.length === 0) fail('ASSET_BUDGETS is empty — the gate would have nothing to enforce');
+  if (ASSET_BUDGETS.model.warnBytes !== 25 * MB) {
+    fail(`model warnBytes must be exactly 25 MiB, got ${ASSET_BUDGETS.model.warnBytes}`);
+  }
+  if (ASSET_BUDGETS.model.failBytes !== 50 * MB) {
+    fail(`model failBytes must remain exactly 50 MiB, got ${ASSET_BUDGETS.model.failBytes}`);
+  }
+  if (JSON.stringify(Object.keys(ASSET_BUDGETS).sort()) !== JSON.stringify(Object.keys(expectedHardLimits).sort())) {
+    fail('the asset-class set drifted — update the owner-approved complete hard-limit map intentionally');
+  }
+  for (const [assetClass, expectedFailBytes] of Object.entries(expectedHardLimits)) {
+    if (ASSET_BUDGETS[assetClass].failBytes !== expectedFailBytes) {
+      fail(
+        `class "${assetClass}" failBytes must remain ${expectedFailBytes}, got ${ASSET_BUDGETS[assetClass].failBytes}`
+      );
+    }
+  }
   for (const assetClass of classes) {
     const budget = ASSET_BUDGETS[assetClass];
     if (!Array.isArray(ASSET_CLASS_EXTS[assetClass]) || ASSET_CLASS_EXTS[assetClass].length === 0) {
@@ -116,16 +141,19 @@ function skip(name, reason) {
     fail('an unbudgeted extension must never produce a violation');
   }
 
-  const modelFail = ASSET_BUDGETS.model.failBytes;
-  if (budgetProblem('model', modelFail) !== null) fail('a file exactly at the fail line must pass (<=, not <)');
+  const modelWarn = 25 * MB;
+  const modelFail = 50 * MB;
+  if (budgetWarns('model', modelWarn) !== false) fail('exactly 25 MiB must not warn');
+  if (budgetWarns('model', modelWarn + 1) !== true) fail('one byte above 25 MiB must warn');
+  if (budgetProblem('model', modelFail) !== null) fail('exactly 50 MiB must pass (<=, not <)');
   const over = budgetProblem('model', modelFail + 1);
   if (over === null) fail('one byte over the fail line must be a violation');
   // The message has to be actionable: file size, exact bytes, budget and class.
   for (const needle of [String(modelFail + 1), formatBytes(modelFail), ASSET_BUDGETS.model.label]) {
     if (!over.includes(needle)) fail(`the violation message must mention ${JSON.stringify(needle)} — got: ${over}`);
   }
-  if (budgetWarns('model', ASSET_BUDGETS.model.warnBytes) !== false) fail('exactly at the warn line must not warn');
-  if (budgetWarns('model', ASSET_BUDGETS.model.warnBytes + 1) !== true) fail('one byte over the warn line must warn');
+  if (budgetWarns('model', modelFail) !== true) fail('exactly 50 MiB must remain in the advisory band');
+  if (budgetWarns('model', modelFail + 1) !== false) fail('a blocked model must not also be reported as a warning');
   // download is warn-only: the repo copies are placeholders excluded from the
   // Beget mirror, so the gate cannot see the artifact a visitor downloads.
   if (ASSET_BUDGETS.download.failBytes !== null) fail('the download class must stay warn-only');
@@ -238,7 +266,7 @@ function skip(name, reason) {
 {
   const problems = adminMirrorProblems(root);
   if (problems.length) fail('the admin budget mirror has drifted:\n' + problems.map((p) => `  ${p}`).join('\n'));
-  ok('admin mirror', 'MEDIA_RULES blockBytes match the canonical fail budgets');
+  ok('admin mirror', 'MEDIA_RULES hard limits and focused model warning match the canon');
 }
 
 /* ── 7. NEGATIVE: a drifted admin mirror IS reported ──────────────────────── */
@@ -266,6 +294,37 @@ function skip(name, reason) {
       }
       ok('admin mirror drift', `a mutated blockBytes on slot "${slot}" is reported`);
     }
+    // The model advisory is the one intentional warning-parity exception.
+    const modelWarn = /warnBytes\s*:\s*([^,\n}]+)/.exec(rules.model || '');
+    if (modelWarn === null) fail('the model MEDIA_RULES slot has no readable warnBytes to mutate');
+    const modelMutated = source.replace(
+      rules.model,
+      rules.model.replace(modelWarn[0], 'warnBytes: 999 * MB')
+    );
+    writeFileSync(path.join(sandbox, 'admin', 'js', 'state.js'), modelMutated, 'utf8');
+    const modelProblems = adminMirrorProblems(sandbox);
+    if (!modelProblems.some((p) => p.includes('"model"') && p.includes('warnBytes'))) {
+      fail(`a 999 MB model warnBytes was not reported:\n${modelProblems.join('\n')}`);
+    }
+    ok('admin model warning drift', 'a mutated model warnBytes is reported');
+
+    // Blueprints are vector uploads and need the same hard-limit mirror proof.
+    const blueprintBlock = /blockBytes\s*:\s*([^,\n}]+)/.exec(rules.blueprint || '');
+    if (blueprintBlock === null) fail('the blueprint MEDIA_RULES slot has no readable blockBytes to mutate');
+    const blueprintMutated = source.replace(
+      rules.blueprint,
+      rules.blueprint.replace(blueprintBlock[0], 'blockBytes: 999 * MB')
+    );
+    writeFileSync(path.join(sandbox, 'admin', 'js', 'state.js'), blueprintMutated, 'utf8');
+    const blueprintProblems = adminMirrorProblems(sandbox);
+    if (
+      !blueprintProblems.some(
+        (p) => p.includes('slot "blueprint" blockBytes') && p.includes('the vector budget')
+      )
+    ) {
+      fail(`a 999 MB blueprint blockBytes was not reported:\n${blueprintProblems.join('\n')}`);
+    }
+    ok('admin blueprint drift', 'a mutated blueprint blockBytes is reported');
     // A missing/unreadable file must be a problem, never silent success.
     if (adminMirrorProblems(path.join(sandbox, 'nowhere')).length === 0) {
       fail('a missing admin/js/state.js reported no problem — "cannot check" must not look like "in sync"');

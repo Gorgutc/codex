@@ -52,7 +52,7 @@ Use a `codex/*` branch for every task, push it to GitHub, and open a draft PR.
 
 ## Admin Panel
 
-The site content lives in `content/*.json` and is managed through a custom no-build admin panel at `/admin/` (GitHub OAuth or PAT login). Publishing creates one commit to `main`; the `content-publish` workflow regenerates the shipped files and deploys via Netlify. Owner guide (Russian, with screenshots): [docs/admin-guide.md](docs/admin-guide.md). Agent-facing spec, research, and session journal: [docs/agent/admin-panel/](docs/agent/admin-panel/).
+The site content lives in `content/*.json` and is managed through a custom no-build admin panel at `/admin/` (GitHub OAuth or PAT login). Publishing creates one source commit to `main`; `content-publish` regenerates and commits the shipped files, then `deploy-beget` mirrors the settled `main` revision to Beget production. Owner guide (Russian, with screenshots): [docs/admin-guide.md](docs/admin-guide.md). Agent-facing spec, research, and session journal: [docs/agent/admin-panel/](docs/agent/admin-panel/).
 
 ## Useful Commands
 

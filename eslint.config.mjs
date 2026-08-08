@@ -148,6 +148,7 @@ export default [
   {
     files: [
       'verify-frozen.js',
+      'scripts/**/*.cjs',
       'scripts/**/*.js',
       'scripts/**/*.mjs',
       '*.config.cjs',
@@ -170,7 +171,7 @@ export default [
     }
   },
   {
-    files: ['verify-frozen.js', '*.config.cjs'],
+    files: ['verify-frozen.js', 'scripts/**/*.cjs', '*.config.cjs'],
     languageOptions: {
       sourceType: 'commonjs'
     }

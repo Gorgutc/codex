@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -6,11 +6,56 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const sourcePath = path.join(root, 'verify-frozen.js');
+const contractPath = path.join(root, 'scripts', 'model-runtime-contract.cjs');
 const tempDir = mkdtempSync(path.join(tmpdir(), 'codex-verify-fatal-'));
 const tempPath = path.join(tempDir, 'verify-frozen-fatal-copy.js');
+const tempContractPath = path.join(tempDir, 'scripts', 'model-runtime-contract.cjs');
 
 try {
   const source = readFileSync(sourcePath, 'utf8');
+  const contractSource = readFileSync(contractPath, 'utf8');
+  const verifierRuntimeContract = [
+    [/require\('\.\/scripts\/model-runtime-contract\.cjs'\)/, 'shared model runtime contract import'],
+    [/withAbsoluteDeadline\(operation, deadlineAt, label\)/, 'lazy absolute model runtime watchdog call'],
+    [/async function runDedicatedHeaviestModelSmoke/, 'dedicated heaviest-model error boundary'],
+    [/firstPartyHttpFailure\(response\.url\(\), response\.status\(\), baseUrl\)/, 'first-party HTTP failure classifier call'],
+    [/page\.on\('response', onResponse\)/, 'first-party response listener wiring'],
+    [/classifyModelRuntime\(totalMs\)\.label/, 'runtime performance classification call'],
+    [/await page\.close\(\);\s*const heavyPage = await ctx\.newPage\(\)/, 'primary-page isolation before the heaviest model'],
+    [/lightweightPaginationPlan\([\s\S]*?GENERAL_MODEL_CASE\.caseId,[\s\S]*?HEAVIEST_MODEL_CASE\.caseId/, 'lightweight pagination plan call'],
+    [/beforeDeadline\(\s*Promise\.all\(\[responsePromise, readyPromise, clickPromise\]\)/, 'already-observed heaviest readiness aggregate'],
+    [/withAbsoluteDeadline\(\s*\(\) => page\.evaluate\([\s\S]*?'pagination transition cover',[\s\S]*?GENERAL_MODEL_TIMEOUT_MS\s*\)/, 'absolute pagination wall-clock watchdog'],
+    [/expectedSteps: paginationExpectedSteps/, 'per-step lightweight pagination targets'],
+    [/modelRuntime = await runDedicatedHeaviestModelSmoke\(heavyPage, BASE\)/, 'dedicated heaviest-model call site'],
+    [/CASE-3d-heaviest-model-runtime/, 'named heaviest-model runtime result'],
+    [/const status = response\.status\(\);\s*if \(status < 200 \|\| status > 299\)/, 'immediate exact-GLB non-2xx rejection']
+  ];
+  for (const [pattern, description] of verifierRuntimeContract) {
+    if (!pattern.test(source)) {
+      throw new Error(`verify-frozen.js is missing the ${description}.`);
+    }
+  }
+
+  const sharedRuntimeContract = [
+    [/MODEL_RUNTIME_TARGET_MS = 120_000/, '120-second runtime target'],
+    [/MODEL_RUNTIME_TIMEOUT_MS = 210_000/, '210-second runtime ceiling'],
+    [/label: 'PERF_WARN'/, 'explicit model runtime performance warning'],
+    [/typeof operation === 'function' \? operation\(\) : operation/, 'lazy deadline operation factory'],
+    [/function lightweightPaginationPlan/, 'lightweight pagination planner']
+  ];
+  for (const [pattern, description] of sharedRuntimeContract) {
+    if (!pattern.test(contractSource)) {
+      throw new Error(`model-runtime-contract.cjs is missing the ${description}.`);
+    }
+  }
+
+  const heaviestSmoke = source.match(
+    /async function runHeaviestModelSmoke\(page, observedErrors\) \{[\s\S]*?\n\}/
+  )?.[0] || '';
+  if (/force\s*:\s*true|dispatchEvent\s*\(\s*new MouseEvent/.test(heaviestSmoke)) {
+    throw new Error('Heaviest-model runtime smoke must use normal Playwright clicks.');
+  }
+
   const browserPhase =
     /    await testIndex\(BASE\);\r?\n    await testFreeAssets\(BASE\);\r?\n    await testMobileViewport\(BASE\);/;
 
@@ -19,7 +64,9 @@ try {
   }
 
   const testSource = source.replace(browserPhase, "    throw new Error('forced fatal verification error');");
+  mkdirSync(path.dirname(tempContractPath), { recursive: true });
   writeFileSync(tempPath, testSource, 'utf8');
+  writeFileSync(tempContractPath, contractSource, 'utf8');
 
   const result = spawnSync(process.execPath, [tempPath], {
     cwd: root,
