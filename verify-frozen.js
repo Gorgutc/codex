@@ -24,12 +24,14 @@ const path = require('path');
 const { chromium } = require('playwright');
 const { AxeBuilder } = require('@axe-core/playwright');
 const {
+  GENERAL_MODEL_TIMEOUT_MS,
   MODEL_RUNTIME_TIMEOUT_MS,
   classifyContextLosses,
   classifyModelRuntime,
   consoleErrorForRuntime,
   firstPartyHttpFailure,
   generalModelPlan,
+  lightweightPaginationPlan,
   modelRuntimeProblems,
   withAbsoluteDeadline
 } = require('./scripts/model-runtime-contract.cjs');
@@ -661,19 +663,25 @@ async function runHeaviestModelSmoke(page, observedErrors) {
     }
     return remaining;
   };
-  const beforeDeadline = (promise, label) =>
-    withAbsoluteDeadline(promise, deadlineAt, label);
+  const beforeDeadline = (operation, label) =>
+    withAbsoluteDeadline(operation, deadlineAt, label);
   let exactResponse = null;
   let responseMs = null;
   let responseFinishedMs = null;
   let readyMs = null;
   let readyPassed = false;
   let runtimeError = null;
+  let runtimeEnvironment = {
+    renderer: 'unavailable',
+    vendor: 'unavailable',
+    platform: 'unknown',
+    browserVersion: page.context().browser()?.version() || 'unknown'
+  };
   const materialStates = [];
   const errors = observedErrors || { pageErrors: [], consoleErrors: [] };
   let webglBefore = { loseContextCalls: 0, lostEvents: 0, restoredEvents: 0 };
   try {
-    webglBefore = await beforeDeadline(page.evaluate(() => {
+    webglBefore = await beforeDeadline(() => page.evaluate(() => {
       const lifecycle = window.__codexWebglLifecycle;
       if (!lifecycle) throw new Error('WebGL lifecycle instrumentation unavailable');
       return {
@@ -687,7 +695,7 @@ async function runHeaviestModelSmoke(page, observedErrors) {
   }
 
   if (!runtimeError) try {
-    const responsePromise = page.waitForResponse(response => {
+    const responsePromise = beforeDeadline(() => page.waitForResponse(response => {
       try {
         return new URL(response.url()).pathname === expectedPathname;
       } catch (_error) {
@@ -700,20 +708,20 @@ async function runHeaviestModelSmoke(page, observedErrors) {
       if (status < 200 || status > 299) {
         throw new Error(`exact GLB response returned HTTP ${status}`);
       }
-      await beforeDeadline(response.finished(), 'exact GLB response body');
+      await beforeDeadline(() => response.finished(), 'exact GLB response body');
       responseFinishedMs = Date.now() - startedAt;
       return response;
-    });
-    const readyPromise = page.waitForSelector(
+    }), 'exact GLB response');
+    const readyPromise = beforeDeadline(() => page.waitForSelector(
       '#case-3d-canvas.is-ready canvas.case-3d__three-canvas',
       { timeout: remainingMs('heaviest model readiness') }
     ).then(result => {
       readyMs = Date.now() - startedAt;
       return result;
-    });
-    const clickPromise = page.click('.case-tab[data-viz="3d"]', {
+    }), 'heaviest model readiness');
+    const clickPromise = beforeDeadline(() => page.click('.case-tab[data-viz="3d"]', {
       timeout: remainingMs('normal 3D tab click')
-    });
+    }), 'normal 3D tab click');
     await beforeDeadline(
       Promise.all([responsePromise, readyPromise, clickPromise]),
       'GLB response and readiness'
@@ -741,17 +749,38 @@ async function runHeaviestModelSmoke(page, observedErrors) {
 
   if (readyPassed) {
     try {
+      runtimeEnvironment = await beforeDeadline(() => page.evaluate(() => {
+        const canvas = document.querySelector(
+          '#case-3d-canvas.is-ready canvas.case-3d__three-canvas'
+        );
+        const gl = canvas && (canvas.getContext('webgl2') || canvas.getContext('webgl'));
+        const debug = gl && gl.getExtension('WEBGL_debug_renderer_info');
+        return {
+          renderer: gl
+            ? gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER)
+            : 'unavailable',
+          vendor: gl
+            ? gl.getParameter(debug ? debug.UNMASKED_VENDOR_WEBGL : gl.VENDOR)
+            : 'unavailable',
+          platform: navigator.platform || 'unknown'
+        };
+      }), 'WebGL runtime environment');
+      runtimeEnvironment.browserVersion = page.context().browser()?.version() || 'unknown';
+    } catch (error) {
+      runtimeEnvironment.error = String(error.message || error).replace(/\s+/g, ' ');
+    }
+    try {
       for (const mode of ['clay', 'xray', 'pbr']) {
         const modeStartedAt = Date.now();
         await beforeDeadline(
-          page.click(
+          () => page.click(
             `.case-3d__mat-group [data-material-mode="${mode}"]`,
             { timeout: remainingMs(`${mode} material click`) }
           ),
           `${mode} material click`
         );
         await beforeDeadline(
-          page.waitForFunction(expectedMode => {
+          () => page.waitForFunction(expectedMode => {
             const active = document.querySelector('.case-3d__mat-group [data-material-mode].is-on');
             const expected = document.querySelector(
               `.case-3d__mat-group [data-material-mode="${expectedMode}"]`
@@ -761,7 +790,7 @@ async function runHeaviestModelSmoke(page, observedErrors) {
           }, mode, { timeout: remainingMs(`${mode} material state`) }),
           `${mode} material state`
         );
-        materialStates.push(await beforeDeadline(page.evaluate(expectedMode => ({
+        materialStates.push(await beforeDeadline(() => page.evaluate(expectedMode => ({
           expected: expectedMode,
           active: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
           aria: document.querySelector(
@@ -784,7 +813,7 @@ async function runHeaviestModelSmoke(page, observedErrors) {
 
   let webglLifecycle = { intentionalReleases: 0, unexpectedLosses: [], restoredEvents: 0 };
   try {
-    const lifecycle = await beforeDeadline(page.evaluate(() => {
+    const lifecycle = await beforeDeadline(() => page.evaluate(() => {
       const lifecycle = window.__codexWebglLifecycle;
       if (!lifecycle) throw new Error('WebGL lifecycle instrumentation unavailable');
       return {
@@ -818,8 +847,14 @@ async function runHeaviestModelSmoke(page, observedErrors) {
     .map(state => `${state.expected}:${state.interactionMs}`)
     .join(',') || 'none';
   const performance = classifyModelRuntime(totalMs).label;
+  const environmentDetail =
+    `renderer=${String(runtimeEnvironment.renderer).replace(/\s+/g, ' ')}, ` +
+    `vendor=${String(runtimeEnvironment.vendor).replace(/\s+/g, ' ')}, ` +
+    `platform=${String(runtimeEnvironment.platform).replace(/\s+/g, ' ')}, ` +
+    `browser=${String(runtimeEnvironment.browserVersion).replace(/\s+/g, ' ')}` +
+    (runtimeEnvironment.error ? `, rendererError=${runtimeEnvironment.error}` : '');
   const runtimeDetail =
-    `${readyDetail}, materials=${materialTimings}, totalMs=${totalMs}, ` +
+    `${readyDetail}, ${environmentDetail}, materials=${materialTimings}, totalMs=${totalMs}, ` +
     `intentionalContextReleases=${webglLifecycle.intentionalReleases}, ` +
     `contextLosses=${contextLosses}, restoredEvents=${webglLifecycle.restoredEvents}, ` +
     `performance=${performance}` +
@@ -855,7 +890,7 @@ async function openGeneralModelSmoke(page) {
   const remainingMs = () => Math.max(1, deadlineAt - Date.now());
   try {
     await withAbsoluteDeadline(
-      Promise.all([
+      () => Promise.all([
         page.waitForSelector(
           '#case-3d-canvas.is-ready canvas.case-3d__three-canvas',
           { timeout: remainingMs() }
@@ -872,13 +907,13 @@ async function openGeneralModelSmoke(page) {
         { hasText: 'AUTO ROTATION' }
       ).first();
       await withAbsoluteDeadline(
-        autoRotate.click({ timeout: remainingMs() }),
+        () => autoRotate.click({ timeout: remainingMs() }),
         deadlineAt,
         'general heavy-model auto-rotation stop',
         plan.timeoutMs
       );
       await withAbsoluteDeadline(
-        page.waitForFunction(() =>
+        () => page.waitForFunction(() =>
           [...document.querySelectorAll('.case-3d__controls button.case-3d__ctrl')]
             .find(button => button.textContent?.includes('AUTO ROTATION'))
             ?.getAttribute('aria-pressed') === 'false',
@@ -1399,17 +1434,31 @@ async function testIndex(BASE) {
         : studioDefaultEnvState.sources.map(item => `${item.id}: source=${item.source}`).join('; ') +
           `; active=${studioDefaultEnvState.active}, aria=${studioDefaultEnvState.aria}, openCaseIsStudio=${openCaseIsStudio}`);
 
-  // Итерация F: стартовый кейс пагинации и ожидаемый финал выводятся из
-  // content/ (третья карточка cardOrder; раньше — хардкод ironclad-frame,
-  // 'Arc Motion' и '12 / 18'). Механика проверки не изменилась.
-  // Final review итерации F: при единственном видимом кейсе у кнопок
-  // next/prev нет цели — переходный контракт 3D-пагинации (вместе с
-  // навигационными ассертами) громко помечается skipped, а не падает.
+  // Pagination derives an adjacent lightweight pair from current content and
+  // excludes the heaviest model, which has a dedicated acceptance below. With
+  // one visible case navigation is legitimately dormant; with two or more
+  // cases an unavailable lightweight pair fails closed instead of skipping.
   if (EXPECTED_IDS.length < 2) {
     add('index', 'CASE-3d-pagination-transition-cover', true, 'skipped: fewer than 2 visible cases');
   } else {
-    const paginationStartIdx = Math.min(2, EXPECTED_IDS.length - 1);
-    const paginationStartId = EXPECTED_IDS[paginationStartIdx];
+    const pagination3DSwitchCount = 9;
+    const paginationPlan = lightweightPaginationPlan(
+      EXPECTED_IDS,
+      GENERAL_MODEL_CASE.caseId,
+      HEAVIEST_MODEL_CASE.caseId,
+      pagination3DSwitchCount
+    );
+    if (!paginationPlan) {
+      add(
+        'index',
+        'CASE-3d-pagination-transition-cover',
+        false,
+        `no adjacent lightweight pair; visible=${JSON.stringify(EXPECTED_IDS)}, ` +
+        `general=${GENERAL_MODEL_CASE.caseId}, heaviest=${HEAVIEST_MODEL_CASE.caseId}`
+      );
+      throw new Error('CASE-3d-pagination-transition-cover has no adjacent lightweight pair');
+    }
+    const paginationStartId = paginationPlan.startId;
     if (paginationStartId !== GENERAL_MODEL_CASE.caseId) {
       await page.click(`.work-card[data-id="${paginationStartId}"]`);
     }
@@ -1417,13 +1466,25 @@ async function testIndex(BASE) {
       document.querySelector('#case-title')?.textContent?.includes(startTitle) &&
       document.querySelector('#case-3d-canvas.is-ready canvas.case-3d__three-canvas'),
     cardTitleOf(paginationStartId));
-    const pagination3DSwitchCount = 9;
-    const paginationFinalIdx = (paginationStartIdx + pagination3DSwitchCount) % EXPECTED_IDS.length;
-    const paginationFinalTitle = cardTitleOf(EXPECTED_IDS[paginationFinalIdx]);
+    const paginationFinalIdx = EXPECTED_IDS.indexOf(paginationPlan.finalId);
+    const paginationFinalTitle = cardTitleOf(paginationPlan.finalId);
     const paginationFinalCounter = `${paginationFinalIdx + 1} / ${EXPECTED_IDS.length}`;
-    const pagination3D = await page.evaluate(async switchCount => {
+    const paginationExpectedSteps = paginationPlan.targetIds.map(caseId => {
+      const index = EXPECTED_IDS.indexOf(caseId);
+      return {
+        caseId,
+        title: cardTitleOf(caseId),
+        counter: `${index + 1} / ${EXPECTED_IDS.length}`
+      };
+    });
+    let pagination3D;
+    const paginationDeadlineAt = Date.now() + GENERAL_MODEL_TIMEOUT_MS;
+    try {
+      pagination3D = await withAbsoluteDeadline(
+        () => page.evaluate(async ({ directions, expectedSteps }) => {
       const host = document.getElementById('case-3d-canvas');
       const states = [];
+      const settledChecks = [];
       const baseline = {
         getContext: window.__codexWebglLifecycle?.getContext.length || 0,
         loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
@@ -1447,22 +1508,39 @@ async function testIndex(BASE) {
         states.push(state);
         return state;
       }
-      for (let step = 0; step < switchCount; step += 1) {
+      for (let step = 0; step < directions.length; step += 1) {
         readState(`step-${step}-before`);
-        document.getElementById('case-next')?.click();
+        document.getElementById(
+          directions[step] === 'next' ? 'case-next' : 'case-prev'
+        )?.click();
         readState(`step-${step}-sync`);
         await Promise.resolve();
         readState(`step-${step}-microtask`);
         let readyFrames = 0;
-        for (let frame = 0; frame < 120; frame += 1) {
+        let settledState;
+        for (let frame = 0; ; frame += 1) {
           await new Promise(resolve => window.requestAnimationFrame(resolve));
           const state = readState(`step-${step}-raf-${frame}`);
           if (state.ready) readyFrames += 1;
-          if (readyFrames >= 2) break;
+          if (readyFrames >= 2 && state.ready && !state.switching && !state.coverPainted) {
+            settledState = state;
+            break;
+          }
         }
-        readState(`step-${step}-ready`);
+        const expected = expectedSteps[step];
+        const correctTarget = settledState.title === expected.title &&
+          settledState.counter === expected.counter;
+        settledChecks.push({
+          step,
+          pass: correctTarget,
+          caseId: expected.caseId,
+          title: settledState?.title || '',
+          counter: settledState?.counter || '',
+          expectedTitle: expected.title,
+          expectedCounter: expected.counter
+        });
+        if (!correctTarget) break;
       }
-      await new Promise(resolve => window.setTimeout(resolve, 450));
       const afterLifecycle = {
         getContext: window.__codexWebglLifecycle?.getContext.length || 0,
         loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
@@ -1475,6 +1553,7 @@ async function testIndex(BASE) {
       const finalCover = host ? window.getComputedStyle(host, '::after') : null;
       return {
         states,
+        settledChecks,
         finalTitle: document.querySelector('#case-title')?.textContent || '',
         finalCounter: document.querySelector('#case-counter')?.textContent || '',
         finalReady: !!host?.classList.contains('is-ready'),
@@ -1494,7 +1573,19 @@ async function testIndex(BASE) {
           }
         }
       };
-    }, pagination3DSwitchCount);
+        }, {
+          directions: paginationPlan.directions,
+          expectedSteps: paginationExpectedSteps
+        }),
+        paginationDeadlineAt,
+        'pagination transition cover',
+        GENERAL_MODEL_TIMEOUT_MS
+      );
+    } catch (error) {
+      add('index', 'CASE-3d-pagination-transition-cover', false, error.message);
+      await browser.close().catch(() => {});
+      throw error;
+    }
     const transitionFrames = pagination3D.states.filter(state => !state.label.endsWith('-before') && !state.ready);
     const transitionCovered = transitionFrames.length > 0 &&
       transitionFrames.every(state => state.switching && state.coverPainted && state.active3D && state.children > 0 && state.canvases <= 1);
@@ -1511,6 +1602,8 @@ async function testIndex(BASE) {
       };
     });
     const postReadyCovered = postReadyChecks.every(item => item.pass);
+    const everyStepSettled = pagination3D.settledChecks.length === pagination3DSwitchCount &&
+      pagination3D.settledChecks.every(item => item.pass);
     add('index', 'CASE-3d-pagination-transition-cover',
         pagination3D.finalTitle === paginationFinalTitle &&
         pagination3D.finalCounter === paginationFinalCounter &&
@@ -1521,6 +1614,7 @@ async function testIndex(BASE) {
         pagination3D.finalActive3D &&
         transitionCovered &&
         postReadyCovered &&
+        everyStepSettled &&
         pagination3D.lifecycle.delta.getContext === pagination3DSwitchCount &&
         pagination3D.lifecycle.delta.loseContextCalls === 0 &&
         pagination3D.lifecycle.delta.lostEvents === 0 &&
@@ -1529,6 +1623,7 @@ async function testIndex(BASE) {
         `counter=${pagination3D.finalCounter} (expected(content) ${paginationFinalCounter}), ` +
         `finalSwitching=${pagination3D.finalSwitching}, finalCover=${pagination3D.finalCoverPainted}, ` +
         `transitionFrames=${transitionFrames.length}, postReady=${JSON.stringify(postReadyChecks)}, ` +
+        `settled=${JSON.stringify(pagination3D.settledChecks)}, ` +
         `lifecycle=${JSON.stringify(pagination3D.lifecycle.delta)}, ` +
         `lose=${JSON.stringify(pagination3D.lifecycle.after.loseDetails)}, ` +
         `lost=${JSON.stringify(pagination3D.lifecycle.after.lostDetails)}, ` +
@@ -1759,6 +1854,7 @@ async function testIndex(BASE) {
   // immediately after the verified return to PBR. This preserves the full
   // Corten contract without leaking its continuous render loop into other
   // Playwright actionability checks.
+  await page.close();
   const heavyPage = await ctx.newPage();
   let modelRuntime;
   try {

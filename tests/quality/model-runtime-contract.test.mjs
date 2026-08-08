@@ -21,6 +21,25 @@ assert.deepEqual(contract.generalModelPlan('heavy', 'heavy'), {
   stopAutoRotate: true
 });
 
+assert.deepEqual(
+  contract.lightweightPaginationPlan(
+    ['heavy', 'light-a', 'light-b'],
+    'light-b',
+    'heavy',
+    9
+  ),
+  {
+    startId: 'light-b',
+    directions: ['prev', 'next', 'prev', 'next', 'prev', 'next', 'prev', 'next', 'prev'],
+    targetIds: ['light-a', 'light-b', 'light-a', 'light-b', 'light-a', 'light-b', 'light-a', 'light-b', 'light-a'],
+    finalId: 'light-a'
+  }
+);
+assert.equal(
+  contract.lightweightPaginationPlan(['heavy', 'light'], 'light', 'heavy', 9),
+  null
+);
+
 const validOutcome = {
   responseStatus: 200,
   ready: true,
@@ -105,5 +124,67 @@ await assert.rejects(
   contract.withAbsoluteDeadline(Promise.resolve(), Date.now() - 1, 'generic-test', 30_000),
   /generic-test.*absolute 30000 ms model runtime ceiling exceeded/
 );
+
+let expiredFactoryCalls = 0;
+await assert.rejects(
+  contract.withAbsoluteDeadline(() => {
+    expiredFactoryCalls += 1;
+    return Promise.resolve();
+  }, Date.now() - 1, 'lazy-test', 30_000),
+  /lazy-test.*absolute 30000 ms model runtime ceiling exceeded/
+);
+assert.equal(expiredFactoryCalls, 0);
+
+let rejectLateOperation;
+const lateOperation = new Promise((_, reject) => {
+  rejectLateOperation = reject;
+});
+let lateUnhandled = null;
+const onUnhandled = reason => {
+  lateUnhandled = reason;
+};
+process.on('unhandledRejection', onUnhandled);
+try {
+  await assert.rejects(
+    contract.withAbsoluteDeadline(lateOperation, Date.now() - 1, 'late-test', 30_000),
+    /late-test.*absolute 30000 ms model runtime ceiling exceeded/
+  );
+  rejectLateOperation(new Error('late underlying rejection'));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(lateUnhandled, null);
+} finally {
+  process.removeListener('unhandledRejection', onUnhandled);
+}
+
+let rejectAggregateChild;
+const aggregateChild = new Promise((_, reject) => {
+  rejectAggregateChild = reject;
+});
+const alreadyObservedAggregate = Promise.all([
+  aggregateChild,
+  Promise.reject(new Error('second aggregate rejection')),
+  Promise.reject(new Error('third aggregate rejection'))
+]);
+let aggregateUnhandled = null;
+const onAggregateUnhandled = reason => {
+  aggregateUnhandled = reason;
+};
+process.on('unhandledRejection', onAggregateUnhandled);
+try {
+  await assert.rejects(
+    contract.withAbsoluteDeadline(
+      alreadyObservedAggregate,
+      Date.now() - 1,
+      'aggregate-test',
+      30_000
+    ),
+    /aggregate-test.*absolute 30000 ms model runtime ceiling exceeded/
+  );
+  rejectAggregateChild(new Error('late aggregate child rejection'));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(aggregateUnhandled, null);
+} finally {
+  process.removeListener('unhandledRejection', onAggregateUnhandled);
+}
 
 console.log('model runtime contract boundaries and failure modes pass');

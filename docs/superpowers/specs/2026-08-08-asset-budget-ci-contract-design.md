@@ -282,15 +282,25 @@ tab click through the verified return to PBR:
 - `(120,000, 210,000] ms`: pass with the literal marker `PERF_WARN`;
 - `> 210,000 ms`: fail as a runtime/model blocker.
 
-Independent generic viewer and pagination assertions run first on the primary
-page with the smallest visible referenced model. The heaviest-model acceptance
-then runs last on a dedicated normal-motion page, which is closed only after
-the complete material scenario. This isolation does not skip or weaken
-Corten: it prevents its continuous render loop from consuming unrelated
-Playwright actionability time after Corten has passed the stronger contract.
-The generic readiness helper accepts the existing inline `model-data.js`
-resolution used by small models; the exact HTTP response requirement remains
-on the external heaviest GLB.
+The independent generic viewer opens first on the primary page with the
+smallest visible referenced model. Nine real pagination remounts then alternate
+through a content-derived adjacent non-heaviest pair; every step must preserve
+the transition cover, reach its expected case, and settle. With two or more
+visible cases, inability to form that pair fails closed. The primary page is
+closed before the heaviest-model acceptance starts last on a dedicated
+normal-motion page, which is closed only after the complete material scenario.
+This isolation does not skip or weaken Corten: it prevents generic pagination
+from decoding it repeatedly and prevents its continuous render loop from
+consuming the dedicated acceptance budget. The generic readiness helper
+accepts the existing inline `model-data.js` resolution used by small models;
+the exact HTTP response requirement remains on the external heaviest GLB.
+
+The first PR #73 quality run exposed the missing isolation: nine unconditional
+next-clicks mounted Corten three times before its dedicated smoke, and the
+primary page remained open. The run reached the 210,000 ms watchdog before PBR
+and therefore was not a clean basis for expanding the ceiling. After isolating
+pagination and closing the primary page, two fresh local complete scenarios
+passed in 171,512 and 158,145 ms under the unchanged 120/210 contract.
 
 The verifier records HTTP status, response time, readiness time, every material
 interaction time, total time, and WebGL context-loss state. Non-2xx response,

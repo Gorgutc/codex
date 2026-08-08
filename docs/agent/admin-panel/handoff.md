@@ -1563,3 +1563,27 @@ lifecycle snapshot пересёк прежнюю границу на 8 ms.
 таймауту запрещён; 210,000 ms больше не расширяется в этой задаче. Все non-time
 ошибки (non-2xx, readiness, material state, page/console error, unexpected
 WebGL context loss) по-прежнему падают независимо от времени.
+
+## 2026-08-08 — addendum по изоляции PR #73 runtime-smoke
+
+Первый `quality`-прогон PR #73 не был чистым измерением тяжёлой модели:
+generic-пагинация делала девять `next`-переходов по циклу
+`corten-series` / `lumen-one` / `flux-capsule`, трижды монтировала
+`corten-series` до dedicated-smoke и оставляла
+primary page с WebGL-контекстами открытой. Dedicated-сценарий после этого
+достиг 210,004 ms до PBR. Это verifier isolation bug, а не основание повышать
+210,000 ms или ослаблять byte/runtime gates.
+
+Текущий verifier сначала открывает самую лёгкую модель, затем выполняет девять
+реальных `prev`/`next` remount между соседней non-heaviest парой. Каждый шаг
+обязан сохранить cover, прийти в ожидаемый кейс и полностью settled; отсутствие
+пары при двух или более видимых кейсах падает fail-closed. Primary page
+закрывается до отдельного `corten-series` smoke. Deadline-операции запускаются
+лениво, а уже стартовавшие promises объединяются до deadline-wrapper, поэтому timeout
+не оставляет вторичный `Target page closed`/`unhandledRejection`.
+
+Два свежих локальных прогона после изоляции завершились с `0 FAIL`;
+`corten-series` прошёл exact 2xx, readiness и Clay/Xray/PBR за 171,512 и 158,145 ms,
+с `contextLosses=0` и буквальным `PERF_WARN`. Контракт остаётся `<=120,000` /
+`(120,000,210,000]` / `>210,000`; окончательная приёмка всё ещё требует зелёный
+`quality` на точном новом head PR #73.

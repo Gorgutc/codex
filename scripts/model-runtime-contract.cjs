@@ -27,6 +27,43 @@ function generalModelPlan(generalCaseId, heaviestCaseId) {
   };
 }
 
+function lightweightPaginationPlan(orderedIds, startId, heaviestId, switchCount = 9) {
+  if (!Array.isArray(orderedIds) || !Number.isInteger(switchCount) || switchCount <= 0) {
+    throw new TypeError('invalid lightweight pagination inputs');
+  }
+  const startIndex = orderedIds.indexOf(startId);
+  if (orderedIds.length < 3 || startIndex < 0 || startId === heaviestId) return null;
+
+  const candidates = [
+    { direction: 'next', opposite: 'prev', index: (startIndex + 1) % orderedIds.length },
+    { direction: 'prev', opposite: 'next', index: (startIndex - 1 + orderedIds.length) % orderedIds.length }
+  ];
+  const neighbor = candidates.find(candidate => {
+    const id = orderedIds[candidate.index];
+    return id !== startId && id !== heaviestId;
+  });
+  if (!neighbor) return null;
+
+  const directions = Array.from(
+    { length: switchCount },
+    (_, index) => index % 2 === 0 ? neighbor.direction : neighbor.opposite
+  );
+  let cursor = startIndex;
+  const targetIds = directions.map(direction => {
+    cursor = direction === 'next'
+      ? (cursor + 1) % orderedIds.length
+      : (cursor - 1 + orderedIds.length) % orderedIds.length;
+    return orderedIds[cursor];
+  });
+  if (targetIds.some(id => id === heaviestId)) return null;
+  return {
+    startId,
+    directions,
+    targetIds,
+    finalId: targetIds[targetIds.length - 1]
+  };
+}
+
 function modelRuntimeProblems(outcome) {
   const problems = [];
   const status = outcome.responseStatus;
@@ -116,7 +153,7 @@ function firstPartyHttpFailure(responseUrl, status, baseUrl) {
 }
 
 function withAbsoluteDeadline(
-  promise,
+  operation,
   deadlineAt,
   label,
   ceilingMs = MODEL_RUNTIME_TIMEOUT_MS
@@ -126,11 +163,23 @@ function withAbsoluteDeadline(
   }
   const remainingMs = deadlineAt - Date.now();
   if (remainingMs <= 0) {
+    if (typeof operation !== 'function') {
+      Promise.resolve(operation).catch(() => {});
+    }
     return Promise.reject(
       new Error(
         `${label}: absolute ${ceilingMs} ms model runtime ceiling exceeded`
       )
     );
+  }
+
+  let observed;
+  try {
+    observed = Promise.resolve(
+      typeof operation === 'function' ? operation() : operation
+    );
+  } catch (error) {
+    return Promise.reject(error);
   }
 
   return new Promise((resolve, reject) => {
@@ -141,7 +190,7 @@ function withAbsoluteDeadline(
         )
       );
     }, remainingMs);
-    Promise.resolve(promise).then(
+    observed.then(
       (value) => {
         clearTimeout(timer);
         resolve(value);
@@ -163,6 +212,7 @@ module.exports = {
   consoleErrorForRuntime,
   firstPartyHttpFailure,
   generalModelPlan,
+  lightweightPaginationPlan,
   modelRuntimeProblems,
   withAbsoluteDeadline
 };

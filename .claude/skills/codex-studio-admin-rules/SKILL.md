@@ -78,7 +78,8 @@ rules.
   from `State.getMediaRule('model')`; do not add another numeric UI mirror.
 - Passing the upload byte gate does not prove 3D operability. Refer to
   `docs/agent/verification.md` for the mandatory 120/210-second runtime gate,
-  smallest-model generic checks, and isolated external heaviest-model proof.
+  smallest-model generic check, adjacent non-heaviest pagination pair, and
+  external heaviest-model proof after the primary page closes.
 
 ### Upload mechanics
 

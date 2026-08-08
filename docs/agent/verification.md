@@ -44,12 +44,15 @@ advisory parity is not a contract: only the model warning is a focused
 repository/admin parity exception.
 
 A passing byte gate never replaces browser/runtime proof. The generic viewer
-and pagination assertions run first on the primary page against the smallest
-visible referenced model and accept either inline `model-data.js` resolution
-or an HTTP model response. The external heaviest-model acceptance runs last on
-a dedicated normal-motion page, requires an exact 2xx GLB response and normal
-Clay/Xray/PBR interactions, and closes the page only after the verified return
-to PBR.
+opens first on the primary page against the smallest visible referenced model
+and accepts either inline `model-data.js` resolution or an HTTP model response.
+Nine pagination remounts then alternate through a content-derived adjacent
+non-heaviest pair; every step must preserve the transition cover, reach its
+expected case, and settle. With two or more visible cases, inability to form
+that pair fails closed. The primary page is closed before the external
+heaviest-model acceptance starts last on a dedicated normal-motion page. That
+acceptance requires an exact 2xx GLB response and normal Clay/Xray/PBR
+interactions and closes its page only after the verified return to PBR.
 
 One absolute deadline covers that complete heaviest-model scenario, not each
 phase separately:

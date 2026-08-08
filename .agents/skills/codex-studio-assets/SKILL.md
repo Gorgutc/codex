@@ -36,11 +36,15 @@ different repository and admin image advisories.
 
 A warning-free model is not runtime-approved by size alone. In `npm run verify`:
 
-- generic viewer/pagination checks run first on the smallest visible referenced
-  model and accept inline `model-data.js` or HTTP resolution;
+- the generic viewer opens first on the smallest visible referenced model and
+  accepts inline `model-data.js` or HTTP resolution; nine pagination remounts
+  then alternate through a content-derived adjacent non-heaviest pair, require
+  the expected settled case after every step, and fail closed when no such pair
+  exists with two or more visible cases;
 - the external heaviest model runs last on a dedicated normal-motion page,
   requires an exact 2xx GLB response and normal Clay/Xray/PBR interactions, and
-  closes only after the verified return to PBR;
+  starts only after the primary page closes and closes only after the verified
+  return to PBR;
 - one absolute deadline covers the complete heaviest-model scenario:
   `<= 120,000 ms` passes, `(120,000, 210,000] ms` passes with literal
   `PERF_WARN`, and `> 210,000 ms` fails. It is not a per-phase timeout or a UX
