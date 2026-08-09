@@ -5,31 +5,31 @@ const require = createRequire(import.meta.url);
 const contract = require('../../scripts/model-runtime-contract.cjs');
 
 assert.equal(contract.MODEL_RUNTIME_TARGET_MS, 120_000);
-assert.equal(contract.MODEL_RUNTIME_PHASE_TIMEOUT_MS, 120_000);
-assert.equal(contract.MODEL_RUNTIME_WATCHDOG_MS, 360_000);
+assert.equal(contract.MODEL_RUNTIME_PHASE_TIMEOUT_MS, 180_000);
+assert.equal(contract.MODEL_RUNTIME_WATCHDOG_MS, 600_000);
 
 assert.equal(contract.classifyModelRuntime(120_000).label, 'within-target');
 assert.equal(contract.classifyModelRuntime(120_001).label, 'PERF_WARN');
-assert.equal(contract.classifyModelRuntime(360_000).label, 'PERF_WARN');
-assert.equal(contract.classifyModelRuntime(360_001).label, 'FAIL');
+assert.equal(contract.classifyModelRuntime(600_000).label, 'PERF_WARN');
+assert.equal(contract.classifyModelRuntime(600_001).label, 'FAIL');
 
 assert.deepEqual(contract.generalModelPlan('light', 'heavy'), {
   timeoutMs: 30_000,
   stopAutoRotate: false
 });
 assert.deepEqual(contract.generalModelPlan('heavy', 'heavy'), {
-  timeoutMs: 120_000,
+  timeoutMs: 180_000,
   stopAutoRotate: true
 });
 
-assert.deepEqual(contract.modelRuntimePhasePlan(1_000, 361_000), {
-  deadlineAt: 121_000,
-  timeoutMs: 120_000,
+assert.deepEqual(contract.modelRuntimePhasePlan(1_000, 601_000), {
+  deadlineAt: 181_000,
+  timeoutMs: 180_000,
   kind: 'phase'
 });
-assert.deepEqual(contract.modelRuntimePhasePlan(300_000, 361_000), {
-  deadlineAt: 361_000,
-  timeoutMs: 360_000,
+assert.deepEqual(contract.modelRuntimePhasePlan(500_000, 601_000), {
+  deadlineAt: 601_000,
+  timeoutMs: 600_000,
   kind: 'watchdog'
 });
 
@@ -66,7 +66,7 @@ const validOutcome = {
   totalMs: 120_001
 };
 assert.deepEqual(contract.modelRuntimeProblems(validOutcome), []);
-assert.deepEqual(contract.modelRuntimeProblems({ ...validOutcome, totalMs: 300_000 }), []);
+assert.deepEqual(contract.modelRuntimeProblems({ ...validOutcome, totalMs: 500_000 }), []);
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, responseStatus: 503 })[0], /HTTP 503/);
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, ready: false })[0], /not ready/);
 assert.match(
@@ -80,7 +80,7 @@ assert.match(
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, pageErrors: ['boom'] })[0], /page error/);
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, consoleErrors: ['boom'] })[0], /console error/);
 assert.match(contract.modelRuntimeProblems({ ...validOutcome, contextLosses: 1 })[0], /context lost/);
-assert.match(contract.modelRuntimeProblems({ ...validOutcome, totalMs: 360_001 })[0], /360000 ms/);
+assert.match(contract.modelRuntimeProblems({ ...validOutcome, totalMs: 600_001 })[0], /600000 ms/);
 
 const lifecycle = contract.classifyContextLosses(
   { loseContextCalls: 0, lostEvents: 0, restoredEvents: 0 },
@@ -128,6 +128,27 @@ assert.equal(
   contract.firstPartyHttpFailure('https://api.fontshare.com/v2/css', 404, localBase),
   null
 );
+assert.equal(
+  contract.exactResourceResponseMatches(
+    `${localBase}/assets/models/corten.glb?cache=1`,
+    `${localBase}/assets/models/corten.glb`
+  ),
+  true
+);
+assert.equal(
+  contract.exactResourceResponseMatches(
+    'https://third-party.invalid/assets/models/corten.glb',
+    `${localBase}/assets/models/corten.glb`
+  ),
+  false
+);
+assert.equal(
+  contract.exactResourceResponseMatches(
+    `${localBase}/assets/models/other.glb`,
+    `${localBase}/assets/models/corten.glb`
+  ),
+  false
+);
 
 await assert.rejects(
   contract.withAbsoluteDeadline(
@@ -136,7 +157,7 @@ await assert.rejects(
     'watchdog-test',
     contract.MODEL_RUNTIME_WATCHDOG_MS
   ),
-  /watchdog-test.*absolute 360000 ms deadline exceeded/
+  /watchdog-test.*absolute 600000 ms deadline exceeded/
 );
 await assert.rejects(
   contract.withAbsoluteDeadline(
@@ -145,7 +166,7 @@ await assert.rejects(
     'phase-test',
     contract.MODEL_RUNTIME_PHASE_TIMEOUT_MS
   ),
-  /phase-test.*absolute 120000 ms deadline exceeded/
+  /phase-test.*absolute 180000 ms deadline exceeded/
 );
 await assert.rejects(
   contract.withAbsoluteDeadline(Promise.resolve(), Date.now() - 1, 'generic-test', 30_000),

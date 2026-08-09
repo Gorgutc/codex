@@ -26,6 +26,8 @@ try {
     [/await page\.close\(\);\s*const heavyPage = await ctx\.newPage\(\)/, 'primary-page isolation before the heaviest model'],
     [/lightweightPaginationPlan\([\s\S]*?GENERAL_MODEL_CASE\.caseId,[\s\S]*?HEAVIEST_MODEL_CASE\.caseId/, 'lightweight pagination plan call'],
     [/loadPhase\.run\(\s*Promise\.all\(\[responsePromise, readyPromise, clickPromise\]\)/, 'already-observed heaviest readiness aggregate'],
+    [/const expectedModelUrl = new URL\(target\.publicPath, page\.url\(\)\)\.href/, 'absolute expected heaviest-model URL'],
+    [/exactResourceResponseMatches\(response\.url\(\), expectedModelUrl\)/, 'origin-aware exact-GLB response matcher call'],
     [/modelRuntimePhasePlan\(Date\.now\(\), watchdogDeadlineAt\)/, 'shared dedicated phase deadline planning'],
     [/load-ready/, 'named load/readiness phase'],
     [/material-\$\{mode\}/, 'named material phases'],
@@ -44,11 +46,12 @@ try {
 
   const sharedRuntimeContract = [
     [/MODEL_RUNTIME_TARGET_MS = 120_000/, '120-second runtime target'],
-    [/MODEL_RUNTIME_PHASE_TIMEOUT_MS = 120_000/, '120-second functional phase timeout'],
-    [/MODEL_RUNTIME_WATCHDOG_MS = 360_000/, '360-second operational watchdog'],
+    [/MODEL_RUNTIME_PHASE_TIMEOUT_MS = 180_000/, '180-second functional phase timeout'],
+    [/MODEL_RUNTIME_WATCHDOG_MS = 600_000/, '600-second operational watchdog'],
     [/label: 'PERF_WARN'/, 'explicit model runtime performance warning'],
     [/typeof operation === 'function' \? operation\(\) : operation/, 'lazy deadline operation factory'],
     [/function modelRuntimePhasePlan/, 'shared runtime phase planner'],
+    [/function exactResourceResponseMatches/, 'origin-aware exact resource matcher'],
     [/function lightweightPaginationPlan/, 'lightweight pagination planner']
   ];
   for (const [pattern, description] of sharedRuntimeContract) {

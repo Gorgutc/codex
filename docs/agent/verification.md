@@ -57,23 +57,23 @@ interactions and closes its page only after the verified return to PBR.
 Performance and operability are separate contracts:
 
 - a completed scenario at `<= 120,000 ms` passes within target;
-- a completed scenario in `(120,000, 360,000] ms` passes with the literal
+- a completed scenario in `(120,000, 600,000] ms` passes with the literal
   marker `PERF_WARN`;
 - the load/readiness phase and each Clay/Xray/PBR phase have their own absolute
-  `120,000 ms` functional deadline; each click, state wait, and snapshot shares
+  `180,000 ms` functional deadline; each click, state wait, and snapshot shares
   one phase budget rather than restarting it;
-- one `360,000 ms` operational watchdog covers the whole dedicated scenario
+- one `600,000 ms` operational watchdog covers the whole dedicated scenario
   through the final lifecycle snapshot. Every phase deadline is clipped by it.
 
 Any phase timeout or operational-watchdog timeout fails without retry, even if
 the elapsed total would otherwise only be advisory. The generic lightweight
 viewer and pagination keep their separate 30-second deadline; a same-model
-generic readiness fallback uses the 120-second phase deadline, never the
-360-second watchdog.
+generic readiness fallback uses the 180-second phase deadline, never the
+600-second watchdog.
 
 Non-2xx response, missing readiness, wrong material state, page or console
 error, and unexpected WebGL context loss fail regardless of elapsed time. The
-360-second watchdog is CI anti-hang headroom, not an end-user performance SLA.
+600-second watchdog is CI anti-hang headroom, not an end-user performance SLA.
 
 ## Related Gates
 

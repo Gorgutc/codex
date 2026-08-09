@@ -47,8 +47,8 @@ A warning-free model is not runtime-approved by size alone. In `npm run verify`:
   return to PBR;
 - `120,000 ms` is the total-scenario performance target; a slower completed
   scenario passes with literal `PERF_WARN`. Load/readiness and each
-  Clay/Xray/PBR transition have one shared `120,000 ms` functional phase
-  deadline, while a `360,000 ms` operational watchdog bounds the complete
+  Clay/Xray/PBR transition have one shared `180,000 ms` functional phase
+  deadline, while a `600,000 ms` operational watchdog bounds the complete
   dedicated scenario through lifecycle proof. Any phase/watchdog timeout fails
   without retry. The watchdog is CI anti-hang protection, not a UX SLA.
 

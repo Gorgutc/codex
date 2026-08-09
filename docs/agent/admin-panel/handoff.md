@@ -1615,3 +1615,31 @@ Byte policy не меняется: GLB warning-free до 25 MiB включите
 50 MiB включительно и block только выше 50 MiB. Shipped viewer/model также не
 меняются. Финальная приёмка требует полный PBR, `contextLosses=0`, `PERF_WARN`
 и зелёный exact-head Linux `quality`.
+
+## 2026-08-09 — superseding addendum: measured phase tail
+
+Контракт `120/120/360` выше остаётся историей промежуточного решения. Его
+пересмотр разрешён владельцем после фактического замера и потребовался после
+двух попыток exact-head run `31277048918` на Linux SwiftShader.
+
+Attempt 1 полностью завершил модель за 323,940 ms: ready 87,456 ms,
+Clay/Xray/PBR 76,878/26,006/99,387 ms, `contextLosses=0`. До watchdog осталось
+только 36,060 ms. Attempt 2 достиг ready за 70,891 ms, но Clay пересёк
+120,000 ms при total 208,086 ms; лог подтвердил exact GLB HTTP 200 и
+`contextLosses=0`. Так как этот первый terminal timeout завершил прогон, лог не
+даёт отдельного подтверждения отсутствия page/console errors. Это right-censored
+измерение (`Clay >120,000 ms`), а не size/network failure.
+
+Активный контракт:
+
+- `MODEL_RUNTIME_TARGET_MS = 120,000`: performance target не меняется;
+- `MODEL_RUNTIME_PHASE_TIMEOUT_MS = 180,000`: один общий budget каждой
+  load/readiness или Clay/Xray/PBR phase на click/state/snapshot;
+- `MODEL_RUNTIME_WATCHDOG_MS = 600,000`: один anti-hang deadline от dedicated
+  navigation до финального lifecycle snapshot;
+- любой timeout или non-time invariant падает без retry и без renderer-specific
+  ветки. Если активная граница сработает, следующий шаг — runtime profiling, а
+  не ещё одно автоматическое расширение.
+
+Byte policy и shipped runtime не меняются: GLB warning-free `<=25 MiB`,
+advisory `(25,50] MiB`, block `>50 MiB`; остальные hard caps также сохранены.

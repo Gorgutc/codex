@@ -30,6 +30,7 @@ const {
   classifyContextLosses,
   classifyModelRuntime,
   consoleErrorForRuntime,
+  exactResourceResponseMatches,
   firstPartyHttpFailure,
   generalModelPlan,
   lightweightPaginationPlan,
@@ -686,7 +687,7 @@ async function runHeaviestModelSmoke(page, observedErrors, startedAt, watchdogDe
     before3DResources.join(', ') || `clean; case=${target.caseId}, path=${target.publicPath}, bytes=${target.bytes}`
   );
 
-  const expectedPathname = '/' + target.publicPath.replace(/^\.\//, '');
+  const expectedModelUrl = new URL(target.publicPath, page.url()).href;
   let exactResponse = null;
   let responseMs = null;
   let responseFinishedMs = null;
@@ -719,11 +720,7 @@ async function runHeaviestModelSmoke(page, observedErrors, startedAt, watchdogDe
   if (!runtimeError) try {
     const loadPhase = startPhase('load-ready');
     const responsePromise = loadPhase.run(() => page.waitForResponse(response => {
-      try {
-        return new URL(response.url()).pathname === expectedPathname;
-      } catch (_error) {
-        return false;
-      }
+      return exactResourceResponseMatches(response.url(), expectedModelUrl);
     }, { timeout: loadPhase.remainingMs('exact GLB response') }).then(async response => {
       exactResponse = response;
       responseMs = Date.now() - startedAt;

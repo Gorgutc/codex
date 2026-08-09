@@ -1,8 +1,8 @@
 'use strict';
 
 const MODEL_RUNTIME_TARGET_MS = 120_000;
-const MODEL_RUNTIME_PHASE_TIMEOUT_MS = 120_000;
-const MODEL_RUNTIME_WATCHDOG_MS = 360_000;
+const MODEL_RUNTIME_PHASE_TIMEOUT_MS = 180_000;
+const MODEL_RUNTIME_WATCHDOG_MS = 600_000;
 const GENERAL_MODEL_TIMEOUT_MS = 30_000;
 const MATERIAL_MODES = ['clay', 'xray', 'pbr'];
 const KNOWN_EXTERNAL_RUNTIME_NOISE = /(fontshare|cloudflare|jsdelivr)/i;
@@ -172,6 +172,16 @@ function firstPartyHttpFailure(responseUrl, status, baseUrl) {
   return `first-party HTTP ${status}: ${pathname}`;
 }
 
+function exactResourceResponseMatches(responseUrl, expectedUrl) {
+  try {
+    const response = new URL(responseUrl);
+    const expected = new URL(expectedUrl);
+    return response.origin === expected.origin && response.pathname === expected.pathname;
+  } catch (_error) {
+    return false;
+  }
+}
+
 function withAbsoluteDeadline(
   operation,
   deadlineAt,
@@ -246,6 +256,7 @@ module.exports = {
   classifyContextLosses,
   classifyModelRuntime,
   consoleErrorForRuntime,
+  exactResourceResponseMatches,
   firstPartyHttpFailure,
   generalModelPlan,
   lightweightPaginationPlan,

@@ -47,8 +47,8 @@ readiness race in the test harness.
 9. After measuring the heaviest referenced model locally and on clean Linux
    SwiftShader CI, the owner-authorized runtime contract separates performance
    from operability: `120,000 ms` is the total-scenario target, load/readiness
-   and every Clay/Xray/PBR transition have an absolute `120,000 ms` functional
-   phase deadline, and one `360,000 ms` operational watchdog bounds the whole
+   and every Clay/Xray/PBR transition have an absolute `180,000 ms` functional
+   phase deadline, and one `600,000 ms` operational watchdog bounds the whole
    scenario. A slower successful total gets literal `PERF_WARN`; any
    phase/watchdog timeout fails without retry.
 
@@ -88,7 +88,7 @@ warning-free, exactly 50 MiB is allowed with a warning, and one byte above
   reproduces on the updated branch and blocks the required full gate. Any such
   failure must be diagnosed independently before its scope is expanded.
 - Skipping the Corten case, using forced/DOM clicks, weakening viewer state
-  assertions, or treating the 360-second CI watchdog as a user-experience SLA.
+  assertions, or treating the 600-second CI watchdog as a user-experience SLA.
 - Changing shipped viewer behavior or the Corten model in this repair. The
   measured performance risk remains visible and can be remediated separately.
 
@@ -278,14 +278,14 @@ mandatory lifecycle snapshot. That evidence produced an intermediate
 superseded after a clean Linux SwiftShader run proved that one total ceiling
 still conflated performance with functional operability.
 
-The final measured contract is:
+The active measured contract is:
 
 - `MODEL_RUNTIME_TARGET_MS = 120,000`: a successful total at or below the
   target is `within-target`; a slower successful total is `PERF_WARN`;
-- `MODEL_RUNTIME_PHASE_TIMEOUT_MS = 120,000`: load/readiness and each
+- `MODEL_RUNTIME_PHASE_TIMEOUT_MS = 180,000`: load/readiness and each
   Clay/Xray/PBR transition get one absolute phase budget shared by their click,
   state wait, and snapshot;
-- `MODEL_RUNTIME_WATCHDOG_MS = 360,000`: one absolute operational watchdog
+- `MODEL_RUNTIME_WATCHDOG_MS = 600,000`: one absolute operational watchdog
   covers the dedicated scenario through the final lifecycle snapshot;
 - each phase deadline is clipped by the operational watchdog. Any phase or
   watchdog timeout fails without retry, regardless of the performance label.
@@ -310,7 +310,7 @@ and therefore was not a clean basis for expanding the ceiling. After isolating
 pagination and closing the primary page, two fresh local complete scenarios
 passed in 171,512 and 158,145 ms under the then-current intermediate 120/210 contract.
 
-The next exact-head PR run `31274544296` supplied the clean cross-platform
+The next exact-head PR run `31274544296` supplied the first clean cross-platform
 measurement. Lightweight pagination passed all nine transitions. The external
 GLB response/body completed in 3,168/3,259 ms, Linux SwiftShader reached ready
 at 74,475 ms, and Clay/Xray completed in 81,919/33,010 ms with zero unexpected
@@ -318,15 +318,32 @@ context loss. The intermediate 210,000 ms total expired during the normal PBR
 click, leaving only about 20.6 seconds for that phase. Every completed phase
 was below 120 seconds, while their legitimate sum exceeded 210 seconds. Under
 the owner's explicit authorization to revisit the boundary after measurement,
-this evidence supersedes the intermediate whole-scenario ceiling with the
-120-second phase / 360-second operational split above.
+this evidence superseded the intermediate whole-scenario ceiling with an
+intermediate 120-second phase / 360-second operational split.
+
+Exact-head PR run `31277048918` then measured the split itself. Attempt 1
+completed the external model in 323,940 ms: ready 87,456 ms, Clay 76,878 ms,
+Xray 26,006 ms, PBR 99,387 ms, and zero unexpected context loss. That left only
+36,060 ms of whole-watchdog headroom. Attempt 2 reached ready in 70,891 ms,
+logged the exact GLB HTTP 200 and `contextLosses=0`, then crossed the 120,000 ms
+Clay phase deadline at total 208,086 ms. Because that first terminal timeout
+ended the run, the log does not separately establish the absence of page or
+console errors. The failed phase is a
+right-censored measurement (`>120,000 ms`), so a 150-second replacement would
+not provide defensible tail margin. Under the same prior owner authorization,
+these two attempts supersede the intermediate split with the active
+120-second target / 180-second phase / 600-second watchdog contract above.
+The 180-second phase adds 50% beyond the demonstrated lower bound; the
+600-second watchdog remains bounded well inside the existing 30-minute job.
+Any timeout at the active limits stops this task for runtime profiling rather
+than causing another automatic increase.
 
 The verifier records HTTP status, response time, readiness time, every material
 interaction time, total time, and WebGL context-loss state. Non-2xx response,
 missing readiness, wrong material state, page error, or unexpected viewer
 context loss fails regardless of elapsed time. The intentional short-lived
 capability-probe release through `WEBGL_lose_context` is recorded separately
-and is not a viewer failure. The 360-second watchdog is CI anti-hang headroom,
+and is not a viewer failure. The 600-second watchdog is CI anti-hang headroom,
 not proof of acceptable end-user performance. A warning-free 21.85 MiB model
 is runtime-accepted only after two fresh local passes and the pull-request CI
 pass; the measured slowness remains an explicit performance risk.
@@ -425,7 +442,7 @@ Success requires all of the following:
 - the current 21.85 MiB model is no longer reported as a size warning;
 - two fresh local browser/runtime runs and the PR run report `0 FAIL`, preserve
   normal clicks and all viewer assertions, and apply the 120-second target,
-  120-second functional phase, and 360-second operational-watchdog contract;
+  180-second functional phase, and 600-second operational-watchdog contract;
 - full `codex:ship` and the draft PR `quality` job pass;
 - unrelated historical failed runs are reported accurately rather than
   presented as retroactively repaired.

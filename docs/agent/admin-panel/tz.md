@@ -70,8 +70,8 @@ Node-модуль.
 Успешная проверка размера не заменяет runtime-проверку. `120,000 ms` остаётся
 performance target: более медленный завершённый сценарий получает буквальный
 `PERF_WARN`. Load/readiness и каждый Clay/Xray/PBR переход имеют собственный
-абсолютный функциональный deadline `120,000 ms`, а весь dedicated-сценарий до
-финального lifecycle snapshot ограничен operational-watchdog `360,000 ms`.
+абсолютный функциональный deadline `180,000 ms`, а весь dedicated-сценарий до
+финального lifecycle snapshot ограничен operational-watchdog `600,000 ms`.
 Любой phase/watchdog timeout падает без retry. Watchdog — защита CI от
 зависания, не пользовательский SLA. Порядок generic/heaviest и условия
 HTTP/readiness/material checks зафиксированы в `docs/agent/verification.md`.
