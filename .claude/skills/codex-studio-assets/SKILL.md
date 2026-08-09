@@ -13,4 +13,45 @@ description: Use for Codex Studio images, SVG cards and case slides, GLB models,
 - Downloads may be placeholders until the user supplies real archives; do not treat placeholder archives as dead runtime code without user confirmation.
 - OG images are page-specific: index uses `og-image.jpg`, free assets uses `og-free-assets.jpg`.
 
-Run `npm run verify` after asset-reference changes in shipped HTML/CSS/JS.
+## Byte Policy
+
+`scripts/asset-budget.mjs` is the repository canon. `admin/js/state.js` is an
+intentional classic-script mirror: every admin hard limit matches the canon,
+but advisory values remain slot-specific except for the focused model-warning
+parity check.
+
+| Surface and class | Advisory band | Block when |
+| --- | ---: | ---: |
+| Repository model and admin model | `(25 MiB, 50 MiB]` | `> 50 MiB` |
+| Repository vector or raster | `(256 KiB, 2 MiB]` | `> 2 MiB` |
+| Admin image, OG, logo, or Free Assets thumbnail | `(200 KiB, 2 MiB]` | `> 2 MiB` |
+| Admin blueprint | `(500 KiB, 2 MiB]` | `> 2 MiB` |
+
+Comparisons use binary units and strict `>` hard stops. Exactly 25 MiB is
+warning-free for GLB, exactly 50 MiB is advisory but allowed, and exactly
+2 MiB is allowed for SVG and raster uploads. Do not normalize the intentionally
+different repository and admin image advisories.
+
+## Runtime Proof
+
+A warning-free model is not runtime-approved by size alone. In `npm run verify`:
+
+- the generic viewer opens first on the smallest visible referenced model and
+  accepts inline `model-data.js` or HTTP resolution; nine pagination remounts
+  then alternate through a content-derived adjacent non-heaviest pair, require
+  the expected settled case after every step, and fail closed when no such pair
+  exists with two or more visible cases;
+- the external heaviest model runs last on a dedicated normal-motion page,
+  requires an exact 2xx GLB response and normal Clay/Xray/PBR interactions, and
+  starts only after the primary page closes and closes only after the verified
+  return to PBR;
+- `120,000 ms` is the total-scenario performance target; a slower completed
+  scenario passes with literal `PERF_WARN`. Load/readiness and each
+  Clay/Xray/PBR transition have one shared `180,000 ms` functional phase
+  deadline, while a `600,000 ms` operational watchdog bounds the complete
+  dedicated scenario through lifecycle proof. Any phase/watchdog timeout fails
+  without retry. The watchdog is CI anti-hang protection, not a UX SLA.
+
+Run `npm run check:assets` after asset additions or reference changes. Run
+`npm run verify` after asset-reference changes in shipped HTML/CSS/JS or any
+3D-model change; use `npm run test:verify-fatal` when changing the runtime gate.

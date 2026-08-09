@@ -151,6 +151,9 @@ test('замена GLB-превью: pending hash-путь, публикация
   await openFreeAssets(page);
   await page.click(`a[href="#/free-assets/${FIRST_ID}"]`);
   await expect(page.locator(MODEL_INPUT)).toBeAttached();
+  await expect(page.locator('.fa-media-slot').first().locator('.hint')).toContainText(
+    'Только GLB · до 25 МБ (жёсткий предел 50 МБ)'
+  );
 
   await page.setInputFiles(MODEL_INPUT, {
     name: 'new-preview.glb',

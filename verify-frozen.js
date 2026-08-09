@@ -23,6 +23,21 @@ const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 const { AxeBuilder } = require('@axe-core/playwright');
+const {
+  GENERAL_MODEL_TIMEOUT_MS,
+  MODEL_RUNTIME_PHASE_TIMEOUT_MS,
+  MODEL_RUNTIME_WATCHDOG_MS,
+  classifyContextLosses,
+  classifyModelRuntime,
+  consoleErrorForRuntime,
+  exactResourceResponseMatches,
+  firstPartyHttpFailure,
+  generalModelPlan,
+  lightweightPaginationPlan,
+  modelRuntimePhasePlan,
+  modelRuntimeProblems,
+  withAbsoluteDeadline
+} = require('./scripts/model-runtime-contract.cjs');
 
 const ROOT = process.env.SITE_ROOT || __dirname;
 const EXTERNAL_BASE = process.env.BASE; // если задан — не поднимаем свой сервер
@@ -76,6 +91,30 @@ const EXPECTED_IDS = CONTENT_SETTINGS.cardOrder.filter(id => {
   return !!data && data.enabled !== false && ENABLED_FILTER_KEYS.has(data.category);
 });
 const EXPECTED_TAGS = ENABLED_FILTERS.map(f => f.key);
+const VISIBLE_MODEL_CASES = EXPECTED_IDS.map(caseId => {
+  const data = CONTENT_CASES.get(caseId);
+  const modelSrc = data && data.case && data.case.modelSrc;
+  if (typeof modelSrc !== 'string' || modelSrc.trim() === '') return null;
+  const publicPath = modelSrc.trim().replace(/\\/g, '/');
+  if (!publicPath.startsWith('./assets/')) {
+    throw new Error(`visible model case "${caseId}" has a non-canonical modelSrc: ${publicPath}`);
+  }
+  const absolutePath = path.resolve(ROOT, publicPath.slice(2));
+  const rootPrefix = path.resolve(ROOT) + path.sep;
+  if (!absolutePath.startsWith(rootPrefix)) {
+    throw new Error(`visible model case "${caseId}" escapes the repository root: ${publicPath}`);
+  }
+  const stat = fs.statSync(absolutePath);
+  if (!stat.isFile()) throw new Error(`visible model case "${caseId}" does not reference a file: ${publicPath}`);
+  return { caseId, publicPath, bytes: stat.size };
+}).filter(Boolean);
+if (VISIBLE_MODEL_CASES.length === 0) {
+  throw new Error('no visible case references a local GLB model — the mandatory 3D smoke has no target');
+}
+const HEAVIEST_MODEL_CASE = VISIBLE_MODEL_CASES.reduce((largest, entry) =>
+  entry.bytes > largest.bytes ? entry : largest);
+const GENERAL_MODEL_CASE = VISIBLE_MODEL_CASES.reduce((smallest, entry) =>
+  entry.bytes < smallest.bytes ? entry : smallest);
 // Производные для interaction-тестов (final review итерации F):
 //   • FILTER_TEST_KEY — первая включённая категория (кроме 'all') с ≥1
 //     видимым кейсом: клик-тест фильтра не хардкодит 'product'.
@@ -583,12 +622,389 @@ function runStaticChecks(assetAudit = null) {
           + (notes.length ? ` — ${notes.join('; ')}` : ''));
     });
     // The admin panel hand-mirrors the canonical numbers (classic non-module
-    // script — it cannot import them). A drifted mirror means the panel accepts
-    // an upload CI then rejects, after the commit is already on main.
+    // script — it cannot import them). Hard limits and the focused model
+    // warning must stay aligned; other advisory values remain slot-specific.
     add('static', 'ASSET-budget-admin-mirror', mirrorProblems.length === 0,
         mirrorProblems.length
           ? mirrorProblems.join('; ')
-          : 'admin/js/state.js MEDIA_RULES blockBytes match scripts/asset-budget.mjs');
+          : 'admin/js/state.js MEDIA_RULES hard limits and focused model warning match scripts/asset-budget.mjs');
+  }
+}
+
+async function runHeaviestModelSmoke(page, observedErrors, startedAt, watchdogDeadlineAt) {
+  const target = HEAVIEST_MODEL_CASE;
+  const beforeWatchdog = (operation, label) => withAbsoluteDeadline(
+    operation,
+    watchdogDeadlineAt,
+    `operational-watchdog: ${label}`,
+    MODEL_RUNTIME_WATCHDOG_MS
+  );
+  const startPhase = (phaseName) => {
+    const plan = modelRuntimePhasePlan(Date.now(), watchdogDeadlineAt);
+    const prefix = plan.kind === 'watchdog'
+      ? `operational-watchdog during ${phaseName}`
+      : `${phaseName} phase`;
+    return {
+      remainingMs(label) {
+        const remaining = plan.deadlineAt - Date.now();
+        if (remaining <= 0) {
+          throw new Error(`${prefix}: ${label}: absolute ${plan.timeoutMs} ms deadline exceeded`);
+        }
+        return remaining;
+      },
+      run(operation, label) {
+        return withAbsoluteDeadline(
+          operation,
+          plan.deadlineAt,
+          `${prefix}: ${label}`,
+          plan.timeoutMs
+        );
+      }
+    };
+  };
+
+  const targetIsOpen = await beforeWatchdog(() => page.evaluate(expectedTitle =>
+    document.querySelector('#case-title')?.textContent?.includes(expectedTitle) || false,
+  cardTitleOf(target.caseId)), 'heaviest case preflight');
+  if (!targetIsOpen) {
+    await beforeWatchdog(
+      () => page.click(`.work-card[data-id="${target.caseId}"]`),
+      'heaviest case open'
+    );
+    await beforeWatchdog(() => page.waitForFunction(
+      expectedTitle => document.querySelector('#case-title')?.textContent?.includes(expectedTitle),
+      cardTitleOf(target.caseId)
+    ), 'heaviest case title');
+  }
+
+  const before3DResources = await beforeWatchdog(() => page.evaluate(() => performance.getEntriesByType('resource')
+    .map(entry => entry.name)
+    .filter(name => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr|\.glb/i.test(name))), 'lazy-resource preflight');
+  add(
+    'index',
+    'CASE-3d-lazy-before-click',
+    before3DResources.length === 0,
+    before3DResources.join(', ') || `clean; case=${target.caseId}, path=${target.publicPath}, bytes=${target.bytes}`
+  );
+
+  const expectedModelUrl = new URL(target.publicPath, page.url()).href;
+  let exactResponse = null;
+  let responseMs = null;
+  let responseFinishedMs = null;
+  let readyMs = null;
+  let readyPassed = false;
+  let runtimeError = null;
+  let runtimeEnvironment = {
+    renderer: 'unavailable',
+    vendor: 'unavailable',
+    platform: 'unknown',
+    browserVersion: page.context().browser()?.version() || 'unknown'
+  };
+  const materialStates = [];
+  const errors = observedErrors || { pageErrors: [], consoleErrors: [] };
+  let webglBefore = { loseContextCalls: 0, lostEvents: 0, restoredEvents: 0 };
+  try {
+    webglBefore = await beforeWatchdog(() => page.evaluate(() => {
+      const lifecycle = window.__codexWebglLifecycle;
+      if (!lifecycle) throw new Error('WebGL lifecycle instrumentation unavailable');
+      return {
+        loseContextCalls: lifecycle.loseContextCalls.length,
+        lostEvents: lifecycle.lostEvents.length,
+        restoredEvents: lifecycle.restoredEvents.length
+      };
+    }), 'WebGL lifecycle baseline');
+  } catch (error) {
+    runtimeError = error;
+  }
+
+  if (!runtimeError) try {
+    const loadPhase = startPhase('load-ready');
+    const responsePromise = loadPhase.run(() => page.waitForResponse(response => {
+      return exactResourceResponseMatches(response.url(), expectedModelUrl);
+    }, { timeout: loadPhase.remainingMs('exact GLB response') }).then(async response => {
+      exactResponse = response;
+      responseMs = Date.now() - startedAt;
+      const status = response.status();
+      if (status < 200 || status > 299) {
+        throw new Error(`exact GLB response returned HTTP ${status}`);
+      }
+      await loadPhase.run(() => response.finished(), 'exact GLB response body');
+      responseFinishedMs = Date.now() - startedAt;
+      return response;
+    }), 'exact GLB response');
+    const readyPromise = loadPhase.run(() => page.waitForSelector(
+      '#case-3d-canvas.is-ready canvas.case-3d__three-canvas',
+      { timeout: loadPhase.remainingMs('heaviest model readiness') }
+    ).then(result => {
+      readyMs = Date.now() - startedAt;
+      return result;
+    }), 'heaviest model readiness');
+    const clickPromise = loadPhase.run(() => page.click('.case-tab[data-viz="3d"]', {
+      timeout: loadPhase.remainingMs('normal 3D tab click')
+    }), 'normal 3D tab click');
+    await loadPhase.run(
+      Promise.all([responsePromise, readyPromise, clickPromise]),
+      'GLB response and readiness'
+    );
+    if (errors.pageErrors.length) {
+      throw new Error(`page error before readiness: ${errors.pageErrors.join(' | ')}`);
+    }
+    if (errors.consoleErrors.length) {
+      throw new Error(`console error before readiness: ${errors.consoleErrors.join(' | ')}`);
+    }
+    readyPassed = true;
+  } catch (error) {
+    runtimeError = error;
+  }
+
+  const responseStatus = exactResponse ? exactResponse.status() : 'no-response';
+  const readyDetail =
+    `case=${target.caseId}, path=${target.publicPath}, bytes=${target.bytes}, ` +
+    `status=${responseStatus}, responseMs=${responseMs ?? 'no-response'}, ` +
+    `responseFinishedMs=${responseFinishedMs ?? 'not-finished'}, readyMs=${readyMs ?? 'not-ready'}` +
+    (!readyPassed && runtimeError
+      ? `, error=${String(runtimeError.message || runtimeError).replace(/\s+/g, ' ')}`
+      : '');
+  add('index', 'CASE-3d-heaviest-model-ready', readyPassed, readyDetail);
+
+  if (readyPassed) {
+    try {
+      runtimeEnvironment = await beforeWatchdog(() => page.evaluate(() => {
+        const canvas = document.querySelector(
+          '#case-3d-canvas.is-ready canvas.case-3d__three-canvas'
+        );
+        const gl = canvas && (canvas.getContext('webgl2') || canvas.getContext('webgl'));
+        const debug = gl && gl.getExtension('WEBGL_debug_renderer_info');
+        return {
+          renderer: gl
+            ? gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER)
+            : 'unavailable',
+          vendor: gl
+            ? gl.getParameter(debug ? debug.UNMASKED_VENDOR_WEBGL : gl.VENDOR)
+            : 'unavailable',
+          platform: navigator.platform || 'unknown'
+        };
+      }), 'WebGL runtime environment');
+      runtimeEnvironment.browserVersion = page.context().browser()?.version() || 'unknown';
+    } catch (error) {
+      runtimeEnvironment.error = String(error.message || error).replace(/\s+/g, ' ');
+    }
+    try {
+      for (const mode of ['clay', 'xray', 'pbr']) {
+        const modeStartedAt = Date.now();
+        const materialPhase = startPhase(`material-${mode}`);
+        await materialPhase.run(
+          () => page.click(
+            `.case-3d__mat-group [data-material-mode="${mode}"]`,
+            { timeout: materialPhase.remainingMs(`${mode} material click`) }
+          ),
+          `${mode} material click`
+        );
+        await materialPhase.run(
+          () => page.waitForFunction(expectedMode => {
+            const active = document.querySelector('.case-3d__mat-group [data-material-mode].is-on');
+            const expected = document.querySelector(
+              `.case-3d__mat-group [data-material-mode="${expectedMode}"]`
+            );
+            return active?.dataset.materialMode === expectedMode &&
+              expected?.getAttribute('aria-pressed') === 'true';
+          }, mode, { timeout: materialPhase.remainingMs(`${mode} material state`) }),
+          `${mode} material state`
+        );
+        materialStates.push(await materialPhase.run(() => page.evaluate(expectedMode => ({
+          expected: expectedMode,
+          active: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
+          aria: document.querySelector(
+            `.case-3d__mat-group [data-material-mode="${expectedMode}"]`
+          )?.getAttribute('aria-pressed') || ''
+        }), mode), `${mode} material snapshot`));
+        materialStates[materialStates.length - 1].interactionMs = Date.now() - modeStartedAt;
+      }
+
+      if (errors.pageErrors.length) {
+        throw new Error(`page error during model runtime: ${errors.pageErrors.join(' | ')}`);
+      }
+      if (errors.consoleErrors.length) {
+        throw new Error(`console error during model runtime: ${errors.consoleErrors.join(' | ')}`);
+      }
+    } catch (error) {
+      runtimeError = error;
+    }
+  }
+
+  let webglLifecycle = { intentionalReleases: 0, unexpectedLosses: [], restoredEvents: 0 };
+  try {
+    const lifecyclePhase = startPhase('final-lifecycle');
+    const lifecycle = await lifecyclePhase.run(() => page.evaluate(() => {
+      const lifecycle = window.__codexWebglLifecycle;
+      if (!lifecycle) throw new Error('WebGL lifecycle instrumentation unavailable');
+      return {
+        loseContextCalls: lifecycle.loseContextCalls,
+        lostEvents: lifecycle.lostEvents,
+        restoredEvents: lifecycle.restoredEvents
+      };
+    }), 'WebGL lifecycle result');
+    webglLifecycle = classifyContextLosses(webglBefore, lifecycle);
+  } catch (error) {
+    if (!runtimeError) {
+      runtimeError = new Error(`WebGL lifecycle read failed: ${error.message || error}`);
+    }
+  }
+
+  const totalMs = Date.now() - startedAt;
+  const contextLosses = webglLifecycle.unexpectedLosses.length;
+  const problems = modelRuntimeProblems({
+    responseStatus,
+    ready: readyPassed,
+    materialStates,
+    pageErrors: errors.pageErrors,
+    consoleErrors: errors.consoleErrors,
+    contextLosses,
+    totalMs
+  });
+  if (!runtimeError && problems.length) {
+    runtimeError = new Error(problems.join('; '));
+  }
+  const materialTimings = materialStates
+    .map(state => `${state.expected}:${state.interactionMs}`)
+    .join(',') || 'none';
+  const performance = classifyModelRuntime(totalMs).label;
+  const environmentDetail =
+    `renderer=${String(runtimeEnvironment.renderer).replace(/\s+/g, ' ')}, ` +
+    `vendor=${String(runtimeEnvironment.vendor).replace(/\s+/g, ' ')}, ` +
+    `platform=${String(runtimeEnvironment.platform).replace(/\s+/g, ' ')}, ` +
+    `browser=${String(runtimeEnvironment.browserVersion).replace(/\s+/g, ' ')}` +
+    (runtimeEnvironment.error ? `, rendererError=${runtimeEnvironment.error}` : '');
+  const runtimeDetail =
+    `${readyDetail}, ${environmentDetail}, materials=${materialTimings}, totalMs=${totalMs}, ` +
+    `phaseTimeoutMs=${MODEL_RUNTIME_PHASE_TIMEOUT_MS}, watchdogMs=${MODEL_RUNTIME_WATCHDOG_MS}, ` +
+    `intentionalContextReleases=${webglLifecycle.intentionalReleases}, ` +
+    `contextLosses=${contextLosses}, restoredEvents=${webglLifecycle.restoredEvents}, ` +
+    `performance=${performance}` +
+    (runtimeError ? `, error=${String(runtimeError.message || runtimeError).replace(/\s+/g, ' ')}` : '');
+  add('index', 'CASE-3d-heaviest-model-runtime', runtimeError === null, runtimeDetail);
+  if (runtimeError) {
+    const error = new Error(`CASE-3d-heaviest-model-runtime failed: ${runtimeDetail}`);
+    error.codexModelResultRecorded = true;
+    throw error;
+  }
+  return { responseStatus, responseMs, responseFinishedMs, readyMs, totalMs, materialStates };
+}
+
+async function openGeneralModelSmoke(page) {
+  const target = GENERAL_MODEL_CASE;
+  const plan = generalModelPlan(target.caseId, HEAVIEST_MODEL_CASE.caseId);
+  const title = cardTitleOf(target.caseId);
+  const targetIsOpen = await page.evaluate(expectedTitle =>
+    document.querySelector('#case-title')?.textContent?.includes(expectedTitle) || false,
+  title);
+  if (!targetIsOpen) {
+    await page.click(`.work-card[data-id="${target.caseId}"]`);
+    await page.waitForFunction(
+      expectedTitle => document.querySelector('#case-title')?.textContent?.includes(expectedTitle),
+      title
+    );
+  }
+
+  let smokeError = null;
+  let autoRotateStopped = false;
+  const startedAt = Date.now();
+  const deadlineAt = startedAt + plan.timeoutMs;
+  const remainingMs = () => Math.max(1, deadlineAt - Date.now());
+  try {
+    await withAbsoluteDeadline(
+      () => Promise.all([
+        page.waitForSelector(
+          '#case-3d-canvas.is-ready canvas.case-3d__three-canvas',
+          { timeout: remainingMs() }
+        ),
+        page.click('.case-tab[data-viz="3d"]', { timeout: remainingMs() })
+      ]),
+      deadlineAt,
+      'general model readiness',
+      plan.timeoutMs
+    );
+    if (plan.stopAutoRotate) {
+      const autoRotate = page.locator(
+        '.case-3d__controls button.case-3d__ctrl',
+        { hasText: 'AUTO ROTATION' }
+      ).first();
+      await withAbsoluteDeadline(
+        () => autoRotate.click({ timeout: remainingMs() }),
+        deadlineAt,
+        'general heavy-model auto-rotation stop',
+        plan.timeoutMs
+      );
+      await withAbsoluteDeadline(
+        () => page.waitForFunction(() =>
+          [...document.querySelectorAll('.case-3d__controls button.case-3d__ctrl')]
+            .find(button => button.textContent?.includes('AUTO ROTATION'))
+            ?.getAttribute('aria-pressed') === 'false',
+        null, { timeout: remainingMs() }),
+        deadlineAt,
+        'general heavy-model idle state',
+        plan.timeoutMs
+      );
+      autoRotateStopped = true;
+    }
+  } catch (error) {
+    smokeError = error;
+  }
+
+  const detail =
+    `case=${target.caseId}, path=${target.publicPath}, bytes=${target.bytes}, ` +
+    `readyMs=${Date.now() - startedAt}, source=inline-or-http, ` +
+    `timeoutMs=${plan.timeoutMs}, autoRotateStopped=${autoRotateStopped}` +
+    (smokeError ? `, error=${String(smokeError.message || smokeError).replace(/\s+/g, ' ')}` : '');
+  add('index', 'CASE-3d-general-model-ready', smokeError === null, detail);
+  if (smokeError) throw new Error(`CASE-3d-general-model-ready failed: ${detail}`);
+}
+
+async function runDedicatedHeaviestModelSmoke(page, baseUrl) {
+  const observedErrors = { pageErrors: [], consoleErrors: [] };
+  const onPageError = error => observedErrors.pageErrors.push(String(error));
+  const onConsole = message => {
+    if (message.type() !== 'error') return;
+    const value = consoleErrorForRuntime(message.text(), message.location()?.url, baseUrl);
+    if (value) observedErrors.consoleErrors.push(value);
+  };
+  const onResponse = response => {
+    const failure = firstPartyHttpFailure(response.url(), response.status(), baseUrl);
+    if (failure) observedErrors.consoleErrors.push(failure);
+  };
+  page.on('pageerror', onPageError);
+  page.on('console', onConsole);
+  page.on('response', onResponse);
+  const startedAt = Date.now();
+  const watchdogDeadlineAt = startedAt + MODEL_RUNTIME_WATCHDOG_MS;
+  try {
+    await withAbsoluteDeadline(
+      () => page.goto(`${baseUrl}/index.html`, { waitUntil: 'networkidle', timeout: 30_000 }),
+      watchdogDeadlineAt,
+      'operational-watchdog: dedicated page navigation',
+      MODEL_RUNTIME_WATCHDOG_MS
+    );
+    return await runHeaviestModelSmoke(
+      page,
+      observedErrors,
+      startedAt,
+      watchdogDeadlineAt
+    );
+  } catch (error) {
+    if (error.codexModelResultRecorded) throw error;
+    const detail =
+      `case=${HEAVIEST_MODEL_CASE.caseId}, path=${HEAVIEST_MODEL_CASE.publicPath}, ` +
+      `bytes=${HEAVIEST_MODEL_CASE.bytes}, phase=preflight, ` +
+      `error=${String(error.message || error).replace(/\s+/g, ' ')}`;
+    add('index', 'CASE-3d-heaviest-model-ready', false, detail);
+    add('index', 'CASE-3d-heaviest-model-runtime', false, detail);
+    const wrapped = new Error(`CASE-3d-heaviest-model-runtime failed: ${detail}`);
+    wrapped.codexModelResultRecorded = true;
+    throw wrapped;
+  } finally {
+    page.off('pageerror', onPageError);
+    page.off('console', onConsole);
+    page.off('response', onResponse);
   }
 }
 
@@ -598,12 +1014,9 @@ function runStaticChecks(assetAudit = null) {
 async function testIndex(BASE) {
   console.log(`\n=== index.html · Desktop 1440×900 ===`);
   const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  try {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, hasTouch: false });
-  const page = await ctx.newPage();
-  const consoleErrors = [];
-  page.on('pageerror', e => consoleErrors.push(String(e)));
-  page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
-  await page.addInitScript(() => {
+  await ctx.addInitScript(() => {
     const lifecycle = {
       nextCanvasId: 1,
       getContext: [],
@@ -671,6 +1084,10 @@ async function testIndex(BASE) {
       return context;
     };
   });
+  const page = await ctx.newPage();
+  const consoleErrors = [];
+  page.on('pageerror', e => consoleErrors.push(String(e)));
+  page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   await page.goto(`${BASE}/index.html`, { waitUntil: 'networkidle', timeout: 30000 });
 
   // SCRIPTS
@@ -983,12 +1400,10 @@ async function testIndex(BASE) {
   add('index', 'CASE-motion-control-single-handler', motionSingleHandler.ok,
       motionSingleHandler.skipped || JSON.stringify(motionSingleHandler));
 
-  // 3D
-  const before3DResources = await page.evaluate(() => performance.getEntriesByType('resource')
-    .map(e => e.name)
-    .filter(n => /codex-three-viewer|three\.module|three\.core|GLTFLoader|OrbitControls|DRACOLoader|KTX2Loader|HDRLoader|EXRLoader|model-data\.js|draco|basis_transcoder|meshopt_decoder|\.wasm|\.hdr|\.exr/i.test(n)));
-  add('index', 'CASE-3d-lazy-before-click', before3DResources.length === 0, before3DResources.join(', ') || 'clean');
-  await page.click('.case-tab[data-viz="3d"]'); await page.waitForTimeout(800);
+  // Generic viewer/pagination assertions run first on the lightest visible
+  // referenced model. The dedicated heaviest-model acceptance runs last so
+  // its default auto-rotating render loop cannot starve unrelated actions.
+  await openGeneralModelSmoke(page);
   // Уход с 2D = teardown 2D-медиа. Раньше его выполняла вкладка Blueprints;
   // после BP-DECISION-02 её у кейса может не быть, а вкладка 3D есть всегда,
   // поэтому проверка переехала сюда — на тот же самый уход с 2D.
@@ -999,7 +1414,6 @@ async function testIndex(BASE) {
   add('index', 'CASE-motion-stop-keeps-lazy-media',
       stoppedMotionLazy.iframeCount === 0 && stoppedMotionLazy.localSrcs.every(src => src === ''),
       HAS_MOTION ? JSON.stringify(stoppedMotionLazy) : MOTION_SKIP_DETAIL);
-  await page.waitForSelector('#case-3d-canvas canvas.case-3d__three-canvas', { timeout: 5000 }).catch(() => {});
   const c3d = await page.evaluate(() => ({
     canvas: !!document.getElementById('case-3d-canvas'),
     children: document.getElementById('case-3d-canvas')?.children.length > 0,
@@ -1020,15 +1434,6 @@ async function testIndex(BASE) {
       c3d.materialModes.join(',') === 'pbr,clay,xray' &&
       c3d.activeMaterial === 'pbr',
       `quality=${c3d.threeQuality}, material=${c3d.materialModes.join(',')}, active=${c3d.activeMaterial}`);
-  await page.click('.case-3d__mat-group [data-material-mode="clay"]'); await page.waitForTimeout(80);
-  await page.click('.case-3d__mat-group [data-material-mode="xray"]'); await page.waitForTimeout(80);
-  const materialSwitch = await page.evaluate(() => ({
-    active: document.querySelector('.case-3d__mat-group [data-material-mode].is-on')?.dataset.materialMode || '',
-    aria: document.querySelector('.case-3d__mat-group [data-material-mode="xray"]')?.getAttribute('aria-pressed') || ''
-  }));
-  add('index', 'CASE-3d-material-switch', materialSwitch.active === 'xray' && materialSwitch.aria === 'true',
-      `active=${materialSwitch.active}, aria=${materialSwitch.aria}`);
-  await page.click('.case-3d__mat-group [data-material-mode="pbr"]'); await page.waitForTimeout(80);
   add('index', 'CASE-3d-lazy-after-click',
       c3d.resources.some(n => /codex-three-viewer/i.test(n)) &&
       c3d.resources.some(n => /model-data\.js/i.test(n)),
@@ -1055,7 +1460,7 @@ async function testIndex(BASE) {
   // Пустой список (все studio-кейсы скрыты владельцем) — контракт вакуумно
   // выполнен, но строка проверки громко помечается skipped; иначе строгость
   // прежняя.
-  const openCaseIsStudio = studioDefaultEnvIds.includes(MOTION_CASE_ID);
+  const openCaseIsStudio = studioDefaultEnvIds.includes(GENERAL_MODEL_CASE.caseId);
   add('index', 'CASE-3d-studio-default-envs',
       studioDefaultEnvIds.length === 0 ||
       (studioDefaultEnvState.sources.every(item => item.source === 'studio') &&
@@ -1065,29 +1470,57 @@ async function testIndex(BASE) {
         : studioDefaultEnvState.sources.map(item => `${item.id}: source=${item.source}`).join('; ') +
           `; active=${studioDefaultEnvState.active}, aria=${studioDefaultEnvState.aria}, openCaseIsStudio=${openCaseIsStudio}`);
 
-  // Итерация F: стартовый кейс пагинации и ожидаемый финал выводятся из
-  // content/ (третья карточка cardOrder; раньше — хардкод ironclad-frame,
-  // 'Arc Motion' и '12 / 18'). Механика проверки не изменилась.
-  // Final review итерации F: при единственном видимом кейсе у кнопок
-  // next/prev нет цели — переходный контракт 3D-пагинации (вместе с
-  // навигационными ассертами) громко помечается skipped, а не падает.
+  // Pagination derives an adjacent lightweight pair from current content and
+  // excludes the heaviest model, which has a dedicated acceptance below. With
+  // one visible case navigation is legitimately dormant; with two or more
+  // cases an unavailable lightweight pair fails closed instead of skipping.
   if (EXPECTED_IDS.length < 2) {
     add('index', 'CASE-3d-pagination-transition-cover', true, 'skipped: fewer than 2 visible cases');
   } else {
-    const paginationStartIdx = Math.min(2, EXPECTED_IDS.length - 1);
-    const paginationStartId = EXPECTED_IDS[paginationStartIdx];
-    await page.click(`.work-card[data-id="${paginationStartId}"]`);
+    const pagination3DSwitchCount = 9;
+    const paginationPlan = lightweightPaginationPlan(
+      EXPECTED_IDS,
+      GENERAL_MODEL_CASE.caseId,
+      HEAVIEST_MODEL_CASE.caseId,
+      pagination3DSwitchCount
+    );
+    if (!paginationPlan) {
+      add(
+        'index',
+        'CASE-3d-pagination-transition-cover',
+        false,
+        `no adjacent lightweight pair; visible=${JSON.stringify(EXPECTED_IDS)}, ` +
+        `general=${GENERAL_MODEL_CASE.caseId}, heaviest=${HEAVIEST_MODEL_CASE.caseId}`
+      );
+      throw new Error('CASE-3d-pagination-transition-cover has no adjacent lightweight pair');
+    }
+    const paginationStartId = paginationPlan.startId;
+    if (paginationStartId !== GENERAL_MODEL_CASE.caseId) {
+      await page.click(`.work-card[data-id="${paginationStartId}"]`);
+    }
     await page.waitForFunction(startTitle =>
       document.querySelector('#case-title')?.textContent?.includes(startTitle) &&
       document.querySelector('#case-3d-canvas.is-ready canvas.case-3d__three-canvas'),
     cardTitleOf(paginationStartId));
-    const pagination3DSwitchCount = 9;
-    const paginationFinalIdx = (paginationStartIdx + pagination3DSwitchCount) % EXPECTED_IDS.length;
-    const paginationFinalTitle = cardTitleOf(EXPECTED_IDS[paginationFinalIdx]);
+    const paginationFinalIdx = EXPECTED_IDS.indexOf(paginationPlan.finalId);
+    const paginationFinalTitle = cardTitleOf(paginationPlan.finalId);
     const paginationFinalCounter = `${paginationFinalIdx + 1} / ${EXPECTED_IDS.length}`;
-    const pagination3D = await page.evaluate(async switchCount => {
+    const paginationExpectedSteps = paginationPlan.targetIds.map(caseId => {
+      const index = EXPECTED_IDS.indexOf(caseId);
+      return {
+        caseId,
+        title: cardTitleOf(caseId),
+        counter: `${index + 1} / ${EXPECTED_IDS.length}`
+      };
+    });
+    let pagination3D;
+    const paginationDeadlineAt = Date.now() + GENERAL_MODEL_TIMEOUT_MS;
+    try {
+      pagination3D = await withAbsoluteDeadline(
+        () => page.evaluate(async ({ directions, expectedSteps }) => {
       const host = document.getElementById('case-3d-canvas');
       const states = [];
+      const settledChecks = [];
       const baseline = {
         getContext: window.__codexWebglLifecycle?.getContext.length || 0,
         loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
@@ -1111,22 +1544,39 @@ async function testIndex(BASE) {
         states.push(state);
         return state;
       }
-      for (let step = 0; step < switchCount; step += 1) {
+      for (let step = 0; step < directions.length; step += 1) {
         readState(`step-${step}-before`);
-        document.getElementById('case-next')?.click();
+        document.getElementById(
+          directions[step] === 'next' ? 'case-next' : 'case-prev'
+        )?.click();
         readState(`step-${step}-sync`);
         await Promise.resolve();
         readState(`step-${step}-microtask`);
         let readyFrames = 0;
-        for (let frame = 0; frame < 120; frame += 1) {
+        let settledState;
+        for (let frame = 0; ; frame += 1) {
           await new Promise(resolve => window.requestAnimationFrame(resolve));
           const state = readState(`step-${step}-raf-${frame}`);
           if (state.ready) readyFrames += 1;
-          if (readyFrames >= 2) break;
+          if (readyFrames >= 2 && state.ready && !state.switching && !state.coverPainted) {
+            settledState = state;
+            break;
+          }
         }
-        readState(`step-${step}-ready`);
+        const expected = expectedSteps[step];
+        const correctTarget = settledState.title === expected.title &&
+          settledState.counter === expected.counter;
+        settledChecks.push({
+          step,
+          pass: correctTarget,
+          caseId: expected.caseId,
+          title: settledState?.title || '',
+          counter: settledState?.counter || '',
+          expectedTitle: expected.title,
+          expectedCounter: expected.counter
+        });
+        if (!correctTarget) break;
       }
-      await new Promise(resolve => window.setTimeout(resolve, 450));
       const afterLifecycle = {
         getContext: window.__codexWebglLifecycle?.getContext.length || 0,
         loseContextCalls: window.__codexWebglLifecycle?.loseContextCalls.length || 0,
@@ -1139,6 +1589,7 @@ async function testIndex(BASE) {
       const finalCover = host ? window.getComputedStyle(host, '::after') : null;
       return {
         states,
+        settledChecks,
         finalTitle: document.querySelector('#case-title')?.textContent || '',
         finalCounter: document.querySelector('#case-counter')?.textContent || '',
         finalReady: !!host?.classList.contains('is-ready'),
@@ -1158,7 +1609,18 @@ async function testIndex(BASE) {
           }
         }
       };
-    }, pagination3DSwitchCount);
+        }, {
+          directions: paginationPlan.directions,
+          expectedSteps: paginationExpectedSteps
+        }),
+        paginationDeadlineAt,
+        'pagination transition cover',
+        GENERAL_MODEL_TIMEOUT_MS
+      );
+    } catch (error) {
+      add('index', 'CASE-3d-pagination-transition-cover', false, error.message);
+      throw error;
+    }
     const transitionFrames = pagination3D.states.filter(state => !state.label.endsWith('-before') && !state.ready);
     const transitionCovered = transitionFrames.length > 0 &&
       transitionFrames.every(state => state.switching && state.coverPainted && state.active3D && state.children > 0 && state.canvases <= 1);
@@ -1175,6 +1637,8 @@ async function testIndex(BASE) {
       };
     });
     const postReadyCovered = postReadyChecks.every(item => item.pass);
+    const everyStepSettled = pagination3D.settledChecks.length === pagination3DSwitchCount &&
+      pagination3D.settledChecks.every(item => item.pass);
     add('index', 'CASE-3d-pagination-transition-cover',
         pagination3D.finalTitle === paginationFinalTitle &&
         pagination3D.finalCounter === paginationFinalCounter &&
@@ -1185,6 +1649,7 @@ async function testIndex(BASE) {
         pagination3D.finalActive3D &&
         transitionCovered &&
         postReadyCovered &&
+        everyStepSettled &&
         pagination3D.lifecycle.delta.getContext === pagination3DSwitchCount &&
         pagination3D.lifecycle.delta.loseContextCalls === 0 &&
         pagination3D.lifecycle.delta.lostEvents === 0 &&
@@ -1193,6 +1658,7 @@ async function testIndex(BASE) {
         `counter=${pagination3D.finalCounter} (expected(content) ${paginationFinalCounter}), ` +
         `finalSwitching=${pagination3D.finalSwitching}, finalCover=${pagination3D.finalCoverPainted}, ` +
         `transitionFrames=${transitionFrames.length}, postReady=${JSON.stringify(postReadyChecks)}, ` +
+        `settled=${JSON.stringify(pagination3D.settledChecks)}, ` +
         `lifecycle=${JSON.stringify(pagination3D.lifecycle.delta)}, ` +
         `lose=${JSON.stringify(pagination3D.lifecycle.after.loseDetails)}, ` +
         `lost=${JSON.stringify(pagination3D.lifecycle.after.lostDetails)}, ` +
@@ -1419,6 +1885,23 @@ async function testIndex(BASE) {
   add('index', 'D4-font-display-swap', fontDisplaySwap.ok,
       `css-links=${fontDisplaySwap.total} bad=${fontDisplaySwap.bad || 0}`);
 
+  // Run the expensive normal-motion acceptance last and close its page
+  // immediately after the verified return to PBR. This preserves the full
+  // Corten contract without leaking its continuous render loop into other
+  // Playwright actionability checks.
+  await page.close();
+  const heavyPage = await ctx.newPage();
+  let modelRuntime;
+  try {
+    modelRuntime = await runDedicatedHeaviestModelSmoke(heavyPage, BASE);
+  } finally {
+    await heavyPage.close().catch(() => {});
+  }
+  const materialStates = modelRuntime.materialStates;
+  const materialSwitchOK = materialStates.every(state =>
+    state.active === state.expected && state.aria === 'true');
+  add('index', 'CASE-3d-material-switch', materialSwitchOK, JSON.stringify(materialStates));
+
   // CONSOLE — игнорируем внешние CDN failures (fontshare/jsdelivr/cloudflare).
   // prod-review F2: model-viewer/googleapis убраны из фильтра — бандл
   // self-hosted, его ошибки первопартийные и глотаться не должны.
@@ -1429,7 +1912,9 @@ async function testIndex(BASE) {
   const internalErrors = consoleErrors.filter(e => !/(403|404|ERR_FAILED|ERR_CERT_AUTHORITY_INVALID|jsdelivr|fontshare|cloudflare)/i.test(e));
   add('index', 'CONSOLE-no-internal-errors', internalErrors.length === 0, internalErrors.slice(0,2).join(' | ') || 'clean');
 
-  await browser.close();
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

@@ -32,6 +32,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { ROOT, hash8, startStaticServer, mockGitHub } from './fixtures/admin-harness.mjs';
+import { ASSET_BUDGETS, MB } from '../../scripts/asset-budget.mjs';
 
 const CASE_ID = 'orbital-mk-ii';
 const CASE_PATH = `content/cases/${CASE_ID}.json`;
@@ -255,6 +256,34 @@ test('растровый файл отвергается на загрузке, 
   await expect(sheetPathLine(page, 0)).toHaveText(
     `./assets/cases/${CASE_ID}/blueprints/01-${hash8(SVG_BUFFER)}.svg`
   );
+});
+
+test('чертёж на байт тяжелее 2 МБ отвергается до staging и publish tree', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await seedCaseDraft(page, caseWithoutSheets());
+  await openCaseEditor(page);
+
+  await page.click('#blueprint-add');
+  const vectorBlock = ASSET_BUDGETS.vector.failBytes;
+  await page.setInputFiles(srcInput(0), {
+    name: 'oversize.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.alloc(vectorBlock + 1, 0x20)
+  });
+
+  await expect(page.locator('.toast--error')).toContainText('Файл слишком большой');
+  await expect(page.locator('.toast--error')).toContainText(`чертежи тяжелее ${vectorBlock / MB} МБ не публикуем`);
+  await expect(srcZone(page, 0).locator('.drop-zone__badge')).toBeHidden();
+  await expect(sheetPathLine(page, 0)).toHaveText('—');
+  const pending = await page.evaluate(
+    ([filePath, dotPath]) => window.AdminState.getMediaEdit(filePath, dotPath),
+    [CASE_PATH, 'case.blueprints.0.src']
+  );
+  expect(pending).toBeNull();
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeHidden();
+  expect(calls.tree).toHaveLength(0);
+  expect(calls.refUpdated).toBe(false);
 });
 
 test('предел листов: кнопка «добавить» уступает место объяснению', async ({ page }) => {

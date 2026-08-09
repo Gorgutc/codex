@@ -326,6 +326,22 @@
     return String(assetPath).split('/').pop();
   }
 
+  function formatMiB(bytes) {
+    return String(bytes / (1024 * 1024)).replace('.', ',');
+  }
+
+  function modelUploadHint(suffix) {
+    const rule = State.getMediaRule('model');
+    return (
+      'Только GLB · до ' +
+      formatMiB(rule.warnBytes) +
+      ' МБ (жёсткий предел ' +
+      formatMiB(rule.blockBytes) +
+      ' МБ)' +
+      (suffix || '')
+    );
+  }
+
   // Drop-зона поверх текущего медиа (принцип 6 research.md).
   // opts: { filePath, dotPath, kind ('image'|'ogImage'|'video'|'model'|'faThumb'),
   //         namingPath  — слот-«назначение»: папка и базовое имя нового файла,
@@ -1480,7 +1496,7 @@
           valueMode: 'baseName',
           toggleLabel: '3D-превью (вращающаяся модель)',
           zoneLabel: 'GLB-файл 3D-превью',
-          hint: 'Только GLB · до 15 МБ (жёсткий предел 50 МБ) · файл получит новое имя вида ' + id + '-xxxxxxxx.glb',
+          hint: modelUploadHint(' · файл получит новое имя вида ' + id + '-xxxxxxxx.glb'),
           offHint: '3D-превью выключено (model: null) — карточка покажет постер или фон.',
           resolveValue: State.faSlotPath.bind(null, 'model')
         }, rerender),
@@ -2455,7 +2471,7 @@
         currentPath: draft.case.modelSrc,
         preview: 'file',
         label: 'GLB-файл для 3D-viewer',
-        hint: 'Только GLB · до 15 МБ (жёсткий предел 50 МБ)'
+        hint: modelUploadHint()
       })
     ]);
     const modelTech = el('div', { className: 'motion-block__tech' });

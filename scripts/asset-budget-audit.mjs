@@ -124,14 +124,12 @@ export function auditAssets(root = ROOT) {
  * own browser mirrors. So the numbers are hand-mirrored into MEDIA_RULES and
  * this parser pins them.
  *
- * WHY PIN blockBytes AND NOT warnBytes. blockBytes is the only threshold the
- * admin actually ENFORCES (assertUploadAllowed throws before the file is read);
- * warnBytes is advisory and is exactly what the owner clicked past with the
- * 21.85 MB model. If the admin block were looser than the repo fail line, the
- * panel would accept an upload that CI then rejects after the commit is already
- * on main — a publish/revert split with no explanation shown in the UI. A
- * STRICTER admin warn is fine and intended (the panel nags at 200 KB for
- * images, the repo fails at 1 MB).
+ * Block parity is mandatory for every mapped slot: if the admin block were
+ * looser than the repo fail line, the panel would accept an upload that CI then
+ * rejects after the commit is already on main. Advisory values stay
+ * slot-specific (for example, the admin warns images at 200 KiB while the repo
+ * warns raster files at 256 KiB). Model warnBytes is the focused exception:
+ * owner-facing 25 MiB guidance must match the repository canon exactly.
  *
  * The parse is deliberately strict: a MEDIA_RULES literal this cannot read is
  * reported as a problem rather than silently skipped, because "cannot check"
@@ -142,6 +140,7 @@ export function auditAssets(root = ROOT) {
 // agree with each other as well as with the canon.
 const ADMIN_SLOT_CLASS = {
   image: 'raster',
+  blueprint: 'vector',
   ogImage: 'raster',
   orgLogo: 'raster',
   headerLogo: 'raster',
@@ -151,8 +150,8 @@ const ADMIN_SLOT_CLASS = {
 };
 
 // Slots whose extension list includes 'svg' additionally carry a per-extension
-// block for the vector class (an SVG is not a raster and its budget is 4x
-// tighter — see the base64-embedded-raster note in scripts/asset-budget.mjs).
+// block for the vector class. Vector and raster currently share the 2 MiB hard
+// limit, but the extension check keeps their independent contracts explicit.
 const ADMIN_EXT_CLASS = { svg: 'vector' };
 
 function stripComments(text) {
@@ -255,6 +254,21 @@ export function adminMirrorProblems(root = ROOT) {
           `Change both files together (scripts/asset-budget.mjs is the canon).`
       );
     }
+    if (slot === 'model') {
+      const expectedWarn = ASSET_BUDGETS.model.warnBytes;
+      const actualWarn = evalBytes(fieldOf(ruleBody, 'warnBytes'));
+      if (actualWarn === null) {
+        problems.push(
+          `${where}: slot "model" has no readable warnBytes (expected ${expectedWarn} for the focused model advisory)`
+        );
+      } else if (actualWarn !== expectedWarn) {
+        problems.push(
+          `${where}: slot "model" warnBytes is ${formatBytes(actualWarn)} (${actualWarn}) but the canonical model ` +
+            `warning starts above ${formatBytes(expectedWarn)} (${expectedWarn}). Change both files together ` +
+            `(scripts/asset-budget.mjs is the canon).`
+        );
+      }
+    }
     // A slot that accepts an extension whose class has its OWN budget must end
     // up enforcing that budget. It can do so two ways, and both are correct:
     // an explicit per-extension override, or a general blockBytes that already
@@ -329,7 +343,9 @@ function report(root = ROOT) {
     console.error('\nAdmin mirror out of sync:');
     for (const problem of mirrorProblems) console.error(`  ${problem}`);
   } else {
-    console.log('\nAdmin mirror: admin/js/state.js MEDIA_RULES blockBytes match the canonical fail budgets.');
+    console.log(
+      '\nAdmin mirror: admin/js/state.js MEDIA_RULES hard limits and focused model warning match the canon.'
+    );
   }
 
   if (failures.length) {

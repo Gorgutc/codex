@@ -36,6 +36,7 @@ The audit/orchestration layer under `.codex/`, `.agents/skills/`, and `docs/agen
 - Preserve unrelated user changes.
 - Site content lives in `content/*.json`; never hand-edit generated GEN regions or `js/cards-data.js` / `js/fa-data.js` / `js/i18n-data.js` — run `npm run content:generate`.
 - Do not touch `js/model-data.js` unless explicitly requested.
+- Repository asset byte policy lives in `scripts/asset-budget.mjs`; after adding or changing referenced assets, run `npm run check:assets` plus the applicable runtime gate.
 - Do not commit secrets, personal files, build artifacts, Playwright reports, generated caches, or Google Drive material unless the user explicitly asks for an export and `DO_NOT_PUSH.md` has been checked.
 - Preserve the script order, CSS order, metadata, card IDs, filters, i18n behavior, language toggle, lazy 3D loading, and accessibility budgets tested by `verify-frozen.js`.
 - Runtime UI is bilingual through `i18n-data.js` and `i18n.js`; Cyrillic is expected in Russian mode.
@@ -85,6 +86,7 @@ Both harnesses use the same npm scripts:
 
 ```bash
 npm run codex:verify-plugin
+npm run check:assets
 npm run verify
 npm run codex:ship
 npm run sync:harness

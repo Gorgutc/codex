@@ -1152,12 +1152,21 @@ function faTagCardsSection(html) {
 {
   const sandbox = makeSandbox('case-blueprints');
   try {
-    // Baseline: today NO case carries a sheet, so the key must be absent from
-    // the whole generated payload. This is the byte-safety guarantee.
+    // Generator semantics must not depend on today's authored catalog. Build
+    // an explicit no-blueprints baseline, then add one carrier below.
+    const settings = sandbox.readJson('settings.json');
+    for (const id of settings.cardOrder) {
+      const projectPath = `cases/${id}.json`;
+      const project = sandbox.readJson(projectPath);
+      if (project.case && Object.hasOwn(project.case, 'blueprints')) {
+        delete project.case.blueprints;
+        sandbox.writeJson(projectPath, project);
+      }
+    }
     const clean = sandbox.run('--write');
     if (clean.status !== 0) fail('--write must succeed on pristine content', clean.output);
     if (sandbox.readOut('js/cards-data.js').includes('blueprints')) {
-      fail('no case carries blueprints yet — the key must not appear in cards-data.js');
+      fail('the explicit no-blueprints fixture must not emit the key in cards-data.js');
     }
 
     const orbital = sandbox.readJson('cases/orbital-mk-ii.json');

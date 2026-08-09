@@ -22,13 +22,14 @@ Full spec and session journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`)
   selection only. At least one case and one free asset must stay visible.
 - NEVER hand-edit generated targets or GEN regions. After editing content run
   `npm run content:generate`; `npm run content:check` must report zero diffs.
-- Runtime never reads `content/*.json`; the deployed site equals the
-  generated files committed to the repo (no build step on Netlify).
+- Runtime never reads `content/*.json`; the deployed site equals the generated
+  files committed to the repo. There is no host-side build step; `deploy-beget`
+  mirrors the settled `main` revision to Beget production.
 
 ## Publish pipeline (iteration C)
 
-- The admin panel commits ONLY `content/**` to `main` (one atomic commit,
-  message `content: ... [admin]`).
+- The admin panel commits `content/**` plus any newly uploaded `assets/**` in
+  one atomic commit (message `content: ... [admin]`). No other paths are valid.
 - `.github/workflows/content-publish.yml` regenerates, runs `npm run verify`,
   recaptures golden fixtures, and bot-commits the result
   (`[content-publish]`); on failure it auto-reverts the content commits
@@ -52,10 +53,46 @@ Full spec and session journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`)
 
 ## Media rules
 
+### Budget contract
+
+`scripts/asset-budget.mjs` is the repository byte-policy canon;
+`admin/js/state.js` keeps the intentional classic-script `MEDIA_RULES` mirror.
+Every mapped admin `blockBytes` value matches the repository hard limit.
+Advisory values stay slot-specific except for the model warning, which must
+match the canon.
+
+| Surface and class | Advisory band | Block when |
+| --- | ---: | ---: |
+| Repository model and admin model | `(25 MiB, 50 MiB]` | `> 50 MiB` |
+| Repository vector or raster | `(256 KiB, 2 MiB]` | `> 2 MiB` |
+| Admin image, OG, logo, or Free Assets thumbnail | `(200 KiB, 2 MiB]` | `> 2 MiB` |
+| Admin blueprint | `(500 KiB, 2 MiB]` | `> 2 MiB` |
+
+Binary units and strict `>` comparisons apply: exactly 25 MiB is warning-free
+for GLB, exactly 50 MiB is advisory but allowed, and exactly 2 MiB is accepted
+for SVG and raster. `blueprint` maps to the repository `vector` hard limit. Do
+not create general advisory parity between the admin and repository image
+rules.
+
+- Both case-editor and Free Assets model hints derive their 25/50 MiB values
+  from `State.getMediaRule('model')`; do not add another numeric UI mirror.
+- Passing the upload byte gate does not prove 3D operability. Refer to
+  `docs/agent/verification.md` for the 120-second performance target,
+  180-second functional phase deadlines, 600-second operational watchdog,
+  smallest-model generic check, adjacent non-heaviest pagination pair, and
+  external heaviest-model proof after the primary page closes. Timeouts never
+  weaken the exact response, state, error, or context-loss assertions.
+
+### Upload mechanics
+
 - Uploaded files get cache-bust names `{base}-{hash8}.{ext}` (first 8 hex of
-  the content SHA-256) because `/assets/*` ships with a one-year immutable
-  cache. Replaced files are NOT deleted (deleting would 404 production until
-  the bot commit lands); orphan cleanup is a separate maintenance task.
+  the content SHA-256) so every upload has a stable content identity across
+  carrier caches. Beget currently caches asset types for seven days;
+  `netlify.toml` keeps Netlify previews revalidating after one day. Neither
+  carrier uses a one-year immutable asset policy. Replaced files are NOT
+  deleted so existing production and rollback references stay valid while the
+  source commit settles and the Beget mirror runs; orphan cleanup is a
+  separate maintenance task.
 - Every media path must stay inside `./assets/` (traversal guard in the
   validator and in `state.js`).
 - Free-assets `model` is a BASE NAME, not a path (runtime appends
@@ -93,5 +130,6 @@ Full spec and session journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`)
   `content/` - extend by derivation, never by re-pinning literals that the
   owner can change through the admin panel.
 - Gate commands: `npm run content:check`, `npm run test:golden`,
-  `npm run test:content-validate`, `npm run test:admin`,
+  `npm run check:assets`, `npm run test:content-validate`, `npm run test:admin`,
+  `npm run verify` after model or shipped asset-reference changes, and
   `npm run codex:ship` before any commit.
