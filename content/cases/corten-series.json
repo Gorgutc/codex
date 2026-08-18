@@ -36,11 +36,11 @@
     ],
     "modelSrc": "./assets/models/corten-series-a5f1c0fb.glb",
     "modelStats": {
-      "triangles": "600000",
-      "vertices": "40000",
-      "materials": 10,
+      "triangles": "401,246",
+      "vertices": "193,604",
+      "materials": 2,
       "textures": "PBR",
-      "software": "Blender"
+      "software": "Blender, Painter"
     },
     "media": [
       {
@@ -51,12 +51,12 @@
         "bg": "linear-gradient(135deg,#2a2018 0%,#3a2e22 100%)",
         "caption": {
           "label": {
-            "en": "Studio render",
-            "ru": "Studio-рендер"
+            "en": "",
+            "ru": ""
           },
           "desc": {
-            "en": "Product viz for an industrial furniture brand. Corten steel material, HDR studio lighting.",
-            "ru": "Product viz для бренда промышленной мебели. Материал — corten-сталь, HDR-свет студии."
+            "en": "",
+            "ru": ""
           }
         }
       },
@@ -68,12 +68,12 @@
         "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
         "caption": {
           "label": {
-            "en": "Material passes",
-            "ru": "Material passes"
+            "en": "",
+            "ru": ""
           },
           "desc": {
-            "en": "Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web.",
-            "ru": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
+            "en": "",
+            "ru": ""
           }
         }
       },
@@ -121,12 +121,12 @@
         "bg": "linear-gradient(135deg,#241a14 0%,#34281e 100%)",
         "caption": {
           "label": {
-            "en": "Context shot",
-            "ru": "Context shot"
+            "en": "",
+            "ru": ""
           },
           "desc": {
-            "en": "In-situ placement render in a concrete loft environment. Used as lead image for the launch deck.",
-            "ru": "In-situ рендер в бетонном лофте. Использован как lead-image launch-deck."
+            "en": "",
+            "ru": ""
           }
         }
       },
@@ -157,12 +157,12 @@
         "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
         "caption": {
           "label": {
-            "en": "Material passes",
-            "ru": "Material passes"
+            "en": "",
+            "ru": ""
           },
           "desc": {
-            "en": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web.",
-            "ru": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web."
+            "en": "",
+            "ru": ""
           }
         }
       }
@@ -179,12 +179,12 @@
     },
     "inline": {
       "title": {
-        "en": "Patina system",
-        "ru": "Patina-система"
+        "en": "20 renders and 2 animations",
+        "ru": "20 рендеров и 2 анимации"
       },
       "body": {
-        "en": "Rust generated from curvature + ambient occlusion masks. Two layers: oxide underneath, flake breakup on top, roughness offset per layer.",
-        "ru": "Ржавчина генерируется из curvature + AO-маски. Два слоя: оксид снизу, чешуйчатый отрыв сверху, roughness-сдвиг на каждом слое."
+        "en": "A total of 20 renders were created, all the client’s scenarios were worked through, and a separate animated video for the opening and closing was produced. The project files have been transferred to the requester.",
+        "ru": "Всего было сделано 20 рендеров, отработаны все сценарии заказчика, сделано отдельное анимационное видео открытия и закрытия. Файлы проекта переданы заказчику."
       }
     },
     "cta": {
@@ -196,24 +196,24 @@
         "id": "bp-msc7sivr",
         "src": "./assets/cases/corten-series/blueprints/01-687c4903.svg",
         "label": {
-          "en": "",
-          "ru": ""
+          "en": "Front view",
+          "ru": "Вид спереди"
         }
       },
       {
         "id": "bp-mskcpu5n",
         "src": "./assets/cases/corten-series/blueprints/02-7ceb375d.svg",
         "label": {
-          "en": "",
-          "ru": ""
+          "en": "Side view",
+          "ru": "Вид сбоку"
         }
       },
       {
         "id": "bp-mskcpz2v",
         "src": "./assets/cases/corten-series/blueprints/03-1e70f06c.svg",
         "label": {
-          "en": "",
-          "ru": ""
+          "en": "View from above",
+          "ru": "Вид сверху"
         }
       }
     ]
