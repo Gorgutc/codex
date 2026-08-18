@@ -604,12 +604,12 @@
         role: 'Client: Happfe',
         captions: [
           {
-            label: 'Studio render',
-            desc: 'Product viz for an industrial furniture brand. Corten steel material, HDR studio lighting.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Material passes',
-            desc: 'Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web.'
+            label: '',
+            desc: ''
           },
           {
             label: '',
@@ -620,16 +620,16 @@
             desc: ''
           },
           {
-            label: 'Context shot',
-            desc: 'In-situ placement render in a concrete loft environment. Used as lead image for the launch deck.'
+            label: '',
+            desc: ''
           },
           {
             label: '',
             desc: ''
           },
           {
-            label: 'Material passes',
-            desc: 'Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web.'
+            label: '',
+            desc: ''
           }
         ],
         text: {
@@ -637,18 +637,18 @@
           body: 'Only drawings and raw materials were received from the customer. The materials and textures were finalized. The model was optimized for constant product renders. The GLB was prepared for placement on the website. The drawings were adapted for possible product improvements.'
         },
         inline: {
-          title: 'Patina system',
-          body: 'Rust generated from curvature + ambient occlusion masks. Two layers: oxide underneath, flake breakup on top, roughness offset per layer.'
+          title: '20 renders and 2 animations',
+          body: 'A total of 20 renders were created, all the client’s scenarios were worked through, and a separate animated video for the opening and closing was produced. The project files have been transferred to the requester.'
         },
         blueprints: [
           {
-            label: ''
+            label: 'Front view'
           },
           {
-            label: ''
+            label: 'Side view'
           },
           {
-            label: ''
+            label: 'View from above'
           }
         ]
       },
@@ -724,12 +724,12 @@
         role: 'Клиент: Happfe',
         captions: [
           {
-            label: 'Studio-рендер',
-            desc: 'Product viz для бренда промышленной мебели. Материал — corten-сталь, HDR-свет студии.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Material passes',
-            desc: 'Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web.'
+            label: '',
+            desc: ''
           },
           {
             label: '',
@@ -740,16 +740,16 @@
             desc: ''
           },
           {
-            label: 'Context shot',
-            desc: 'In-situ рендер в бетонном лофте. Использован как lead-image launch-deck.'
+            label: '',
+            desc: ''
           },
           {
             label: '',
             desc: ''
           },
           {
-            label: 'Material passes',
-            desc: 'Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web.'
+            label: '',
+            desc: ''
           }
         ],
         text: {
@@ -757,18 +757,18 @@
           body: 'Был получены только чертежи и сырые материалы от заказчика. Довели до ума материалы и текстуры. Модель была оптимизирована  для постоянных продуктовых рендеров. Была проведена подготовка под GLB для размещения на сайте. Адаптированы чертежи для возможного улучшения продукта.'
         },
         inline: {
-          title: 'Patina-система',
-          body: 'Ржавчина генерируется из curvature + AO-маски. Два слоя: оксид снизу, чешуйчатый отрыв сверху, roughness-сдвиг на каждом слое.'
+          title: '20 рендеров и 2 анимации',
+          body: 'Всего было сделано 20 рендеров, отработаны все сценарии заказчика, сделано отдельное анимационное видео открытия и закрытия. Файлы проекта переданы заказчику.'
         },
         blueprints: [
           {
-            label: ''
+            label: 'Вид спереди'
           },
           {
-            label: ''
+            label: 'Вид сбоку'
           },
           {
-            label: ''
+            label: 'Вид сверху'
           }
         ]
       },

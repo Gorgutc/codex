@@ -8,11 +8,11 @@
     "modelSrc": "./assets/models/corten-series-a5f1c0fb.glb",
     "layoutMode": "manual",
     "modelStats": {
-      "triangles": "600000",
-      "vertices": "40000",
-      "materials": 10,
+      "triangles": "401,246",
+      "vertices": "193,604",
+      "materials": 2,
       "textures": "PBR",
-      "software": "Blender"
+      "software": "Blender, Painter"
     },
     "items": {
       "media": [
@@ -21,8 +21,8 @@
           "format": "wide",
           "src": "./assets/cases/corten-series/01-d1b75be2.jpg",
           "bg": "linear-gradient(135deg,#2a2018 0%,#3a2e22 100%)",
-          "label": "Studio render",
-          "desc": "Product viz for an industrial furniture brand. Corten steel material, HDR studio lighting.",
+          "label": "",
+          "desc": "",
           "enabled": true
         },
         {
@@ -30,8 +30,8 @@
           "format": "wide",
           "src": "./assets/cases/corten-series/05-dc26ecf5.jpg",
           "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
-          "label": "Material passes",
-          "desc": "Raw metal base, rust gradient pass, and clearcoat variation delivered for print and web.",
+          "label": "",
+          "desc": "",
           "enabled": true
         },
         {
@@ -59,8 +59,8 @@
           "format": "wide",
           "src": "./assets/cases/corten-series/02-5598d4e4.jpg",
           "bg": "linear-gradient(135deg,#241a14 0%,#34281e 100%)",
-          "label": "Context shot",
-          "desc": "In-situ placement render in a concrete loft environment. Used as lead image for the launch deck.",
+          "label": "",
+          "desc": "",
           "enabled": true
         },
         {
@@ -79,8 +79,8 @@
           "format": "wide",
           "src": "./assets/cases/corten-series/04-57e7bbf6.jpg",
           "bg": "linear-gradient(135deg,#1e1410 0%,#2c2018 100%)",
-          "label": "Material passes",
-          "desc": "Raw-metal база, rust gradient-пасс и clearcoat-вариация — под печать и web.",
+          "label": "",
+          "desc": "",
           "enabled": true
         }
       ],
@@ -89,8 +89,8 @@
         "body": "Only drawings and raw materials were received from the customer. The materials and textures were finalized. The model was optimized for constant product renders. The GLB was prepared for placement on the website. The drawings were adapted for possible product improvements."
       },
       "inline": {
-        "title": "Patina system",
-        "body": "Rust generated from curvature + ambient occlusion masks. Two layers: oxide underneath, flake breakup on top, roughness offset per layer."
+        "title": "20 renders and 2 animations",
+        "body": "A total of 20 renders were created, all the client’s scenarios were worked through, and a separate animated video for the opening and closing was produced. The project files have been transferred to the requester."
       },
       "motionBlocks": null,
       "cta": {
@@ -99,15 +99,18 @@
       "blueprints": [
         {
           "id": "bp-msc7sivr",
-          "src": "./assets/cases/corten-series/blueprints/01-687c4903.svg"
+          "src": "./assets/cases/corten-series/blueprints/01-687c4903.svg",
+          "label": "Front view"
         },
         {
           "id": "bp-mskcpu5n",
-          "src": "./assets/cases/corten-series/blueprints/02-7ceb375d.svg"
+          "src": "./assets/cases/corten-series/blueprints/02-7ceb375d.svg",
+          "label": "Side view"
         },
         {
           "id": "bp-mskcpz2v",
-          "src": "./assets/cases/corten-series/blueprints/03-1e70f06c.svg"
+          "src": "./assets/cases/corten-series/blueprints/03-1e70f06c.svg",
+          "label": "View from above"
         }
       ]
     }
