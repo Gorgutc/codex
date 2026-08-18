@@ -19,7 +19,7 @@ window.CARDS_DATA = {
       'Blender',
       'Substance Painter'
     ],
-    modelSrc: './assets/models/corten-series-cec47032.glb',
+    modelSrc: './assets/models/corten-series-a5f1c0fb.glb',
     layoutMode: 'manual',
     modelStats: {
       triangles: '600000',
