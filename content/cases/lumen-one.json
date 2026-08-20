@@ -7,22 +7,22 @@
   "cadPlaceholder": false,
   "card": {
     "htmlComment": "5",
-    "thumb": "./assets/cards/lumen-one.svg",
+    "thumb": "./assets/cards/lumen-one-34654d44.jpg",
     "thumbLabel": "Lumen One",
     "imgLoading": "lazy",
     "imgFetchPriority": null,
     "badge": null,
     "title": {
-      "en": "Lumen One",
-      "ru": "Lumen One"
+      "en": "The Vacuum cleaner Happfe",
+      "ru": "Пылесос Happfe"
     },
     "desc": {
       "en": "Architectural lighting unit. Photorealistic turntable for pitch deck.",
-      "ru": "Архитектурный светильник. Фотореалистичный turntable для pitch-deck."
+      "ru": "Продуктовые рендеры пылесоса для бренда Happfe. Полная работа с сырой моделью от китайцев  и  подготовка к  продуктовым рендерам. Создание собственных частей пылесоса."
     },
     "alt": {
-      "en": "Lumen One — architectural lighting unit",
-      "ru": "Lumen One — архитектурный светильник"
+      "en": "Happfe Vacuum Cleaner — Product Renders",
+      "ru": "Пылесос Happfe — продуктовые рендеры"
     }
   },
   "case": {
@@ -44,109 +44,127 @@
     },
     "media": [
       {
-        "src": "./assets/cases/lumen-one/01.svg",
-        "format": "wide",
-        "type": "image",
-        "poster": null,
-        "bg": "linear-gradient(135deg,#1e2428 0%,#2c3640 100%)",
-        "caption": {
-          "label": {
-            "en": "Final render",
-            "ru": "Финальный рендер"
-          },
-          "desc": {
-            "en": "Architectural lighting unit. Photorealistic turntable deliverable for investor pitch deck.",
-            "ru": "Архитектурный светильник. Фотореалистичный turntable под pitch-deck инвесторов."
-          }
-        }
-      },
-      {
-        "src": "./assets/cases/lumen-one/02.svg",
-        "format": "tall",
-        "type": "image",
-        "poster": null,
-        "bg": "linear-gradient(135deg,#1a2024 0%,#28303c 100%)",
-        "caption": {
-          "label": {
-            "en": "Lighting setup",
-            "ru": "Lighting setup"
-          },
-          "desc": {
-            "en": "3-point HDRI rig with area light fill. Caustics rendered via path-tracing at 4096 samples.",
-            "ru": "3-точечный HDRI-риг с area-light fill. Каустики через path-tracing на 4096 сэмплов."
-          }
-        }
-      },
-      {
-        "src": "./assets/cases/lumen-one/03.svg",
-        "format": "tall",
-        "type": "image",
-        "poster": null,
-        "bg": "linear-gradient(135deg,#161c20 0%,#222c38 100%)",
-        "caption": {
-          "label": {
-            "en": "Spec sheet",
-            "ru": "Spec sheet"
-          },
-          "desc": {
-            "en": "Dimension overlay and material callout sheet generated in Blender Compositing and Inkscape.",
-            "ru": "Оверлей размерностей и material callout — собраны в Blender Compositing и Inkscape."
-          }
-        }
-      },
-      {
-        "src": "./assets/cases/lumen-one/04.svg",
+        "id": "media-mt1srvvr",
+        "src": "./assets/cases/lumen-one/01-54190eb8.jpg",
         "format": "wide",
         "type": "image",
         "poster": null,
         "bg": "linear-gradient(135deg,#11181c 0%,#1c2832 100%)",
         "caption": {
           "label": {
-            "en": "Context shot",
-            "ru": "Context shot"
+            "en": "",
+            "ru": ""
           },
           "desc": {
-            "en": "Hero placement in a modern office environment, shot from client-approved camera angle.",
-            "ru": "Hero-кадр в современном офисе — ракурс утверждён клиентом."
+            "en": "",
+            "ru": ""
           }
         }
       },
       {
-        "src": "./assets/cases/lumen-one/05.svg",
+        "src": "./assets/cases/lumen-one/01-a920767b.jpg",
         "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1e2428 0%,#2c3640 100%)",
+        "caption": {
+          "label": {
+            "en": "",
+            "ru": ""
+          },
+          "desc": {
+            "en": "",
+            "ru": ""
+          }
+        }
+      },
+      {
+        "src": "./assets/cases/lumen-one/02-576ba92d.jpg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#1a2024 0%,#28303c 100%)",
+        "caption": {
+          "label": {
+            "en": "",
+            "ru": ""
+          },
+          "desc": {
+            "en": "",
+            "ru": ""
+          }
+        }
+      },
+      {
+        "src": "./assets/cases/lumen-one/05-815b474a.jpg",
+        "format": "wide",
         "type": "image",
         "poster": null,
         "bg": "linear-gradient(135deg,#0c1418 0%,#18242e 100%)",
         "caption": {
           "label": {
-            "en": "Colour variants",
-            "ru": "Варианты отделки"
+            "en": "",
+            "ru": ""
           },
           "desc": {
-            "en": "Six finish variants — brass, chrome, matte black, warm white — rendered as catalogue sprites.",
-            "ru": "Шесть finish-вариантов — brass, chrome, matte black, warm white — рендеры под catalogue-спрайты."
+            "en": "",
+            "ru": ""
+          }
+        }
+      },
+      {
+        "src": "./assets/cases/lumen-one/03-58934101.jpg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#161c20 0%,#222c38 100%)",
+        "caption": {
+          "label": {
+            "en": "",
+            "ru": ""
+          },
+          "desc": {
+            "en": "",
+            "ru": ""
+          }
+        }
+      },
+      {
+        "src": "./assets/cases/lumen-one/04-6ec3c132.jpg",
+        "format": "tall",
+        "type": "image",
+        "poster": null,
+        "bg": "linear-gradient(135deg,#11181c 0%,#1c2832 100%)",
+        "caption": {
+          "label": {
+            "en": "",
+            "ru": ""
+          },
+          "desc": {
+            "en": "",
+            "ru": ""
           }
         }
       }
     ],
     "text": {
       "title": {
-        "en": "Light behaviour",
-        "ru": "Поведение света"
+        "en": "+",
+        "ru": "+"
       },
       "body": {
-        "en": "The optical housing uses a real IES profile exported from the client’s photometric test. Caustics and beam spread on camera match what the product produces on a physical wall.",
-        "ru": "Оптический корпус использует реальный IES-профиль, экспортированный из фотометрического теста клиента. Каустики и beam spread на камере соответствуют тому, что продукт даёт на физической стене."
+        "en": "+",
+        "ru": "+"
       }
     },
     "inline": {
       "title": {
-        "en": "Light model",
-        "ru": "Модель света"
+        "en": "-",
+        "ru": "-"
       },
       "body": {
-        "en": "Filament IES bakes drive the emissive intensity map. Inner diffuser scatters via subsurface approximation — no cheat geometry.",
-        "ru": "Filament-IES bakes управляют emissive intensity map. Внутренний рассеиватель — subsurface-приближение, без cheat-геометрии."
+        "en": "-",
+        "ru": "-"
       }
     }
   },
