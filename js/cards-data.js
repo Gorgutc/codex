@@ -147,58 +147,68 @@ window.CARDS_DATA = {
     items: {
       media: [
         {
+          id: 'media-mt1srvvr',
           type: 'image',
           format: 'wide',
-          src: './assets/cases/lumen-one/01.svg',
-          bg: 'linear-gradient(135deg,#1e2428 0%,#2c3640 100%)',
-          label: 'Final render',
-          desc: 'Architectural lighting unit. Photorealistic turntable deliverable for investor pitch deck.',
-          enabled: true
-        },
-        {
-          type: 'image',
-          format: 'tall',
-          src: './assets/cases/lumen-one/02.svg',
-          bg: 'linear-gradient(135deg,#1a2024 0%,#28303c 100%)',
-          label: 'Lighting setup',
-          desc: '3-point HDRI rig with area light fill. Caustics rendered via path-tracing at 4096 samples.',
-          enabled: true
-        },
-        {
-          type: 'image',
-          format: 'tall',
-          src: './assets/cases/lumen-one/03.svg',
-          bg: 'linear-gradient(135deg,#161c20 0%,#222c38 100%)',
-          label: 'Spec sheet',
-          desc: 'Dimension overlay and material callout sheet generated in Blender Compositing and Inkscape.',
-          enabled: true
-        },
-        {
-          type: 'image',
-          format: 'wide',
-          src: './assets/cases/lumen-one/04.svg',
+          src: './assets/cases/lumen-one/01-54190eb8.jpg',
           bg: 'linear-gradient(135deg,#11181c 0%,#1c2832 100%)',
-          label: 'Context shot',
-          desc: 'Hero placement in a modern office environment, shot from client-approved camera angle.',
+          label: '',
+          desc: '',
           enabled: true
         },
         {
           type: 'image',
           format: 'tall',
-          src: './assets/cases/lumen-one/05.svg',
+          src: './assets/cases/lumen-one/01-a920767b.jpg',
+          bg: 'linear-gradient(135deg,#1e2428 0%,#2c3640 100%)',
+          label: '',
+          desc: '',
+          enabled: true
+        },
+        {
+          type: 'image',
+          format: 'tall',
+          src: './assets/cases/lumen-one/02-576ba92d.jpg',
+          bg: 'linear-gradient(135deg,#1a2024 0%,#28303c 100%)',
+          label: '',
+          desc: '',
+          enabled: true
+        },
+        {
+          type: 'image',
+          format: 'wide',
+          src: './assets/cases/lumen-one/05-815b474a.jpg',
           bg: 'linear-gradient(135deg,#0c1418 0%,#18242e 100%)',
-          label: 'Colour variants',
-          desc: 'Six finish variants — brass, chrome, matte black, warm white — rendered as catalogue sprites.',
+          label: '',
+          desc: '',
+          enabled: true
+        },
+        {
+          type: 'image',
+          format: 'tall',
+          src: './assets/cases/lumen-one/03-58934101.jpg',
+          bg: 'linear-gradient(135deg,#161c20 0%,#222c38 100%)',
+          label: '',
+          desc: '',
+          enabled: true
+        },
+        {
+          type: 'image',
+          format: 'tall',
+          src: './assets/cases/lumen-one/04-6ec3c132.jpg',
+          bg: 'linear-gradient(135deg,#11181c 0%,#1c2832 100%)',
+          label: '',
+          desc: '',
           enabled: true
         }
       ],
       text: {
-        title: 'Light behaviour',
-        body: 'The optical housing uses a real IES profile exported from the client’s photometric test. Caustics and beam spread on camera match what the product produces on a physical wall.'
+        title: '+',
+        body: '+'
       },
       inline: {
-        title: 'Light model',
-        body: 'Filament IES bakes drive the emissive intensity map. Inner diffuser scatters via subsurface approximation — no cheat geometry.'
+        title: '-',
+        body: '-'
       },
       motionBlocks: null
     }

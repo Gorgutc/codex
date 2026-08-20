@@ -568,9 +568,9 @@
         alt: 'Happfe Dehydrator - Product Renders of a Dehydrator'
       },
       'lumen-one': {
-        title: 'Lumen One',
+        title: 'The Vacuum cleaner Happfe',
         desc: 'Architectural lighting unit. Photorealistic turntable for pitch deck.',
-        alt: 'Lumen One — architectural lighting unit'
+        alt: 'Happfe Vacuum Cleaner — Product Renders'
       },
       'flux-capsule': {
         title: 'Flux Capsule',
@@ -585,9 +585,9 @@
         alt: 'Дегидратор Happfe — Продуктовые рендеры дегидратора'
       },
       'lumen-one': {
-        title: 'Lumen One',
-        desc: 'Архитектурный светильник. Фотореалистичный turntable для pitch-deck.',
-        alt: 'Lumen One — архитектурный светильник'
+        title: 'Пылесос Happfe',
+        desc: 'Продуктовые рендеры пылесоса для бренда Happfe. Полная работа с сырой моделью от китайцев  и  подготовка к  продуктовым рендерам. Создание собственных частей пылесоса.',
+        alt: 'Пылесос Happfe — продуктовые рендеры'
       },
       'flux-capsule': {
         title: 'Flux Capsule',
@@ -656,33 +656,37 @@
         role: 'Client',
         captions: [
           {
-            label: 'Final render',
-            desc: 'Architectural lighting unit. Photorealistic turntable deliverable for investor pitch deck.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Lighting setup',
-            desc: '3-point HDRI rig with area light fill. Caustics rendered via path-tracing at 4096 samples.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Spec sheet',
-            desc: 'Dimension overlay and material callout sheet generated in Blender Compositing and Inkscape.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Context shot',
-            desc: 'Hero placement in a modern office environment, shot from client-approved camera angle.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Colour variants',
-            desc: 'Six finish variants — brass, chrome, matte black, warm white — rendered as catalogue sprites.'
+            label: '',
+            desc: ''
+          },
+          {
+            label: '',
+            desc: ''
           }
         ],
         text: {
-          title: 'Light behaviour',
-          body: 'The optical housing uses a real IES profile exported from the client’s photometric test. Caustics and beam spread on camera match what the product produces on a physical wall.'
+          title: '+',
+          body: '+'
         },
         inline: {
-          title: 'Light model',
-          body: 'Filament IES bakes drive the emissive intensity map. Inner diffuser scatters via subsurface approximation — no cheat geometry.'
+          title: '-',
+          body: '-'
         }
       },
       'flux-capsule': {
@@ -776,33 +780,37 @@
         role: 'Клиент',
         captions: [
           {
-            label: 'Финальный рендер',
-            desc: 'Архитектурный светильник. Фотореалистичный turntable под pitch-deck инвесторов.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Lighting setup',
-            desc: '3-точечный HDRI-риг с area-light fill. Каустики через path-tracing на 4096 сэмплов.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Spec sheet',
-            desc: 'Оверлей размерностей и material callout — собраны в Blender Compositing и Inkscape.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Context shot',
-            desc: 'Hero-кадр в современном офисе — ракурс утверждён клиентом.'
+            label: '',
+            desc: ''
           },
           {
-            label: 'Варианты отделки',
-            desc: 'Шесть finish-вариантов — brass, chrome, matte black, warm white — рендеры под catalogue-спрайты.'
+            label: '',
+            desc: ''
+          },
+          {
+            label: '',
+            desc: ''
           }
         ],
         text: {
-          title: 'Поведение света',
-          body: 'Оптический корпус использует реальный IES-профиль, экспортированный из фотометрического теста клиента. Каустики и beam spread на камере соответствуют тому, что продукт даёт на физической стене.'
+          title: '+',
+          body: '+'
         },
         inline: {
-          title: 'Модель света',
-          body: 'Filament-IES bakes управляют emissive intensity map. Внутренний рассеиватель — subsurface-приближение, без cheat-геометрии.'
+          title: '-',
+          body: '-'
         }
       },
       'flux-capsule': {
