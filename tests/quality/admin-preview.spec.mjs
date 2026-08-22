@@ -114,6 +114,24 @@ async function mockNetwork(page) {
   });
 }
 
+function isTransientPreviewNavigation(error) {
+  return /Execution context was destroyed|Frame was detached/.test(String(error && error.message));
+}
+
+// The iframe receives a blob-backed srcdoc after the overlay is opened. Its
+// document may navigate between locating <html> and evaluating the runtime
+// marker; retry that transition only, while keeping the real readiness check.
+async function expectPreviewRuntime(frame, globals) {
+  await expect.poll(async () => {
+    try {
+      return await frame.locator('html').evaluate((_html, names) => names.every((name) => Boolean(window[name])), globals);
+    } catch (error) {
+      if (isTransientPreviewNavigation(error)) return false;
+      throw error;
+    }
+  }).toBe(true);
+}
+
 test('Design Lab: public URL is opt-in, canonical stays Original, links retain mode', async ({ page }) => {
   const variantRequests = [];
   page.on('request', (request) => {
@@ -214,9 +232,7 @@ test('превью: черновик в iframe — RU-заголовок, скр
   await expect(frame.locator('a.work-card[data-id="orbital-mk-ii"]')).toBeAttached();
   await expect(frame.locator('script[src*="cards-data.js"], script[src*="i18n-data.js"]')).toHaveCount(0);
   await expect(frame.locator('script[src^="blob:"]')).toHaveCount(2);
-  await expect
-    .poll(() => frame.locator('html').evaluate(() => Boolean(window.CARDS_DATA && window.I18N_DATA)))
-    .toBe(true);
+  await expectPreviewRuntime(frame, ['CARDS_DATA', 'I18N_DATA']);
   const designToggleOrder = await page
     .locator('.preview-overlay__group--design .preview-toggle')
     .evaluateAll((buttons) => buttons.map((button) => button.id));
@@ -417,7 +433,7 @@ test('preview rewrites runtime, grid and featured JSON-LD routes from the full d
   await page.click('#preview-btn');
   const frame = page.frameLocator('#preview-frame');
   await expect(frame.locator(`a.work-card[data-id="${FEATURED_CASE_ID}"]`)).toHaveAttribute('href', '#' + slug);
-  await expect.poll(() => frame.locator('html').evaluate(() => Boolean(window.CARDS_DATA && window.CodexCase))).toBe(true);
+  await expectPreviewRuntime(frame, ['CARDS_DATA', 'CodexCase']);
 
   const routeState = await frame.locator('html').evaluate((_element, route) => ({
     runtime: window.CARDS_DATA[route.id],
@@ -476,7 +492,7 @@ test('featured works keep paired id/about order, persist internal IDs, block dup
 
   await page.click('#preview-btn');
   const frame = page.frameLocator('#preview-frame');
-  await expect.poll(() => frame.locator('html').evaluate(() => Boolean(window.CARDS_DATA))).toBe(true);
+  await expectPreviewRuntime(frame, ['CARDS_DATA']);
   const expectedPreview = reordered.map((feature) => {
     const data = JSON.parse(normalizeVisibility('content/cases/' + feature.id + '.json', fs.readFileSync(path.join(ROOT, 'content', 'cases', feature.id + '.json'))).toString('utf8'));
     return { about: feature.about, url: 'https://codex.promo/#' + (data.slug || data.id) };
@@ -521,9 +537,7 @@ test('превью Free Assets (F5): скрытая категория выпа�
   const frame = page.frameLocator('#preview-frame');
   await expect(frame.locator('script[src*="fa-data.js"], script[src*="i18n-data.js"]')).toHaveCount(0);
   await expect(frame.locator('script[src^="blob:"]')).toHaveCount(2);
-  await expect
-    .poll(() => frame.locator('html').evaluate(() => Boolean(window.FA_DATA && window.I18N_DATA)))
-    .toBe(true);
+  await expectPreviewRuntime(frame, ['FA_DATA', 'I18N_DATA']);
   // Обзор категорий: видимая категория есть, скрытая выпала
   await expect(frame.locator('a.tag-card[data-tag="hard-surface"]')).toBeAttached();
   await expect(frame.locator(`a.tag-card[data-tag="${HIDDEN_CAT}"]`)).toHaveCount(0);
@@ -731,7 +745,7 @@ test('preview keeps hostile draft JSON-LD data inert and parseable inside srcdoc
   await page.click('a[href="#/free-assets"]');
   await page.click('#preview-btn');
   const freeFrame = page.frameLocator('#preview-frame');
-  await expect.poll(() => freeFrame.locator('html').evaluate(() => Boolean(window.FA_DATA))).toBe(true);
+  await expectPreviewRuntime(freeFrame, ['FA_DATA']);
   const pageIdentity = await freeFrame.locator('html').evaluate(() => {
     const node = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
       .map((script) => JSON.parse(script.textContent))
