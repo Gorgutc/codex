@@ -45,6 +45,7 @@ try {
 
   // Break the copy in several independent ways.
   const settings = readJson('settings.json');
+  const authoredCaseIds = settings.cardOrder.slice();
   settings.cardOrder.push('ghost-case'); // orphan cardOrder entry
   delete settings.filters[1].label; // filter without a label
   writeJson('settings.json', settings);
@@ -101,6 +102,44 @@ try {
   const nightshard = readJson('cases/nightshard.json');
   nightshard.case.cta = { enabled: 'yes', url: 'https://www.artstation.com/artwork/x' }; // not a boolean
   writeJson('cases/nightshard.json', nightshard);
+
+  // Public case routes are globally unique, including disabled cases. Pick
+  // distinct authored fixtures rather than owner-specific ids so this remains
+  // a controlled validator test when the portfolio changes.
+  const slugFixtures = authoredCaseIds.slice(-6);
+  if (slugFixtures.length !== 6) throw new Error('Slug validation fixture needs six authored cases.');
+  const [invalidSlugId, invalidAliasesId, disabledCollisionId, stableIdCollisionId, canonicalAliasId, emptyAliasesId] = slugFixtures;
+  const sharedToken = 'shared-route';
+
+  const invalidSlug = readJson('cases/' + invalidSlugId + '.json');
+  invalidSlug.slug = 'Bad Slug'; // public route grammar is strict lowercase kebab-case
+  invalidSlug.legacySlugs = ['']; // aliases must be non-empty route tokens
+  writeJson('cases/' + invalidSlugId + '.json', invalidSlug);
+
+  const invalidAliases = readJson('cases/' + invalidAliasesId + '.json');
+  invalidAliases.slug = sharedToken;
+  invalidAliases.legacySlugs = 'old-route';
+  writeJson('cases/' + invalidAliasesId + '.json', invalidAliases);
+
+  const disabledCollision = readJson('cases/' + disabledCollisionId + '.json');
+  disabledCollision.enabled = false; // coverage must not depend on owner visibility settings
+  disabledCollision.slug = disabledCollision.id; // canonical must be omitted when it is the stable id
+  disabledCollision.legacySlugs = [sharedToken, sharedToken];
+  writeJson('cases/' + disabledCollisionId + '.json', disabledCollision);
+
+  const stableIdCollision = readJson('cases/' + stableIdCollisionId + '.json');
+  stableIdCollision.legacySlugs = [disabledCollision.id]; // collision with another stable id
+  writeJson('cases/' + stableIdCollisionId + '.json', stableIdCollision);
+
+  const canonicalAlias = readJson('cases/' + canonicalAliasId + '.json');
+  const customCanonical = canonicalAlias.id + '-public';
+  canonicalAlias.slug = customCanonical;
+  canonicalAlias.legacySlugs = [customCanonical]; // alias cannot repeat canonical
+  writeJson('cases/' + canonicalAliasId + '.json', canonicalAlias);
+
+  const emptyAliases = readJson('cases/' + emptyAliasesId + '.json');
+  emptyAliases.legacySlugs = []; // an empty alias list is not meaningful
+  writeJson('cases/' + emptyAliasesId + '.json', emptyAliases);
 
   // Forms the URL parser forgives but the runtime refuses to render — every
   // one of them must fail HERE, or the button silently disappears from the
@@ -263,6 +302,15 @@ try {
     '"size" must be a non-empty string',
     '"contents" must be a non-empty array of non-empty strings',
     'content/cases/lumen-one.json: case.media must be a non-empty array of media blocks',
+    `content/cases/${invalidSlugId}.json: slug must be lowercase letters, digits and single dashes`,
+    `content/cases/${invalidSlugId}.json: legacySlugs[0] must be lowercase letters, digits and single dashes`,
+    `content/cases/${invalidAliasesId}.json: legacySlugs must be an array of non-empty route tokens`,
+    `content/cases/${disabledCollisionId}.json: legacySlugs[1] duplicates "${sharedToken}"`,
+    `content/cases/${disabledCollisionId}.json: slug must not repeat the stable id "${disabledCollisionId}"`,
+    `case route token "${disabledCollisionId}" is used by both "${[disabledCollisionId, stableIdCollisionId].sort().join('" and "')}"`,
+    `content/cases/${canonicalAliasId}.json: legacySlugs[0] must not repeat the canonical slug "${customCanonical}"`,
+    `content/cases/${emptyAliasesId}.json: legacySlugs must be an array of non-empty route tokens`,
+    `case route token "${sharedToken}" is used by both "${[disabledCollisionId, invalidAliasesId].sort().join('" and "')}"`,
     'content/cases/helix-reveal.json: case.media must be a non-empty array of media blocks',
     'case.media must have at most 12 blocks (got 13)',
     'case.media[0].format: must be "wide" or "tall" (got "huge")',

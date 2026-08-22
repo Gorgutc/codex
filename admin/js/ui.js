@@ -2103,6 +2103,66 @@
       ])
     );
 
+    /* ── Public route: ID remains immutable while the public hash can evolve. */
+    const currentSlug = typeof draft.slug === 'string' ? draft.slug : '';
+    const currentAliases = Array.isArray(draft.legacySlugs) ? draft.legacySlugs : [];
+    const slugInput = el('input', { type: 'text', id: 'case-public-slug', 'data-field': path + '::slug', placeholder: draft.id });
+    slugInput.value = currentSlug;
+    const aliasInput = el('textarea', { id: 'case-legacy-slugs', rows: '3', 'data-field': path + '::legacySlugs' });
+    aliasInput.value = currentAliases.join('\n');
+    const publicUrl = el('code', { id: 'case-public-url', text: 'https://codex.promo/#' + (currentSlug || draft.id) });
+    function aliasTokens() {
+      return aliasInput.value.split(/\n|,/).map((value) => value.trim()).filter(Boolean);
+    }
+    function refreshPublicUrl() {
+      const next = slugInput.value.trim();
+      publicUrl.textContent = 'https://codex.promo/#' + (next || draft.id);
+    }
+    function commitCanonicalRoute() {
+      // `input` is deliberately preview-only: a sequentially typed slug must
+      // not turn every prefix into a persisted legacy route. The prior route
+      // becomes an alias only at the browser's commit boundary (change/blur).
+      const previous = State.getValue(path, 'slug');
+      const next = slugInput.value.trim();
+      const aliases = aliasTokens();
+      if (typeof previous === 'string' && previous && previous !== draft.id && previous !== next && aliases.indexOf(previous) === -1) {
+        aliases.push(previous);
+      }
+      if (next) State.setValue(path, 'slug', next);
+      else State.deleteValue(path, 'slug');
+      if (aliases.length) State.setValue(path, 'legacySlugs', aliases);
+      else State.deleteValue(path, 'legacySlugs');
+      aliasInput.value = aliases.join('\n');
+      clearFieldError(slugInput);
+      clearFieldError(aliasInput);
+    }
+    slugInput.addEventListener('input', refreshPublicUrl);
+    slugInput.addEventListener('change', commitCanonicalRoute);
+    aliasInput.addEventListener('input', () => {
+      const aliases = aliasTokens();
+      if (aliases.length) State.setValue(path, 'legacySlugs', aliases);
+      else State.deleteValue(path, 'legacySlugs');
+      clearFieldError(aliasInput);
+    });
+    sections.push(
+      el('section', { className: 'editor-section', id: 'case-public-url-section', 'data-field': path + '::slug' }, [
+        el('h2', { text: 'Публичный адрес' }),
+        el('div', { className: 'pair' }, [
+          el('div', { className: 'pair__label', text: 'Внутренний ID' }),
+          el('div', { className: 'pair__col' }, [el('input', { type: 'text', value: draft.id, readOnly: true, 'aria-label': 'Внутренний ID' })])
+        ]),
+        el('div', { className: 'pair' }, [
+          el('div', { className: 'pair__label', text: 'Канонический slug' }),
+          el('div', { className: 'pair__col' }, [slugInput])
+        ]),
+        el('p', { className: 'hint' }, ['Ссылка: ', publicUrl]),
+        el('div', { className: 'pair' }, [
+          el('div', { className: 'pair__label', text: 'Старые адреса (по одному на строку)' }),
+          el('div', { className: 'pair__col' }, [aliasInput])
+        ])
+      ])
+    );
+
     /* ── CASE-CTA-01: внешняя ссылка кейса ────────────────────────────
        Кнопка «View on …» в шапке кейса раньше стояла у ВСЕХ кейсов и вела
        на адрес-заглушку. Теперь её включает владелец — на любом кейсе и в
@@ -2868,7 +2928,7 @@
     // ensureAllDrafts мог отбросить черновик, снятый с другой версии файла —
     // владелец должен узнать об этом ДО того, как увидит план публикации.
     flushDraftNotices();
-    const errors = State.validateAll();
+    const errors = await State.validateAll();
     // Итерация H (Fix #5): блокирующие ошибки медиа-слотов free-assets
     // («файла ещё нет в репозитории») останавливают публикацию наравне с
     // ошибками полей. Источник истины — НЕ in-memory faMediaErrors (он

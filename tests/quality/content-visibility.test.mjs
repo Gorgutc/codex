@@ -1308,4 +1308,40 @@ function faTagCardsSection(html) {
   }
 }
 
+/* Custom public slugs change only public route surfaces: the stable filename,
+ * cardOrder key and DOM data-id remain internal ids, while grid/JSON-LD/data
+ * expose the canonical route and a legacy alias. */
+{
+  const sandbox = makeSandbox('case-slugs');
+  try {
+    const settings = sandbox.readJson('settings.json');
+    const id = settings.cardOrder[0];
+    const project = sandbox.readJson(`cases/${id}.json`);
+    project.slug = 'public-' + id;
+    project.legacySlugs = ['previous-' + id];
+    sandbox.writeJson(`cases/${id}.json`, project);
+
+    const meta = sandbox.readJson('meta.json');
+    meta.structuredData.featuredWorks = [{ id, about: 'Slug contract fixture' }];
+    sandbox.writeJson('meta.json', meta);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('custom canonical slug must validate and generate', result.output);
+    const grid = sandbox.readOut('index.html');
+    const cards = sandbox.readOut('js/cards-data.js');
+    if (!grid.includes(`data-id="${id}"`) || !grid.includes(`href="#public-${id}"`)) {
+      fail('grid must preserve data-id while using the canonical public slug', grid);
+    }
+    if (!cards.includes(`'${id}': {`) || !cards.includes(`slug: 'public-${id}'`) || !cards.includes(`legacySlugs: [`)) {
+      fail('runtime data must retain the internal key and expose route metadata', cards);
+    }
+    if (!grid.includes(`https://codex.promo/#public-${id}`)) {
+      fail('featured-work JSON-LD must use the canonical public slug', grid);
+    }
+    console.log('case slugs: internal ids stay stable while public routes use canonical metadata');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
 console.log('iteration F/G/H visibility/layoutMode/jsonld/free-assets generator semantics verified');

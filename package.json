@@ -29,7 +29,7 @@
     "check:audit": "npm audit --omit=dev --audit-level=high",
     "check:a11y": "node scripts/run-pa11y.mjs",
     "check:lighthouse": "node scripts/run-lhci.mjs",
-    "test:admin": "playwright test tests/quality/admin-smoke.spec.mjs tests/quality/admin-media.spec.mjs tests/quality/admin-case-media.spec.mjs tests/quality/admin-case-blueprints.spec.mjs tests/quality/admin-order-visibility.spec.mjs tests/quality/admin-free-assets.spec.mjs tests/quality/admin-preview.spec.mjs",
+    "test:admin": "playwright test tests/quality/admin-smoke.spec.mjs tests/quality/admin-media.spec.mjs tests/quality/admin-case-media.spec.mjs tests/quality/admin-case-blueprints.spec.mjs tests/quality/admin-order-visibility.spec.mjs tests/quality/admin-free-assets.spec.mjs tests/quality/admin-preview.spec.mjs tests/quality/admin-slugs.spec.mjs",
     "test:motion": "playwright test tests/quality/design-modes.spec.mjs --grep @motion-gate --workers=1",
     "test:browser": "playwright test tests/quality/site-smoke.spec.mjs tests/quality/design-modes.spec.mjs --grep-invert @motion-gate && npm run test:motion",
     "test:design-lab": "playwright test tests/quality/design-modes.spec.mjs tests/quality/admin-preview.spec.mjs --grep-invert @motion-gate && npm run test:motion",

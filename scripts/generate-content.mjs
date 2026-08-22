@@ -66,6 +66,7 @@ import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { faPosterKind, faPosterPath, faPosterProblem, faTagCoverValue } from './fa-poster-path.mjs';
 import { assetBudgetViolation, formatBytes } from './asset-budget.mjs';
+import { caseRouteTokens, caseSlugViolations, effectiveCaseSlug } from './case-slug.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // CONTENT_DIR may be overridden (tests/quality/content-validate.test.mjs points
@@ -767,6 +768,7 @@ function validateCase(violations, entry, filterKeys) {
     violations.push(`${where}: "id" must be a non-empty string`);
     return;
   }
+  violations.push(...caseSlugViolations(c, where));
   if (entry.file !== `${c.id}.json`) violations.push(`${where}: file name does not match id "${c.id}"`);
   if (!filterKeys.has(c.category) || c.category === 'all') {
     violations.push(`${where}: category "${c.category}" must be a settings.json filter key other than "all"`);
@@ -1228,6 +1230,16 @@ function validateContent(content) {
   }
 
   for (const entry of caseEntries) validateCase(violations, entry, filterKeys);
+  const routeOwners = new Map();
+  for (const entry of caseEntries) {
+    if (!isNonEmptyString(entry.data.id)) continue;
+    for (const token of caseRouteTokens(entry.data)) {
+      if (!routeOwners.has(token)) routeOwners.set(token, entry.data.id);
+      else if (routeOwners.get(token) !== entry.data.id) {
+        violations.push(`content/cases/${entry.file}: case route token "${token}" is used by both "${routeOwners.get(token)}" and "${entry.data.id}"`);
+      }
+    }
+  }
 
   // Iteration F guard: an empty grid would break the shipped pages (and
   // verify-frozen) — at least one enabled case in an enabled category.
@@ -1401,10 +1413,12 @@ function buildCaseEntry(c) {
   }
 
   const entry = {
+    slug: effectiveCaseSlug(c),
     role: cs.role.en,
     tools: cs.tools,
     modelSrc: cs.modelSrc
   };
+  if (Array.isArray(c.legacySlugs) && c.legacySlugs.length > 0) entry.legacySlugs = c.legacySlugs.slice();
   // layoutMode travels into the runtime payload only when 'manual':
   // js/main.js buildItems() treats an absent flag as 'seeded', so the
   // generated file stays byte-identical while every case is seeded.
@@ -1659,7 +1673,7 @@ function buildCardHtml(c, catLabel) {
   let anchor = `        <a class="work-card" data-id="${id}" data-category="${escapeHtmlAttr(c.category)}"`;
   if (c.gameAsset) anchor += ' data-game-asset="true"';
   if (c.cadPlaceholder) anchor += ' data-cad-placeholder="true"';
-  anchor += ` href="#${id}">`;
+  anchor += ` href="#${escapeHtmlAttr(effectiveCaseSlug(c))}">`;
   lines.push(anchor);
   lines.push(`          <div class="work-card__thumb" data-label="${escapeHtmlAttr(c.card.thumbLabel)}">`);
   let img = `            <img src="${escapeHtmlAttr(c.card.thumb)}" data-i18n-attr="alt:card.${id}.alt"`;
@@ -2004,7 +2018,7 @@ function buildIndexJsonLdRegion(content) {
       `          "name": ${j(c.card.title.en)},`,
       '          "creator": { "@type": "Organization", "name": "Codex Studio" },',
       `          "about": ${j(f.about)},`,
-      `          "url": ${j(`https://codex.promo/#${f.id}`)}`,
+      `          "url": ${j(`https://codex.promo/#${effectiveCaseSlug(c)}`)}`,
       '        }',
       '      }'
     ].join('\n');

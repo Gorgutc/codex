@@ -262,14 +262,14 @@
     dossierYear.textContent = cardText(card, '.work-card__year');
     dossierRole.textContent = data && data.role ? String(data.role) : '—';
     dossierTools.textContent = data && Array.isArray(data.tools) ? data.tools.join(' · ') : '—';
-    openCase.href = '#' + id;
+    openCase.href = publicHash(id);
     openCase.setAttribute('aria-label', localCopy().openCaseAria + dossierTitle.textContent);
   }
 
   sourceCards.forEach(function (card, index) {
     var id = card.getAttribute('data-id');
     var link = el('a', 'specimen-project');
-    link.href = '#' + id;
+    link.href = publicHash(id);
     link.setAttribute('data-id', id);
     link.setAttribute('data-design-project', id);
     link.setAttribute('data-category', card.getAttribute('data-category') || '');
@@ -422,7 +422,25 @@
 
   function hashId() {
     var raw = (window.location.hash || '').replace(/^#/, '');
-    try { return decodeURIComponent(raw); } catch (_) { return raw; }
+    try { raw = decodeURIComponent(raw); } catch (_) { return ''; }
+    return window.CodexCase && typeof window.CodexCase.resolveCaseToken === 'function'
+      ? (window.CodexCase.resolveCaseToken(raw) || raw)
+      : raw;
+  }
+
+  function publicHash(id) {
+    var slug = window.CodexCase && typeof window.CodexCase.publicSlugForId === 'function'
+      ? window.CodexCase.publicSlugForId(id)
+      : id;
+    return '#' + encodeURIComponent(slug || id);
+  }
+
+  function canonicalizeCaseHash(id) {
+    if (!id || !window.location.hash) return;
+    if (window.location.hash === publicHash(id)) return;
+    try {
+      history.replaceState(null, '', window.location.pathname + window.location.search + publicHash(id));
+    } catch (_) { /* file previews may not expose History API */ }
   }
 
   function stopCaseMedia() {
@@ -460,6 +478,7 @@
   function renderRoute() {
     var id = hashId();
     var isCase = !!cardsById[id];
+    if (isCase) canonicalizeCaseHash(id);
     var wasCase = body.classList.contains('specimen-case-active');
     var shouldResetCasePosition = isCase && (!wasCase || lastRouteCaseId !== id);
     var shouldResumeCase = isCase && !wasCase;
@@ -546,7 +565,7 @@
       // when navigation started from an already active Case (or a deep link).
       if (keepCaseRoute && !hashId()) {
         try {
-          history.replaceState(null, '', window.location.pathname + window.location.search + '#' + id);
+          history.replaceState(null, '', window.location.pathname + window.location.search + publicHash(id));
         } catch (_) { /* hashchange will still route correctly when available */ }
       }
     }
@@ -568,13 +587,7 @@
     });
   });
 
-  var initialId = String(design.initialHash || '').replace(/^#/, '');
-  try { initialId = decodeURIComponent(initialId); } catch (_) { /* keep raw safe id */ }
-  if (cardsById[initialId] && !hashId()) {
-    try {
-      history.replaceState(null, '', window.location.pathname + window.location.search + '#' + initialId);
-    } catch (_) { /* file previews may not expose History API */ }
-  }
+  var initialId = hashId();
   updateLocalCopy();
   renderRoute();
   if (cardsById[initialId] && window.CodexCase && typeof window.CodexCase.openCase === 'function') {

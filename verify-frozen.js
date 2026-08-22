@@ -91,6 +91,18 @@ const EXPECTED_IDS = CONTENT_SETTINGS.cardOrder.filter(id => {
   const data = CONTENT_CASES.get(id);
   return !!data && data.enabled !== false && ENABLED_FILTER_KEYS.has(data.category);
 });
+const EXPECTED_CASE_ROUTES = new Map(EXPECTED_IDS.map(id => {
+  const data = CONTENT_CASES.get(id);
+  return [id, typeof data.slug === 'string' && data.slug ? data.slug : id];
+}));
+const EXPECTED_CASE_ROUTE_METADATA = EXPECTED_IDS.map(id => {
+  const data = CONTENT_CASES.get(id);
+  return {
+    id,
+    slug: EXPECTED_CASE_ROUTES.get(id),
+    legacySlugs: Array.isArray(data.legacySlugs) ? data.legacySlugs : []
+  };
+});
 const EXPECTED_TAGS = ENABLED_FILTERS.map(f => f.key);
 const VISIBLE_MODEL_CASES = EXPECTED_IDS.map(caseId => {
   const data = CONTENT_CASES.get(caseId);
@@ -482,7 +494,7 @@ function runStaticChecks(assetAudit = null) {
   const expectedFeatured = ((CONTENT_META.structuredData || {}).featuredWorks || [])
     .map(f => f.id)
     .filter(id => EXPECTED_IDS.includes(id))
-    .map(id => `https://codex.promo/#${id}`);
+    .map(id => `https://codex.promo/#${EXPECTED_CASE_ROUTES.get(id)}`);
   add('static', 'F1-jsonld-featured-visible',
       !!idxItemList && idxListedUrls.join('|') === expectedFeatured.join('|'),
       `listed=${idxListedUrls.length}, expected(content)=${expectedFeatured.length}`);
@@ -1211,7 +1223,7 @@ async function testIndex(BASE) {
   add('index', 'CURSOR-native-hidden', cursor.bodyCursor === 'none');
 
   // CARDS — количество и состав из content/ (EXPECTED_IDS, итерация F).
-  const cards = await page.$$eval('.work-card', els => els.map(e => ({ id: e.dataset.id, cat: e.dataset.category, game: e.dataset.gameAsset === 'true' })));
+  const cards = await page.$$eval('.work-card', els => els.map(e => ({ id: e.dataset.id, href: e.getAttribute('href'), cat: e.dataset.category, game: e.dataset.gameAsset === 'true' })));
   add('index', 'WORK-cards-count', cards.length === EXPECTED_IDS.length,
       `found ${cards.length}, expected(content) ${EXPECTED_IDS.length}`);
   // Порядок карточек — редактируемая фича (cardOrder в админке), поэтому
@@ -1219,6 +1231,23 @@ async function testIndex(BASE) {
   const domIdSequence = cards.map(c => c.id).join(',');
   add('index', 'WORK-cards-ids', domIdSequence === EXPECTED_IDS.join(','),
       `dom=[${domIdSequence}], expected(content)=[${EXPECTED_IDS.join(',')}]`);
+  add('index', 'WORK-cards-public-slugs', cards.every(card => card.href === '#' + EXPECTED_CASE_ROUTES.get(card.id)),
+      'each generated card href matches content canonical slug');
+  const cardsDataRoutes = await page.evaluate(() => Object.keys(window.CARDS_DATA || {}).map(id => ({
+    id,
+    slug: window.CARDS_DATA[id] && window.CARDS_DATA[id].slug,
+    legacySlugs: window.CARDS_DATA[id] && Array.isArray(window.CARDS_DATA[id].legacySlugs)
+      ? window.CARDS_DATA[id].legacySlugs
+      : []
+  })));
+  const cardsDataRouteMetadataMatches = cardsDataRoutes.length === EXPECTED_CASE_ROUTE_METADATA.length &&
+    cardsDataRoutes.every((entry, index) => {
+      const expected = EXPECTED_CASE_ROUTE_METADATA[index];
+      return expected && entry.id === expected.id && entry.slug === expected.slug &&
+        entry.legacySlugs.join('|') === expected.legacySlugs.join('|');
+    });
+  add('index', 'CARDS-DATA-public-route-metadata', cardsDataRouteMetadataMatches,
+      'CARDS_DATA stays keyed by stable ids and exactly mirrors content slug/legacySlugs metadata');
   // Game-ассеты: точный состав из content (EXPECTED_GAME_IDS), не floor ≥2.
   const domGameIds = cards.filter(c => c.game).map(c => c.id);
   const gameIdsMatch = domGameIds.length === EXPECTED_GAME_IDS.length &&

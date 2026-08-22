@@ -35,6 +35,9 @@ const RU_DRAFT_TITLE = 'Орбитальная станция Мк.II';
 const CASE_TITLE_EN = JSON.parse(
   fs.readFileSync(path.join(ROOT, CASE_PATH), 'utf8')
 ).card.title.en;
+const FEATURED_CASE_ID = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'meta.json'), 'utf8'))
+  .structuredData.featuredWorks.find((entry) => visibleCaseIds(ROOT).includes(entry.id)).id;
+const FEATURED_CASE_PATH = 'content/cases/' + FEATURED_CASE_ID + '.json';
 
 const PNG_BUFFER = Buffer.concat([
   Buffer.from('89504e470d0a1a0a', 'hex'), // PNG-сигнатура
@@ -395,6 +398,43 @@ test('превью: черновик в iframe — RU-заголовок, скр
   await expect(page.locator('#preview-design-original')).toHaveAttribute('aria-pressed', 'true');
   await page.click('#preview-close');
   await expect(page.locator('#draft-indicator')).toBeVisible();
+});
+
+test('preview rewrites runtime, grid and featured JSON-LD routes from the full draft', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click(`a[href="#/case/${FEATURED_CASE_ID}"]`);
+
+  const slug = 'preview-' + FEATURED_CASE_ID;
+  const legacy = 'previous-' + FEATURED_CASE_ID;
+  const canonical = page.locator('#case-public-slug');
+  await canonical.fill(slug);
+  await canonical.blur();
+  await page.locator('#case-legacy-slugs').fill(legacy);
+  await page.click('#preview-btn');
+  const frame = page.frameLocator('#preview-frame');
+  await expect(frame.locator(`a.work-card[data-id="${FEATURED_CASE_ID}"]`)).toHaveAttribute('href', '#' + slug);
+  await expect.poll(() => frame.locator('html').evaluate(() => Boolean(window.CARDS_DATA && window.CodexCase))).toBe(true);
+
+  const routeState = await frame.locator('html').evaluate((_element, route) => ({
+    runtime: window.CARDS_DATA[route.id],
+    runtimeKeys: Object.keys(window.CARDS_DATA),
+    stable: window.CodexCase.resolveCaseToken(route.id),
+    legacy: window.CodexCase.resolveCaseToken(route.legacyToken),
+    featuredUrls: Array.from(document.querySelectorAll('script[type="application/ld+json"]')).flatMap((script) => {
+      const value = JSON.parse(script.textContent);
+      return value['@type'] === 'ItemList' ? value.itemListElement.map((entry) => entry.item.url) : [];
+    })
+  }), { id: FEATURED_CASE_ID, legacyToken: legacy });
+  expect(routeState.runtime).toBeTruthy();
+  expect(routeState.runtime.slug).toBe(slug);
+  expect(routeState.runtime.legacySlugs).toEqual([legacy]);
+  expect(routeState.stable).toBe(FEATURED_CASE_ID);
+  expect(routeState.legacy).toBe(FEATURED_CASE_ID);
+  expect(routeState.featuredUrls).toContain('https://codex.promo/#' + slug);
 });
 
 test('превью Free Assets (F5): скрытая категория выпадает, грид рендерит черновик', async ({ page }) => {

@@ -1672,16 +1672,11 @@
       if (!hasBlueprints && currentViz === 'blueprints') setViz('2d');
     }
 
-    // v0.2.3 [П2] — синхронизируем location.hash с текущим кейсом.
-    //   Для самого первого кейса (главная) — hash сбрасывается до корня:
-    //   codex.promo/ вместо codex.promo/#orbital-mk-ii. Остальные кейсы имеют
-    //   свой якорь. replaceState вместо pushState — чтобы не засорять history
-    //   при case-nav (пользователь может быстро кликать на next/prev).
-    //   Игнорируем во время вызовов из hashchange listener (чтобы не было лупы).
+    // Every explicit case route, including a stable id/legacy alias for the
+    // first visible case, is normalized to its canonical public slug. The one
+    // exception is the root bootstrap with no supplied hash.
     if (!opts.skipHashSync) {
-      var firstVisibleForHash = document.querySelector('.work-card[data-id]:not([hidden])');
-      var firstId = firstVisibleForHash ? firstVisibleForHash.dataset.id : null;
-      var desiredHash = (id === firstId) ? '' : ('#' + id);
+      var desiredHash = opts.rootBootstrap ? '' : ('#' + window.CodexCase.publicSlugForId(id));
       var currentHash = window.location.hash;
       if (desiredHash !== currentHash) {
         try {
@@ -3216,7 +3211,24 @@
     openCase: openCase,
     leaveCase: leaveCaseRuntime,
     resumeCase: resumeCaseRuntime,
-    setSidebarCollapsed: setCollapsed
+    setSidebarCollapsed: setCollapsed,
+    publicSlugForId: function (id) {
+      var data = window.CARDS_DATA && window.CARDS_DATA[id];
+      return data ? (typeof data.slug === 'string' && data.slug ? data.slug : id) : null;
+    },
+    resolveCaseToken: function (token) {
+      if (typeof token !== 'string' || !token) return null;
+      var data = window.CARDS_DATA || {};
+      for (var candidateId in data) {
+        if (!Object.prototype.hasOwnProperty.call(data, candidateId)) continue;
+        var candidate = data[candidateId] || {};
+        var slug = typeof candidate.slug === 'string' && candidate.slug ? candidate.slug : candidateId;
+        if (token === candidateId || token === slug || (Array.isArray(candidate.legacySlugs) && candidate.legacySlugs.indexOf(token) !== -1)) {
+          return candidateId;
+        }
+      }
+      return null;
+    }
   };
 
   /* v0.14.0 [16] — клик по логотипу CODEX открывает первый видимый кейс
@@ -3472,12 +3484,17 @@
     }
     return null;
   }
+  function decodeCaseToken(rawHash) {
+    var raw = (rawHash || '').replace(/^#/, '');
+    try { raw = decodeURIComponent(raw); } catch (_) { return null; }
+    return window.CodexCase.resolveCaseToken(raw);
+  }
   setTimeout(function () {
     var initialId = null;
     var fromHash = false;
-    var rawHash = (window.location.hash || '').replace(/^#/, '');
-    if (rawHash) {
-      var hashCard = findCardById(rawHash);
+    var hashId = decodeCaseToken(window.location.hash);
+    if (hashId) {
+      var hashCard = findCardById(hashId);
       if (hashCard && hashCard.dataset.id && !hashCard.hasAttribute('hidden')) {
         initialId = hashCard.dataset.id;
         fromHash = true;
@@ -3488,7 +3505,7 @@
       if (first && first.dataset.id) initialId = first.dataset.id;
     }
     if (initialId) {
-      openCase(initialId, { initial: true });
+      openCase(initialId, { initial: true, rootBootstrap: !fromHash });
       // v0.8.7 [M3]: на mobile при любом валидном deep-link сразу
       // показываем case-view вместо sidebar. Раньше сравнивалось с первой
       // видимой картой через optional-chaining — пользователь приходил по
@@ -3506,8 +3523,8 @@
      в адресную строку или изменил hash вручную — переключаем кейс.
      skipHashSync: true — чтобы openCase() не вызывал replaceState обратно. */
   window.addEventListener('hashchange', function () {
-    var newHash = (window.location.hash || '').replace(/^#/, '');
-    if (!newHash) {
+    var rawHash = (window.location.hash || '').replace(/^#/, '');
+    if (!rawHash) {
       // hash убран — возвращаемся к первому видимому кейсу
       var firstHC = document.querySelector('.work-card[data-id]:not([hidden])');
       if (firstHC && firstHC.dataset.id && firstHC.dataset.id !== currentCaseId) {
@@ -3515,17 +3532,25 @@
       }
       return;
     }
-    if (newHash === currentCaseId) return;
+    var newHash = decodeCaseToken(window.location.hash);
+    if (newHash === currentCaseId) {
+      var sameCaseHash = '#' + window.CodexCase.publicSlugForId(newHash);
+      if (window.location.hash !== sameCaseHash) {
+        try { history.replaceState(null, '', window.location.pathname + window.location.search + sameCaseHash); }
+        catch (_) { /* file:// or strict preview sandbox */ }
+      }
+      return;
+    }
     var card = findCardById(newHash);
     if (card && !card.hasAttribute('hidden')) {
-      openCase(newHash, { skipHashSync: true });
+      openCase(newHash);
     } else if (currentCaseId) {
       // A1-14 — невалидный/скрытый таргет: не оставляем URL врущим про
       // открытый кейс — восстанавливаем канонический hash текущего кейса
       // (или корень, если это первый видимый кейс). A1-06 — findCardById
       // не роняет querySelector на битом hash.
-      var firstVisForHash = document.querySelector('.work-card[data-id]:not([hidden])');
-      var canonicalHash = (firstVisForHash && currentCaseId === firstVisForHash.dataset.id) ? '' : ('#' + currentCaseId);
+      var canonicalSlug = window.CodexCase.publicSlugForId(currentCaseId);
+      var canonicalHash = '#' + canonicalSlug;
       try {
         history.replaceState(null, '', window.location.pathname + window.location.search + canonicalHash);
       } catch (_) { /* file:// или строгий sandbox — игнорируем */ }
@@ -3596,10 +3621,10 @@
       shareUrl.username = '';
       shareUrl.password = '';
       shareUrl.search = safeQuery.toString();
-      shareUrl.hash = currentCaseId;
+      shareUrl.hash = window.CodexCase.publicSlugForId(currentCaseId);
       url = shareUrl.toString();
     } catch (_error) {
-      url = window.location.href.split(/[?#]/)[0] + '#' + encodeURIComponent(currentCaseId);
+      url = window.location.href.split(/[?#]/)[0] + '#' + encodeURIComponent(window.CodexCase.publicSlugForId(currentCaseId));
     }
 
     function showCopied() {

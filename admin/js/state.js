@@ -1418,6 +1418,7 @@
     }
 
     const cs = draft.case || {};
+    validateCaseSlugDraft(errors, path, draft);
     pushPairTextErrors(errors, path, 'case.role', cs.role, 'Роль в проекте');
     if (!Array.isArray(cs.tools) || cs.tools.length === 0 || !cs.tools.every(isFilled)) {
       errors.push({ path, field: 'case.tools', message: 'Инструменты: укажите хотя бы один (через запятую)' });
@@ -1542,6 +1543,42 @@
         for (const key of Object.keys(node)) walkOverrides(node[key], trail + '.' + key);
       }
     })(draft.i18nOverrides, 'i18nOverrides');
+  }
+
+  const CASE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  function effectiveCaseSlug(draft) {
+    return typeof draft.slug === 'string' && draft.slug ? draft.slug : draft.id;
+  }
+
+  function validateCaseSlugDraft(errors, path, draft) {
+    const pathMatch = String(path).match(/^content\/cases\/([^/]+)\.json$/);
+    if (pathMatch && draft.id !== pathMatch[1]) {
+      errors.push({ path, field: 'id', message: 'Внутренний ID должен совпадать с именем JSON-файла' });
+    }
+    if ('slug' in draft) {
+      if (typeof draft.slug !== 'string' || !CASE_SLUG_RE.test(draft.slug)) {
+        errors.push({ path, field: 'slug', message: 'Публичный адрес: только строчные латинские буквы, цифры и дефисы' });
+      } else if (draft.slug === draft.id) {
+        errors.push({ path, field: 'slug', message: 'Публичный адрес: не повторяйте внутренний ID — очистите поле для адреса по умолчанию' });
+      }
+    }
+    if (!('legacySlugs' in draft)) return;
+    if (!Array.isArray(draft.legacySlugs) || draft.legacySlugs.length === 0) {
+      errors.push({ path, field: 'legacySlugs', message: 'Псевдонимы: добавьте хотя бы один адрес или удалите поле' });
+      return;
+    }
+    const seen = new Set();
+    draft.legacySlugs.forEach((token, index) => {
+      if (typeof token !== 'string' || !CASE_SLUG_RE.test(token)) {
+        errors.push({ path, field: 'legacySlugs.' + index, message: 'Псевдоним: только строчные латинские буквы, цифры и дефисы' });
+        return;
+      }
+      if (seen.has(token)) errors.push({ path, field: 'legacySlugs.' + index, message: 'Псевдоним «' + token + '» повторяется' });
+      seen.add(token);
+      if (token === draft.id || token === effectiveCaseSlug(draft)) {
+        errors.push({ path, field: 'legacySlugs.' + index, message: 'Псевдоним не должен повторять внутренний или канонический адрес' });
+      }
+    });
   }
 
   // Итерация H: зеркало validateFreeAssets из generate-content.mjs для
@@ -2019,11 +2056,41 @@
 
   // Валидируется эффективный черновик (с pending-медиа) — то, что реально
   // уйдёт в коммит.
-  function validateAll() {
+  async function validateAll() {
     const errors = [];
     for (const path of changedPaths()) {
       const draft = effectiveDraft(path);
       if (draft) errors.push.apply(errors, validateDraft(path, draft));
+    }
+    const catalog = await loadCatalog();
+    const routeEntries = new Map();
+    for (const item of catalog.cases) {
+      const path = 'content/cases/' + item.id + '.json';
+      const draft = files.has(path) ? effectiveDraft(path) : (orphanDrafts[path] || item.data);
+      if (!draft || typeof draft.id !== 'string') continue;
+      const tokens = [{ token: draft.id, field: 'id' }, { token: effectiveCaseSlug(draft), field: 'slug' }];
+      if (Array.isArray(draft.legacySlugs)) {
+        draft.legacySlugs.forEach((token) => tokens.push({ token, field: 'legacySlugs' }));
+      }
+      for (const entry of tokens) {
+        const token = entry.token;
+        if (typeof token !== 'string' || !CASE_SLUG_RE.test(token)) continue;
+        const entries = routeEntries.get(token) || [];
+        entries.push({ id: draft.id, path, field: entry.field });
+        routeEntries.set(token, entries);
+      }
+    }
+    for (const [token, entries] of routeEntries) {
+      const ids = Array.from(new Set(entries.map((entry) => entry.id)));
+      if (ids.length < 2) continue;
+      for (const entry of entries) {
+        // A stable id is immutable. Surface the conflict on every editable
+        // slug/alias field that created it; two edited canonical slugs each
+        // receive their own anchored error.
+        if (entry.field === 'id') continue;
+        const other = ids.find((id) => id !== entry.id);
+        errors.push({ path: entry.path, field: entry.field, message: 'Публичный адрес «' + token + '» уже используется кейсом «' + other + '»' });
+      }
     }
     return errors;
   }
