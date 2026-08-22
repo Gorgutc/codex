@@ -65,13 +65,29 @@ jobs:
           set -euo pipefail
           subject="$(git log -1 --format=%s)"
           author="$(git log -1 --format=%an)"
-          admin_subject_regex='^content: .+ \[admin\]$'
-          regen_subject='chore(content): regenerate site from content/ [content-publish]'
-          revert_subject='revert(content): roll back content push after failed publish [content-publish-revert]'
+          email="$(git log -1 --format=%ae)"
+          regen_subject_regex='^chore\(content\): regenerate site from content/ \[content-publish\]( \[source:[0-9a-f]{40}\])?$'
+          revert_subject_regex='^revert\(content\): roll back content push after failed publish \[content-publish-revert\]( \[source:[0-9a-f]{40}\])?$'
+
+          trusted_terminal() {
+            local candidate_author="$1" candidate_email="$2" candidate_subject="$3"
+            [ "$candidate_author" = 'github-actions[bot]' ] &&
+              [ "$candidate_email" = '41898282+github-actions[bot]@users.noreply.github.com' ] &&
+              { [[ "$candidate_subject" =~ $regen_subject_regex ]] || [[ "$candidate_subject" =~ $revert_subject_regex ]]; }
+          }
+
+          touches_source() {
+            local sha="$1"
+            if git rev-parse -q --verify "$sha^1" >/dev/null; then
+              ! git diff --quiet "$sha^1" "$sha" -- content/ assets/
+            else
+              ! git diff-tree --root --quiet --no-commit-id -r "$sha" -- content/ assets/
+            fi
+          }
 
           skip=false
           allowed_publish_bot=false
-          if [ "$author" = 'github-actions[bot]' ] && { [ "$subject" = "$regen_subject" ] || [ "$subject" = "$revert_subject" ]; }; then
+          if trusted_terminal "$author" "$email" "$subject"; then
             allowed_publish_bot=true
           fi
 
@@ -82,29 +98,23 @@ jobs:
               skip=true
               reason='workflow_run head is not an allowlisted content-publish bot revision; skipped fail closed'
             fi
-          elif [[ "$subject" =~ $admin_subject_regex ]]; then
-            skip=true
-            reason='source-only admin content commit; waiting for content-publish'
-          elif [ "$author" = 'github-actions[bot]' ] && [ "$EVENT_NAME" != 'workflow_dispatch' ]; then
-            skip=true
-            reason='bot revision waits for the workflow_run delivery bridge'
           else
-            pending_admin=false
+            pending_source=false
             settlement_sha=''
-            while IFS=$'\x1f' read -r sha history_author history_subject; do
-              if [ "$history_author" = 'github-actions[bot]' ] && { [ "$history_subject" = "$regen_subject" ] || [ "$history_subject" = "$revert_subject" ]; }; then
+            while IFS=$'\x1f' read -r sha history_author history_email history_subject; do
+              if trusted_terminal "$history_author" "$history_email" "$history_subject"; then
                 settlement_sha="$sha"
                 break
               fi
-              if [[ "$history_subject" =~ $admin_subject_regex ]]; then
-                pending_admin=true
+              if touches_source "$sha"; then
+                pending_source=true
                 break
               fi
-            done < <(git log --first-parent --format='%H%x1f%an%x1f%s' HEAD)
+            done < <(git log --first-parent --format='%H%x1f%an%x1f%ae%x1f%s' HEAD)
 
-            if [ "$pending_admin" = 'true' ]; then
+            if [ "$pending_source" = 'true' ]; then
               skip=true
-              reason='an admin content publish is newer than its latest bot settlement; waiting for content-publish'
+              reason='a content/assets source is newer than its latest trusted terminal settlement; waiting for content-publish'
             elif [ "$EVENT_NAME" = 'workflow_dispatch' ]; then
               reason="manual owner-selected deployment after settlement ${settlement_sha:-none}"
             else

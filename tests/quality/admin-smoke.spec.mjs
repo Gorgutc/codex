@@ -23,6 +23,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const CASE_PATH = 'content/cases/orbital-mk-ii.json';
 const RU_TITLE_FIELD = `[data-field="${CASE_PATH}::card.title.ru"]`;
 const EN_TITLE_FIELD = `[data-field="${CASE_PATH}::card.title.en"]`;
+const SOURCE_SHA = 'a'.repeat(40);
 
 let server;
 let base;
@@ -66,7 +67,10 @@ test.afterAll(async () => {
 
 // Полный мок GitHub REST API. Возвращает «журнал» вызовов для ассертов.
 async function mockGitHub(page) {
-  const calls = { commitMessage: '', treePaths: [], refUpdated: false };
+  const calls = { commitMessage: '', tree: [], treePaths: [], refUpdated: false };
+  const sourceFiles = new Map();
+  let liveHead = 'b'.repeat(40);
+  const blobs = new Map();
   await page.route('https://api.github.com/**', (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -79,38 +83,54 @@ async function mockGitHub(page) {
     if (p === '/repos/Gorgutc/codex') return json(200, { default_branch: 'main', permissions: { push: true } });
     if (p.startsWith('/repos/Gorgutc/codex/contents/')) {
       const filePath = decodeURIComponent(p.slice('/repos/Gorgutc/codex/contents/'.length));
+      const ref = url.searchParams.get('ref') || 'main';
       const abs = path.join(ROOT, filePath);
       if (!abs.startsWith(ROOT) || !fs.existsSync(abs)) return json(404, { message: 'Not Found' });
+      const committed =
+        ref === SOURCE_SHA || (ref === 'main' && liveHead === SOURCE_SHA) ? sourceFiles.get(filePath) : null;
       return json(200, {
         type: 'file',
         encoding: 'base64',
-        sha: 'sha-' + filePath,
-        content: fs.readFileSync(abs).toString('base64')
+        sha: 'c'.repeat(40),
+        content: (committed || fs.readFileSync(abs)).toString('base64')
       });
     }
-    if (p === '/repos/Gorgutc/codex/git/ref/heads/main') return json(200, { object: { sha: 'headsha000' } });
-    if (p === '/repos/Gorgutc/codex/git/commits/headsha000') return json(200, { tree: { sha: 'treesha000' } });
-    if (p === '/repos/Gorgutc/codex/git/blobs' && method === 'POST') return json(201, { sha: 'blobsha000' });
+    if (p === '/repos/Gorgutc/codex/git/ref/heads/main' && method === 'GET')
+      return json(200, { object: { sha: liveHead } });
+    if (/^\/repos\/Gorgutc\/codex\/git\/commits\/[0-9a-f]{40}$/.test(p))
+      return json(200, { tree: { sha: 'treesha000' } });
+    if (p === '/repos/Gorgutc/codex/git/blobs' && method === 'POST') {
+      const body = JSON.parse(request.postData() || '{}');
+      const sha = 'blobsha-' + blobs.size;
+      blobs.set(sha, Buffer.from(body.content || '', body.encoding === 'base64' ? 'base64' : 'utf8'));
+      return json(201, { sha });
+    }
     if (p === '/repos/Gorgutc/codex/git/trees' && method === 'POST') {
       const body = JSON.parse(request.postData() || '{}');
-      calls.treePaths = (body.tree || []).map((item) => item.path);
+      calls.tree = body.tree || [];
+      calls.treePaths = calls.tree.map((item) => item.path);
       return json(201, { sha: 'newtree000' });
     }
     if (p === '/repos/Gorgutc/codex/git/commits' && method === 'POST') {
       calls.commitMessage = JSON.parse(request.postData() || '{}').message || '';
-      return json(201, { sha: 'newcommit0' });
+      calls.tree.forEach((item) => {
+        if (item.path && blobs.has(item.sha)) sourceFiles.set(item.path, blobs.get(item.sha));
+      });
+      return json(201, { sha: SOURCE_SHA });
     }
     if (p === '/repos/Gorgutc/codex/git/refs/heads/main' && method === 'PATCH') {
       calls.refUpdated = true;
-      return json(200, { object: { sha: 'newcommit0' } });
+      liveHead = SOURCE_SHA;
+      return json(200, { object: { sha: SOURCE_SHA } });
     }
     if (p === '/repos/Gorgutc/codex/commits') {
       // Поллинг вердикта конвейера: bot-коммит с маркером успеха.
       return json(200, [
         {
-          sha: 'botsha0000',
-          html_url: 'https://github.com/Gorgutc/codex/commit/botsha0000',
-          commit: { message: 'chore(content): regenerate shipped files [content-publish]' }
+          sha: 'd'.repeat(40),
+          html_url: 'https://github.com/Gorgutc/codex/commit/' + 'd'.repeat(40),
+          author: { login: 'github-actions[bot]' },
+          commit: { message: `chore(content): regenerate site from content/ [content-publish] [source:${SOURCE_SHA}]` }
         }
       ]);
     }
@@ -178,7 +198,10 @@ test('Meta: global identity and featured works are editable from the full catalo
   const catalogIds = allCaseIds(ROOT);
   const featuredSelects = page.locator('#meta-featured-works select[data-field]');
   await expect(featuredSelects.first()).toBeVisible();
-  const optionValues = await featuredSelects.first().locator('option').evaluateAll((options) => options.map((option) => option.value));
+  const optionValues = await featuredSelects
+    .first()
+    .locator('option')
+    .evaluateAll((options) => options.map((option) => option.value));
   expect(optionValues).toEqual(catalogIds);
 
   await page.fill('#meta-contact-url', 'https://example.test/contact');
@@ -201,7 +224,11 @@ test('Meta: every C0 URL separator blocks publishing and anchors the contact fie
   // Text inputs normalize LF/CR before dispatching `input`, so set the draft
   // directly just as an imported draft would. Each must be rejected before
   // URL() gets a chance to normalize it, then point back to this UI field.
-  for (const [name, character] of [['tab', '\t'], ['LF', '\n'], ['CR', '\r']]) {
+  for (const [name, character] of [
+    ['tab', '\t'],
+    ['LF', '\n'],
+    ['CR', '\r']
+  ]) {
     await page.evaluate((value) => {
       window.AdminState.setValue('content/meta.json', 'contactUrl', value);
       const button = document.getElementById('publish-btn');
@@ -209,7 +236,9 @@ test('Meta: every C0 URL separator blocks publishing and anchors the contact fie
       button.click();
     }, 'https://example.test/contact' + character);
     await expect(contact, name + ' must anchor its validation error').toHaveClass(/field-invalid/);
-    await expect(contact.locator('xpath=following-sibling::*[contains(@class, "field-error-msg")]')).toContainText('HTTPS-адрес');
+    await expect(contact.locator('xpath=following-sibling::*[contains(@class, "field-error-msg")]')).toContainText(
+      'HTTPS-адрес'
+    );
   }
 });
 
@@ -267,10 +296,12 @@ test('owner-скрытая база: кейс выключенной катег�
   const hiddenFilter = (settings.filters || []).find((f) => f.enabled === false && f.key !== 'all');
   test.skip(!hiddenFilter, 'в content/ нет выключенных категорий — нечего проверять');
   // Первый кейс скрытой категории, не выключенный сам по себе, — из контента.
-  const hiddenCaseId = hiddenFilter && (settings.cardOrder || []).find((id) => {
-    const data = JSON.parse(fs.readFileSync(path.join(ROOT, `content/cases/${id}.json`), 'utf8'));
-    return data.category === hiddenFilter.key && data.enabled !== false;
-  });
+  const hiddenCaseId =
+    hiddenFilter &&
+    (settings.cardOrder || []).find((id) => {
+      const data = JSON.parse(fs.readFileSync(path.join(ROOT, `content/cases/${id}.json`), 'utf8'));
+      return data.category === hiddenFilter.key && data.enabled !== false;
+    });
   test.skip(!hiddenCaseId, 'у выключенной категории нет включённых кейсов в cardOrder');
 
   await mockGitHub(page);

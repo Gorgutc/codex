@@ -69,9 +69,9 @@ function readDrafts(page) {
 }
 
 // Засев черновика кейса с корректным provenance: мок Contents API отдаёт
-// sha вида `sha-<path>`, и ensureFile принимает черновик только с ним.
+// канонический 40-hex blob SHA, и ensureFile принимает черновик только с ним.
 async function seedCaseDraft(page, draft, options) {
-  const sha = (options && options.baseSha) || `sha-${CASE_PATH}`;
+  const sha = (options && options.baseSha) || 'c'.repeat(40);
   await page.addInitScript(
     (payload) => {
       sessionStorage.setItem(
@@ -149,14 +149,11 @@ test('layoutMode-гейт: «+ Фото» в seeded требует подтве�
   await expect(page.locator('#media-strip .media-slot')).toHaveCount(MEDIA.length + 1);
   await expect(page.locator('#draft-indicator')).toBeVisible();
 
-  await page.waitForFunction(
-    (expected) => {
-      const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
-      const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
-      return !!draft && draft.layoutMode === 'manual' && draft.case.media.length === expected;
-    },
-    MEDIA.length + 1
-  );
+  await page.waitForFunction((expected) => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.layoutMode === 'manual' && draft.case.media.length === expected;
+  }, MEDIA.length + 1);
   const drafts = await readDrafts(page);
   const added = drafts[CASE_PATH].case.media[MEDIA.length];
   expect(added.type).toBe('image');
@@ -184,14 +181,11 @@ test('«+ Видео»: drop-зона .webm и отдельная зона по�
   // Загруженный .webm получает cache-bust-имя от 0N-позиции (padStart: 06, не 010).
   await page.setInputFiles(srcInput(i), { name: 'loop.webm', mimeType: 'video/webm', buffer: WEBM_BUFFER });
   await expect(srcZone(page, i).locator('.drop-zone__badge')).toBeVisible();
-  await page.waitForFunction(
-    (expected) => {
-      const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
-      const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
-      return !!draft && draft.case.media.length === expected;
-    },
-    i + 1
-  );
+  await page.waitForFunction((expected) => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case.media.length === expected;
+  }, i + 1);
   await expect(srcZone(page, i).locator('.drop-zone-path code').first()).toHaveText(
     `./assets/cases/${CASE_ID}/0${i + 1}-${hash8(WEBM_BUFFER)}.webm`
   );
@@ -211,14 +205,11 @@ test('удаление блока: confirm, сдвиг списка и запр�
   dialogs.mode = 'accept';
   await page.click('[data-media-remove="0"]');
   await expect(page.locator('#media-strip .media-slot')).toHaveCount(MEDIA.length - 1);
-  await page.waitForFunction(
-    (expectedSrc) => {
-      const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
-      const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
-      return !!draft && draft.case.media[0].src === expectedSrc;
-    },
-    MEDIA[1].src
-  );
+  await page.waitForFunction((expectedSrc) => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case.media[0].src === expectedSrc;
+  }, MEDIA[1].src);
   const drafts = await readDrafts(page);
   expect(drafts[CASE_PATH].case.media).toHaveLength(MEDIA.length - 1);
   expect(drafts[CASE_PATH].case.media[0].caption.label.en).toBe(MEDIA[1].caption.label.en);
@@ -291,14 +282,11 @@ test('переключатель формата пишет case.media.N.format',
   const next = before === 'wide' ? 'tall' : 'wide';
   await expect(page.locator(formatField(0))).toHaveValue(before);
   await page.selectOption(formatField(0), next);
-  await page.waitForFunction(
-    (expected) => {
-      const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
-      const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
-      return !!draft && draft.case.media[0].format === expected;
-    },
-    next
-  );
+  await page.waitForFunction((expected) => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case.media[0].format === expected;
+  }, next);
   const drafts = await readDrafts(page);
   expect(drafts[CASE_PATH].case.media[0].format).toBe(next);
   // Формат меняется БЕЗ переключения в ручной режим (это не структурная правка).
@@ -463,13 +451,11 @@ test('черновик V2 со ЧУЖИМ baseSha сбрасывается пр�
   const draft = JSON.parse(JSON.stringify(CASE_JSON));
   draft.case.text.title.ru = 'СНЯТ С ДРУГОЙ ВЕРСИИ';
   // Конверт корректный, но снят с версии файла, которой на сервере уже нет.
-  await seedCaseDraft(page, draft, { baseSha: 'sha-предыдущая-версия' });
+  await seedCaseDraft(page, draft, { baseSha: 'd'.repeat(40) });
   await openCaseEditor(page);
 
   await expect(page.locator('.toast--warn')).toContainText('снят с другой версии файла');
-  await expect(page.locator(`[data-field="${CASE_PATH}::case.text.title.ru"]`)).not.toHaveValue(
-    'СНЯТ С ДРУГОЙ ВЕРСИИ'
-  );
+  await expect(page.locator(`[data-field="${CASE_PATH}::case.text.title.ru"]`)).not.toHaveValue('СНЯТ С ДРУГОЙ ВЕРСИИ');
   await expect(page.locator('#draft-indicator')).toBeHidden();
 });
 
@@ -485,22 +471,11 @@ test('черновик V2 со СВОИМ baseSha восстанавливает
 });
 
 test('TOCTOU: расхождение blob sha на head отменяет публикацию без коммита', async ({ page }) => {
-  const calls = await mockGitHub(page);
-  // Файл увели из-под нас между publishPrecheck и деревом: на head у него
-  // другой blob sha. Маршрут регистрируется ПОСЛЕ mockGitHub → приоритетнее.
-  await page.route('**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json**', (route) => {
-    const stale = new URL(route.request().url()).searchParams.get('ref') === 'headsha000';
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        type: 'file',
-        encoding: 'base64',
-        sha: stale ? 'sha-somebody-else' : `sha-${CASE_PATH}`,
-        content: Buffer.from(JSON.stringify(CASE_JSON, null, 2) + '\n').toString('base64')
-      })
-    });
+  const calls = await mockGitHub(page, {
+    shaForPath: (path, ref) => (path === CASE_PATH && ref === 'b'.repeat(40) ? 'd'.repeat(40) : 'c'.repeat(40))
   });
+  // Файл увели из-под нас между publishPrecheck и деревом: на head у него
+  // другой blob sha. Shared mock различает исходную загрузку и head ref.
   await openCaseEditor(page);
 
   await page.locator(`[data-field="${CASE_PATH}::card.title.ru"]`).fill('Правка перед гонкой');
@@ -551,7 +526,7 @@ test('TOCTOU: сетевая ошибка проверки НЕ выдаётся
   // Проверка свежести идёт на запиненном head; обрываем именно её. Раньше
   // любая ошибка приравнивалась к «файл изменился» — владелец шёл чинить
   // несуществующую гонку вместо того, чтобы повторить попытку.
-  await page.route('**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json?ref=headsha000', (route) =>
+  await page.route(`**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json?ref=${'b'.repeat(40)}`, (route) =>
     route.abort('failed')
   );
   await openCaseEditor(page);
@@ -570,7 +545,9 @@ test('TOCTOU: сетевая ошибка проверки НЕ выдаётся
 });
 
 test('две публикации подряд в одной вкладке проходят', async ({ page }) => {
-  const calls = await mockGitHub(page);
+  const calls = await mockGitHub(page, {
+    sourceShaForCommit: (count) => (count === 1 ? 'a'.repeat(40) : 'd'.repeat(40))
+  });
   /* Регрессия: план собирался в диалоге ДО publishPrecheck и нёс sha базы,
      который первый же коммит делал устаревшим — вторая публикация в той же
      вкладке падала «файл изменился» на пустом месте.
@@ -578,27 +555,6 @@ test('две публикации подряд в одной вкладке пр
      поэтому гонку он не воспроизводит вовсе. Здесь Contents API отражает
      коммиты: после каждой публикации подменяем и содержимое, и sha — ровно
      то, что делает git (sha блоба выводится из содержимого). */
-  const server = { content: JSON.stringify(CASE_JSON, null, 2) + '\n', sha: `sha-${CASE_PATH}` };
-  await page.route('**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        type: 'file',
-        encoding: 'base64',
-        sha: server.sha,
-        content: Buffer.from(server.content, 'utf8').toString('base64')
-      })
-    })
-  );
-  function applyLastCommit() {
-    const blobBySha = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
-    const treeEntry = calls.tree.find((entry) => entry.path === CASE_PATH);
-    expect(treeEntry).toBeTruthy();
-    server.content = Buffer.from(blobBySha.get(treeEntry.sha).content, 'base64').toString('utf8');
-    server.sha = 'sha-' + hash8(Buffer.from(server.content, 'utf8'));
-  }
-
   await openCaseEditor(page);
 
   for (const value of ['Первая правка', 'Вторая правка']) {
@@ -608,12 +564,17 @@ test('две публикации подряд в одной вкладке пр
     await expect(page.locator('#publish-dialog')).toBeVisible();
     await page.click('#publish-confirm');
     await expect(page.locator('.toast--success').last()).toContainText('Опубликовано');
+    await expect(page.locator('#publish-btn')).toHaveText('Опубликовать');
+    expect(await page.evaluate(() => window.AdminState.changedPaths())).toEqual([]);
     await expect(page.locator('#draft-indicator')).toBeHidden();
-    applyLastCommit();
   }
 
   expect(calls.refUpdated).toBe(true);
-  expect(JSON.parse(server.content).card.title.ru).toBe('Вторая правка');
+  const blobBySha = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
+  const treeEntry = calls.tree.find((entry) => entry.path === CASE_PATH);
+  expect(JSON.parse(Buffer.from(blobBySha.get(treeEntry.sha).content, 'base64').toString('utf8')).card.title.ru).toBe(
+    'Вторая правка'
+  );
 });
 
 test('гонка: блок удалён, пока файл читался — байты не уезжают в чужой слот', async ({ page }) => {

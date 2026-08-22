@@ -86,7 +86,9 @@ function checkGeneratedDataScriptRevisions(page, expectedFiles) {
   const expectedSources = new Map(
     expectedFiles.map((fileName) => [
       `./js/${fileName}`,
-      `./js/${fileName}?v=${createHash('sha256').update(read(`js/${fileName}`), 'utf8').digest('hex')}`
+      `./js/${fileName}?v=${createHash('sha256')
+        .update(read(`js/${fileName}`), 'utf8')
+        .digest('hex')}`
     ])
   );
   const queryScripts = scripts.filter((script) => script.src.includes('?'));
@@ -157,6 +159,65 @@ check(
 check(
   'package: admin gate lists the case-media editor spec',
   /tests\/quality\/admin-case-media\.spec\.mjs/.test(packageJson.scripts['test:admin'] || '')
+);
+check(
+  'package: admin gate lists the publication recovery spec',
+  /tests\/quality\/admin-publication\.spec\.mjs/.test(packageJson.scripts['test:admin'] || '')
+);
+{
+  const contentPublish = read('.github/workflows/content-publish.yml');
+  const batchRunner = read('scripts/content-publish-batch.mjs');
+  const deployBeget = read('.github/workflows/deploy-beget.yml');
+  check(
+    'content publish: workflow delegates complete source batches to the tested runner',
+    /fetch-depth: 0/.test(contentPublish) &&
+      /paths: \['content\/\*\*', 'assets\/\*\*'\]/.test(contentPublish) &&
+      /node scripts\/content-publish-batch\.mjs/.test(contentPublish) &&
+      /github-actions\[bot\]/.test(contentPublish) &&
+      /subject="\$\(git log -1 --pretty=%s\)"/.test(contentPublish) &&
+      /regen_subject_regex/.test(contentPublish) &&
+      /revert_subject_regex/.test(contentPublish) &&
+      !/git pull --rebase|git rebase/.test(contentPublish)
+  );
+  check(
+    'content publish: runner discovers strict trusted anchors and emits one marker per source',
+    /lastTrustedAnchor/.test(batchRunner) &&
+      /discoverUnresolvedSources/.test(batchRunner) &&
+      /--first-parent/.test(batchRunner) &&
+      /sha \+ '\^1'/.test(batchRunner) &&
+      /isTrustedTerminal\(item\)/.test(batchRunner) &&
+      /terminalSubject\('published', source\.sha\)/.test(batchRunner) &&
+      /terminalSubject\('reverted', source\.sha\)/.test(batchRunner)
+  );
+  check(
+    'content publish: runner rebuilds instead of rebasing and pushes the chain once',
+    /maxAttempts \|\| 3/.test(batchRunner) &&
+      /checkout', '--detach', base/.test(batchRunner) &&
+      /freshOriginMain/.test(batchRunner) &&
+      /push', 'origin', 'HEAD:main'/.test(batchRunner) &&
+      /GENERATED_ALLOWLIST/.test(batchRunner) &&
+      /'diff', '--cached', '--name-only'/.test(batchRunner) &&
+      !/\['add', '-A'\]/.test(batchRunner) &&
+      /GITHUB_ACTIONS/.test(batchRunner) &&
+      !/pull --rebase|\bgit rebase\b/.test(batchRunner)
+  );
+  check(
+    'deploy: both head and history settlement checks accept only old or full-source subjects',
+    (deployBeget.match(/regen_subject_regex/g) || []).length >= 2 &&
+      (deployBeget.match(/revert_subject_regex/g) || []).length >= 2 &&
+      deployBeget.includes('source:[0-9a-f]{40}') &&
+      deployBeget.includes('trusted_terminal') &&
+      deployBeget.includes('41898282+github-actions[bot]@users.noreply.github.com') &&
+      deployBeget.includes('! git diff --quiet "$sha^1" "$sha" -- content/ assets/') &&
+      deployBeget.includes('! git diff-tree --root --quiet --no-commit-id -r "$sha" -- content/ assets/')
+  );
+}
+check(
+  'package: codex:ship includes the content-publish batch fixture gate',
+  /\btest:content-publish-batch\b/.test(packageJson.scripts['codex:ship'] || '') &&
+    /node --test tests\/quality\/content-publish-batch\.test\.mjs/.test(
+      packageJson.scripts['test:content-publish-batch'] || ''
+    )
 );
 check(
   'package: codex:ship includes the case-media runtime gate',
@@ -300,10 +361,7 @@ check(
     read('js/design-loader.js')
   )
 );
-check(
-  'Design Lab: Hybrid mode is explicitly allowlisted',
-  /valid\.hybrid\s*=\s*true/.test(read('js/design-mode.js'))
-);
+check('Design Lab: Hybrid mode is explicitly allowlisted', /valid\.hybrid\s*=\s*true/.test(read('js/design-mode.js')));
 check(
   'Design Lab: Hybrid readiness is style-gated with bounded Original fallback',
   /data-design-runtime-state', 'pending'/.test(read('js/design-loader.js')) &&

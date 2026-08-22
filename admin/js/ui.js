@@ -71,6 +71,7 @@
   let publishing = false;
   let pendingErrors = [];
   let publishPlan = null; // план коммита, собранный перед открытием диалога
+  let pipelineCheck = null;
 
   const META_PAGE_LABELS = {
     index: 'Главная страница (index.html)',
@@ -397,7 +398,8 @@
       // базовое имя → путь); opts.currentPath — уже готовый site-путь.
       let effective;
       if (record) effective = resolveValue(record.value);
-      else if (draftValue !== undefined && draftValue !== null && draftValue !== '') effective = resolveValue(draftValue);
+      else if (draftValue !== undefined && draftValue !== null && draftValue !== '')
+        effective = resolveValue(draftValue);
       else effective = opts.currentPath || null;
       const url = record ? record.objectURL : effective ? toAdminAssetPath(effective) : null;
 
@@ -563,8 +565,19 @@
     const dirty = State.isDirty();
     els.draftIndicator.hidden = !dirty;
     els.mediaWarning.hidden = State.mediaPendingCount() === 0;
-    els.publishBtn.disabled = !dirty || publishing || !token;
-    els.publishBtn.textContent = publishing ? 'Публикуем…' : 'Опубликовать';
+    const publicationLocked = State.isPublicationLocked();
+    const publication = State.getPublication();
+    const reconciliationPending = Boolean(
+      publication && publication.error && ['published', 'reverted'].indexOf(publication.phase) !== -1
+    );
+    els.publishBtn.disabled = !dirty || publishing || publicationLocked || !token;
+    els.publishBtn.textContent = publishing
+      ? 'Публикуем…'
+      : reconciliationPending
+        ? 'Требуется локальная сверка'
+        : publicationLocked
+          ? 'Публикация ожидает проверки'
+          : 'Опубликовать';
     els.topbarUser.replaceChildren();
     if (token && user) {
       if (user.avatarUrl) {
@@ -572,7 +585,13 @@
       }
       els.topbarUser.appendChild(el('span', { className: 'topbar__login', text: user.login }));
       els.topbarUser.appendChild(
-        el('button', { type: 'button', className: 'btn btn--ghost', id: 'logout-btn', text: 'Выйти', onclick: onLogout })
+        el('button', {
+          type: 'button',
+          className: 'btn btn--ghost',
+          id: 'logout-btn',
+          text: 'Выйти',
+          onclick: onLogout
+        })
       );
     }
   }
@@ -582,6 +601,216 @@
     for (const link of els.topbar.querySelectorAll('[data-nav]')) {
       link.classList.toggle('is-active', link.getAttribute('data-nav') === active);
     }
+  }
+
+  function publicationTimestamp(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('ru-RU');
+  }
+
+  async function recheckPublication() {
+    if (pipelineCheck) return pipelineCheck;
+    let record = State.getPublication();
+    if (record && record.phase === 'submitting' && record.candidate) {
+      if (pipelineCheck) return pipelineCheck;
+      pipelineCheck = (async () => {
+        try {
+          await State.resolvePublicationCandidate();
+          record = State.getPublication();
+          if (record && record.source && record.phase === 'awaiting_pipeline') {
+            const outcome = await API.waitForPipeline(record.source.sha, record.source.date);
+            await State.settlePublication(outcome);
+          }
+        } finally {
+          pipelineCheck = null;
+          updateChrome();
+          if (window.location.hash === '#/publication') renderPublication();
+        }
+      })();
+      return pipelineCheck;
+    }
+    if (!record || !record.source || ['awaiting_pipeline', 'timed_out'].indexOf(record.phase) === -1) return null;
+    pipelineCheck = (async () => {
+      try {
+        const outcome = await API.waitForPipeline(record.source.sha, record.source.date);
+        const settled = await State.settlePublication(outcome);
+        if (outcome.status === 'published') {
+          toast(
+            settled.error
+              ? 'Конвейер подтвердил публикацию, но локальная сверка требует внимания: ' + settled.error
+              : 'Опубликовано: конвейер подтвердил публикацию.',
+            settled.error ? 'warn' : 'success',
+            { href: '../', label: 'Открыть production' }
+          );
+        } else if (outcome.status === 'reverted') {
+          toast(
+            settled.error
+              ? 'Конвейер откатил публикацию, но восстановление черновика заблокировано: ' + settled.error
+              : 'Конвейер откатил публикацию. Черновик восстановлен.',
+            settled.error ? 'error' : 'warn',
+            { href: outcome.url, label: 'Открыть детали в GitHub' }
+          );
+        } else {
+          toast('Конвейер пока не прислал вердикт. Публикация заблокирована до повторной проверки.', 'warn', {
+            href: outcome.url,
+            label: 'Открыть GitHub Actions'
+          });
+        }
+      } catch (error) {
+        await State.settlePublication({
+          status: 'failed',
+          message: error && error.message ? error.message : 'Не удалось проверить публикацию.'
+        });
+        toast('Не удалось завершить восстановление: ' + (error && error.message ? error.message : error), 'error');
+      } finally {
+        pipelineCheck = null;
+        updateChrome();
+        if (window.location.hash === '#/publication') renderPublication();
+      }
+    })();
+    return pipelineCheck;
+  }
+
+  function renderPublication() {
+    const record = State.getPublication();
+    if (!record) {
+      els.app.replaceChildren(
+        el('section', {}, [
+          el('h1', { text: 'Публикация' }),
+          el('p', { className: 'empty-note', text: 'Нет сохранённых записей публикации.' })
+        ])
+      );
+      return;
+    }
+    const outcome = record.outcome || {};
+    const sourceUrl =
+      record.source && record.source.sha
+        ? 'https://github.com/' + API.OWNER + '/' + API.REPO + '/commit/' + record.source.sha
+        : null;
+    const reason =
+      record.error ||
+      (record.phase === 'reverted'
+        ? 'Конвейер откатил source после неуспешной проверки. Восстановите черновик и внесите исправления.'
+        : outcome.message || '—');
+    const rows = [
+      ['Статус', record.phase],
+      ['Источник', record.source && record.source.sha ? record.source.sha : 'source SHA не был привязан'],
+      ['Создана', publicationTimestamp(record.createdAt)],
+      ['Обновлена', publicationTimestamp(record.updatedAt)],
+      ['Коммит конвейера', outcome.sha || '—'],
+      ['Причина', reason]
+    ];
+    const list = el('dl', { className: 'publication-record__details' });
+    rows.forEach(([term, value]) => {
+      list.appendChild(el('dt', { text: term }));
+      const detail = el('dd', { text: value });
+      if (term === 'Источник' && sourceUrl) {
+        detail.replaceChildren(el('a', { href: sourceUrl, target: '_blank', rel: 'noopener', text: value }));
+      }
+      if (term === 'Коммит конвейера' && outcome.url) {
+        detail.replaceChildren(el('a', { href: outcome.url, target: '_blank', rel: 'noopener', text: value }));
+      }
+      list.appendChild(detail);
+    });
+    const actions = el('div', { className: 'publication-record__actions' });
+    if (
+      ['awaiting_pipeline', 'timed_out'].indexOf(record.phase) !== -1 ||
+      (record.phase === 'submitting' && record.candidate)
+    ) {
+      actions.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'btn btn--primary',
+          text: 'Проверить статус',
+          onclick: recheckPublication
+        })
+      );
+    }
+    if (record.phase === 'reverted') {
+      actions.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'btn',
+          text: 'Восстановить черновик',
+          onclick: async () => {
+            try {
+              const restored = await State.restorePublicationSnapshot();
+              toast(
+                restored.reupload.length
+                  ? 'Черновик восстановлен. Загрузите заново: ' + restored.reupload.join(', ')
+                  : 'Черновик восстановлен; медиа этой вкладки сохранены.',
+                'warn'
+              );
+              renderPublication();
+            } catch (error) {
+              toast(error.message || String(error), 'error');
+            }
+          }
+        })
+      );
+    }
+    if (record.error && ['published', 'reverted'].indexOf(record.phase) !== -1) {
+      actions.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'btn',
+          text: 'Повторить локальную сверку',
+          onclick: async () => {
+            try {
+              const reconciled = await State.retryPublicationReconciliation();
+              toast(reconciled.error || 'Локальная сверка завершена.', reconciled.error ? 'error' : 'success');
+              renderPublication();
+            } catch (error) {
+              toast(error.message || String(error), 'error');
+            }
+          }
+        })
+      );
+    }
+    if (
+      ['published', 'reverted', 'failed'].indexOf(record.phase) !== -1 &&
+      !(record.error && ['published', 'reverted'].indexOf(record.phase) !== -1)
+    ) {
+      actions.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'btn btn--ghost',
+          text: 'Скрыть завершённую запись',
+          onclick: () => {
+            State.dismissPublication();
+            renderPublication();
+          }
+        })
+      );
+    }
+    actions.appendChild(
+      el('a', {
+        className: 'btn btn--ghost',
+        href: API.ACTIONS_URL,
+        target: '_blank',
+        rel: 'noopener',
+        text: 'Открыть GitHub Actions'
+      })
+    );
+    if (record.phase === 'published')
+      actions.appendChild(el('a', { className: 'btn', href: '../', text: 'Открыть production' }));
+    els.app.replaceChildren(
+      el('section', { className: 'publication-record' }, [
+        el('div', { className: 'view-head' }, [
+          el('h1', { text: 'Публикация' }),
+          el('span', { 'data-publication-phase': '', className: 'badge badge--' + record.phase, text: record.phase })
+        ]),
+        list,
+        record.snapshot.media.length
+          ? el('p', {
+              className: 'hint',
+              text: 'Медиа хранится только в этой вкладке; после перезагрузки его нужно загрузить заново.'
+            })
+          : null,
+        actions
+      ])
+    );
   }
 
   /* ── вход ────────────────────────────────────────────────────────── */
@@ -778,7 +1007,9 @@
       const toggleInput = el('input', {
         type: 'checkbox',
         'data-case-toggle': item.id,
-        'aria-label': enabledFlag ? 'Кейс «' + data.card.title.en + '» включён' : 'Кейс «' + data.card.title.en + '» скрыт'
+        'aria-label': enabledFlag
+          ? 'Кейс «' + data.card.title.en + '» включён'
+          : 'Кейс «' + data.card.title.en + '» скрыт'
       });
       toggleInput.checked = enabledFlag;
       toggleInput.addEventListener('change', () => toggleCase(item.id, toggleInput.checked, toggleInput));
@@ -800,7 +1031,12 @@
               })
             : null,
           el('a', { className: 'case-row__link', href: '#/case/' + encodeURIComponent(item.id) }, [
-            el('img', { className: 'case-row__thumb', src: toAdminAssetPath(data.card.thumb), alt: '', loading: 'lazy' }),
+            el('img', {
+              className: 'case-row__thumb',
+              src: toAdminAssetPath(data.card.thumb),
+              alt: '',
+              loading: 'lazy'
+            }),
             el('div', {}, [
               el('p', { className: 'case-row__title', text: data.card.title.en }),
               el('span', { className: 'case-row__id', text: item.id })
@@ -812,10 +1048,11 @@
             !catEnabled ? el('span', { className: 'badge badge--off', text: 'категория скрыта' }) : null,
             el('span', { text: labels[data.category] || data.category }),
             el('span', { text: data.year }),
-            el('label', { className: 'switch', title: enabledFlag ? 'Скрыть кейс с сайта' : 'Показать кейс на сайте' }, [
-              toggleInput,
-              el('span', { className: 'switch__track', 'aria-hidden': 'true' })
-            ])
+            el(
+              'label',
+              { className: 'switch', title: enabledFlag ? 'Скрыть кейс с сайта' : 'Показать кейс на сайте' },
+              [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]
+            )
           ])
         ]
       );
@@ -912,7 +1149,10 @@
     function toggleCategory(index, next, input) {
       const filter = draftFilters()[index];
       if (!next && visibleCountWithout(filter.key) === 0) {
-        toast('Нельзя выключить категорию «' + filter.label + '» — на сайте не останется ни одного видимого кейса.', 'error');
+        toast(
+          'Нельзя выключить категорию «' + filter.label + '» — на сайте не останется ни одного видимого кейса.',
+          'error'
+        );
         input.checked = true;
         return;
       }
@@ -929,24 +1169,34 @@
         const toggleInput = el('input', {
           type: 'checkbox',
           'data-category-toggle': filter.key,
-          'aria-label': enabled ? 'Категория «' + filter.label + '» включена' : 'Категория «' + filter.label + '» скрыта'
+          'aria-label': enabled
+            ? 'Категория «' + filter.label + '» включена'
+            : 'Категория «' + filter.label + '» скрыта'
         });
         toggleInput.checked = enabled;
         toggleInput.addEventListener('change', () => toggleCategory(index, toggleInput.checked, toggleInput));
         list.appendChild(
-          el('li', { className: 'category-row' + (enabled ? '' : ' category-row--off'), 'data-category-row': filter.key }, [
-            el('div', { className: 'category-row__info' }, [
-              el('p', { className: 'category-row__label', text: filter.label }),
-              el('span', { className: 'category-row__id', text: filter.key + ' · кейсов: ' + ids.length })
-            ]),
-            el('div', { className: 'case-row__meta' }, [
-              !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
-              el('label', {
-                className: 'switch',
-                title: enabled ? 'Скрыть категорию и все её кейсы с сайта' : 'Показать категорию на сайте'
-              }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })])
-            ])
-          ])
+          el(
+            'li',
+            { className: 'category-row' + (enabled ? '' : ' category-row--off'), 'data-category-row': filter.key },
+            [
+              el('div', { className: 'category-row__info' }, [
+                el('p', { className: 'category-row__label', text: filter.label }),
+                el('span', { className: 'category-row__id', text: filter.key + ' · кейсов: ' + ids.length })
+              ]),
+              el('div', { className: 'case-row__meta' }, [
+                !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
+                el(
+                  'label',
+                  {
+                    className: 'switch',
+                    title: enabled ? 'Скрыть категорию и все её кейсы с сайта' : 'Показать категорию на сайте'
+                  },
+                  [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]
+                )
+              ])
+            ]
+          )
         );
       });
     }
@@ -1054,7 +1304,10 @@
     function toggleCategory(categoryIndex, next, input) {
       const category = faCategories()[categoryIndex];
       if (!next && faVisibleTotal(categoryIndex) === 0) {
-        toast('Нельзя выключить категорию «' + category.key + '» — на сайте не останется ни одного видимого ассета.', 'error');
+        toast(
+          'Нельзя выключить категорию «' + category.key + '» — на сайте не останется ни одного видимого ассета.',
+          'error'
+        );
         input.checked = true;
         return;
       }
@@ -1073,10 +1326,15 @@
         'aria-label': enabledFlag ? 'Ассет «' + item.title + '» включён' : 'Ассет «' + item.title + '» скрыт'
       });
       toggleInput.checked = enabledFlag;
-      toggleInput.addEventListener('change', () => toggleItem(categoryIndex, itemIndex, toggleInput.checked, toggleInput));
+      toggleInput.addEventListener('change', () =>
+        toggleItem(categoryIndex, itemIndex, toggleInput.checked, toggleInput)
+      );
       return el(
         'li',
-        { className: 'case-row fa-item-row' + (!enabledFlag || !catEnabled ? ' case-row--off' : ''), 'data-fa-item': item.id },
+        {
+          className: 'case-row fa-item-row' + (!enabledFlag || !catEnabled ? ' case-row--off' : ''),
+          'data-fa-item': item.id
+        },
         [
           reorderControls({
             label: 'Ассет «' + item.title + '»',
@@ -1095,10 +1353,11 @@
             !enabledFlag ? el('span', { className: 'badge badge--off', text: 'скрыто' }) : null,
             !catEnabled ? el('span', { className: 'badge badge--off', text: 'категория скрыта' }) : null,
             el('span', { text: item.badge }),
-            el('label', { className: 'switch', title: enabledFlag ? 'Скрыть ассет с сайта' : 'Показать ассет на сайте' }, [
-              toggleInput,
-              el('span', { className: 'switch__track', 'aria-hidden': 'true' })
-            ])
+            el(
+              'label',
+              { className: 'switch', title: enabledFlag ? 'Скрыть ассет с сайта' : 'Показать ассет на сайте' },
+              [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]
+            )
           ])
         ]
       );
@@ -1119,7 +1378,9 @@
       toggleInput.addEventListener('change', () => toggleCategory(categoryIndex, toggleInput.checked, toggleInput));
 
       const itemsList = el('ul', { className: 'fa-cat__items', hidden: collapsed });
-      items.forEach((item, itemIndex) => itemsList.appendChild(itemRow(category, categoryIndex, item, itemIndex, items.length)));
+      items.forEach((item, itemIndex) =>
+        itemsList.appendChild(itemRow(category, categoryIndex, item, itemIndex, items.length))
+      );
       makeSortable(itemsList, '.fa-item-row', (from, to) => moveItem(categoryIndex, from, to, null));
 
       const collapseBtn = el(
@@ -1135,7 +1396,11 @@
           el('span', { className: 'fa-cat__label', text: (items[0] && items[0].cat) || category.key }),
           el('span', {
             className: 'fa-cat__count',
-            text: category.key + ' · ассетов: ' + items.length + (visibleItems !== items.length ? ' · видимых: ' + visibleItems : '')
+            text:
+              category.key +
+              ' · ассетов: ' +
+              items.length +
+              (visibleItems !== items.length ? ' · видимых: ' + visibleItems : '')
           })
         ]
       );
@@ -1145,26 +1410,34 @@
         renderRows();
       });
 
-      return el('section', { className: 'fa-cat' + (enabled ? '' : ' fa-cat--off'), 'data-fa-category': category.key }, [
-        el('div', { className: 'fa-cat__head' }, [
-          reorderControls({
-            label: 'Категория «' + category.key + '»',
-            index: categoryIndex,
-            count,
-            focusKey: 'fa-cat::' + category.key,
-            onMove: moveCategory
-          }),
-          collapseBtn,
-          el('div', { className: 'case-row__meta' }, [
-            !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
-            el('label', {
-              className: 'switch',
-              title: enabled ? 'Скрыть категорию и все её ассеты с сайта' : 'Показать категорию на сайте'
-            }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })])
-          ])
-        ]),
-        itemsList
-      ]);
+      return el(
+        'section',
+        { className: 'fa-cat' + (enabled ? '' : ' fa-cat--off'), 'data-fa-category': category.key },
+        [
+          el('div', { className: 'fa-cat__head' }, [
+            reorderControls({
+              label: 'Категория «' + category.key + '»',
+              index: categoryIndex,
+              count,
+              focusKey: 'fa-cat::' + category.key,
+              onMove: moveCategory
+            }),
+            collapseBtn,
+            el('div', { className: 'case-row__meta' }, [
+              !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
+              el(
+                'label',
+                {
+                  className: 'switch',
+                  title: enabled ? 'Скрыть категорию и все её ассеты с сайта' : 'Показать категорию на сайте'
+                },
+                [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]
+              )
+            ])
+          ]),
+          itemsList
+        ]
+      );
     }
 
     // Бейдж «черновик» в шапке должен отражать ЖИВОЕ состояние черновика:
@@ -1300,7 +1573,13 @@
         });
         rows.appendChild(
           el('div', { className: 'fa-contents__row' }, [
-            reorderControls({ label: 'Строка ' + (i + 1), index: i, count: current.length, focusKey: 'fa-contents::' + i, onMove: moveRow }),
+            reorderControls({
+              label: 'Строка ' + (i + 1),
+              index: i,
+              count: current.length,
+              focusKey: 'fa-contents::' + i,
+              onMove: moveRow
+            }),
             input,
             removeBtn
           ])
@@ -1402,7 +1681,9 @@
               // печатающего владельца лишним перестроением редактора.
               if (!res.ok) {
                 const message =
-                  'Файла ' + checkPath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+                  'Файла ' +
+                  checkPath +
+                  ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
                 if (faMediaErrors.get(errorKey) !== message) {
                   faMediaErrors.set(errorKey, message);
                   rerender();
@@ -1423,7 +1704,10 @@
 
     const section = el('div', { className: 'fa-media-slot', 'data-field': FA_PATH + '::' + dot }, [
       el('label', { className: 'fa-media-toggle' }, [
-        el('span', { className: 'switch' }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]),
+        el('span', { className: 'switch' }, [
+          toggleInput,
+          el('span', { className: 'switch__track', 'aria-hidden': 'true' })
+        ]),
         el('span', { text: opts.toggleLabel })
       ])
     ]);
@@ -1503,35 +1787,50 @@
       ])
     );
 
-    sections.push(el('section', { className: 'editor-section' }, [el('h2', { text: 'Оформление' }), faBgField(dotBase)]));
+    sections.push(
+      el('section', { className: 'editor-section' }, [el('h2', { text: 'Оформление' }), faBgField(dotBase)])
+    );
 
     sections.push(
       el('section', { className: 'editor-section' }, [
         el('h2', { text: 'Медиа карточки' }),
-        faMediaSection(id, dotBase, 'model', {
-          kind: 'model',
-          preview: 'file',
-          // В JSON у модели по-прежнему уходит БАЗОВОЕ имя (конвенция
-          // resolveAssetMedia), поэтому valueMode остаётся 'baseName'.
-          valueMode: 'baseName',
-          toggleLabel: '3D-превью (вращающаяся модель)',
-          zoneLabel: 'GLB-файл 3D-превью',
-          hint: modelUploadHint(' · файл получит новое имя вида ' + id + '-xxxxxxxx.glb'),
-          offHint: '3D-превью выключено (model: null) — карточка покажет постер или фон.',
-          resolveValue: State.faSlotPath.bind(null, 'model')
-        }, rerender),
+        faMediaSection(
+          id,
+          dotBase,
+          'model',
+          {
+            kind: 'model',
+            preview: 'file',
+            // В JSON у модели по-прежнему уходит БАЗОВОЕ имя (конвенция
+            // resolveAssetMedia), поэтому valueMode остаётся 'baseName'.
+            valueMode: 'baseName',
+            toggleLabel: '3D-превью (вращающаяся модель)',
+            zoneLabel: 'GLB-файл 3D-превью',
+            hint: modelUploadHint(' · файл получит новое имя вида ' + id + '-xxxxxxxx.glb'),
+            offHint: '3D-превью выключено (model: null) — карточка покажет постер или фон.',
+            resolveValue: State.faSlotPath.bind(null, 'model')
+          },
+          rerender
+        ),
         // FA-POSTER-01: постер принимает и растр (фото-рендер продукта вместо
         // вращающейся 3D-модели), поэтому valueMode здесь НЕ 'baseName': в JSON
         // уходит полный путь с фактическим расширением файла.
-        faMediaSection(id, dotBase, 'thumb', {
-          kind: 'faThumb',
-          preview: 'image',
-          toggleLabel: 'Постер (картинка карточки)',
-          zoneLabel: 'Постер карточки',
-          hint: 'SVG, PNG, JPG или WebP · 800×600 (4:3) · до 200 КБ · файл получит новое имя вида ' + id + '-xxxxxxxx',
-          offHint: 'Постер выключен (thumb: null) — до загрузки 3D карточка покажет только фон.',
-          resolveValue: State.faSlotPath.bind(null, 'thumb')
-        }, rerender)
+        faMediaSection(
+          id,
+          dotBase,
+          'thumb',
+          {
+            kind: 'faThumb',
+            preview: 'image',
+            toggleLabel: 'Постер (картинка карточки)',
+            zoneLabel: 'Постер карточки',
+            hint:
+              'SVG, PNG, JPG или WebP · 800×600 (4:3) · до 200 КБ · файл получит новое имя вида ' + id + '-xxxxxxxx',
+            offHint: 'Постер выключен (thumb: null) — до загрузки 3D карточка покажет только фон.',
+            resolveValue: State.faSlotPath.bind(null, 'thumb')
+          },
+          rerender
+        )
       ])
     );
 
@@ -1570,8 +1869,11 @@
   // labelText (слайс B): человекочитаемая подпись для слотов иллюстраций;
   // motion-поля по-прежнему подписаны именем поля.
   function enumSelect(path, dotBase, field, current, fallback, options, labelText) {
-    const select = el('select', { 'data-field': path + '::' + dotBase + '.' + field },
-      options.map((o) => el('option', { value: o.value, text: o.text })));
+    const select = el(
+      'select',
+      { 'data-field': path + '::' + dotBase + '.' + field },
+      options.map((o) => el('option', { value: o.value, text: o.text }))
+    );
     // Легаси/ручной out-of-enum значение: добавляем его опцией, чтобы <select> не
     // показывал молча первый вариант (UI-vs-state ложь) — владелец видит реальное
     // значение, валидатор его пометит. На чистом контенте эта ветка спит.
@@ -1636,7 +1938,10 @@
     wrap.appendChild(input);
     wrap.appendChild(confirmLine);
     wrap.appendChild(
-      el('p', { className: 'hint', text: 'Подойдёт любая ссылка vimeo.com или цифровой ID. Для unlisted-ролика вставьте полную ссылку vimeo.com/<id>/<hash> — приватный hash распознается автоматически.' })
+      el('p', {
+        className: 'hint',
+        text: 'Подойдёт любая ссылка vimeo.com или цифровой ID. Для unlisted-ролика вставьте полную ссылку vimeo.com/<id>/<hash> — приватный hash распознается автоматически.'
+      })
     );
     return wrap;
   }
@@ -1662,7 +1967,8 @@
         // без чистки stale hash прошёл бы), а мёртвый src не висел на vimeo-блоке.
         if (sourceSelect.value === 'local') {
           if (State.getValue(path, dotBase + '.vimeoId') !== undefined) State.deleteValue(path, dotBase + '.vimeoId');
-          if (State.getValue(path, dotBase + '.vimeoHash') !== undefined) State.deleteValue(path, dotBase + '.vimeoHash');
+          if (State.getValue(path, dotBase + '.vimeoHash') !== undefined)
+            State.deleteValue(path, dotBase + '.vimeoHash');
         } else if (State.getValue(path, dotBase + '.src') !== undefined) {
           State.deleteValue(path, dotBase + '.src');
         }
@@ -2015,7 +2321,9 @@
         (match, newIndex) => 'case.blueprints.' + newIndex + '.' + match[2]
       );
       toast(
-        'Лист ' + (index + 1) + ' добавлен в черновик. Загрузите SVG — без файла публикация не пройдёт. ' +
+        'Лист ' +
+          (index + 1) +
+          ' добавлен в черновик. Загрузите SVG — без файла публикация не пройдёт. ' +
           'Подпись необязательна.',
         'info'
       );
@@ -2126,13 +2434,21 @@
     /* ── Public route: ID remains immutable while the public hash can evolve. */
     const currentSlug = typeof draft.slug === 'string' ? draft.slug : '';
     const currentAliases = Array.isArray(draft.legacySlugs) ? draft.legacySlugs : [];
-    const slugInput = el('input', { type: 'text', id: 'case-public-slug', 'data-field': path + '::slug', placeholder: draft.id });
+    const slugInput = el('input', {
+      type: 'text',
+      id: 'case-public-slug',
+      'data-field': path + '::slug',
+      placeholder: draft.id
+    });
     slugInput.value = currentSlug;
     const aliasInput = el('textarea', { id: 'case-legacy-slugs', rows: '3', 'data-field': path + '::legacySlugs' });
     aliasInput.value = currentAliases.join('\n');
     const publicUrl = el('code', { id: 'case-public-url', text: 'https://codex.promo/#' + (currentSlug || draft.id) });
     function aliasTokens() {
-      return aliasInput.value.split(/\n|,/).map((value) => value.trim()).filter(Boolean);
+      return aliasInput.value
+        .split(/\n|,/)
+        .map((value) => value.trim())
+        .filter(Boolean);
     }
     function refreshPublicUrl() {
       const next = slugInput.value.trim();
@@ -2145,7 +2461,13 @@
       const previous = State.getValue(path, 'slug');
       const next = slugInput.value.trim();
       const aliases = aliasTokens();
-      if (typeof previous === 'string' && previous && previous !== draft.id && previous !== next && aliases.indexOf(previous) === -1) {
+      if (
+        typeof previous === 'string' &&
+        previous &&
+        previous !== draft.id &&
+        previous !== next &&
+        aliases.indexOf(previous) === -1
+      ) {
         aliases.push(previous);
       }
       if (next) State.setValue(path, 'slug', next);
@@ -2169,7 +2491,9 @@
         el('h2', { text: 'Публичный адрес' }),
         el('div', { className: 'pair' }, [
           el('div', { className: 'pair__label', text: 'Внутренний ID' }),
-          el('div', { className: 'pair__col' }, [el('input', { type: 'text', value: draft.id, readOnly: true, 'aria-label': 'Внутренний ID' })])
+          el('div', { className: 'pair__col' }, [
+            el('input', { type: 'text', value: draft.id, readOnly: true, 'aria-label': 'Внутренний ID' })
+          ])
         ]),
         el('div', { className: 'pair' }, [
           el('div', { className: 'pair__label', text: 'Канонический slug' }),
@@ -2583,7 +2907,9 @@
         });
         statsGrid.appendChild(el('div', {}, [el('label', { text: key }), input]));
       }
-      modelSection.appendChild(el('p', { className: 'hint', text: 'Статистика модели (показывается в панели кейса):' }));
+      modelSection.appendChild(
+        el('p', { className: 'hint', text: 'Статистика модели (показывается в панели кейса):' })
+      );
       modelSection.appendChild(statsGrid);
     }
     sections.push(modelSection);
@@ -2856,11 +3182,7 @@
       });
       headerLogoClearHost.replaceChildren(clearBtn);
     }
-    headerLogoSection.replaceChildren(
-      el('h2', { text: 'Логотип в шапке сайта' }),
-      headerLogoZone,
-      headerLogoClearHost
-    );
+    headerLogoSection.replaceChildren(el('h2', { text: 'Логотип в шапке сайта' }), headerLogoZone, headerLogoClearHost);
     buildHeaderLogoZone();
     syncHeaderLogoClear();
     sections.push(headerLogoSection);
@@ -2870,9 +3192,19 @@
       el('h2', { text: 'Контакты и организация' }),
       textField(path, 'Контактная ссылка', 'contactUrl', { id: 'meta-contact-url' }),
       textField(path, 'Название организации', 'structuredData.organization.name', { id: 'meta-organization-name' }),
-      textField(path, 'Короткое название', 'structuredData.organization.alternateName', { id: 'meta-organization-alternate-name' }),
-      textField(path, 'Канонический URL организации', 'structuredData.organization.url', { id: 'meta-organization-url' }),
-      pairField(path, 'Описание организации', 'structuredData.organization.description.en', 'structuredData.organization.description.ru', { multiline: true })
+      textField(path, 'Короткое название', 'structuredData.organization.alternateName', {
+        id: 'meta-organization-alternate-name'
+      }),
+      textField(path, 'Канонический URL организации', 'structuredData.organization.url', {
+        id: 'meta-organization-url'
+      }),
+      pairField(
+        path,
+        'Описание организации',
+        'structuredData.organization.description.en',
+        'structuredData.organization.description.ru',
+        { multiline: true }
+      )
     ]);
     const sameAsInput = el('textarea', {
       id: 'meta-organization-same-as',
@@ -2882,21 +3214,34 @@
     });
     sameAsInput.value = organization && Array.isArray(organization.sameAs) ? organization.sameAs.join('\n') : '';
     sameAsInput.addEventListener('input', () => {
-      const urls = sameAsInput.value.split(/\n|,/).map((value) => value.trim()).filter(Boolean);
+      const urls = sameAsInput.value
+        .split(/\n|,/)
+        .map((value) => value.trim())
+        .filter(Boolean);
       State.setValue(path, 'structuredData.organization.sameAs', urls);
       clearFieldError(sameAsInput);
     });
-    identitySection.appendChild(el('div', { className: 'pair' }, [
-      el('div', { className: 'pair__label', text: 'Ссылки организации (по одной на строку)' }),
-      el('div', { className: 'pair__col' }, [sameAsInput])
-    ]));
-    identitySection.appendChild(el('p', { className: 'hint', text: 'Только HTTPS-ссылки без логина, пароля и порта. Эти данные попадут в Organization JSON-LD.' }));
+    identitySection.appendChild(
+      el('div', { className: 'pair' }, [
+        el('div', { className: 'pair__label', text: 'Ссылки организации (по одной на строку)' }),
+        el('div', { className: 'pair__col' }, [sameAsInput])
+      ])
+    );
+    identitySection.appendChild(
+      el('p', {
+        className: 'hint',
+        text: 'Только HTTPS-ссылки без логина, пароля и порта. Эти данные попадут в Organization JSON-LD.'
+      })
+    );
     sections.push(identitySection);
 
     const catalogCases = new Map(catalog.cases.map((item) => [item.id, item.data]));
     const featuredSection = el('section', { className: 'editor-section', id: 'meta-featured-works' }, [
       el('h2', { text: 'Избранные работы' }),
-      el('p', { className: 'hint', text: 'Порядок используется в JSON-LD. Внутренние ID не становятся публичными URL.' })
+      el('p', {
+        className: 'hint',
+        text: 'Порядок используется в JSON-LD. Внутренние ID не становятся публичными URL.'
+      })
     ]);
     const featuredList = el('div', { className: 'media-strip' });
     function featuredEntries() {
@@ -2934,9 +3279,18 @@
           State.setValue(path, 'structuredData.featuredWorks', next);
           clearFieldError(about);
         });
-        const remove = el('button', { type: 'button', className: 'btn btn--ghost', text: 'Убрать', 'aria-label': 'Убрать избранную работу ' + (index + 1) });
+        const remove = el('button', {
+          type: 'button',
+          className: 'btn btn--ghost',
+          text: 'Убрать',
+          'aria-label': 'Убрать избранную работу ' + (index + 1)
+        });
         remove.addEventListener('click', () => {
-          State.setValue(path, 'structuredData.featuredWorks', featuredEntries().filter((_entry, i) => i !== index));
+          State.setValue(
+            path,
+            'structuredData.featuredWorks',
+            featuredEntries().filter((_entry, i) => i !== index)
+          );
           renderFeatured();
         });
         row.append(
@@ -2951,15 +3305,22 @@
               focusReorder(key);
             }
           }),
-          el('label', { text: 'Кейс' }), select,
-          el('label', { text: 'About' }), about,
+          el('label', { text: 'Кейс' }),
+          select,
+          el('label', { text: 'About' }),
+          about,
           remove
         );
         featuredList.appendChild(row);
       });
       if (focusKey) focusReorder(focusKey);
     }
-    const addFeatured = el('button', { type: 'button', className: 'btn btn--ghost', id: 'meta-featured-add', text: 'Добавить работу' });
+    const addFeatured = el('button', {
+      type: 'button',
+      className: 'btn btn--ghost',
+      id: 'meta-featured-add',
+      text: 'Добавить работу'
+    });
     addFeatured.addEventListener('click', () => {
       const entries = featuredEntries();
       const existing = new Set(entries.map((entry) => entry.id));
@@ -3015,7 +3376,10 @@
         body.appendChild(pairField(path, dot, 'en.' + dot, 'ru.' + dot, { mono: true }));
       }
       return el('details', { className: 'ui-group', open: index === 0 }, [
-        el('summary', {}, [group.label + ' ', el('span', { className: 'ui-group__count', text: 'строк: ' + group.leaves.length })]),
+        el('summary', {}, [
+          group.label + ' ',
+          el('span', { className: 'ui-group__count', text: 'строк: ' + group.leaves.length })
+        ]),
         body
       ]);
     });
@@ -3047,6 +3411,16 @@
 
   async function onPublishClick() {
     if (publishing) return;
+    if (State.isPublicationLocked()) {
+      const record = State.getPublication();
+      toast(
+        record && record.error && ['published', 'reverted'].indexOf(record.phase) !== -1
+          ? 'Предыдущая публикация требует локальной сверки. Откройте раздел «Публикация».'
+          : 'Предыдущая публикация ещё ожидает проверки. Откройте раздел «Публикация».',
+        'warn'
+      );
+      return;
+    }
     try {
       await State.ensureAllDrafts();
     } catch (error) {
@@ -3088,12 +3462,12 @@
     for (const slot of missingMedia) {
       const errorKey = slot.id + '::' + slot.key;
       const message =
-        'Файла ' + slot.sitePath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+        'Файла ' +
+        slot.sitePath +
+        ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
       faMediaErrors.set(errorKey, message);
       const found = faFindItem(slot.id);
-      const field = found
-        ? 'categories.' + found.ci + '.items.' + found.ii + '.' + slot.key
-        : 'categories';
+      const field = found ? 'categories.' + found.ci + '.items.' + found.ii + '.' + slot.key : 'categories';
       errors.push({ path: FA_PATH, field, message });
     }
     if (errors.length > 0) {
@@ -3102,7 +3476,10 @@
       // правки репозитория) нет полей-якорей в UI, applyPendingErrors их
       // не отрисует. Первые сообщения показываем прямо в тосте, чтобы
       // блокировка публикации никогда не была безликим счётчиком.
-      const preview = errors.slice(0, 3).map((e) => e.message).join(' • ');
+      const preview = errors
+        .slice(0, 3)
+        .map((e) => e.message)
+        .join(' • ');
       toast(
         'Публикация остановлена (ошибок: ' + errors.length + '): ' + preview + (errors.length > 3 ? ' …' : ''),
         'error'
@@ -3139,24 +3516,25 @@
       // — публикация падала бы «файл изменился» на пустом месте.
       const plan = await State.buildPublishPlan();
       const message = 'content: ' + description + ' [admin]';
-      const result = await API.publish(plan, message);
-      State.markPublished();
-      toast('Коммит создан. Конвейер проверяет контент и пересобирает сайт…', 'info');
-      const outcome = await API.waitForPipeline(result.date);
-      if (outcome.status === 'published') {
-        toast('Опубликовано! Сайт обновится через ~2 минуты.', 'success');
-      } else if (outcome.status === 'reverted') {
-        toast('Изменения отклонены проверкой и откатены.', 'error', {
-          href: outcome.url,
-          label: 'Открыть детали в GitHub'
-        });
-      } else {
-        toast('Проверка ещё не завершилась — статус смотрите в GitHub Actions.', 'warn', {
-          href: outcome.url,
-          label: 'Открыть GitHub Actions'
-        });
-      }
+      // Снимок обязан пережить source-коммит: failure записи здесь отменяет
+      // отправку до любого GitHub write, а не оставляет best-effort recovery.
+      State.createPublicationSnapshot(plan);
+      const result = await API.publish(plan, message, { onCandidate: State.recordPublicationCandidate });
+      State.attachPublicationSource(result);
+      toast('Коммит создан. Конвейер проверяет именно этот source SHA…', 'info');
+      await recheckPublication();
     } catch (error) {
+      const record = State.getPublication();
+      if (record && record.phase === 'submitting' && (!record.candidate || error.code === 'definite-not-submitted')) {
+        try {
+          await State.settlePublication({
+            status: 'failed',
+            message: error && error.message ? error.message : 'Не удалось отправить публикацию.'
+          });
+        } catch (_settleError) {
+          /* original publish error remains the actionable one */
+        }
+      }
       toast(error && error.message ? error.message : 'Не удалось опубликовать изменения.', 'error');
     } finally {
       publishPlan = null;
@@ -3192,7 +3570,8 @@
     const hash = window.location.hash || '#/cases';
     const parts = hash.replace(/^#\/?/, '').split('/');
     try {
-      if (parts[0] === 'case' && parts[1]) await renderCaseEditor(decodeURIComponent(parts[1]));
+      if (parts[0] === 'publication') renderPublication();
+      else if (parts[0] === 'case' && parts[1]) await renderCaseEditor(decodeURIComponent(parts[1]));
       else if (parts[0] === 'free-assets' && parts[1]) await renderFaItemEditor(decodeURIComponent(parts[1]));
       else if (parts[0] === 'free-assets') await renderFreeAssets();
       else if (parts[0] === 'categories') await renderCategories();
@@ -3205,6 +3584,7 @@
     setActiveNav(parts[0]);
     applyPendingErrors();
     flushDraftNotices();
+    void recheckPublication();
   }
 
   /* ── инициализация ───────────────────────────────────────────────── */

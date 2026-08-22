@@ -112,9 +112,22 @@ export function startStaticServer() {
 
 // Полный мок GitHub REST API с журналом blob'ов и tree для ассертов.
 // calls = { blobs, tree, commitMessage, refUpdated }.
-export async function mockGitHub(page) {
-  const calls = { blobs: [], tree: [], commitMessage: '', refUpdated: false };
-  await page.route('https://api.github.com/**', (route) => {
+export async function mockGitHub(page, options = {}) {
+  let sourceSha = options.sourceSha || 'a'.repeat(40);
+  let sourceCommitCount = 0;
+  let liveHead = options.initialHead || 'b'.repeat(40);
+  const refContents = new Map();
+  const calls = {
+    blobs: [],
+    tree: [],
+    commitMessage: '',
+    refUpdated: false,
+    refUpdates: 0,
+    refReads: 0,
+    sourceSha,
+    commitPolls: 0
+  };
+  await page.route('https://api.github.com/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const p = url.pathname;
@@ -126,17 +139,31 @@ export async function mockGitHub(page) {
     if (p === '/repos/Gorgutc/codex') return json(200, { default_branch: 'main', permissions: { push: true } });
     if (p.startsWith('/repos/Gorgutc/codex/contents/')) {
       const filePath = decodeURIComponent(p.slice('/repos/Gorgutc/codex/contents/'.length));
+      const ref = url.searchParams.get('ref') || 'main';
       const abs = path.join(ROOT, filePath);
       if (!abs.startsWith(ROOT) || !fs.existsSync(abs)) return json(404, { message: 'Not Found' });
+      const original = normalizeVisibility(filePath, fs.readFileSync(abs));
+      const overridden =
+        typeof options.contentForPath === 'function' ? options.contentForPath(filePath, original, ref, liveHead) : null;
+      const committed = refContents.get(ref);
+      const content =
+        overridden === null || overridden === undefined
+          ? (committed && committed.get(filePath)) || original
+          : Buffer.from(overridden);
       return json(200, {
         type: 'file',
         encoding: 'base64',
-        sha: 'sha-' + filePath,
-        content: normalizeVisibility(filePath, fs.readFileSync(abs)).toString('base64')
+        sha: typeof options.shaForPath === 'function' ? options.shaForPath(filePath, ref) : 'c'.repeat(40),
+        content: content.toString('base64')
       });
     }
-    if (p === '/repos/Gorgutc/codex/git/ref/heads/main') return json(200, { object: { sha: 'headsha000' } });
-    if (p === '/repos/Gorgutc/codex/git/commits/headsha000') return json(200, { tree: { sha: 'treesha000' } });
+    if (p === '/repos/Gorgutc/codex/git/ref/heads/main' && method === 'GET') {
+      calls.refReads += 1;
+      if (options.refDelayMs) await new Promise((resolve) => setTimeout(resolve, options.refDelayMs));
+      return json(200, { object: { sha: liveHead } });
+    }
+    if (/^\/repos\/Gorgutc\/codex\/git\/commits\/[0-9a-f]{40}$/.test(p))
+      return json(200, { tree: { sha: 'treesha000' } });
     if (p === '/repos/Gorgutc/codex/git/blobs' && method === 'POST') {
       const body = JSON.parse(request.postData() || '{}');
       const sha = 'blobsha-' + calls.blobs.length;
@@ -150,20 +177,56 @@ export async function mockGitHub(page) {
     }
     if (p === '/repos/Gorgutc/codex/git/commits' && method === 'POST') {
       calls.commitMessage = JSON.parse(request.postData() || '{}').message || '';
-      return json(201, { sha: 'newcommit0' });
+      sourceCommitCount += 1;
+      if (typeof options.sourceShaForCommit === 'function') {
+        sourceSha = options.sourceShaForCommit(sourceCommitCount);
+        calls.sourceSha = sourceSha;
+      }
+      const blobs = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
+      const committed = new Map();
+      calls.tree.forEach((item) => {
+        const blob = blobs.get(item.sha);
+        if (item.path && blob && blob.encoding === 'base64')
+          committed.set(item.path, Buffer.from(blob.content, 'base64'));
+      });
+      refContents.set(sourceSha, committed);
+      return json(201, { sha: sourceSha });
     }
     if (p === '/repos/Gorgutc/codex/git/refs/heads/main' && method === 'PATCH') {
       calls.refUpdated = true;
-      return json(200, { object: { sha: 'newcommit0' } });
+      calls.refUpdates += 1;
+      if (options.patchStatus) {
+        if (options.patchCommitsSource) {
+          liveHead = sourceSha;
+          refContents.set('main', refContents.get(sourceSha));
+        }
+        if (options.patchMovesHead) liveHead = options.patchMovesHead;
+        return json(options.patchStatus, { message: 'PATCH simulated failure' });
+      }
+      liveHead = sourceSha;
+      refContents.set('main', refContents.get(sourceSha));
+      return json(200, { object: { sha: sourceSha } });
     }
     if (p === '/repos/Gorgutc/codex/commits') {
-      return json(200, [
-        {
-          sha: 'botsha0000',
-          html_url: 'https://github.com/Gorgutc/codex/commit/botsha0000',
-          commit: { message: 'chore(content): regenerate shipped files [content-publish]' }
-        }
-      ]);
+      calls.commitPolls += 1;
+      const pageNumber = Number(url.searchParams.get('page') || '1');
+      const paged = options.commitPages && options.commitPages[pageNumber];
+      const pipeline =
+        paged ||
+        (typeof options.pipelineCommits === 'function'
+          ? options.pipelineCommits(calls.commitPolls)
+          : options.pipelineCommits);
+      return json(
+        200,
+        pipeline || [
+          {
+            sha: 'd'.repeat(40),
+            html_url: 'https://github.com/Gorgutc/codex/commit/' + 'd'.repeat(40),
+            author: { login: 'github-actions[bot]' },
+            commit: { message: `chore(content): regenerate site from content/ [content-publish] [source:${sourceSha}]` }
+          }
+        ]
+      );
     }
     return json(404, { message: 'unmatched ' + method + ' ' + p });
   });
