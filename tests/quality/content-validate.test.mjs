@@ -276,6 +276,17 @@ try {
 
   const meta = readJson('meta.json');
   meta.headerLogo = { src: './assets/img/header-logo.gif' }; // header logo: extension not allowed
+  // Global identity is owner-editable, but never a credential-bearing or
+  // malformed external endpoint. Exercise every independent guard here so a
+  // permissive generator cannot publish unsafe structured data.
+  meta.contactUrl = 'https://t.me/White\tCatWeb';
+  meta.structuredData.organization = {
+    name: '',
+    alternateName: '',
+    url: 'https://codex.promo/\n',
+    description: { en: 'Valid English description', ru: 'Строка\u0001 с control character' },
+    sameAs: ['https://t.me/WhiteCatWeb', 'https://t.me/WhiteCatWeb\r', 'https://t.me/WhiteCatWeb']
+  };
   writeJson('meta.json', meta);
 
   // A copied case file whose name no longer matches its id.
@@ -322,6 +333,13 @@ try {
     'content/cases/nyx-panther.json: case.cta.url must point at artstation.com, behance.net, dprofile.ru (got "portfolio.example.com")',
     'content/cases/recon-drone.json: case.cta.url still carries the REPLACE_WITH_REAL placeholder',
     'content/cases/nightshard.json: case.cta.enabled must be a boolean (got "yes")',
+    'content/meta.json: contactUrl must be a credential-free HTTPS URL without control characters',
+    'content/meta.json: structuredData.organization.name must be non-empty plain text',
+    'content/meta.json: structuredData.organization.alternateName must be non-empty plain text',
+    'content/meta.json: structuredData.organization.url must be a credential-free HTTPS URL without control characters',
+    'content/meta.json: structuredData.organization.description.ru must be non-empty plain text without control characters',
+    'content/meta.json: structuredData.organization.sameAs[1] must be a credential-free HTTPS URL without control characters',
+    'content/meta.json: structuredData.organization.sameAs[2] duplicates "https://t.me/WhiteCatWeb"',
     'content/cases/core-rig.json: case.media[0].seamless: the first block has nothing above it to glue to',
     'content/cases/flex-spine.json: case.media[1].seamless: needs layoutMode "manual"',
     'content/cases/core-rig.json: case.media[0].caption: only the LAST block of a glued chain may carry a caption',

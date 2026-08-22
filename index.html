@@ -77,7 +77,7 @@
     "name": "Codex Studio",
     "url": "https://codex.promo/",
     "inLanguage": "en",
-    "publisher": { "@type": "Organization", "name": "Codex Studio" }
+    "publisher": { "@type": "Organization", "name": "Codex Studio", "url": "https://codex.promo/" }
   }
   </script>
   <script type="application/ld+json">
@@ -93,7 +93,7 @@
         "item": {
           "@type": "CreativeWork",
           "name": "The dehydrator Happfe",
-          "creator": { "@type": "Organization", "name": "Codex Studio" },
+          "creator": { "@type": "Organization", "name": "Codex Studio", "url": "https://codex.promo/" },
           "about": "Product visualization · industrial design",
           "url": "https://codex.promo/#corten-series"
         }
@@ -201,19 +201,18 @@
           <!-- CONTACT BUTTON — Telegram (v0.13.8).
                Размещена в .header-top__controls → авто-центр по логотипу (flex align-items: center).
                В desktop collapsed-моде — fixed top-right (слева от theme/cards). -->
-          <a href="https://t.me/WhiteCatWeb"
-             class="contact-btn"
-             id="contact-btn"
-             target="_blank"
-             rel="noopener noreferrer"
+          <!-- CODEX:GEN contact-button BEGIN -->
+          <a href="https://t.me/WhiteCatWeb" class="contact-btn" id="contact-btn"
+             target="_blank" rel="noopener noreferrer"
              data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"
-             aria-label="Contact via Telegram"
-             title="Contact · Telegram">
-            <svg class="contact-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+             aria-label="Contact via Telegram" title="Contact · Telegram">
+            <svg class="contact-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>
             </svg>
             <span class="contact-btn__label" data-i18n="btn.contact">Contact</span>
           </a>
+          <!-- CODEX:GEN contact-button END -->
 
           <!-- LANG TOGGLE — RU ↔ EN (v0.8.x)
                Лейбл показывает язык, на который переключит клик.
@@ -417,19 +416,18 @@
            v0.15.3 [П1] — Contact прижат к левому краю, Free Assets к правому (padding:0),
            gap 8px, обе flex:1 (динамически). .top-pill__soon удалён из DOM. -->
       <div class="site-footer__row site-footer__row--pill">
+        <!-- CODEX:GEN contact-pill BEGIN -->
         <a href="https://t.me/WhiteCatWeb"
-           class="top-pill top-pill--contact site-footer__contact"
-           id="contact-pill"
-           target="_blank"
-           rel="noopener noreferrer"
+           class="top-pill top-pill--contact site-footer__contact" id="contact-pill"
+           target="_blank" rel="noopener noreferrer"
            data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"
-           aria-label="Contact via Telegram"
-           title="Contact · Telegram">
+           aria-label="Contact via Telegram" title="Contact · Telegram">
           <svg class="top-pill__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>
           </svg>
           <span class="top-pill__label" data-i18n="pill.contact">Contact</span>
         </a>
+        <!-- CODEX:GEN contact-pill END -->
         <a href="./free-assets.html"
             class="top-pill top-pill--free site-footer__free"
             id="free-assets-footer" data-i18n-attr="title:pill.freeAssets" title="Free Assets">

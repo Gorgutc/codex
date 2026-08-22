@@ -437,6 +437,66 @@ test('preview rewrites runtime, grid and featured JSON-LD routes from the full d
   expect(routeState.featuredUrls).toContain('https://codex.promo/#' + slug);
 });
 
+test('featured works keep paired id/about order, persist internal IDs, block duplicates, and preview canonical routes', async ({ page }) => {
+  await mockNetwork(page);
+  const metaPath = 'content/meta.json';
+  const initial = JSON.parse(fs.readFileSync(path.join(ROOT, metaPath), 'utf8')).structuredData.featuredWorks;
+  expect(initial.length).toBeGreaterThan(1);
+  const catalogIds = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/settings.json'), 'utf8')).cardOrder;
+  const replacement = catalogIds.find((id) => !initial.some((feature) => feature.id === id));
+  expect(replacement).toBeTruthy();
+
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click('a[href="#/meta"]');
+
+  // Move the second row up, then the first back down: the whole object must
+  // move, so its about stays paired with its internal case id in persisted draft.
+  await page.click('#meta-featured-works [data-reorder="featured-1::up"]');
+  const swapped = [initial[1], initial[0], ...initial.slice(2)];
+  await page.waitForFunction((expected) => {
+    const stored = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    return JSON.stringify(stored.files && stored.files['content/meta.json'] && stored.files['content/meta.json'].structuredData.featuredWorks) === JSON.stringify(expected);
+  }, swapped);
+  await page.click('#meta-featured-works [data-reorder="featured-0::down"]');
+  await expect.poll(() => page.evaluate(() => window.AdminState.getValue('content/meta.json', 'structuredData.featuredWorks'))).toEqual(initial);
+
+  // Change a select to an internal catalog ID, then reorder again for the
+  // preview assertions. The editor never writes a public slug into metadata.
+  const firstSelect = page.locator('[data-field="content/meta.json::structuredData.featuredWorks.0.id"]');
+  await firstSelect.selectOption(replacement);
+  const reordered = [{ ...initial[1] }, { ...initial[0], id: replacement }, ...initial.slice(2).map((feature) => ({ ...feature }))];
+  await page.click('#meta-featured-works [data-reorder="featured-1::up"]');
+  await page.waitForFunction((expected) => {
+    const stored = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    return JSON.stringify(stored.files && stored.files['content/meta.json'] && stored.files['content/meta.json'].structuredData.featuredWorks) === JSON.stringify(expected);
+  }, reordered);
+
+  await page.click('#preview-btn');
+  const frame = page.frameLocator('#preview-frame');
+  await expect.poll(() => frame.locator('html').evaluate(() => Boolean(window.CARDS_DATA))).toBe(true);
+  const expectedPreview = reordered.map((feature) => {
+    const data = JSON.parse(normalizeVisibility('content/cases/' + feature.id + '.json', fs.readFileSync(path.join(ROOT, 'content', 'cases', feature.id + '.json'))).toString('utf8'));
+    return { about: feature.about, url: 'https://codex.promo/#' + (data.slug || data.id) };
+  });
+  const featuredPreview = await frame.locator('html').evaluate(() => {
+    const itemList = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+      .map((script) => JSON.parse(script.textContent))
+      .find((node) => node['@type'] === 'ItemList' && node.name === 'Codex Studio — Featured Works');
+    return itemList.itemListElement.map((entry) => ({ position: entry.position, about: entry.item.about, url: entry.item.url }));
+  });
+  expect(featuredPreview).toEqual(expectedPreview.map((entry, index) => ({ position: index + 1, ...entry })));
+  await page.click('#preview-close');
+
+  // Duplicate IDs are rejected at publish time and the offending select is anchored.
+  await page.locator('[data-field="content/meta.json::structuredData.featuredWorks.1.id"]').selectOption(reordered[0].id);
+  await page.click('#publish-btn');
+  await expect(page.locator('[data-field="content/meta.json::structuredData.featuredWorks.1.id"]')).toHaveClass(/field-invalid/);
+  await expect(page.locator('.field-error-msg')).toContainText('встречается дважды');
+});
+
 test('превью Free Assets (F5): скрытая категория выпадает, грид рендерит черновик', async ({ page }) => {
   await mockNetwork(page);
   await page.goto(`${base}/admin/`);
@@ -573,4 +633,110 @@ test('превью Free Assets: растровая обложка категор
 
   await page.click('#preview-close');
   await expect(page.locator('#preview-overlay')).toBeHidden();
+});
+
+test('preview applies draft contact, Organization and featured-work identity', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click('a[href="#/meta"]');
+
+  const contact = 'https://example.test/contact';
+  await page.fill('#meta-contact-url', contact);
+  await page.fill('#meta-organization-name', 'Preview Studio');
+  await page.fill('#meta-organization-alternate-name', 'Preview');
+  await page.fill('#meta-organization-url', 'https://example.test/');
+  await page.fill('#meta-organization-same-as', 'https://example.test/community');
+  await page.fill('[data-field="content/meta.json::structuredData.organization.description.en"]', 'Preview English description');
+  await page.fill('[data-field="content/meta.json::structuredData.organization.description.ru"]', 'Описание предпросмотра');
+  await page.locator('[data-field^="content/meta.json::structuredData.featuredWorks."][data-field$=".about"]').first().fill('Preview featured about');
+
+  await page.click('#preview-btn');
+  const frame = page.frameLocator('#preview-frame');
+  await expect(frame.locator('#contact-btn')).toHaveAttribute('href', contact);
+  await expect(frame.locator('#contact-pill')).toHaveAttribute('href', contact);
+  const identity = await frame.locator('html').evaluate(() => {
+    const nodes = Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map((script) => JSON.parse(script.textContent));
+    const organization = nodes.find((node) => node['@type'] === 'Organization');
+    const website = nodes.find((node) => node['@type'] === 'WebSite');
+    const featured = nodes.find((node) => node['@type'] === 'ItemList' && node.name === 'Codex Studio — Featured Works');
+    return { organization, publisher: website && website.publisher, featuredAbout: featured && featured.itemListElement[0].item.about };
+  });
+  expect(identity.organization).toMatchObject({
+    name: 'Preview Studio',
+    alternateName: 'Preview',
+    url: 'https://example.test/',
+    description: 'Preview English description',
+    sameAs: ['https://example.test/community']
+  });
+  expect(identity.publisher).toEqual({ '@type': 'Organization', name: 'Preview Studio', url: 'https://example.test/' });
+  expect(identity.featuredAbout).toBe('Preview featured about');
+});
+
+test('preview keeps hostile draft JSON-LD data inert and parseable inside srcdoc', async ({ page }) => {
+  await mockNetwork(page);
+  const metaPath = 'content/meta.json';
+  const draft = JSON.parse(normalizeVisibility(metaPath, fs.readFileSync(path.join(ROOT, metaPath))).toString('utf8'));
+  const hostile = '</script><script id="preview-xss-script">window.__previewXssScript=1</script><img id="preview-xss-probe" src=x onerror="window.__previewXss=1">\u2028\u2029';
+  draft.structuredData.organization.name = hostile;
+  draft.structuredData.organization.alternateName = hostile;
+  draft.structuredData.organization.description.en = hostile;
+  draft.structuredData.featuredWorks[0].about = hostile;
+  await page.addInitScript(
+    ({ path, value }) => sessionStorage.setItem('codexAdminDrafts', JSON.stringify({
+      version: 2,
+      files: { [path]: value },
+      baseShas: { [path]: 'sha-' + path }
+    })),
+    { path: metaPath, value: draft }
+  );
+
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click('a[href="#/meta"]');
+  await page.click('#preview-btn');
+
+  const frame = page.frameLocator('#preview-frame');
+  await expect(frame.locator('#preview-xss-probe')).toHaveCount(0);
+  await expect(frame.locator('#preview-xss-script')).toHaveCount(0);
+  const safety = await frame.locator('html').evaluate((expected) => {
+    const jsonLd = Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map((script) => JSON.parse(script.textContent));
+    const organization = jsonLd.find((node) => node['@type'] === 'Organization');
+    const website = jsonLd.find((node) => node['@type'] === 'WebSite');
+    const featured = jsonLd.find((node) => node['@type'] === 'ItemList' && node.name === 'Codex Studio — Featured Works');
+    return {
+      xssGlobal: window.__previewXss,
+      xssScriptGlobal: window.__previewXssScript,
+      appAlive: Boolean(window.CARDS_DATA && document.getElementById('cards-list')),
+      organization: organization && [organization.name, organization.alternateName, organization.description],
+      website: website && [website.name, website.publisher && website.publisher.name],
+      featured: featured && featured.itemListElement[0].item.about,
+      expected
+    };
+  }, hostile);
+  expect(safety.xssGlobal).toBeUndefined();
+  expect(safety.xssScriptGlobal).toBeUndefined();
+  expect(safety.appAlive).toBe(true);
+  expect(safety.organization).toEqual([hostile, hostile, hostile]);
+  expect(safety.website).toEqual([hostile, hostile]);
+  expect(safety.featured).toBe(hostile);
+
+  // Free Assets carries the WebPage node, so verify the same serialized draft
+  // survives that rewrite too rather than only testing the home-page schema.
+  await page.click('#preview-close');
+  await page.click('a[href="#/free-assets"]');
+  await page.click('#preview-btn');
+  const freeFrame = page.frameLocator('#preview-frame');
+  await expect.poll(() => freeFrame.locator('html').evaluate(() => Boolean(window.FA_DATA))).toBe(true);
+  const pageIdentity = await freeFrame.locator('html').evaluate(() => {
+    const node = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+      .map((script) => JSON.parse(script.textContent))
+      .find((item) => item['@type'] === 'WebPage');
+    return [node.publisher && node.publisher.name, node.isPartOf && node.isPartOf.name];
+  });
+  expect(pageIdentity).toEqual([hostile, hostile]);
 });

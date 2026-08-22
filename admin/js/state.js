@@ -854,7 +854,17 @@
   // байт-в-байт повторяет канон в scripts/generate-content.mjs — при правке
   // канона скопируйте регэксп сюда целиком.
   // eslint-disable-next-line no-control-regex -- intentional: the guard exists to REJECT control characters
-  const FORBIDDEN_TEXT_RE = /[<>\u0000-\u0008\u000B\u000C\u000E-\u001F\u2028\u2029]/;
+  const FORBIDDEN_TEXT_RE = /[<>\u0000-\u001F\u007F\u2028\u2029]/;
+
+  function isCredentialFreeHttpsUrl(value) {
+    if (!isFilled(value) || value !== value.trim() || FORBIDDEN_TEXT_RE.test(value) || value.indexOf('\\') !== -1) return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && !url.username && !url.password && !url.port;
+    } catch (_error) {
+      return false;
+    }
+  }
 
   function pushMarkupError(errors, path, field, value, label) {
     if (typeof value === 'string' && FORBIDDEN_TEXT_RE.test(value)) {
@@ -2046,6 +2056,43 @@
           });
         }
       }
+      if (!isCredentialFreeHttpsUrl(draft.contactUrl)) {
+        errors.push({ path, field: 'contactUrl', message: 'Контактная ссылка: нужен HTTPS-адрес без логина, пароля, порта и управляющих символов' });
+      }
+      const organization = sd && sd.organization;
+      if (organization === null || typeof organization !== 'object' || Array.isArray(organization)) {
+        errors.push({ path, field: 'structuredData.organization', message: 'Организация: заполните данные организации' });
+      } else {
+        for (const field of ['name', 'alternateName']) {
+          const value = organization[field];
+          if (!isFilled(value) || FORBIDDEN_TEXT_RE.test(value)) {
+            errors.push({ path, field: 'structuredData.organization.' + field, message: 'Организация: поле не может быть пустым и не принимает разметку' });
+          }
+        }
+        if (!isCredentialFreeHttpsUrl(organization.url)) {
+          errors.push({ path, field: 'structuredData.organization.url', message: 'Организация: нужен HTTPS-адрес без логина, пароля, порта и управляющих символов' });
+        }
+        for (const lang of ['en', 'ru']) {
+          const value = organization.description && organization.description[lang];
+          if (!isFilled(value) || FORBIDDEN_TEXT_RE.test(value)) {
+            errors.push({ path, field: 'structuredData.organization.description.' + lang, message: 'Описание организации (' + lang.toUpperCase() + '): текст обязателен и не принимает разметку' });
+          }
+        }
+        if (!Array.isArray(organization.sameAs)) {
+          errors.push({ path, field: 'structuredData.organization.sameAs', message: 'Ссылки организации: нужен список HTTPS-адресов' });
+        } else {
+          const seenSameAs = new Set();
+          organization.sameAs.forEach((url, i) => {
+            const field = 'structuredData.organization.sameAs.' + i;
+            if (!isCredentialFreeHttpsUrl(url)) {
+              errors.push({ path, field, message: 'Ссылка организации: нужен HTTPS-адрес без логина, пароля, порта и управляющих символов' });
+            } else if (seenSameAs.has(url)) {
+              errors.push({ path, field, message: 'Ссылки организации: адрес «' + url + '» повторяется' });
+            }
+            seenSameAs.add(url);
+          });
+        }
+      }
     } else if (path === 'content/i18n-ui.json') {
       for (const lang of ['en', 'ru']) validateLeafStrings(errors, path, draft[lang], lang, 'Тексты интерфейса');
     } else if (path === FA_PATH) {
@@ -2091,6 +2138,16 @@
         const other = ids.find((id) => id !== entry.id);
         errors.push({ path: entry.path, field: entry.field, message: 'Публичный адрес «' + token + '» уже используется кейсом «' + other + '»' });
       }
+    }
+    const metaPath = 'content/meta.json';
+    const meta = files.has(metaPath) ? effectiveDraft(metaPath) : orphanDrafts[metaPath];
+    if (meta && meta.structuredData && Array.isArray(meta.structuredData.featuredWorks)) {
+      const catalogIds = new Set(catalog.cases.map((item) => item.id));
+      meta.structuredData.featuredWorks.forEach((feature, i) => {
+        if (!feature || !catalogIds.has(feature.id)) {
+          errors.push({ path: metaPath, field: 'structuredData.featuredWorks.' + i + '.id', message: 'Featured-работа: выберите существующий кейс из каталога' });
+        }
+      });
     }
     return errors;
   }

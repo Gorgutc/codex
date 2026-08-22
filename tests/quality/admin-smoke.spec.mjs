@@ -163,6 +163,56 @@ test('вход по PAT: список всех кейсов из реально�
   await expect(page.locator('.case-row__title')).toHaveText('Orbital Mk.II');
 });
 
+test('Meta: global identity and featured works are editable from the full catalog', async ({ page }) => {
+  await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/meta"]');
+
+  await expect(page.locator('#meta-contact-url')).toBeVisible();
+  await expect(page.locator('#meta-organization-name')).toBeVisible();
+  await expect(page.locator('#meta-organization-alternate-name')).toBeVisible();
+  await expect(page.locator('#meta-organization-url')).toBeVisible();
+  await expect(page.locator('#meta-organization-same-as')).toBeVisible();
+  await expect(page.locator('#meta-featured-works')).toBeVisible();
+
+  const catalogIds = allCaseIds(ROOT);
+  const featuredSelects = page.locator('#meta-featured-works select[data-field]');
+  await expect(featuredSelects.first()).toBeVisible();
+  const optionValues = await featuredSelects.first().locator('option').evaluateAll((options) => options.map((option) => option.value));
+  expect(optionValues).toEqual(catalogIds);
+
+  await page.fill('#meta-contact-url', 'https://example.test/contact');
+  await page.fill('#meta-organization-same-as', 'https://example.test/community\nhttps://example.test/profile');
+  await expect(page.locator('#draft-indicator')).toBeVisible();
+
+  const before = await featuredSelects.count();
+  await page.click('#meta-featured-add');
+  await expect(featuredSelects).toHaveCount(before + 1);
+  await expect(page.locator('#meta-featured-works [data-reorder$="::up"]')).toHaveCount(before + 1);
+});
+
+test('Meta: every C0 URL separator blocks publishing and anchors the contact field', async ({ page }) => {
+  await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/meta"]');
+
+  const contact = page.locator('#meta-contact-url');
+  await expect(contact).toHaveValue(/^https:\/\//);
+  // Text inputs normalize LF/CR before dispatching `input`, so set the draft
+  // directly just as an imported draft would. Each must be rejected before
+  // URL() gets a chance to normalize it, then point back to this UI field.
+  for (const [name, character] of [['tab', '\t'], ['LF', '\n'], ['CR', '\r']]) {
+    await page.evaluate((value) => {
+      window.AdminState.setValue('content/meta.json', 'contactUrl', value);
+      const button = document.getElementById('publish-btn');
+      button.disabled = false;
+      button.click();
+    }, 'https://example.test/contact' + character);
+    await expect(contact, name + ' must anchor its validation error').toHaveClass(/field-invalid/);
+    await expect(contact.locator('xpath=following-sibling::*[contains(@class, "field-error-msg")]')).toContainText('HTTPS-адрес');
+  }
+});
+
 test('редактор: автосохранение черновика, валидация и публикация', async ({ page }) => {
   const calls = await mockGitHub(page);
   await page.addInitScript(() => {

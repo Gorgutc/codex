@@ -215,40 +215,11 @@ const FA_DEFAULT_TAG_ITEMS = FA_CATEGORY_COUNT > 0 ? FA_VISIBLE_CATEGORIES[0].it
 const FA_DEFAULT_PREVIEWS = FA_DEFAULT_TAG_ITEMS.filter(item => !('model' in item) || item.model !== null).length;
 // Цель теста переключения тега (бывший литерал 'product').
 const FA_SWITCH_CATEGORY = FA_VISIBLE_CATEGORIES.find(cat => cat.key !== FA_DEFAULT_TAG) || null;
-// SEO-каталог JSON-LD страницы FA курируется по категории hard-surface
-// (см. FA_JSONLD_CATEGORY в scripts/generate-content.mjs): ожидаемая
-// последовательность фрагментов = её видимые ассеты в авторском порядке.
-const FA_JSONLD_CATEGORY = 'hard-surface';
-// Fix #3 (XSS/visibility batch): the generator's FA ItemList is NOT every
-// visible curated item — it is `curated.filter(item => FA_JSONLD_COPY[item.id])`
-// (buildFaJsonLdRegion in scripts/generate-content.mjs). The crawler-facing
-// name/description copy lives only in that FA_JSONLD_COPY map, so an item
-// without a copy entry is legitimately omitted from the ItemList (it still
-// counts in numberOfItems, which follows all visible items). verify-frozen
-// must NOT import the generator, so we MIRROR the FA_JSONLD_COPY key set here.
-// Keep this list in sync with FA_JSONLD_COPY in scripts/generate-content.mjs:
-// adding a curated item with copy means adding its id to both; adding a curated
-// item WITHOUT copy is fine and simply stays out of the expected ItemList.
-const FA_JSONLD_COPY_IDS = new Set([
-  'orbital-mk-ii',
-  'vega-shell',
-  'ironclad-frame',
-  'bolt-cluster',
-  'terra-base',
-  'shard-cannon',
-  'wraith-blade',
-  'apex-frame'
-]);
-const FA_CURATED_ITEMS_ALL = (FA_VISIBLE_CATEGORIES.find(cat => cat.key === FA_JSONLD_CATEGORY) || { items: [] }).items;
-// The items the generator actually emits into the ItemList: visible curated
-// items that have a copy entry, in content order (a new no-copy hard-surface
-// item is simply not expected here, so it can never trip a false depth FAIL).
-const FA_CURATED_ITEMS = FA_CURATED_ITEMS_ALL.filter(item => FA_JSONLD_COPY_IDS.has(item.id));
-const FA_CURATED_IDS = FA_CURATED_ITEMS.map(item => item.id);
-// contentUrl is emitted only for an emitted (copy-filtered) item whose archive
-// exists in downloads/ — mirror the same copy filter so the static F1 count
-// matches what the generator legitimately links.
-const FA_CURATED_DOWNLOADS = FA_CURATED_ITEMS
+// Free Assets JSON-LD covers every visible item in category/item authored
+// order; no owner-content id list is duplicated in the verifier.
+const FA_VISIBLE_ITEMS = FA_VISIBLE_CATEGORIES.flatMap(category => category.items);
+const FA_VISIBLE_IDS = FA_VISIBLE_ITEMS.map(item => item.id);
+const FA_VISIBLE_DOWNLOADS = FA_VISIBLE_ITEMS
   .filter(item => fs.existsSync(path.join(ROOT, 'downloads', String(item.file || '')))).length;
 
 const results = [];
@@ -430,13 +401,13 @@ function runStaticChecks(assetAudit = null) {
   // ставит contentUrl только таким). Ноль — легитимная деградация (ассеты с
   // архивами скрыты через админку), помечается явным detail.
   add('static', 'F1-jsonld-contenturl-files',
-      faContentUrls.length === FA_CURATED_DOWNLOADS && missingFaDownloads.length === 0,
+      faContentUrls.length === FA_VISIBLE_DOWNLOADS && missingFaDownloads.length === 0,
       missingFaDownloads.length
         ? 'missing=' + missingFaDownloads.join(', ')
-        : FA_CURATED_DOWNLOADS === 0
-          ? 'skipped: no visible curated assets with archives in downloads/'
-          : `linked=${faContentUrls.length} (expected(content) ${FA_CURATED_DOWNLOADS})`,
-      missingFaDownloads.length === 0 && FA_CURATED_DOWNLOADS === 0);
+        : FA_VISIBLE_DOWNLOADS === 0
+          ? 'skipped: no visible assets with archives in downloads/'
+          : `linked=${faContentUrls.length} (expected(content) ${FA_VISIBLE_DOWNLOADS})`,
+      missingFaDownloads.length === 0 && FA_VISIBLE_DOWNLOADS === 0);
 
   // A2-01/E-02/F-03: honest contentSize — a size is advertised on exactly the
   // curated JSON-LD models whose archive exists in downloads/, and every sized
@@ -448,20 +419,14 @@ function runStaticChecks(assetAudit = null) {
   const faSized = faModels.filter(model => typeof model.contentSize === 'string' && model.contentSize.trim());
   const faSizedHasUrl = faSized.every(model => /https:\/\/codex\.promo\/downloads\//.test(String(model.contentUrl || '')));
   add('static', 'F1-jsonld-contentsize-files',
-      faSized.length === FA_CURATED_DOWNLOADS && faSizedHasUrl,
-      FA_CURATED_DOWNLOADS === 0
-        ? 'skipped: no curated assets with archives in downloads/'
-        : `sized=${faSized.length} (expected(content) ${FA_CURATED_DOWNLOADS})`,
-      FA_CURATED_DOWNLOADS === 0);
+      faSized.length === FA_VISIBLE_DOWNLOADS && faSizedHasUrl,
+      FA_VISIBLE_DOWNLOADS === 0
+        ? 'skipped: no visible assets with archives in downloads/'
+        : `sized=${faSized.length} (expected(content) ${FA_VISIBLE_DOWNLOADS})`,
+      FA_VISIBLE_DOWNLOADS === 0);
 
-  // Fix #3 (XSS/visibility batch): keep the FA_JSONLD_COPY_IDS mirror honest.
-  // The emitted ItemList fragments (#<id>) must equal the copy-filtered curated
-  // ids in content order. If the generator's FA_JSONLD_COPY gains/loses a key
-  // but this mirror was not updated in lock-step, the sequences diverge and
-  // this names the drift explicitly — instead of surfacing later as an opaque
-  // runtime META-jsonLD-asset-depth mismatch. Skips when the curated category
-  // is hidden (empty expected list), which the generator's validateContent
-  // only allows alongside other visible categories.
+  // The emitted ItemList fragments (#<id>) equal every visible content item in
+  // authored order. This proves a newly authored item needs no code mirror.
   const faStaticItemList = faJsonLdNodes.find(node =>
     node && node['@type'] === 'ItemList' && /free 3d asset/i.test(String(node.name || '')));
   const faStaticFragments = faStaticItemList && Array.isArray(faStaticItemList.itemListElement)
@@ -470,13 +435,13 @@ function runStaticChecks(assetAudit = null) {
         .filter(Boolean)
         .map(match => decodeURIComponent(match[1]))
     : [];
-  const faCopyMirrorOK = faStaticFragments.join('|') === FA_CURATED_IDS.join('|');
-  add('static', 'F1-jsonld-copy-mirror',
-      faCopyMirrorOK,
-      FA_CURATED_IDS.length === 0
-        ? 'skipped: curated category hidden (empty expected ItemList)'
-        : `emitted=[${faStaticFragments.join(',')}], expected(copy-filtered content)=[${FA_CURATED_IDS.join(',')}]`,
-      faCopyMirrorOK && FA_CURATED_IDS.length === 0);
+  const faContentProjectionOK = faStaticFragments.join('|') === FA_VISIBLE_IDS.join('|');
+  add('static', 'F1-jsonld-content-projection',
+      faContentProjectionOK,
+      FA_VISIBLE_IDS.length === 0
+        ? 'skipped: no visible Free Assets items'
+        : `emitted=[${faStaticFragments.join(',')}], expected(content)=[${FA_VISIBLE_IDS.join(',')}]`,
+      faContentProjectionOK && FA_VISIBLE_IDS.length === 0);
 
   // Итерация G: featured-ItemList главной генерируется из content/meta.json
   // (featuredWorks ∩ видимые кейсы) — скрытый кейс не должен оставлять
@@ -498,6 +463,28 @@ function runStaticChecks(assetAudit = null) {
   add('static', 'F1-jsonld-featured-visible',
       !!idxItemList && idxListedUrls.join('|') === expectedFeatured.join('|'),
       `listed=${idxListedUrls.length}, expected(content)=${expectedFeatured.length}`);
+
+  const expectedOrganization = (CONTENT_META.structuredData || {}).organization || {};
+  const organizationMatches = (nodes) => nodes.some(node => node && node['@type'] === 'Organization' &&
+    node.name === expectedOrganization.name &&
+    node.alternateName === expectedOrganization.alternateName &&
+    node.url === expectedOrganization.url &&
+    node.description === (expectedOrganization.description || {}).en &&
+    Array.isArray(node.sameAs) && node.sameAs.join('|') === ((expectedOrganization.sameAs || []).join('|')));
+  const publisherMatches = (nodes) => nodes
+    .filter(node => node && (node['@type'] === 'WebSite' || node['@type'] === 'WebPage'))
+    .every(node => node.publisher && node.publisher.name === expectedOrganization.name && node.publisher.url === expectedOrganization.url);
+  add('static', 'F1-global-identity-jsonld',
+      organizationMatches(idxJsonLdStatic) && organizationMatches(faJsonLdStatic) &&
+      publisherMatches(idxJsonLdStatic) && publisherMatches(faJsonLdStatic),
+      'Organization and publisher identity derive from content/meta.json');
+  const expectedContact = String(CONTENT_META.contactUrl || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const contactAnchorsMatch = (html) => {
+    const anchors = [...html.matchAll(/<a\b[^>]*id="contact-(?:btn|pill)"[^>]*>/g)];
+    return anchors.length === 2 && anchors.every(match => new RegExp(`href="${expectedContact}"`).test(match[0]));
+  };
+  add('static', 'F1-global-contact-anchors', contactAnchorsMatch(indexHTML) && contactAnchorsMatch(faHTML),
+      'both public contact anchors derive from content/meta.json');
 
   // A8 — localStorage / sessionStorage НЕ должны использоваться runtime в
   // shipped JS. Frozen rule top-10. Regex ловит method/property access
@@ -2189,40 +2176,30 @@ async function testFreeAssets(BASE) {
       models: models.length,
       allFree: models.every(model => model.isAccessibleForFree === true),
       allLicensed: models.every(model => /creativecommons\.org\/publicdomain\/zero/i.test(String(model.license || ''))),
-      hasFormats: models.every(model => Array.isArray(model.encodingFormat) && model.encodingFormat.length >= 2),
+      modelFacts: models.every(model => !model.encodingFormat || model.encodingFormat === 'model/gltf-binary'),
       fragments,
       fragmentsResolved: fragments.filter(id => !!document.getElementById(id)).length,
     };
   });
-  // Итерация H: точная последовательность фрагментов ItemList = видимые
-  // ассеты SEO-категории каталога (контент-порядок, скрытый ассет не
-  // оставляет SEO-призрака); numberOfItems = все видимые ассеты. Фрагменты
-  // обязаны резолвиться в DOM, только когда SEO-категория и есть дефолтный
-  // тег (грид рендерит дефолтный тег); иначе сверка DOM явно skipped.
-  const fragmentsExact = faJsonLdDepth.fragments.join('|') === FA_CURATED_IDS.join('|');
-  const fragmentsResolveOK = FA_DEFAULT_TAG === FA_JSONLD_CATEGORY
-    ? faJsonLdDepth.fragmentsResolved === faJsonLdDepth.fragments.length
-    : true;
-  // The whole depth check is vacuous only when the curated category is hidden
-  // (empty expected ItemList): items/models/fragments all collapse to "expect
-  // 0". The DOM-resolve sub-clause going dormant (curated category is not the
-  // default tag) is a partial relaxation, not a full skip — the rest still runs
-  // strictly — so it is noted in the detail but does not mark the check skipped.
-  const jsonLdDepthSkipped = FA_CURATED_IDS.length === 0;
+  // The page initially renders the default category only, while JSON-LD lists
+  // the full catalog. Check the initial DOM for that default subset and the
+  // JSON-LD sequence for every visible authored item.
+  const fragmentsExact = faJsonLdDepth.fragments.join('|') === FA_VISIBLE_IDS.join('|');
+  const fragmentsResolveOK = faJsonLdDepth.fragmentsResolved === FA_DEFAULT_TAG_ITEMS.length;
+  const jsonLdDepthSkipped = FA_VISIBLE_IDS.length === 0;
   add('fa', 'META-jsonLD-asset-depth',
       faJsonLdDepth.itemList &&
       faJsonLdDepth.numberOfItems === FA_ITEM_COUNT &&
-      faJsonLdDepth.items === FA_CURATED_IDS.length &&
-      faJsonLdDepth.models === FA_CURATED_IDS.length &&
+      faJsonLdDepth.items === FA_VISIBLE_IDS.length &&
+      faJsonLdDepth.models === FA_VISIBLE_IDS.length &&
       faJsonLdDepth.allFree &&
       faJsonLdDepth.allLicensed &&
-      faJsonLdDepth.hasFormats &&
+      faJsonLdDepth.modelFacts &&
       fragmentsExact &&
       fragmentsResolveOK,
-      `items=${faJsonLdDepth.items} (expected(content) ${FA_CURATED_IDS.length}), models=${faJsonLdDepth.models}, ` +
+      `items=${faJsonLdDepth.items} (expected(content) ${FA_VISIBLE_IDS.length}), models=${faJsonLdDepth.models}, ` +
       `total=${faJsonLdDepth.numberOfItems} (expected(content) ${FA_ITEM_COUNT}), fragments=${faJsonLdDepth.fragments.length}` +
-      (jsonLdDepthSkipped ? ' — skipped: curated category hidden (empty expected list)' : '') +
-      (FA_DEFAULT_TAG !== FA_JSONLD_CATEGORY ? ' — DOM-resolve relaxed (curated category is not the default tag)' : ''),
+      (jsonLdDepthSkipped ? ' — skipped: no visible Free Assets items' : ''),
       jsonLdDepthSkipped);
   add('fa', 'META-favicon-16', m.favicon16);
   add('fa', 'META-manifest', m.manifest);

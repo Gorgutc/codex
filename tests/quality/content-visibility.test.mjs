@@ -1344,4 +1344,96 @@ function faTagCardsSection(html) {
   }
 }
 
+/* Global identity and Free Assets structured data must follow editable content,
+ * rather than fixed editorial mirrors. The synthetic visible item deliberately
+ * reuses only validated local file facts and has no hard-coded id in runtime
+ * code; a hidden peer proves visibility still controls crawler output. */
+{
+  const sandbox = makeSandbox('global-identity');
+  try {
+    const settings = sandbox.readJson('settings.json');
+    const featuredId = settings.cardOrder[0];
+    const meta = sandbox.readJson('meta.json');
+    meta.contactUrl = 'https://example.test/contact';
+    meta.structuredData.organization = {
+      name: 'Fixture Studio',
+      alternateName: 'Fixture',
+      url: 'https://example.test/',
+      description: { en: 'Fixture English description', ru: 'Описание фикстуры' },
+      sameAs: ['https://example.test/community', 'https://example.test/profile']
+    };
+    meta.structuredData.featuredWorks = [{ id: featuredId, about: 'Fixture featured about' }];
+    sandbox.writeJson('meta.json', meta);
+
+    const freeAssets = sandbox.readJson('free-assets.json');
+    const category = freeAssets.categories.find((candidate) =>
+      candidate && candidate.enabled !== false && Array.isArray(candidate.items) &&
+      candidate.items.some((item) => item && item.enabled !== false)
+    );
+    const source = category && category.items.find((item) => item && item.enabled !== false);
+    if (!category || !source) fail('fixture requires a visible Free Assets category and item from content');
+    const visibleProbe = {
+      ...source,
+      id: 'metadata-probe',
+      thumb: null,
+      model: null,
+      title: 'Fixture visible asset',
+      cat: 'Fixture category',
+      desc: { en: 'Fixture visible description', ru: 'Видимое описание фикстуры' }
+    };
+    const hiddenProbe = {
+      ...visibleProbe,
+      id: 'hidden-metadata-probe',
+      title: 'Hidden fixture asset',
+      enabled: false
+    };
+    category.items.push(visibleProbe, hiddenProbe);
+    sandbox.writeJson('free-assets.json', freeAssets);
+
+    const result = sandbox.run('--write');
+    if (result.status !== 0) fail('--write must succeed for a valid global-identity fixture', result.output);
+
+    const readJsonLd = (html) => Array.from(html.matchAll(/<script\s+type=["']application\/ld\+json["']\s*>([\s\S]*?)<\/script>/gi))
+      .map((match) => JSON.parse(match[1]));
+    const index = sandbox.readOut('index.html');
+    const freeAssetsHtml = sandbox.readOut('free-assets.html');
+    for (const html of [index, freeAssetsHtml]) {
+      if (!html.includes('id="contact-btn"') || !html.includes('id="contact-pill"') ||
+          (html.match(/href="https:\/\/example\.test\/contact"/g) || []).length !== 2) {
+        fail('both generated contact anchors must follow content.meta.contactUrl', html);
+      }
+      const organization = readJsonLd(html).find((node) => node['@type'] === 'Organization');
+      if (!organization || organization.name !== 'Fixture Studio' || organization.alternateName !== 'Fixture' ||
+          organization.url !== 'https://example.test/' || organization.description !== 'Fixture English description' ||
+          organization.sameAs.join('|') !== 'https://example.test/community|https://example.test/profile') {
+        fail('Organization JSON-LD must follow the editable content fixture', JSON.stringify(organization));
+      }
+    }
+    const featuredList = readJsonLd(index).find((node) => node['@type'] === 'ItemList');
+    if (!featuredList || featuredList.itemListElement.length !== 1 ||
+        featuredList.itemListElement[0].item.about !== 'Fixture featured about') {
+      fail('featured works order and about must follow content.meta.structuredData');
+    }
+    const expectedFreeAssetIds = freeAssets.categories
+      .filter((candidate) => candidate && candidate.enabled !== false)
+      .flatMap((candidate) => Array.isArray(candidate.items) ? candidate.items : [])
+      .filter((item) => item && item.enabled !== false)
+      .map((item) => item.id);
+    const assetList = readJsonLd(freeAssetsHtml).find((node) => node['@type'] === 'ItemList');
+    const visible = assetList && assetList.itemListElement.find((entry) => entry.url.endsWith('#metadata-probe'));
+    const hidden = assetList && assetList.itemListElement.find((entry) => entry.url.endsWith('#hidden-metadata-probe'));
+    const actualFreeAssetIds = assetList && assetList.itemListElement.map((entry) => entry.url.split('#')[1]);
+    const actualPositions = assetList && assetList.itemListElement.map((entry) => entry.position);
+    if (!assetList || assetList.numberOfItems !== expectedFreeAssetIds.length ||
+        JSON.stringify(actualFreeAssetIds) !== JSON.stringify(expectedFreeAssetIds) ||
+        JSON.stringify(actualPositions) !== JSON.stringify(expectedFreeAssetIds.map((_id, index) => index + 1)) ||
+        !visible || visible.item.name !== 'Fixture visible asset' || visible.item.description !== 'Fixture visible description' || hidden) {
+      fail('Free Assets ItemList must include every visible authored item and omit hidden items');
+    }
+    console.log('global identity: contact, Organization, featured work and content-derived Free Assets JSON-LD verified');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
 console.log('iteration F/G/H visibility/layoutMode/jsonld/free-assets generator semantics verified');

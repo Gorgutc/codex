@@ -478,10 +478,21 @@
     }
   }
 
+  // JSON-LD lives in an HTML script-data context inside srcdoc. Escape the
+  // characters that can terminate the element or break JavaScript parsing so
+  // preview remains safe even before publish validation rejects a draft.
+  function serializeScriptData(value) {
+    return JSON.stringify(value, null, 2)
+      .replace(/</g, '\\u003c')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
+  }
+
   // The preview is a complete draft document, not just a card grid. Keep the
   // featured-work ItemList in the same content-derived order/visibility and
   // route namespace as the generated page.
   function applyFeaturedWorksJsonLd(doc, model) {
+    const organization = model.meta && model.meta.structuredData && model.meta.structuredData.organization;
     const visible = new Map(model.cases.filter((entry) => entry.visible).map((entry) => [entry.id, entry.data]));
     const featured = model.meta && model.meta.structuredData && Array.isArray(model.meta.structuredData.featuredWorks)
       ? model.meta.structuredData.featuredWorks
@@ -495,7 +506,7 @@
         item: {
           '@type': 'CreativeWork',
           name: data.card.title.en,
-          creator: { '@type': 'Organization', name: 'Codex Studio' },
+          creator: { '@type': 'Organization', name: organization && organization.name, url: organization && organization.url },
           about: feature.about,
           url: 'https://codex.promo/#' + (typeof data.slug === 'string' && data.slug ? data.slug : data.id)
         }
@@ -505,8 +516,38 @@
       try { json = JSON.parse(script.textContent || ''); } catch (_error) { continue; }
       if (!json || json['@type'] !== 'ItemList' || json.name !== 'Codex Studio — Featured Works') continue;
       json.itemListElement = items;
-      script.textContent = JSON.stringify(json, null, 2);
+      script.textContent = serializeScriptData(json);
       return;
+    }
+  }
+
+  function applyGlobalIdentity(doc, meta) {
+    if (!meta) return;
+    for (const id of ['contact-btn', 'contact-pill']) {
+      const anchor = doc.getElementById(id);
+      if (anchor && meta.contactUrl) anchor.setAttribute('href', meta.contactUrl);
+    }
+    const organization = meta.structuredData && meta.structuredData.organization;
+    if (!organization) return;
+    for (const script of Array.from(doc.querySelectorAll('script[type="application/ld+json"]'))) {
+      let json;
+      try { json = JSON.parse(script.textContent || ''); } catch (_error) { continue; }
+      if (!json || typeof json !== 'object') continue;
+      if (json['@type'] === 'Organization') {
+        json.name = organization.name;
+        json.alternateName = organization.alternateName;
+        json.url = organization.url;
+        json.description = organization.description && organization.description.en;
+        json.sameAs = Array.isArray(organization.sameAs) ? organization.sameAs.slice() : [];
+      } else if (json['@type'] === 'WebSite') {
+        json.name = organization.name;
+        json.url = organization.url;
+        json.publisher = { '@type': 'Organization', name: organization.name, url: organization.url };
+      } else if (json['@type'] === 'WebPage') {
+        if (json.isPartOf) json.isPartOf = { '@type': 'WebSite', name: organization.name, url: organization.url };
+        json.publisher = { '@type': 'Organization', name: organization.name, url: organization.url };
+      }
+      script.textContent = serializeScriptData(json);
     }
   }
 
@@ -543,7 +584,7 @@
     // 'unsafe-inline') блокировал inline-данные внутри srcdoc-превью
     // (кросс-ревью F2); blob: разрешён в admin/.htaccess. Эскейп '<'
     // сохранён — данные не должны рвать сериализацию srcdoc.
-    const code = 'window.' + globalName + ' = ' + JSON.stringify(value).replace(/</g, '\\u003c') + ';';
+    const code = 'window.' + globalName + ' = ' + serializeScriptData(value) + ';';
     const script = doc.createElement('script');
     script.src = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
     blobUrls.push(script.src);
@@ -581,6 +622,7 @@
 
     rebuildFilters(doc, model);
     applyGrid(doc, model);
+    applyGlobalIdentity(doc, model.meta);
     applyFeaturedWorksJsonLd(doc, model);
     applyHeaderLogo(doc, State.previewDraft('content/meta.json'));
     replaceDataScript(doc, '/cards-data.js', inlineDataScript(doc, 'CARDS_DATA', buildCardsData(model), blobUrls));
@@ -865,6 +907,12 @@
 
   async function buildFreeAssetsPreviewHtml(design, blobUrls, generation) {
     const visible = await collectFaModel();
+    let meta = State.previewDraft('content/meta.json');
+    if (!meta) {
+      const metaResponse = await fetch('../content/meta.json', { cache: 'no-cache' });
+      if (!metaResponse.ok) throw new Error('Не удалось загрузить content/meta.json (' + metaResponse.status + ')');
+      meta = await metaResponse.json();
+    }
     const i18nData = buildFaI18nData(visible);
     const enUi = (i18nData.UI_STRINGS && i18nData.UI_STRINGS.en) || {};
     const enFilter = (enUi.filter && typeof enUi.filter === 'object' && enUi.filter) || {};
@@ -879,6 +927,7 @@
 
     rebuildFaFilters(doc, visible, enFilter);
     rebuildFaTagCards(doc, visible, enFilter);
+    applyGlobalIdentity(doc, meta);
     applyHeaderLogo(doc, State.previewDraft('content/meta.json'));
     replaceDataScript(doc, '/fa-data.js', inlineDataScript(doc, 'FA_DATA', buildFaDataForPreview(visible), blobUrls));
     replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', i18nData, blobUrls));

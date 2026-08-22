@@ -316,6 +316,26 @@
     ]);
   }
 
+  function textField(filePath, label, dotPath, opts) {
+    const input = el(opts && opts.multiline ? 'textarea' : 'input', {
+      type: opts && opts.multiline ? undefined : 'text',
+      id: opts && opts.id,
+      rows: opts && opts.multiline ? String(opts.rows || 3) : undefined,
+      'data-field': filePath + '::' + dotPath,
+      'aria-label': label
+    });
+    const value = State.getValue(filePath, dotPath);
+    input.value = value === undefined || value === null ? '' : String(value);
+    input.addEventListener('input', () => {
+      State.setValue(filePath, dotPath, input.value);
+      clearFieldError(input);
+    });
+    return el('div', { className: 'pair' }, [
+      el('div', { className: 'pair__label', text: label }),
+      el('div', { className: 'pair__col' }, [input])
+    ]);
+  }
+
   /* ── drop-зоны медиа (итерация E) ────────────────────────────────── */
 
   function toAdminAssetPath(sitePath) {
@@ -2739,6 +2759,7 @@
     els.app.replaceChildren(el('p', { className: 'empty-note', text: 'Загружаем content/meta.json с GitHub…' }));
     const path = 'content/meta.json';
     const entry = await State.ensureFile(path);
+    const catalog = await State.loadCatalog();
     const sections = [];
     for (const page of Object.keys(entry.draft.en)) {
       const section = el('section', { className: 'editor-section' }, [
@@ -2843,6 +2864,113 @@
     buildHeaderLogoZone();
     syncHeaderLogoClear();
     sections.push(headerLogoSection);
+
+    const organization = entry.draft.structuredData && entry.draft.structuredData.organization;
+    const identitySection = el('section', { className: 'editor-section', id: 'meta-global-identity' }, [
+      el('h2', { text: 'Контакты и организация' }),
+      textField(path, 'Контактная ссылка', 'contactUrl', { id: 'meta-contact-url' }),
+      textField(path, 'Название организации', 'structuredData.organization.name', { id: 'meta-organization-name' }),
+      textField(path, 'Короткое название', 'structuredData.organization.alternateName', { id: 'meta-organization-alternate-name' }),
+      textField(path, 'Канонический URL организации', 'structuredData.organization.url', { id: 'meta-organization-url' }),
+      pairField(path, 'Описание организации', 'structuredData.organization.description.en', 'structuredData.organization.description.ru', { multiline: true })
+    ]);
+    const sameAsInput = el('textarea', {
+      id: 'meta-organization-same-as',
+      rows: '3',
+      'data-field': path + '::structuredData.organization.sameAs',
+      'aria-label': 'Ссылки организации'
+    });
+    sameAsInput.value = organization && Array.isArray(organization.sameAs) ? organization.sameAs.join('\n') : '';
+    sameAsInput.addEventListener('input', () => {
+      const urls = sameAsInput.value.split(/\n|,/).map((value) => value.trim()).filter(Boolean);
+      State.setValue(path, 'structuredData.organization.sameAs', urls);
+      clearFieldError(sameAsInput);
+    });
+    identitySection.appendChild(el('div', { className: 'pair' }, [
+      el('div', { className: 'pair__label', text: 'Ссылки организации (по одной на строку)' }),
+      el('div', { className: 'pair__col' }, [sameAsInput])
+    ]));
+    identitySection.appendChild(el('p', { className: 'hint', text: 'Только HTTPS-ссылки без логина, пароля и порта. Эти данные попадут в Organization JSON-LD.' }));
+    sections.push(identitySection);
+
+    const catalogCases = new Map(catalog.cases.map((item) => [item.id, item.data]));
+    const featuredSection = el('section', { className: 'editor-section', id: 'meta-featured-works' }, [
+      el('h2', { text: 'Избранные работы' }),
+      el('p', { className: 'hint', text: 'Порядок используется в JSON-LD. Внутренние ID не становятся публичными URL.' })
+    ]);
+    const featuredList = el('div', { className: 'media-strip' });
+    function featuredEntries() {
+      const value = State.getValue(path, 'structuredData.featuredWorks');
+      return Array.isArray(value) ? value : [];
+    }
+    function renderFeatured(focusKey) {
+      const entries = featuredEntries();
+      featuredList.replaceChildren();
+      entries.forEach((feature, index) => {
+        const row = el('div', { className: 'media-slot', 'data-featured-index': String(index) });
+        const select = el('select', {
+          'data-field': path + '::structuredData.featuredWorks.' + index + '.id',
+          'aria-label': 'Избранная работа ' + (index + 1)
+        });
+        for (const [id, data] of catalogCases) {
+          select.appendChild(el('option', { value: id, text: id + ' — ' + data.card.title.en }));
+        }
+        select.value = feature.id || '';
+        select.addEventListener('change', () => {
+          const next = featuredEntries().map((entry) => ({ ...entry }));
+          next[index].id = select.value;
+          State.setValue(path, 'structuredData.featuredWorks', next);
+          clearFieldError(select);
+        });
+        const about = el('textarea', {
+          rows: '2',
+          'data-field': path + '::structuredData.featuredWorks.' + index + '.about',
+          'aria-label': 'Описание избранной работы ' + (index + 1)
+        });
+        about.value = feature.about || '';
+        about.addEventListener('input', () => {
+          const next = featuredEntries().map((entry) => ({ ...entry }));
+          next[index].about = about.value;
+          State.setValue(path, 'structuredData.featuredWorks', next);
+          clearFieldError(about);
+        });
+        const remove = el('button', { type: 'button', className: 'btn btn--ghost', text: 'Убрать', 'aria-label': 'Убрать избранную работу ' + (index + 1) });
+        remove.addEventListener('click', () => {
+          State.setValue(path, 'structuredData.featuredWorks', featuredEntries().filter((_entry, i) => i !== index));
+          renderFeatured();
+        });
+        row.append(
+          reorderControls({
+            label: 'Избранная работа ' + (index + 1),
+            index,
+            count: entries.length,
+            focusKey: 'featured-' + index,
+            onMove(from, to, key) {
+              State.setValue(path, 'structuredData.featuredWorks', movedArray(featuredEntries(), from, to));
+              renderFeatured(key);
+              focusReorder(key);
+            }
+          }),
+          el('label', { text: 'Кейс' }), select,
+          el('label', { text: 'About' }), about,
+          remove
+        );
+        featuredList.appendChild(row);
+      });
+      if (focusKey) focusReorder(focusKey);
+    }
+    const addFeatured = el('button', { type: 'button', className: 'btn btn--ghost', id: 'meta-featured-add', text: 'Добавить работу' });
+    addFeatured.addEventListener('click', () => {
+      const entries = featuredEntries();
+      const existing = new Set(entries.map((entry) => entry.id));
+      const candidate = catalog.settings.cardOrder.find((id) => !existing.has(id)) || catalog.settings.cardOrder[0];
+      if (!candidate) return;
+      State.setValue(path, 'structuredData.featuredWorks', entries.concat([{ id: candidate, about: '' }]));
+      renderFeatured();
+    });
+    featuredSection.append(featuredList, addFeatured);
+    renderFeatured();
+    sections.push(featuredSection);
     els.app.replaceChildren(
       el('section', {}, [
         el('div', { className: 'view-head' }, [

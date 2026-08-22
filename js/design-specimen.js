@@ -217,7 +217,8 @@
   var freeAssetsLink = el('a', '', localCopy().freeAssets);
   freeAssetsLink.href = modeUrl('./free-assets.html');
   var contactLink = el('a', '', localCopy().contact);
-  contactLink.href = 'https://t.me/WhiteCatWeb';
+  var generatedContact = document.getElementById('contact-btn') || document.getElementById('contact-pill');
+  contactLink.href = generatedContact ? generatedContact.href : '#';
   contactLink.target = '_blank';
   contactLink.rel = 'noopener noreferrer';
   append(dossierLinks, freeAssetsLink, contactLink);
