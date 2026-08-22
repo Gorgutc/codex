@@ -421,12 +421,16 @@
     if (currentSelection) selectProject(currentSelection);
   }
 
-  function hashId() {
-    var raw = (window.location.hash || '').replace(/^#/, '');
+  function hashIdFor(hash) {
+    var raw = (hash || '').replace(/^#/, '');
     try { raw = decodeURIComponent(raw); } catch (_) { return ''; }
     return window.CodexCase && typeof window.CodexCase.resolveCaseToken === 'function'
       ? (window.CodexCase.resolveCaseToken(raw) || raw)
       : raw;
+  }
+
+  function hashId() {
+    return hashIdFor(window.location.hash);
   }
 
   function publicHash(id) {
@@ -554,10 +558,40 @@
     }, true);
   }
 
-  window.addEventListener('hashchange', renderRoute);
+  var hashGeneration = 0;
+
+  window.addEventListener('hashchange', function (event) {
+    var generation = ++hashGeneration;
+    // main.js handles this event first and may synchronously replace an
+    // unresolved token with its default Case. Use the event URL itself so a
+    // decoded unknown hash keeps its Design Lab meaning of Home.
+    var incomingId = '';
+    try { incomingId = hashIdFor(new URL(event.newURL).hash); } catch (_) { /* no-op */ }
+    if (incomingId && !cardsById[incomingId]) {
+      window.setTimeout(function () {
+        // A later hashchange may have selected a valid Case before this
+        // cleanup runs. Only the still-current unknown route owns Home.
+        if (generation === hashGeneration) goHome();
+      }, 0);
+      return;
+    }
+    renderRoute();
+  });
   window.addEventListener('popstate', renderRoute);
   document.addEventListener('codex:case-open', function (event) {
-    var id = event.detail && event.detail.id;
+    var detail = event.detail || {};
+    if (rejectedInitialRoute && detail.initial === true) {
+      // main.js falls back to its first Case for an unresolved hash. In
+      // Specimen a decoded-but-unknown initial token deliberately means Home.
+      // Consume that base-runtime fallback before it can replace the route.
+      rejectedInitialRoute = false;
+      goHome();
+      return;
+    }
+    // A later user navigation must never inherit the initial invalid-route
+    // guard; only the base runtime's initial fallback is consumed above.
+    rejectedInitialRoute = false;
+    var id = detail.id;
     var keepCaseRoute = body.classList.contains('specimen-case-active');
     if (id) {
       updateCaseDossier(id);
@@ -588,10 +622,15 @@
     });
   });
 
-  var initialId = hashId();
+  // design-mode.js captures this before main.js can replace an unresolved
+  // fragment with its default Case route.
+  var initialId = hashIdFor(design.initialHash || window.location.hash);
+  var rejectedInitialRoute = !!initialId && !cardsById[initialId];
   updateLocalCopy();
   renderRoute();
-  if (cardsById[initialId] && window.CodexCase && typeof window.CodexCase.openCase === 'function') {
+  if (rejectedInitialRoute) {
+    goHome();
+  } else if (cardsById[initialId] && window.CodexCase && typeof window.CodexCase.openCase === 'function') {
     window.CodexCase.openCase(initialId);
   }
 }());

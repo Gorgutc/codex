@@ -478,8 +478,31 @@ test('Design Lab rejects prototype-key case hashes', async ({ page }) => {
         waitUntil: 'networkidle'
       });
       await waitForDesign(page, mode, 'index');
-      await expect(page.locator(`[data-design-home="${mode}"]`)).toBeVisible();
+      const home = page.locator(`[data-design-home="${mode}"]`);
+      await expect(home).toBeVisible();
       await expect(page.locator('#case-view')).toBeHidden();
+      if (mode === 'specimen' && value === PROTOTYPE_KEYS[PROTOTYPE_KEYS.length - 1]) {
+        // The initial fallback guard is consumed: a normal project click must
+        // open a Case, while a later live unknown fragment returns Home.
+        await home.locator('[data-design-project]').first().click();
+        await expect(home).toBeHidden();
+        await expect(page.locator('#case-view')).toBeVisible();
+        await page.evaluate(() => { window.location.hash = '#toString'; });
+        await expect(home).toBeVisible();
+        await expect(page.locator('#case-view')).toBeHidden();
+
+        // A queued cleanup for an unknown hash must not erase a valid route
+        // selected in the same turn. This exercises the live hashchange race
+        // rather than only the initial bootstrap path above.
+        const validHash = await home.locator('[data-design-project]').first().getAttribute('href');
+        await page.evaluate((hash) => {
+          window.location.hash = '#constructor';
+          window.location.hash = hash;
+        }, validHash);
+        await expect.poll(() => new URL(page.url()).hash).toBe(validHash);
+        await expect(home).toBeHidden();
+        await expect(page.locator('#case-view')).toBeVisible();
+      }
     }
   }
   expect(internalConsoleErrors(errors)).toEqual([]);
