@@ -209,6 +209,11 @@ test('превью: черновик в iframe — RU-заголовок, скр
 
   const frame = page.frameLocator('#preview-frame');
   await expect(frame.locator('a.work-card[data-id="orbital-mk-ii"]')).toBeAttached();
+  await expect(frame.locator('script[src*="cards-data.js"], script[src*="i18n-data.js"]')).toHaveCount(0);
+  await expect(frame.locator('script[src^="blob:"]')).toHaveCount(2);
+  await expect
+    .poll(() => frame.locator('html').evaluate(() => Boolean(window.CARDS_DATA && window.I18N_DATA)))
+    .toBe(true);
   const designToggleOrder = await page
     .locator('.preview-overlay__group--design .preview-toggle')
     .evaluateAll((buttons) => buttons.map((button) => button.id));
@@ -414,6 +419,11 @@ test('превью Free Assets (F5): скрытая категория выпа�
   await expect(page.locator('#preview-banner')).toContainText('Free Assets');
 
   const frame = page.frameLocator('#preview-frame');
+  await expect(frame.locator('script[src*="fa-data.js"], script[src*="i18n-data.js"]')).toHaveCount(0);
+  await expect(frame.locator('script[src^="blob:"]')).toHaveCount(2);
+  await expect
+    .poll(() => frame.locator('html').evaluate(() => Boolean(window.FA_DATA && window.I18N_DATA)))
+    .toBe(true);
   // Обзор категорий: видимая категория есть, скрытая выпала
   await expect(frame.locator('a.tag-card[data-tag="hard-surface"]')).toBeAttached();
   await expect(frame.locator(`a.tag-card[data-tag="${HIDDEN_CAT}"]`)).toHaveCount(0);

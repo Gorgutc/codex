@@ -21,6 +21,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { createHash } = require('crypto');
 const { chromium } = require('playwright');
 const { AxeBuilder } = require('@axe-core/playwright');
 const {
@@ -270,6 +271,26 @@ function runStaticChecks(assetAudit = null) {
   const blockedCDN = /(cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)[^\s"]*\/(gsap|lenis|ScrollTrigger|SplitText)/i;
   const indexHTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const faHTML = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
+  const checkGeneratedDataRevisions = (page, html, files) => {
+    const sources = Array.from(html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/gi)).map((match) => match[1]);
+    const expected = files.map((fileName) => {
+      const digest = createHash('sha256')
+        .update(fs.readFileSync(path.join(ROOT, 'js', fileName), 'utf8'), 'utf8')
+        .digest('hex');
+      return `./js/${fileName}?v=${digest}`;
+    });
+    const firstPartyQueries = sources.filter((src) => /^\.\/js\//.test(src) && src.includes('?'));
+    const unexpectedQueries = firstPartyQueries.filter((src) => !expected.includes(src));
+    const missingOrDuplicated = expected.filter((src) => sources.filter((candidate) => candidate === src).length !== 1);
+    add(
+      'static',
+      `${page}-generated-data-revisions`,
+      unexpectedQueries.length === 0 && missingOrDuplicated.length === 0,
+      [...unexpectedQueries, ...missingOrDuplicated].join(', ')
+    );
+  };
+  checkGeneratedDataRevisions('index', indexHTML, ['i18n-data.js', 'cards-data.js']);
+  checkGeneratedDataRevisions('free-assets', faHTML, ['fa-data.js', 'i18n-data.js']);
   const staticScriptTags = (indexHTML + '\n' + faHTML).match(/<script\b[^>]*>/gi) || [];
   add('static', 'A7-vendor-only-index', !blockedCDN.test(indexHTML), 'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
   add('static', 'A7-vendor-only-fa',    !blockedCDN.test(faHTML),    'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
@@ -1103,10 +1124,10 @@ async function testIndex(BASE) {
   const iGsap = idx(/gsap\.min\.js/);
   const iST   = idx(/ScrollTrigger/);
   const iSpT  = idx(/SplitText/);
-  const iI18nD = idx(/i18n-data\.js$/);
+  const iI18nD = idx(/i18n-data\.js\?v=[0-9a-f]{64}$/);
   const iI18n  = idx(/i18n\.js$/);
   const iShared = idx(/shared-runtime\.js$/);
-  const iCards = idx(/cards-data\.js$/);
+  const iCards = idx(/cards-data\.js\?v=[0-9a-f]{64}$/);
   const iMain  = idx(/main\.js$/);
   const iAnim  = idx(/animations\.js$/);
   const orderOK =
@@ -1942,7 +1963,7 @@ async function testFreeAssets(BASE) {
     gsap:    faIdx(/gsap\.min\.js/),
     st:      faIdx(/ScrollTrigger/),
     spt:     faIdx(/SplitText/),
-    i18nD:   faIdx(/i18n-data\.js$/),
+    i18nD:   faIdx(/i18n-data\.js\?v=[0-9a-f]{64}$/),
     i18n:    faIdx(/i18n\.js$/),
     shared:  faIdx(/shared-runtime\.js$/),
     main:    faIdx(/main\.js$/),

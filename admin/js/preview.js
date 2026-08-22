@@ -512,8 +512,8 @@
 
   function replaceDataScript(doc, srcSuffix, inline) {
     for (const script of Array.from(doc.querySelectorAll('script[src]'))) {
-      const src = script.getAttribute('src') || '';
-      if (src.endsWith(srcSuffix)) {
+      const rawSrc = script.getAttribute('src') || '';
+      if (new URL(rawSrc, doc.baseURI).pathname.endsWith(srcSuffix)) {
         script.replaceWith(inline);
         return;
       }

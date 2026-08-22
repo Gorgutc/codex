@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 const ROOT = process.cwd();
 let failures = 0;
@@ -77,6 +78,26 @@ function checkNoFirstPartyModuleOrDefer(page) {
     `${page}: no import maps`,
     importMaps.length === 0,
     importMaps.map((script) => script.src || '(inline)').join(', ')
+  );
+}
+
+function checkGeneratedDataScriptRevisions(page, expectedFiles) {
+  const scripts = scriptSources(page).filter((script) => script.firstParty);
+  const expectedSources = new Map(
+    expectedFiles.map((fileName) => [
+      `./js/${fileName}`,
+      `./js/${fileName}?v=${createHash('sha256').update(read(`js/${fileName}`), 'utf8').digest('hex')}`
+    ])
+  );
+  const queryScripts = scripts.filter((script) => script.src.includes('?'));
+  const unexpectedQueries = queryScripts.filter((script) => ![...expectedSources.values()].includes(script.src));
+  const missingOrDuplicated = [...expectedSources.entries()].filter(
+    ([, expectedSrc]) => scripts.filter((script) => script.src === expectedSrc).length !== 1
+  );
+  check(
+    `${page}: generated data scripts use exact SHA-256 revisions`,
+    unexpectedQueries.length === 0 && missingOrDuplicated.length === 0,
+    [...unexpectedQueries.map((script) => script.src), ...missingOrDuplicated.map(([file]) => file)].join(', ')
   );
 }
 
@@ -209,7 +230,7 @@ checkScriptOrder('index.html', [
   /gsap\.min\.js$/,
   /ScrollTrigger/,
   /SplitText/,
-  /i18n-data\.js$/,
+  /i18n-data\.js\?v=[0-9a-f]{64}$/,
   /i18n\.js$/,
   /shared-runtime\.js$/,
   /main\.js$/,
@@ -218,11 +239,11 @@ checkScriptOrder('index.html', [
 checkScriptOrder('free-assets.html', [
   /design-mode\.js$/,
   /design-loader\.js$/,
-  /fa-data\.js$/,
+  /fa-data\.js\?v=[0-9a-f]{64}$/,
   /gsap\.min\.js$/,
   /ScrollTrigger/,
   /SplitText/,
-  /i18n-data\.js$/,
+  /i18n-data\.js\?v=[0-9a-f]{64}$/,
   /i18n\.js$/,
   /shared-runtime\.js$/,
   /main\.js$/,
@@ -232,6 +253,10 @@ checkScriptOrder('free-assets.html', [
 
 for (const page of ['index.html', 'free-assets.html']) {
   checkNoFirstPartyModuleOrDefer(page);
+  checkGeneratedDataScriptRevisions(
+    page,
+    page === 'index.html' ? ['i18n-data.js', 'cards-data.js'] : ['fa-data.js', 'i18n-data.js']
+  );
   const html = read(page);
   check(
     `${page}: Design Lab bootstrap is singular`,

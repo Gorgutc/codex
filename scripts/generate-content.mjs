@@ -61,6 +61,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { faPosterKind, faPosterPath, faPosterProblem, faTagCoverValue } from './fa-poster-path.mjs';
@@ -2250,6 +2251,31 @@ function detectEol(text) {
   return text.includes('\r\n') ? '\r\n' : '\n';
 }
 
+export function generatedPayloadVersion(source) {
+  return createHash('sha256').update(source, 'utf8').digest('hex');
+}
+
+export function versionedDataScriptSrc(fileName, source) {
+  return `./js/${fileName}?v=${generatedPayloadVersion(source)}`;
+}
+
+export function replaceDataScriptSrc(html, filePath, fileName, source) {
+  const escapedFileName = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(
+    `(<script\\b[^>]*\\bsrc=(["']))((?:\\.\\/|\\.\\.\\/)js\\/)${escapedFileName}(?:\\?[^"']*)?(\\2)`,
+    'gi'
+  );
+  let matches = 0;
+  const next = html.replace(pattern, (_match, open, _quote, prefix, close) => {
+    matches += 1;
+    return `${open}${versionedDataScriptSrc(fileName, source).replace('./js/', prefix)}${close}`;
+  });
+  if (matches !== 1) {
+    throw new Error(`${filePath}: expected exactly one ${fileName} data-script URL (found ${matches})`);
+  }
+  return next;
+}
+
 // Inner content of every <a class="logo"> wrapper. Unset src → the historical
 // "CODEX" wordmark, emitted byte-identically (with the caller's exact indent) so the
 // first generation is a no-op. Set src → an <img class="logo__img"> carrying all five
@@ -2280,6 +2306,10 @@ function replaceHeaderLogoRegion(html, filePath, begin, end, content) {
 }
 
 function buildTargets(content) {
+  const cardsJs = buildCardsDataJs(content);
+  const faJs = buildFaDataJs(content);
+  const i18nJs = buildI18nDataJs(content);
+
   const indexRaw = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const indexEol = detectEol(indexRaw);
   let indexNext = indexRaw.replace(/\r\n/g, '\n');
@@ -2289,6 +2319,8 @@ function buildTargets(content) {
   indexNext = replaceRegion(indexNext, 'index.html', GRID_BEGIN, GRID_END, buildGridRegion(content));
   indexNext = replaceHeaderLogoRegion(indexNext, 'index.html', HEADER_LOGO_BEGIN, HEADER_LOGO_END, content);
   indexNext = replaceHeaderLogoRegion(indexNext, 'index.html', HEADER_LOGO_MOBILE_BEGIN, HEADER_LOGO_MOBILE_END, content);
+  indexNext = replaceDataScriptSrc(indexNext, 'index.html', 'i18n-data.js', i18nJs);
+  indexNext = replaceDataScriptSrc(indexNext, 'index.html', 'cards-data.js', cardsJs);
 
   const faRaw = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
   const faEol = detectEol(faRaw);
@@ -2305,16 +2337,26 @@ function buildTargets(content) {
   );
   faNext = replaceHeaderLogoRegion(faNext, 'free-assets.html', HEADER_LOGO_BEGIN, HEADER_LOGO_END, content);
   faNext = replaceHeaderLogoRegion(faNext, 'free-assets.html', HEADER_LOGO_MOBILE_BEGIN, HEADER_LOGO_MOBILE_END, content);
+  faNext = replaceDataScriptSrc(faNext, 'free-assets.html', 'fa-data.js', faJs);
+  faNext = replaceDataScriptSrc(faNext, 'free-assets.html', 'i18n-data.js', i18nJs);
+
+  const adminRaw = fs.readFileSync(path.join(ROOT, 'admin', 'index.html'), 'utf8');
+  const adminEol = detectEol(adminRaw);
+  let adminNext = adminRaw.replace(/\r\n/g, '\n');
+  adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'cards-data.js', cardsJs);
+  adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'fa-data.js', faJs);
+  adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'i18n-data.js', i18nJs);
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');
   const sitemapEol = fs.existsSync(sitemapPath) ? detectEol(fs.readFileSync(sitemapPath, 'utf8')) : '\n';
 
   return [
-    { rel: 'js/cards-data.js', next: buildCardsDataJs(content), eol: '\n' },
-    { rel: 'js/fa-data.js', next: buildFaDataJs(content), eol: '\n' },
-    { rel: 'js/i18n-data.js', next: buildI18nDataJs(content), eol: '\n' },
+    { rel: 'js/cards-data.js', next: cardsJs, eol: '\n' },
+    { rel: 'js/fa-data.js', next: faJs, eol: '\n' },
+    { rel: 'js/i18n-data.js', next: i18nJs, eol: '\n' },
     { rel: 'index.html', next: indexNext, eol: indexEol },
     { rel: 'free-assets.html', next: faNext, eol: faEol },
+    { rel: 'admin/index.html', next: adminNext, eol: adminEol },
     { rel: 'sitemap.xml', next: buildSitemapXml(content), eol: sitemapEol }
   ];
 }

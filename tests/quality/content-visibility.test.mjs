@@ -44,6 +44,7 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writ
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { buildReferenceSet, findOrphans, findPosterProblems } from '../../scripts/clean-orphan-assets.mjs';
 
@@ -131,6 +132,51 @@ function caseLocalesSection(i18n) {
   const end = i18n.indexOf('const FA_LOCALES');
   if (start < 0 || end <= start) fail('i18n-data.js: locale sections not found');
   return i18n.slice(start, end);
+}
+
+function dataScriptRevision(html, fileName) {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`<script\\s+src=["'](?:\\.\\.?/)?js/${escaped}\\?v=([0-9a-f]{64})["']><\\/script>`, 'i').exec(html);
+  if (!match) fail(`missing exact versioned ${fileName} data-script reference`, html);
+  return match[1];
+}
+
+function dataScriptRevisions(sandbox) {
+  const index = sandbox.readOut('index.html');
+  const freeAssets = sandbox.readOut('free-assets.html');
+  const admin = sandbox.readOut('admin/index.html');
+  const digest = (rel) => createHash('sha256').update(sandbox.readOut(rel), 'utf8').digest('hex');
+  const revisions = {
+    cards: digest('js/cards-data.js'),
+    fa: digest('js/fa-data.js'),
+    i18n: digest('js/i18n-data.js')
+  };
+  const references = {
+    index: {
+      cards: dataScriptRevision(index, 'cards-data.js'),
+      i18n: dataScriptRevision(index, 'i18n-data.js')
+    },
+    freeAssets: {
+      fa: dataScriptRevision(freeAssets, 'fa-data.js'),
+      i18n: dataScriptRevision(freeAssets, 'i18n-data.js')
+    },
+    admin: {
+      cards: dataScriptRevision(admin, 'cards-data.js'),
+      fa: dataScriptRevision(admin, 'fa-data.js'),
+      i18n: dataScriptRevision(admin, 'i18n-data.js')
+    }
+  };
+  for (const [shell, payloads] of Object.entries(references)) {
+    for (const [payload, revision] of Object.entries(payloads)) {
+      if (revision !== revisions[payload]) {
+        fail(`${shell} ${payload}-data.js revision must equal the SHA-256 of its exact emitted JS bytes`);
+      }
+    }
+  }
+  if (references.index.i18n !== references.freeAssets.i18n || references.index.i18n !== references.admin.i18n) {
+    fail('index, Free Assets and admin must use the same i18n-data revision');
+  }
+  return revisions;
 }
 
 /* 1 — disabling one case drops it from grid html, cards-data and locales */
@@ -1218,6 +1264,45 @@ function faTagCardsSection(html) {
     const carriers = (cardsData.match(/\bblueprints: \[/g) || []).length;
     if (carriers !== 1) fail(`exactly one case must carry blueprints (got ${carriers})`);
     console.log('case.blueprints: sheet path/id/EN label emitted, RU label in locales, absent key stays absent');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* Generated payloads are revisioned from their final JS bytes. A case title
+ * affects cards + i18n but not Free Assets; a Free Assets description affects
+ * FA + i18n but not cards. Every shell must reference those literal digests. */
+{
+  const sandbox = makeSandbox('payload-revisions');
+  try {
+    let result = sandbox.run('--write');
+    if (result.status !== 0) fail('baseline --write must succeed for payload revisions', result.output);
+    const baseline = dataScriptRevisions(sandbox);
+
+    const caseData = sandbox.readJson('cases/orbital-mk-ii.json');
+    caseData.case.text.title.en += ' revision probe';
+    sandbox.writeJson('cases/orbital-mk-ii.json', caseData);
+    result = sandbox.run('--write');
+    if (result.status !== 0) fail('case-title --write must succeed for payload revisions', result.output);
+    const afterCaseTitle = dataScriptRevisions(sandbox);
+    if (afterCaseTitle.cards === baseline.cards || afterCaseTitle.i18n === baseline.i18n) {
+      fail('a case title mutation must revise cards-data and i18n-data');
+    }
+    if (afterCaseTitle.fa !== baseline.fa) fail('a case title mutation must not revise fa-data');
+
+    const fa = sandbox.readJson('free-assets.json');
+    fa.categories[0].items[0].desc.en += ' revision probe';
+    sandbox.writeJson('free-assets.json', fa);
+    result = sandbox.run('--write');
+    if (result.status !== 0) fail('Free Assets description --write must succeed for payload revisions', result.output);
+    const afterFaDescription = dataScriptRevisions(sandbox);
+    if (afterFaDescription.fa === afterCaseTitle.fa || afterFaDescription.i18n === afterCaseTitle.i18n) {
+      fail('a Free Assets description mutation must revise fa-data and i18n-data');
+    }
+    if (afterFaDescription.cards !== afterCaseTitle.cards) {
+      fail('a Free Assets description mutation must not revise cards-data');
+    }
+    console.log('payload revisions: exact JS SHA-256 references, per-payload invalidation and shared i18n revision verified');
   } finally {
     sandbox.cleanup();
   }

@@ -1286,7 +1286,7 @@ test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog
   const baseRuntimeGate = new Promise((resolve) => {
     releaseBaseRuntime = resolve;
   });
-  await page.route('**/js/i18n-data.js', async (route) => {
+  await page.route(/\/js\/i18n-data\.js(?:\?.*)?$/, async (route) => {
     await baseRuntimeGate;
     await route.continue();
   });
@@ -1340,7 +1340,7 @@ test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog
 
   releaseBaseRuntime();
   await navigation;
-  await page.unroute('**/js/i18n-data.js');
+  await page.unroute(/\/js\/i18n-data\.js(?:\?.*)?$/);
   // Оба исхода законны, и снимок timeline выше не может их различить надёжно:
   // watchdog срабатывает ровно на границе измеряемого окна, поэтому fallback
   // может наступить уже ПОСЛЕ снятия снимка. Ждём, пока состояние осядет, и
@@ -2848,7 +2848,7 @@ async function installRasterPosterFixture(page, category, options = {}) {
   // fa-data.js is a classic script defining `var FA_DATA`; appending a patch
   // statement is the least invasive way to hand the runtime a raster item and
   // an independent vector control without touching content/.
-  await page.route('**/js/fa-data.js', async (route) => {
+  await page.route(/\/js\/fa-data\.js(?:\?.*)?$/, async (route) => {
     const response = await route.fetch();
     const body = await response.text();
     await route.fulfill({
