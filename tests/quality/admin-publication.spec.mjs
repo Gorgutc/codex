@@ -174,6 +174,55 @@ test('published settlement is idempotent, clears only its snapshot, and leaves l
   expect(publication.phase).toBe('published');
 });
 
+test('a locked publication rejects discard and preserves a later draft through settlement', async ({ page }) => {
+  let sourceDraft = null;
+  let sourceIsSettled = false;
+  const baseSha = 'c'.repeat(40);
+  await mockGitHub(page, {
+    contentForPath: (path, original, ref) => {
+      if (path !== CASE_PATH || !sourceDraft) return original;
+      return ref === SOURCE_SHA || (sourceIsSettled && ref === 'main') ? JSON.stringify(sourceDraft) : original;
+    }
+  });
+  await login(page);
+  await page.click('a[href="#/case/orbital-mk-ii"]');
+  await expect(page.locator(`[data-field="${CASE_PATH}::card.title.ru"]`)).toBeVisible();
+  const result = await page.evaluate(
+    ({ path, sourceSha, baseSha }) => {
+      window.AdminState.setValue(path, 'card.title.ru', 'Снимок публикации');
+      const plan = window.AdminState.buildPublishPlan();
+      const snapshot = window.AdminState.createPublicationSnapshot(plan);
+      window.AdminState.recordPublicationCandidate({ sha: sourceSha, baseSha, date: new Date().toISOString() });
+      const sourceDraft = structuredClone(window.AdminState.getEntry(path).draft);
+      window.AdminState.setValue(path, 'card.title.ru', 'Поздняя правка');
+      const beforeDiscard = structuredClone(window.AdminState.getEntry(path));
+      let discardError = null;
+      try {
+        window.AdminState.discardDraft();
+      } catch (error) {
+        discardError = error.message;
+      }
+      return { snapshot, sourceDraft, beforeDiscard, discardError, afterDiscard: structuredClone(window.AdminState.getEntry(path)) };
+    },
+    { path: CASE_PATH, sourceSha: SOURCE_SHA, baseSha }
+  );
+  sourceDraft = result.sourceDraft;
+  await expect(page.locator('#discard-draft-btn')).toBeHidden();
+  expect(result.discardError).toContain('Публикация ожидает проверки');
+  expect(result.afterDiscard).toEqual(result.beforeDiscard);
+  sourceIsSettled = true;
+  const settled = await page.evaluate(async () =>
+    window.AdminState.settlePublication({ status: 'published', sha: 'd'.repeat(40) })
+  );
+  expect(settled.error).toBeNull();
+  expect(
+    await page.evaluate((path) => {
+      const entry = window.AdminState.getEntry(path);
+      return { base: entry.base.card.title.ru, draft: entry.draft.card.title.ru };
+    }, CASE_PATH)
+  ).toEqual({ base: 'Снимок публикации', draft: 'Поздняя правка' });
+});
+
 test('revert recovery validates every base atomically and explains binary re-upload after reload', async ({ page }) => {
   await mockGitHub(page);
   await login(page);

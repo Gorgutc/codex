@@ -47,6 +47,9 @@
   const mediaEdits = new Map(); // path → Map(dotPath → media-запись, см. stageMedia)
   const listeners = [];
   let persistTimer = 0;
+  let draftSavedAt = null;
+  let draftPersistedAtUnknown = false;
+  let draftPersistenceError = false;
   let catalogPromise = null;
   // Бинарные байты намеренно живут только в этой вкладке. В sessionStorage
   // сохраняются лишь безопасные дескрипторы путей, чтобы восстановление после
@@ -524,6 +527,9 @@
     orphanDrafts = stored;
     orphanDraftShas = shas !== null && typeof shas === 'object' && !Array.isArray(shas) ? shas : {};
     orphanDraftBases = bases !== null && typeof bases === 'object' && !Array.isArray(bases) ? bases : {};
+    draftSavedAt = typeof parsed.savedAt === 'string' ? parsed.savedAt : null;
+    draftPersistedAtUnknown = draftSavedAt === null;
+    draftPersistenceError = false;
     if (Array.isArray(parsed.pendingMediaPaths)) {
       pendingMediaPaths = new Set(parsed.pendingMediaPaths.filter(validPendingMediaPath));
     }
@@ -552,8 +558,14 @@
       }
     });
     try {
-      if (Object.keys(store).length === 0 && pendingMediaPaths.size === 0) sessionStorage.removeItem(DRAFTS_KEY);
+      if (Object.keys(store).length === 0 && pendingMediaPaths.size === 0) {
+        sessionStorage.removeItem(DRAFTS_KEY);
+        draftSavedAt = null;
+        draftPersistedAtUnknown = false;
+        draftPersistenceError = false;
+      }
       else {
+        const savedAt = new Date().toISOString();
         sessionStorage.setItem(
           DRAFTS_KEY,
           JSON.stringify({
@@ -561,17 +573,33 @@
             files: store,
             baseShas: shas,
             baseSnapshots: bases,
-            pendingMediaPaths: Array.from(pendingMediaPaths).sort()
+            pendingMediaPaths: Array.from(pendingMediaPaths).sort(),
+            savedAt
           })
         );
+        draftSavedAt = savedAt;
+        draftPersistedAtUnknown = false;
+        draftPersistenceError = false;
       }
     } catch (_e) {
-      /* квота/приватный режим — черновик живёт хотя бы в памяти */
+      // Квота/приватный режим: черновик живёт только в памяти, поэтому не
+      // оставляем старый timestamp и не говорим владельцу, что он сохранён.
+      draftSavedAt = null;
+      draftPersistedAtUnknown = false;
+      draftPersistenceError = true;
     }
+    notify();
   }
 
   function schedulePersist() {
     clearTimeout(persistTimer);
+    // До завершения debounce самая свежая правка существует только в памяти:
+    // старый timestamp нельзя выдавать за сохранение нового состояния.
+    if (isDirty()) {
+      draftSavedAt = null;
+      draftPersistedAtUnknown = false;
+      draftPersistenceError = false;
+    }
     persistTimer = setTimeout(persistNow, 400);
   }
 
@@ -1485,6 +1513,7 @@
     const fresh = await window.AdminAPI.fetchFile(path);
     const base = JSON.parse(fresh.text);
     let draft = deepClone(base);
+    let needsPersist = false;
     if (orphanDrafts[path] !== undefined) {
       // Provenance: черновик накладывается ЦЕЛИКОМ поверх свежей базы, поэтому
       // он применим, только если снят с этой же базы. Если файл на GitHub
@@ -1506,8 +1535,10 @@
         // quietly. Rebase the ordinary raw draft onto the effective source
         // snapshot so a staged path is never revived without its bytes.
         draft = rebaseDraft(sourceSnapshot.workingDraft, sourceSnapshot.draft, orphanDrafts[path]);
+        needsPersist = true;
       } else {
         pushDraftNotice('Черновик файла ' + path + ' снят с другой версии файла — он сброшен. Внесите правки заново.');
+        needsPersist = true;
       }
       delete orphanDrafts[path];
       delete orphanDraftShas[path];
@@ -1515,7 +1546,10 @@
     }
     const entry = { base, sha: fresh.sha, draft };
     files.set(path, entry);
-    schedulePersist();
+    // Обычная гидратация уже лежит в sessionStorage байт-в-байт: повторная
+    // запись сдвинула бы timestamp без новой правки. Persist нужен только
+    // после явного fail-closed/rebase преобразования черновика.
+    if (needsPersist) schedulePersist();
     notify();
     return entry;
   }
@@ -3587,6 +3621,45 @@
     notify();
   }
 
+  // Deliberately narrow: clear only ordinary tab drafts and in-memory media.
+  // Publication recovery is a separate durable ledger and must survive this.
+  function discardDraft() {
+    if (isPublicationLocked()) {
+      throw new Error('Публикация ожидает проверки; черновик нельзя отбросить до завершения сверки.');
+    }
+    clearTimeout(persistTimer);
+    stagingTickets.forEach((tickets) => tickets.forEach((ticket) => (ticket.alive = false)));
+    stagingTickets.clear();
+    mediaEdits.forEach((edits) => edits.forEach((record) => URL.revokeObjectURL(record.objectURL)));
+    mediaEdits.clear();
+    pendingMediaPaths.clear();
+    files.forEach((entry) => {
+      entry.draft = deepClone(entry.base);
+    });
+    orphanDrafts = {};
+    orphanDraftShas = {};
+    orphanDraftBases = {};
+    draftSavedAt = null;
+    draftPersistedAtUnknown = false;
+    draftPersistenceError = false;
+    try {
+      sessionStorage.removeItem(DRAFTS_KEY);
+    } catch (_e) {
+      /* storage can be unavailable; memory was still reset */
+    }
+    notify();
+  }
+
+  function getDraftStatus() {
+    return {
+      dirty: isDirty(),
+      savedAt: draftSavedAt,
+      persistedAtUnknown: draftPersistedAtUnknown,
+      persistenceError: draftPersistenceError,
+      memoryUploads: mediaPendingCount()
+    };
+  }
+
   function onChange(listener) {
     listeners.push(listener);
   }
@@ -3606,6 +3679,8 @@
     remapMediaEdits,
     changedPaths,
     isDirty,
+    getDraftStatus,
+    discardDraft,
     hasDraft,
     validateAll,
     // итерация H: видимость и медиа-слоты free-assets

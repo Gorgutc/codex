@@ -40,26 +40,27 @@
         загруженные файлы не переживут перезагрузку страницы — опубликуйте или загрузите заново
       </span>
       <span class="draft-indicator" id="draft-indicator" hidden>
-        <span class="draft-indicator__dot" aria-hidden="true"></span>несохранённые изменения
+        <span class="draft-indicator__dot" aria-hidden="true"></span><span id="draft-indicator-text">черновик</span>
       </span>
+      <button type="button" class="btn btn--ghost" id="review-draft-btn" hidden>Проверить изменения</button>
+      <button type="button" class="btn btn--ghost" id="discard-draft-btn" hidden>Отбросить черновик</button>
       <button type="button" class="btn" id="preview-btn">Предпросмотр</button>
       <button type="button" class="btn btn--primary" id="publish-btn" disabled>Опубликовать</button>
     </div>
     <div class="topbar__user" id="topbar-user"></div>
   </header>
 
-  <main class="app" id="app" aria-live="polite"></main>
+  <main class="app" id="app"></main>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
   <!-- Итерация G: полноэкранный предпросмотр черновика. Настоящий index.html
        сайта мутируется под черновик и рендерится в same-origin iframe. -->
-  <div class="preview-overlay" id="preview-overlay" role="dialog" aria-modal="true"
-       aria-label="Предпросмотр сайта с черновиком" hidden>
+  <dialog class="preview-overlay" id="preview-overlay" aria-labelledby="preview-title">
     <div class="preview-overlay__bar">
-      <p class="preview-overlay__banner" id="preview-banner">
-        Это предпросмотр черновика — на сайте изменения появятся после публикации.
-      </p>
+      <h2 class="preview-overlay__banner" id="preview-title">
+        <span id="preview-banner">Это предпросмотр черновика — на сайте изменения появятся после публикации.</span>
+      </h2>
       <div class="preview-overlay__controls">
         <div class="preview-overlay__group preview-overlay__group--design" role="group" aria-label="Дизайн предпросмотра">
           <button type="button" class="btn preview-toggle is-active" id="preview-design-original" aria-pressed="true">Original</button>
@@ -82,7 +83,7 @@
       <p class="preview-overlay__loading" id="preview-loading" hidden>Собираем предпросмотр…</p>
       <iframe class="preview-overlay__frame" id="preview-frame" title="Предпросмотр сайта с черновиком"></iframe>
     </div>
-  </div>
+  </dialog>
 
   <dialog class="publish-dialog" id="publish-dialog">
     <h2 class="publish-dialog__title">Опубликовать изменения</h2>

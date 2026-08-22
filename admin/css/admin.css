@@ -219,6 +219,25 @@ code {
   margin-left: auto;
 }
 
+@media (max-width: 1280px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 0.6rem 1rem;
+  }
+
+  .topbar__nav {
+    flex: 1 1 30rem;
+    flex-wrap: wrap;
+  }
+
+  .topbar__actions {
+    flex: 1 1 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
 .draft-indicator {
   display: inline-flex;
   align-items: center;
@@ -470,17 +489,32 @@ textarea[disabled] {
 /* Итерация F: выключенный кейс/категория — мгновенное затемнение строки
    (принцип 5 research.md) */
 .case-row--off {
-  opacity: 0.45;
+  background: var(--a-surface-2);
 }
 
 .case-row--off:hover {
-  opacity: 0.7;
+  background: var(--a-surface-2);
+}
+
+.case-row--off img,
+.case-row--off .case-row__thumb {
+  opacity: 0.45;
 }
 
 .badge--off {
-  color: var(--a-faint);
+  color: var(--a-muted);
   border-color: var(--a-border);
   background: var(--a-surface-2);
+}
+
+/* Выключенная строка остаётся управляемой: только миниатюра декоративно
+   приглушена, а идентификатор и метаданные сохраняют контраст WCAG AA. */
+.case-row--off .case-row__id {
+  color: var(--a-muted);
+}
+
+.category-row--off .category-row__id {
+  color: var(--a-muted);
 }
 
 /* Итерация F: ручка ⠿ + клавиатурные кнопки ↑/↓ (принцип 4 research.md) */
@@ -497,7 +531,11 @@ textarea[disabled] {
   font-size: 1.1rem;
   letter-spacing: -0.1em;
   user-select: none;
-  padding: 0.4rem 0.45rem; /* крупная зона захвата */
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--a-radius);
 }
 
@@ -515,7 +553,8 @@ textarea[disabled] {
   cursor: pointer;
   font: inherit;
   line-height: 1;
-  padding: 0.3rem 0.35rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
 }
 
 .reorder-btn:hover:not(:disabled) {
@@ -679,7 +718,7 @@ textarea[disabled] {
 }
 
 .category-row--off {
-  opacity: 0.45;
+  background: var(--a-surface-2);
 }
 
 .category-row__label {
@@ -737,9 +776,22 @@ textarea[disabled] {
   gap: 0.6rem;
 }
 
+/* Case media owns its denser editor layout. Meta featured works keeps the
+   shared .media-strip contract unchanged. */
+.case-media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
 .media-slot {
   margin: 0;
   position: relative;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--a-divider);
+  border-radius: var(--a-radius);
+  background: var(--a-surface-2);
 }
 
 /* Слайс B: формат/тип/удаление блока под его drop-зоной. */
@@ -759,8 +811,29 @@ textarea[disabled] {
   width: 100%;
 }
 
+.media-slot__details {
+  margin-top: 0.65rem;
+}
+
+.media-slot__details > summary {
+  cursor: pointer;
+  color: var(--a-muted);
+}
+
+.media-slot__technical-body,
+.media-slot__caption-body {
+  padding-top: 0.6rem;
+}
+
+.media-slot__caption .pair {
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  padding-top: 0.55rem;
+}
+
 .media-slot__remove {
   align-self: flex-start;
+  margin-top: 0.65rem;
 }
 
 /* «Биханс-приём»: склейка блока с предыдущим (без вертикального отступа). */
@@ -1101,6 +1174,18 @@ textarea[disabled] {
   width: min(34rem, 92vw);
 }
 
+dialog.publish-dialog[open] {
+  display: block !important;
+  position: fixed;
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 70;
+  min-width: min(20rem, 92vw);
+  min-height: 12rem;
+}
+
 .publish-dialog::backdrop {
   background: rgba(0, 0, 0, 0.6);
 }
@@ -1208,12 +1293,27 @@ body.preview-open {
   overflow: hidden;
 }
 
-.preview-overlay {
+dialog.preview-overlay {
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: flex;
+  display: none;
+  width: 100dvw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
   flex-direction: column;
+  background: var(--a-bg);
+}
+
+dialog.preview-overlay[open] {
+  display: flex;
+}
+
+dialog.preview-overlay::backdrop {
   background: var(--a-bg);
 }
 
@@ -1334,6 +1434,10 @@ body.preview-open {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 
+  .case-media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .blueprint-strip {
     grid-template-columns: 1fr;
   }
@@ -1346,6 +1450,12 @@ body.preview-open {
   .publication-record__details {
     grid-template-columns: 1fr;
     gap: 0.2rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .case-media-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1366,6 +1476,11 @@ body.preview-open {
 
 /* Выключенная категория — затемнение всей группы (принцип 5 research.md) */
 .fa-cat--off {
+  background: var(--a-surface-2);
+}
+
+.fa-cat--off .fa-cat__thumb,
+.fa-cat--off img {
   opacity: 0.55;
 }
 

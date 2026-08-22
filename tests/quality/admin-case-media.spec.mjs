@@ -186,9 +186,16 @@ test('«+ Видео»: drop-зона .webm и отдельная зона по�
     const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
     return !!draft && draft.case.media.length === expected;
   }, i + 1);
-  await expect(srcZone(page, i).locator('.drop-zone-path code').first()).toHaveText(
+  await expect(slot(page, i).locator('.media-slot__technical-body .drop-zone-path code').first()).toHaveText(
     `./assets/cases/${CASE_ID}/0${i + 1}-${hash8(WEBM_BUFFER)}.webm`
   );
+  const technical = slot(page, i).locator('.media-slot__technical-body');
+  await expect(technical.locator(typeField(i))).toHaveCount(1);
+  await expect(technical.locator(formatField(i))).toHaveCount(1);
+  await expect(technical.locator(`[data-field="${CASE_PATH}::case.media.${i}.seamless"]`)).toHaveCount(1);
+  await expect(technical.locator('.drop-zone-path')).toHaveCount(2);
+  await expect(technical).toContainText('Путь постера');
+  await expect(technical).toContainText('жёсткий предел 40 МБ');
 });
 
 test('удаление блока: confirm, сдвиг списка и запрет удаления последнего', async ({ page }) => {
@@ -253,7 +260,7 @@ test('предел 12 блоков: кнопки «добавить» скрыт
       mimeType: 'image/png',
       buffer
     });
-    await expect(srcZone(page, item.index).locator('.drop-zone-path code').first()).toHaveText(
+    await expect(slot(page, item.index).locator('.media-slot__technical-body .drop-zone-path code').first()).toHaveText(
       `./assets/cases/${CASE_ID}/${item.expected}-${hash8(buffer)}.png`
     );
   }
@@ -280,6 +287,7 @@ test('переключатель формата пишет case.media.N.format',
 
   const before = MEDIA[0].format;
   const next = before === 'wide' ? 'tall' : 'wide';
+  await slot(page, 0).locator('details').first().locator('summary').click();
   await expect(page.locator(formatField(0))).toHaveValue(before);
   await page.selectOption(formatField(0), next);
   await page.waitForFunction((expected) => {
@@ -301,6 +309,7 @@ test('смена типа фото→видео чистит src и отменя
   await expect(srcZone(page, 0).locator('.drop-zone__badge')).toBeVisible();
   await expect(page.locator('#media-warning')).toBeVisible();
 
+  await slot(page, 0).locator('details').first().locator('summary').click();
   await page.selectOption(typeField(0), 'video');
   await expect(page.locator(srcInput(0))).toHaveAttribute('accept', '.webm');
   // Байты фото отменены: предупреждение о pending-медиа погасло.
@@ -636,6 +645,11 @@ test('зеркало валидатора: CSS-эскейп в фоне и ду�
   await seedCaseDraft(page, draft);
   await openCaseEditor(page);
 
+  // Некорректный/дублирующий id остаётся задачей валидатора, но не может
+  // создавать дубли id в DOM и связывать disclosure/focus с чужим слотом.
+  const disclosureIds = await page.locator('#media-strip [id^="media-"]').evaluateAll((nodes) => nodes.map((node) => node.id));
+  expect(new Set(disclosureIds).size).toBe(disclosureIds.length);
+
   await page.click('#publish-btn');
   await expect(page.locator('#publish-dialog')).toBeHidden();
   const toast = page.locator('.toast--error');
@@ -697,6 +711,7 @@ test('подпись на одном языке блокирует публик�
   // Ошибка встаёт у ПУСТОГО поля — именно его надо решить.
   const ruField = page.locator(`[data-field="${CASE_PATH}::case.media.0.caption.label.ru"]`);
   await expect(ruField).toHaveClass(/field-invalid/);
+  await expect(ruField.locator('xpath=ancestor::details[contains(@class, "media-slot__caption")]')).toHaveAttribute('open', '');
   await expect(ruField.locator('xpath=following-sibling::p[1]')).toContainText('Слот 1 — заголовок');
   expect(calls.tree).toHaveLength(0);
 
@@ -738,6 +753,7 @@ test('seamless: чекбокс публикуется флагом блока', 
   await seedCaseDraft(page, draft);
   await openCaseEditor(page);
 
+  await slot(page, 1).locator('details').first().locator('summary').click();
   await page.check(seamlessField(1));
   await page.waitForFunction(() => {
     const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
@@ -981,4 +997,74 @@ test('вход: доступная Netlify-функция оставляет к�
 
   await expect(page.locator('#login-github')).toBeVisible();
   await expect(page.locator('#login-oauth-note')).toBeHidden();
+});
+
+test('media workflow: шесть слотов — карточки с собственными disclosures и сеткой редактора', async ({ page }, testInfo) => {
+  await mockGitHub(page);
+  const draft = caseWithBlocks(6);
+  draft.case.media.forEach((block, index) => {
+    block.caption = { label: { en: 'Label ' + index, ru: 'Подпись ' + index }, desc: { en: '', ru: '' } };
+  });
+  await seedCaseDraft(page, draft);
+  await openCaseEditor(page);
+  const grid = page.locator('#media-strip.case-media-grid');
+  await expect(grid).toBeVisible();
+  await expect(grid.locator('.media-slot')).toHaveCount(6);
+  await expect(grid.locator('.media-slot__caption details, details.media-slot__caption')).toHaveCount(6);
+  await expect(grid.locator('summary[aria-controls]')).toHaveCount(12);
+  await expect(page.locator('#caption-optional-hint')).toHaveCount(1);
+  await expect(page.locator('#seamless-rules-hint')).toHaveCount(1);
+  for (const [width, expectedRows] of [
+    [1440, [3, 3]],
+    [800, [2, 2, 2]],
+    [500, [1, 1, 1, 1, 1, 1]]
+  ]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const rows = await grid.locator('.media-slot').evaluateAll((slots) => {
+      const groups = [];
+      slots.forEach((slot) => {
+        const top = Math.round(slot.getBoundingClientRect().top);
+        const row = groups.find((item) => Math.abs(item.top - top) < 2);
+        if (row) row.count += 1;
+        else groups.push({ top, count: 1 });
+      });
+      return groups.sort((a, b) => a.top - b.top).map((row) => row.count);
+    });
+    expect(rows).toEqual(expectedRows);
+  }
+  for (let index = 0; index < 6; index += 1) {
+    const card = grid.locator('.media-slot').nth(index);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.caption.label.en"]`)).toHaveCount(1);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.caption.desc.ru"]`)).toHaveCount(1);
+    await expect(card.locator('.media-slot__technical-body .drop-zone-path')).toHaveCount(1);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.type"]`)).toHaveCount(1);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.format"]`)).toHaveCount(1);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.seamless"]`)).toHaveCount(1);
+    await expect(card.locator('.media-slot__technical-body')).toContainText('SVG, PNG, JPG или WebP');
+  }
+  await expect(grid.locator('details.media-slot__caption').first()).toHaveAttribute('open', '');
+  const disclosureRelationships = await grid.locator('summary[aria-controls]').evaluateAll((nodes) => {
+    const ids = nodes.map((node) => node.getAttribute('aria-controls'));
+    return {
+      unique: new Set(ids).size === ids.length,
+      targetsExist: nodes.every((node) => document.getElementById(node.getAttribute('aria-controls'))),
+      ownedByCard: nodes.every((node) => {
+        const card = node.closest('.media-slot');
+        const target = document.getElementById(node.getAttribute('aria-controls'));
+        return card && target && card.contains(target);
+      })
+    };
+  });
+  expect(disclosureRelationships).toEqual({ unique: true, targetsExist: true, ownedByCard: true });
+  await expect(page.locator('#seamless-rules-hint')).toHaveText(
+    'Правила склейки полотна: одинаковый формат у полос и подпись только у последней, чтобы текст не разрезал иллюстрацию.'
+  );
+  await expect(page.getByText('Правила склейки полотна:', { exact: false })).toHaveCount(1);
+  const visualDir = process.env.CODEX_TASK5_VISUAL_DIR;
+  if (visualDir) fs.mkdirSync(visualDir, { recursive: true });
+  const capturePath = (name) => (visualDir ? path.join(visualDir, name) : testInfo.outputPath(name));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: capturePath('case-media-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 500, height: 1000 });
+  await page.screenshot({ path: capturePath('case-media-narrow.png'), fullPage: true });
 });

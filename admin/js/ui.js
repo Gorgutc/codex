@@ -52,12 +52,35 @@
   // на пределе кнопка «добавить лист» уступает место объяснению, чтобы
   // владелец не упирался в ошибку публикации.
   const BLUEPRINTS_MAX_SHEETS = 8;
+  const mediaDomKeys = new WeakMap();
+  let mediaDomKeySequence = 0;
+
+  function mediaDomKey(block, idCounts, usedKeys) {
+    const validId = block && typeof block.id === 'string' && /^[a-z0-9-]+$/.test(block.id);
+    // Дубликат может быть показан до того, как валидатор остановит публикацию.
+    // Для него key по id зависит от позиции и ломает focus после reorder, поэтому
+    // только уникальный schema-safe id становится DOM-ключом.
+    let key = validId && idCounts.get(block.id) === 1 ? 'id-' + block.id : null;
+    if (!key) {
+      if (!block || typeof block !== 'object') key = 'invalid-' + ++mediaDomKeySequence;
+      else {
+        if (!mediaDomKeys.has(block)) mediaDomKeys.set(block, 'legacy-' + ++mediaDomKeySequence);
+        key = mediaDomKeys.get(block);
+      }
+    }
+    while (usedKeys.has(key)) key += '-' + ++mediaDomKeySequence;
+    usedKeys.add(key);
+    return key;
+  }
 
   const els = {
     topbar: document.getElementById('topbar'),
     app: document.getElementById('app'),
     mediaWarning: document.getElementById('media-warning'),
     draftIndicator: document.getElementById('draft-indicator'),
+    draftIndicatorText: document.getElementById('draft-indicator-text'),
+    reviewDraft: document.getElementById('review-draft-btn'),
+    discardDraft: document.getElementById('discard-draft-btn'),
     publishBtn: document.getElementById('publish-btn'),
     topbarUser: document.getElementById('topbar-user'),
     toasts: document.getElementById('toasts'),
@@ -228,7 +251,7 @@
       text: '↑'
     });
     if (opts.index === 0) up.disabled = true;
-    up.addEventListener('click', () => opts.onMove(opts.index, opts.index - 1, opts.focusKey + '::up'));
+    up.addEventListener('click', () => opts.onMove(opts.index, opts.index - 1, (opts.restoreKey || opts.focusKey) + '::up'));
     const down = el('button', {
       type: 'button',
       className: 'reorder-btn',
@@ -238,7 +261,7 @@
       text: '↓'
     });
     if (opts.index === opts.count - 1) down.disabled = true;
-    down.addEventListener('click', () => opts.onMove(opts.index, opts.index + 1, opts.focusKey + '::down'));
+    down.addEventListener('click', () => opts.onMove(opts.index, opts.index + 1, (opts.restoreKey || opts.focusKey) + '::down'));
     bar.appendChild(up);
     bar.appendChild(down);
     return bar;
@@ -255,7 +278,8 @@
       ghostClass: 'reorder-ghost',
       onEnd: (evt) => {
         if (evt.oldIndex === undefined || evt.newIndex === undefined || evt.oldIndex === evt.newIndex) return;
-        onMove(evt.oldIndex, evt.newIndex, null);
+        const mediaKey = evt.item && evt.item.getAttribute('data-media-key');
+        onMove(evt.oldIndex, evt.newIndex, mediaKey ? 'media::' + mediaKey : null);
       }
     });
   }
@@ -265,6 +289,18 @@
   // переезжает на парную (up↔down), а не падает на body.
   function focusReorder(focusKey) {
     if (!focusKey) return;
+    if (focusKey.indexOf('media::') === 0) {
+      const separator = focusKey.lastIndexOf('::');
+      const hasDirection = separator >= 'media::'.length && /^(up|down)$/.test(focusKey.slice(separator + 2));
+      const key = hasDirection ? focusKey.slice('media::'.length, separator) : focusKey.slice('media::'.length);
+      const direction = hasDirection ? focusKey.slice(separator + 2) : '';
+      const moved = document.querySelector('[data-media-key="' + key.replace(/"/g, '\\"') + '"]');
+      const target = moved && moved.querySelector(direction ? '[data-reorder$="::' + direction + '"]:not([disabled])' : '[data-reorder]:not([disabled])');
+      const fallback =
+        moved && direction ? moved.querySelector('[data-reorder$="::' + (direction === 'up' ? 'down' : 'up') + '"]:not([disabled])') : null;
+      if (target || fallback) (target || fallback).focus();
+      return;
+    }
     const find = (key) => document.querySelector('[data-reorder="' + key.replace(/"/g, '\\"') + '"]');
     const node = find(focusKey);
     if (node && !node.disabled) {
@@ -289,7 +325,10 @@
 
   function langInput(filePath, dotPath, opts) {
     const multiline = Boolean(opts && opts.multiline);
-    const input = el(multiline ? 'textarea' : 'input', { 'data-field': filePath + '::' + dotPath });
+    const input = el(multiline ? 'textarea' : 'input', {
+      id: controlId(filePath, dotPath),
+      'data-field': filePath + '::' + dotPath
+    });
     if (!multiline) input.setAttribute('type', 'text');
     const value = State.getValue(filePath, dotPath);
     input.value = value === undefined || value === null ? '' : String(value);
@@ -300,27 +339,41 @@
     return input;
   }
 
+  function controlId(filePath, dotPath) {
+    return ('admin-' + filePath + '-' + dotPath).replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
   function pairField(filePath, label, enPath, ruPath, opts) {
     const labelClass = opts && opts.mono ? 'pair__label key-label' : 'pair__label';
+    const enId = controlId(filePath, enPath);
+    const ruId = controlId(filePath, ruPath);
+    const groupId = controlId(filePath, enPath + '-label');
+    const enLangId = enId + '-language';
+    const ruLangId = ruId + '-language';
+    const enInput = langInput(filePath, enPath, opts);
+    const ruInput = langInput(filePath, ruPath, opts);
+    enInput.setAttribute('aria-labelledby', groupId + ' ' + enLangId);
+    ruInput.setAttribute('aria-labelledby', groupId + ' ' + ruLangId);
     return el('div', { className: 'pair' }, [
-      el('div', { className: labelClass, text: label }),
+      el('div', { className: labelClass, id: groupId, text: label }),
       el('div', { className: 'pair__cols' }, [
         el('div', { className: 'pair__col' }, [
-          el('span', { className: 'lang-tag', text: 'EN' }),
-          langInput(filePath, enPath, opts)
+          el('label', { className: 'lang-tag', id: enLangId, for: enId, text: 'EN' }),
+          enInput
         ]),
         el('div', { className: 'pair__col' }, [
-          el('span', { className: 'lang-tag', text: 'RU' }),
-          langInput(filePath, ruPath, opts)
+          el('label', { className: 'lang-tag', id: ruLangId, for: ruId, text: 'RU' }),
+          ruInput
         ])
       ])
     ]);
   }
 
   function textField(filePath, label, dotPath, opts) {
+    const inputId = (opts && opts.id) || controlId(filePath, dotPath);
     const input = el(opts && opts.multiline ? 'textarea' : 'input', {
       type: opts && opts.multiline ? undefined : 'text',
-      id: opts && opts.id,
+      id: inputId,
       rows: opts && opts.multiline ? String(opts.rows || 3) : undefined,
       'data-field': filePath + '::' + dotPath,
       'aria-label': label
@@ -332,7 +385,7 @@
       clearFieldError(input);
     });
     return el('div', { className: 'pair' }, [
-      el('div', { className: 'pair__label', text: label }),
+      el('label', { className: 'pair__label', for: inputId, text: label }),
       el('div', { className: 'pair__col' }, [input])
     ]);
   }
@@ -385,6 +438,7 @@
     const pathLine = el('p', { className: 'drop-zone-path' });
     const input = el('input', {
       type: 'file',
+      id: controlId(opts.filePath, opts.dotPath + '-upload'),
       className: 'drop-zone__input',
       accept: rule.accept,
       'aria-label': 'Заменить файл: ' + (opts.hint || rule.formatLabel),
@@ -488,7 +542,7 @@
 
     render();
     const wrap = el('div', { className: 'drop-zone-field' });
-    if (opts.label) wrap.appendChild(el('label', { text: opts.label }));
+    wrap.appendChild(el('label', { for: input.id, text: opts.label || 'Файл блока' }));
     wrap.appendChild(zone);
     if (opts.hint) wrap.appendChild(el('p', { className: 'hint', text: opts.hint }));
     wrap.appendChild(pathLine);
@@ -563,9 +617,25 @@
     const user = API.getUser();
     els.topbar.hidden = !token;
     const dirty = State.isDirty();
-    els.draftIndicator.hidden = !dirty;
-    els.mediaWarning.hidden = State.mediaPendingCount() === 0;
     const publicationLocked = State.isPublicationLocked();
+    els.draftIndicator.hidden = !dirty;
+    const draftStatus = State.getDraftStatus();
+    els.mediaWarning.hidden = draftStatus.memoryUploads === 0;
+    els.reviewDraft.hidden = !dirty;
+    els.discardDraft.hidden = !dirty || publicationLocked;
+    if (els.draftIndicatorText) {
+      els.draftIndicatorText.textContent = draftStatus.persistenceError
+        ? 'JSON-правки пока только в памяти этой вкладки — sessionStorage недоступен' +
+          (draftStatus.memoryUploads ? ' · файлов в памяти: ' + draftStatus.memoryUploads : '')
+        : draftStatus.savedAt
+          ? 'JSON-правки сохранены в этой вкладке · ' + new Date(draftStatus.savedAt).toLocaleTimeString('ru-RU') +
+            (draftStatus.memoryUploads ? ' · файлов в памяти: ' + draftStatus.memoryUploads : '')
+          : draftStatus.persistedAtUnknown
+            ? 'JSON-правки сохранены ранее в этой вкладке · время неизвестно' +
+              (draftStatus.memoryUploads ? ' · файлов в памяти: ' + draftStatus.memoryUploads : '')
+          : 'JSON-правки сохраняются в этой вкладке…' +
+          (draftStatus.memoryUploads ? ' · файлов в памяти: ' + draftStatus.memoryUploads : '');
+    }
     const publication = State.getPublication();
     const reconciliationPending = Boolean(
       publication && publication.error && ['published', 'reverted'].indexOf(publication.phase) !== -1
@@ -597,9 +667,14 @@
   }
 
   function setActiveNav(view) {
-    const active = view === 'case' ? 'cases' : view;
+    const requested = view === 'case' ? 'cases' : view;
+    const knownViews = Array.from(els.topbar.querySelectorAll('[data-nav]')).map((link) => link.getAttribute('data-nav'));
+    const active = knownViews.indexOf(requested) === -1 ? 'cases' : requested;
     for (const link of els.topbar.querySelectorAll('[data-nav]')) {
-      link.classList.toggle('is-active', link.getAttribute('data-nav') === active);
+      const isActive = link.getAttribute('data-nav') === active;
+      link.classList.toggle('is-active', isActive);
+      if (isActive) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
     }
   }
 
@@ -1501,9 +1576,10 @@
   }
 
   function faTextField(label, dotPath, opts) {
+    const input = langInput(FA_PATH, dotPath, opts);
     const wrap = el('div', { className: 'pair' }, [
-      el('div', { className: 'pair__label', text: label }),
-      el('div', { className: 'pair__col' }, [langInput(FA_PATH, dotPath, opts)])
+      el('label', { className: 'pair__label', for: input.id, text: label }),
+      el('div', { className: 'pair__col' }, [input])
     ]);
     if (opts && opts.hint) wrap.appendChild(el('p', { className: 'hint', text: opts.hint }));
     return wrap;
@@ -1522,7 +1598,7 @@
     input.addEventListener('input', paint);
     paint();
     return el('div', { className: 'pair' }, [
-      el('div', { className: 'pair__label', text: 'Фон превью (CSS-градиент)' }),
+      el('label', { className: 'pair__label', for: input.id, text: 'Фон превью (CSS-градиент)' }),
       el('div', { className: 'pair__col fa-bg-row' }, [input, swatch]),
       el('p', {
         className: 'hint',
@@ -1852,10 +1928,12 @@
 
   /* ── редактор кейса ──────────────────────────────────────────────── */
 
-  function readOnlyTech(label, value, hint) {
+  function readOnlyTech(path, dotPath, label, value, hint) {
+    const inputId = controlId(path, dotPath);
     return el('div', {}, [
-      el('label', { text: label }),
+      el('label', { for: inputId, text: label }),
       el('input', {
+        id: inputId,
         type: 'text',
         value,
         disabled: true,
@@ -1869,9 +1947,10 @@
   // labelText (слайс B): человекочитаемая подпись для слотов иллюстраций;
   // motion-поля по-прежнему подписаны именем поля.
   function enumSelect(path, dotBase, field, current, fallback, options, labelText) {
+    const selectId = controlId(path, dotBase + '.' + field);
     const select = el(
       'select',
-      { 'data-field': path + '::' + dotBase + '.' + field },
+      { id: selectId, 'data-field': path + '::' + dotBase + '.' + field },
       options.map((o) => el('option', { value: o.value, text: o.text }))
     );
     // Легаси/ручной out-of-enum значение: добавляем его опцией, чтобы <select> не
@@ -1885,14 +1964,15 @@
       State.setValue(path, dotBase + '.' + field, select.value);
       clearFieldError(select);
     });
-    return el('div', {}, [el('label', { text: labelText || field }), select]);
+    return el('div', {}, [el('label', { for: selectId, text: labelText || field }), select]);
   }
 
   /* ── motion-блок: источник local/vimeo, файлы, Vimeo ID ──────────── */
 
   function vimeoIdField(path, dotBase) {
     const wrap = el('div', {});
-    const input = el('input', { type: 'text', 'data-field': path + '::' + dotBase + '.vimeoId' });
+    const inputId = controlId(path, dotBase + '.vimeoId');
+    const input = el('input', { id: inputId, type: 'text', 'data-field': path + '::' + dotBase + '.vimeoId' });
     const confirmLine = el('p', { className: 'vimeo-confirm', hidden: true });
     const current = State.getValue(path, dotBase + '.vimeoId');
     input.value = current === undefined || current === null ? '' : String(current);
@@ -1934,7 +2014,7 @@
     });
     showParsed(input.value);
 
-    wrap.appendChild(el('label', { text: 'Vimeo — ссылка на ролик или ID' }));
+    wrap.appendChild(el('label', { for: inputId, text: 'Vimeo — ссылка на ролик или ID' }));
     wrap.appendChild(input);
     wrap.appendChild(confirmLine);
     wrap.appendChild(
@@ -1954,7 +2034,8 @@
       const block = State.getValue(path, dotBase) || {};
       container.replaceChildren();
 
-      const sourceSelect = el('select', { 'data-field': path + '::' + dotBase + '.source' }, [
+      const sourceSelectId = controlId(path, dotBase + '.source');
+      const sourceSelect = el('select', { id: sourceSelectId, 'data-field': path + '::' + dotBase + '.source' }, [
         el('option', { value: 'local', text: 'local — .webm из репозитория' }),
         el('option', { value: 'vimeo', text: 'vimeo — ролик на Vimeo' })
       ]);
@@ -1976,7 +2057,7 @@
       });
 
       const tech = el('div', { className: 'motion-block__tech' }, [
-        el('div', {}, [el('label', { text: 'source' }), sourceSelect]),
+        el('div', {}, [el('label', { for: sourceSelectId, text: 'source' }), sourceSelect]),
         enumSelect(path, dotBase, 'layout', block.layout, 'wide', [
           { value: 'wide', text: 'wide — широкий ряд' },
           { value: 'half', text: 'half — половина ряда' }
@@ -1987,7 +2068,7 @@
         ])
       ]);
       if (block.title) {
-        tech.appendChild(readOnlyTech('title', block.title, 'Технический заголовок Vimeo-плеера'));
+        tech.appendChild(readOnlyTech(path, dotBase + '.title', 'title', block.title, 'Технический заголовок Vimeo-плеера'));
       }
       container.appendChild(tech);
 
@@ -2407,7 +2488,8 @@
       ])
     );
 
-    const toolsInput = el('input', { type: 'text', 'data-field': path + '::case.tools' });
+    const toolsInputId = controlId(path, 'case.tools');
+    const toolsInput = el('input', { id: toolsInputId, type: 'text', 'data-field': path + '::case.tools' });
     toolsInput.value = (draft.case.tools || []).join(', ');
     toolsInput.addEventListener('input', () => {
       State.setValue(
@@ -2425,7 +2507,7 @@
         el('h2', { text: 'О проекте' }),
         pairField(path, 'Роль', 'case.role.en', 'case.role.ru'),
         el('div', { className: 'pair' }, [
-          el('div', { className: 'pair__label', text: 'Инструменты (через запятую)' }),
+          el('label', { className: 'pair__label', for: toolsInputId, text: 'Инструменты (через запятую)' }),
           el('div', { className: 'pair__col' }, [toolsInput])
         ])
       ])
@@ -2490,18 +2572,18 @@
       el('section', { className: 'editor-section', id: 'case-public-url-section', 'data-field': path + '::slug' }, [
         el('h2', { text: 'Публичный адрес' }),
         el('div', { className: 'pair' }, [
-          el('div', { className: 'pair__label', text: 'Внутренний ID' }),
+          el('label', { className: 'pair__label', for: controlId(path, 'id'), text: 'Внутренний ID' }),
           el('div', { className: 'pair__col' }, [
-            el('input', { type: 'text', value: draft.id, readOnly: true, 'aria-label': 'Внутренний ID' })
+            el('input', { id: controlId(path, 'id'), type: 'text', value: draft.id, readOnly: true })
           ])
         ]),
         el('div', { className: 'pair' }, [
-          el('div', { className: 'pair__label', text: 'Канонический slug' }),
+          el('label', { className: 'pair__label', for: slugInput.id, text: 'Канонический slug' }),
           el('div', { className: 'pair__col' }, [slugInput])
         ]),
         el('p', { className: 'hint' }, ['Ссылка: ', publicUrl]),
         el('div', { className: 'pair' }, [
-          el('div', { className: 'pair__label', text: 'Старые адреса (по одному на строку)' }),
+          el('label', { className: 'pair__label', for: aliasInput.id, text: 'Старые адреса (по одному на строку)' }),
           el('div', { className: 'pair__col' }, [aliasInput])
         ])
       ])
@@ -2553,7 +2635,7 @@
       [
         el('h2', { text: 'Внешняя ссылка (CTA)' }),
         el('div', { className: 'pair' }, [
-          el('div', { className: 'pair__label', text: 'Показывать кнопку в шапке кейса' }),
+          el('label', { className: 'pair__label', for: 'case-cta-toggle', text: 'Показывать кнопку в шапке кейса' }),
           el('div', { className: 'pair__col' }, [
             el('label', { className: 'switch', title: ctaEnabled ? 'Скрыть кнопку' : 'Показать кнопку' }, [
               ctaToggle,
@@ -2565,7 +2647,8 @@
     );
 
     if (ctaDraft) {
-      const ctaInput = el('input', { type: 'url', 'data-field': path + '::case.cta.url' });
+      const ctaInputId = controlId(path, 'case.cta.url');
+      const ctaInput = el('input', { id: ctaInputId, type: 'url', 'data-field': path + '::case.cta.url' });
       ctaInput.value = ctaUrl;
       ctaInput.addEventListener('input', () => {
         State.setValue(path, 'case.cta.url', ctaInput.value);
@@ -2573,7 +2656,7 @@
       });
       ctaSection.appendChild(
         el('div', { className: 'pair' }, [
-          el('div', { className: 'pair__label', text: 'Ссылка на проект' }),
+          el('label', { className: 'pair__label', for: ctaInputId, text: 'Ссылка на проект' }),
           el('div', { className: 'pair__col' }, [ctaInput])
         ])
       );
@@ -2652,7 +2735,14 @@
     sections.push(layoutSection);
 
     const mediaBlocks = Array.isArray(draft.case.media) ? draft.case.media : [];
-    const mediaStrip = el('div', { className: 'media-strip', id: 'media-strip' });
+    const mediaIdCounts = new Map();
+    mediaBlocks.forEach((block) => {
+      if (block && typeof block.id === 'string' && /^[a-z0-9-]+$/.test(block.id)) {
+        mediaIdCounts.set(block.id, (mediaIdCounts.get(block.id) || 0) + 1);
+      }
+    });
+    const usedMediaDomKeys = new Set();
+    const mediaStrip = el('div', { className: 'case-media-grid', id: 'media-strip' });
 
     function mediaSlotEditor(block, i, count) {
       const dotBase = 'case.media.' + i;
@@ -2662,7 +2752,13 @@
       // padStart, а не '0' + (i + 1): десятый блок иначе стал бы «010».
       const nn = String(i + 1).padStart(2, '0');
       const namingPath = './assets/cases/' + id + '/' + nn + (isVideo ? '.webm' : '.svg');
-      const slot = el('figure', { className: 'media-slot', 'data-media-slot': String(i) });
+      const stableKey = mediaDomKey(block, mediaIdCounts, usedMediaDomKeys);
+      const slot = el('figure', {
+        className: 'media-slot',
+        'data-media-slot': String(i),
+        'data-media-key': stableKey,
+        'data-field': path + '::' + dotBase + '.src'
+      });
       if (manualLayout) {
         slot.appendChild(
           reorderControls({
@@ -2670,12 +2766,12 @@
             index: i,
             count,
             focusKey: 'slot::' + i,
+            restoreKey: 'media::' + stableKey,
             onMove: moveMediaSlot
           })
         );
       }
-      slot.appendChild(
-        dropZone({
+      const sourceUpload = dropZone({
           filePath: path,
           dotPath: dotBase + '.src',
           kind: isVideo ? 'video' : 'image',
@@ -2685,12 +2781,14 @@
           // существует — новый блок выглядел «уже с картинкой».
           currentPath: block.src || null,
           preview: isVideo ? 'video' : 'image',
-          hint: isVideo ? 'Только WebM · до 20 МБ (жёсткий предел 40 МБ)' : null
-        })
-      );
+          hint: isVideo
+            ? 'Только WebM · до 20 МБ (жёсткий предел 40 МБ)'
+            : 'SVG, PNG, JPG или WebP · до 200 КБ'
+        });
+      slot.appendChild(sourceUpload);
+      let posterUpload = null;
       if (isVideo) {
-        slot.appendChild(
-          dropZone({
+        posterUpload = dropZone({
             filePath: path,
             dotPath: dotBase + '.poster',
             kind: 'image',
@@ -2699,11 +2797,12 @@
             preview: 'image',
             label: 'постер (обязателен)',
             hint: 'Единственный кадр до запуска ролика и при отключённой анимации · SVG, PNG, JPG или WebP · до 200 КБ'
-          })
-        );
+          });
+        slot.appendChild(posterUpload);
       }
 
-      const typeSelect = el('select', { 'data-field': path + '::' + dotBase + '.type' }, [
+      const typeSelectId = controlId(path, dotBase + '.type');
+      const typeSelect = el('select', { id: typeSelectId, 'data-field': path + '::' + dotBase + '.type' }, [
         el('option', { value: 'image', text: 'фото — изображение' }),
         el('option', { value: 'video', text: 'видео — ролик .webm' })
       ]);
@@ -2722,7 +2821,20 @@
       });
       removeBtn.addEventListener('click', () => removeMediaBlock(i));
 
-      slot.appendChild(
+      const technicalId = 'media-tech-' + stableKey;
+      const technicalBody = el('div', { id: technicalId, className: 'media-slot__technical-body' });
+      function moveUploadMetadata(upload, label) {
+        const pathLine = upload.querySelector('.drop-zone-path');
+        const hint = upload.querySelector('.hint');
+        if (pathLine) {
+          technicalBody.appendChild(el('p', { className: 'media-slot__path-label', text: label }));
+          technicalBody.appendChild(pathLine);
+        }
+        if (hint) technicalBody.appendChild(hint);
+      }
+      moveUploadMetadata(sourceUpload, 'Путь файла');
+      if (posterUpload) moveUploadMetadata(posterUpload, 'Путь постера');
+      technicalBody.appendChild(
         el('div', { className: 'media-slot__controls' }, [
           enumSelect(
             path,
@@ -2736,8 +2848,7 @@
             ],
             'формат'
           ),
-          el('div', {}, [el('label', { text: 'тип' }), typeSelect]),
-          removeBtn
+          el('div', {}, [el('label', { for: typeSelectId, text: 'тип' }), typeSelect])
         ])
       );
       /* «Биханс-приём»: склейка с предыдущим блоком. Недоступна на первом
@@ -2759,16 +2870,36 @@
         clearFieldError(seamlessInput);
       });
       const seamlessHint = seamlessAllowed
-        ? 'Для длинной иллюстрации, нарезанной на полосы: блок встаёт вплотную к предыдущему. ' +
-          'Правила полотна: формат у склеенных блоков одинаковый, подпись — только у последней полосы ' +
-          '(иначе текст встанет между полосами и разрежет картинку).'
+        ? 'Продолжение предыдущей полосы без вертикального отступа.'
         : i === 0
           ? 'Первый блок склеивать не с чем — над ним ничего нет.'
           : 'Доступно при ручном порядке блоков — включите его в разделе «Порядок блоков».';
-      slot.appendChild(
+      technicalBody.appendChild(
         el('div', { className: 'media-slot__seamless' }, [
           el('label', {}, [seamlessInput, ' Без отступа сверху — продолжение предыдущего блока']),
           el('p', { className: 'hint', text: seamlessHint })
+        ])
+      );
+      slot.appendChild(
+        el('details', { className: 'media-slot__details' }, [
+          el('summary', { 'aria-controls': technicalId, text: 'Технические настройки' }),
+          technicalBody
+        ])
+      );
+      slot.appendChild(removeBtn);
+      const caption = block.caption && typeof block.caption === 'object' ? block.caption : {};
+      const captionHasValue = ['label', 'desc'].some((part) =>
+        ['en', 'ru'].some((lang) => caption[part] && String(caption[part][lang] || '').trim())
+      );
+      const captionId = 'media-caption-' + stableKey;
+      const captionBody = el('div', { id: captionId, className: 'media-slot__caption-body' }, [
+        pairField(path, 'Заголовок', dotBase + '.caption.label.en', dotBase + '.caption.label.ru'),
+        pairField(path, 'Описание', dotBase + '.caption.desc.en', dotBase + '.caption.desc.ru', { multiline: true })
+      ]);
+      slot.appendChild(
+        el('details', { className: 'media-slot__details media-slot__caption', open: captionHasValue }, [
+          el('summary', { 'aria-controls': captionId, text: 'Подпись к иллюстрации' }),
+          captionBody
         ])
       );
       slot.appendChild(el('figcaption', { text: 'Слот ' + (i + 1) }));
@@ -2786,13 +2917,28 @@
       el('p', {
         className: 'hint',
         text:
-          'Фото: SVG, PNG, JPG или WebP до 200 КБ. Видео: WebM до 20 МБ, с необязательным постером. ' +
-          'Подписи к блокам редактируются ниже.' +
+          'Подписи редактируются в карточке каждого блока.' +
           (manualLayout
             ? ' При перестановке блок переезжает целиком: файл, фон, подпись, формат и тип.'
             : ' Добавление, удаление и перестановка блоков доступны при ручном порядке.')
       })
     ]);
+    mediaSection.appendChild(
+      el('p', {
+        className: 'hint',
+        id: 'caption-optional-hint',
+        text:
+          'Подписи необязательны: оставьте заголовок и описание пустыми — на сайте не будет пустого места. ' +
+          'EN и RU заполняются парой.'
+      })
+    );
+    mediaSection.appendChild(
+      el('p', {
+        className: 'hint',
+        id: 'seamless-rules-hint',
+        text: 'Правила склейки полотна: одинаковый формат у полос и подпись только у последней, чтобы текст не разрезал иллюстрацию.'
+      })
+    );
     if (mediaBlocks.length > MEDIA_WARN_BLOCKS) {
       mediaSection.appendChild(
         el('p', {
@@ -2820,30 +2966,6 @@
     }
     mediaSection.appendChild(addRow);
     sections.push(mediaSection);
-
-    if (mediaBlocks.length > 0) {
-      const captionSection = el('section', { className: 'editor-section' }, [
-        el('h2', { text: 'Подписи к медиа-слотам' }),
-        el('p', {
-          className: 'hint',
-          id: 'caption-optional-hint',
-          text:
-            'Подписи необязательны: оставьте заголовок и описание слота пустыми — на сайте под иллюстрацией ' +
-            'не будет ни текста, ни пустого места. Единственное правило — EN и RU идут парой: ' +
-            'заполнены оба поля или пусты оба.'
-        })
-      ]);
-      mediaBlocks.forEach((_block, i) => {
-        const base = 'case.media.' + i + '.caption';
-        captionSection.appendChild(
-          pairField(path, 'Слот ' + (i + 1) + ' — заголовок', base + '.label.en', base + '.label.ru')
-        );
-        captionSection.appendChild(
-          pairField(path, 'Слот ' + (i + 1) + ' — описание', base + '.desc.en', base + '.desc.ru', { multiline: true })
-        );
-      });
-      sections.push(captionSection);
-    }
 
     if (draft.case.text) {
       sections.push(
@@ -2881,12 +3003,24 @@
     const modelTech = el('div', { className: 'motion-block__tech' });
     if ('modelEnvironment' in draft.case) {
       modelTech.appendChild(
-        readOnlyTech('modelEnvironment', String(draft.case.modelEnvironment), 'Настройка 3D-viewer — не редактируется')
+        readOnlyTech(
+          path,
+          'case.modelEnvironment',
+          'modelEnvironment',
+          String(draft.case.modelEnvironment),
+          'Настройка 3D-viewer — не редактируется'
+        )
       );
     }
     if ('modelExposure' in draft.case) {
       modelTech.appendChild(
-        readOnlyTech('modelExposure', String(draft.case.modelExposure), 'Настройка 3D-viewer — не редактируется')
+        readOnlyTech(
+          path,
+          'case.modelExposure',
+          'modelExposure',
+          String(draft.case.modelExposure),
+          'Настройка 3D-viewer — не редактируется'
+        )
       );
     }
     if (modelTech.childNodes.length > 0) modelSection.appendChild(modelTech);
@@ -2895,7 +3029,8 @@
       for (const key of Object.keys(draft.case.modelStats)) {
         const dot = 'case.modelStats.' + key;
         const original = draft.case.modelStats[key];
-        const input = el('input', { type: 'text', 'data-field': path + '::' + dot });
+        const inputId = controlId(path, dot);
+        const input = el('input', { id: inputId, type: 'text', 'data-field': path + '::' + dot });
         input.value = original === undefined || original === null ? '' : String(original);
         input.addEventListener('input', () => {
           const raw = input.value;
@@ -2905,7 +3040,7 @@
           State.setValue(path, dot, next);
           clearFieldError(input);
         });
-        statsGrid.appendChild(el('div', {}, [el('label', { text: key }), input]));
+        statsGrid.appendChild(el('div', {}, [el('label', { for: inputId, text: key }), input]));
       }
       modelSection.appendChild(
         el('p', { className: 'hint', text: 'Статистика модели (показывается в панели кейса):' })
@@ -3590,6 +3725,22 @@
   /* ── инициализация ───────────────────────────────────────────────── */
 
   els.publishBtn.addEventListener('click', onPublishClick);
+  els.reviewDraft.addEventListener('click', () => onPublishClick());
+  els.discardDraft.addEventListener('click', () => {
+    if (State.isPublicationLocked()) {
+      toast('Публикация ожидает проверки; черновик пока нельзя отбросить.', 'warn');
+      return;
+    }
+    if (!window.confirm('Отбросить все JSON-правки и загруженные в памяти файлы этого черновика? Запись восстановления публикации останется.')) return;
+    try {
+      State.discardDraft();
+    } catch (error) {
+      toast(error.message || String(error), 'warn');
+      return;
+    }
+    toast('Черновик отброшен. Запись восстановления публикации сохранена.', 'info');
+    route();
+  });
   els.publishCancel.addEventListener('click', () => els.dialog.close());
   els.publishConfirm.addEventListener('click', async () => {
     const description = els.publishDesc.value.trim();

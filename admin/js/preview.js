@@ -96,6 +96,7 @@
   let desiredDesign = 'original';
   let rebuildGeneration = 0;
   let activeBlobUrls = [];
+  let previewInvoker = null;
   const defaultBanner = els.banner ? els.banner.textContent : '';
 
   function deepClone(value) {
@@ -1008,7 +1009,7 @@
       const html = fa
         ? await buildFreeAssetsPreviewHtml(desiredDesign, blobUrls, generation)
         : await buildPreviewHtml(desiredDesign, blobUrls, generation);
-      if (generation !== rebuildGeneration || els.overlay.hidden) {
+      if (generation !== rebuildGeneration || !els.overlay.open) {
         revokeBlobUrls(blobUrls);
         return;
       }
@@ -1020,7 +1021,7 @@
       revokeBlobUrls(previousBlobUrls);
     } catch (error) {
       revokeBlobUrls(blobUrls);
-      if (generation !== rebuildGeneration || els.overlay.hidden) return;
+      if (generation !== rebuildGeneration || !els.overlay.open) return;
       els.loading.textContent = 'Не удалось собрать предпросмотр: ' + (error && error.message ? error.message : error);
     }
   }
@@ -1029,11 +1030,12 @@
     if (!['original', 'specimen', 'chamber', 'hybrid'].includes(design) || design === desiredDesign) return;
     desiredDesign = design;
     updateDesignButtons();
-    if (!els.overlay.hidden) rebuildPreview();
+    if (els.overlay.open) rebuildPreview();
   }
 
-  async function open() {
-    els.overlay.hidden = false;
+  async function open(invoker) {
+    previewInvoker = invoker && invoker.isConnected ? invoker : document.activeElement;
+    if (!els.overlay.open) els.overlay.showModal();
     document.body.classList.add('preview-open');
     updateDesignButtons();
     els.close.focus();
@@ -1042,15 +1044,17 @@
 
   function close() {
     rebuildGeneration += 1;
-    els.overlay.hidden = true;
     document.body.classList.remove('preview-open');
     // Остановить GSAP/Lenis/видео внутри iframe — пустой документ.
     clearFrame();
-    if (els.openBtn) els.openBtn.focus();
+    if (els.overlay.open) els.overlay.close();
+    const invoker = previewInvoker;
+    previewInvoker = null;
+    if (invoker && invoker.isConnected && typeof invoker.focus === 'function') invoker.focus();
   }
 
   els.frame.addEventListener('load', () => {
-    if (!els.overlay.hidden && els.frame.srcdoc) {
+    if (els.overlay.open && els.frame.srcdoc) {
       const frameGeneration = els.frame.contentDocument
         && els.frame.contentDocument.documentElement.getAttribute('data-preview-generation');
       if (frameGeneration !== String(rebuildGeneration)) return;
@@ -1059,7 +1063,7 @@
     }
   });
 
-  els.openBtn.addEventListener('click', open);
+  els.openBtn.addEventListener('click', (event) => open(event.currentTarget));
   els.close.addEventListener('click', close);
   els.designOriginal.addEventListener('click', () => setDesign('original'));
   els.designSpecimen.addEventListener('click', () => setDesign('specimen'));
@@ -1069,8 +1073,9 @@
   els.langRu.addEventListener('click', () => setLang('ru'));
   els.vpDesktop.addEventListener('click', () => setViewport('desktop'));
   els.vpMobile.addEventListener('click', () => setViewport('mobile'));
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !els.overlay.hidden) close();
+  els.overlay.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    close();
   });
 
   window.AdminPreview = { open, close, setDesign };

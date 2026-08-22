@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { allCaseIds } from '../../scripts/content-expectations.mjs';
 
@@ -312,4 +313,187 @@ test('owner-скрытая база: кейс выключенной катег�
   await expect(row.locator('.badge--off')).toHaveText('категория скрыта');
   // собственный выключатель кейса не тронут: скрыта категория, а не кейс
   await expect(row.locator('.switch input')).toBeChecked();
+});
+
+test('admin chrome: current section is singular and draft actions are truthful', async ({ page }) => {
+  await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/case/orbital-mk-ii"]');
+  await page.fill(RU_TITLE_FIELD, 'Черновик для проверки');
+  await expect(page.locator('#app[aria-live]')).toHaveCount(0);
+  await expect(page.locator('[data-nav][aria-current="page"]')).toHaveCount(1);
+  await expect(page.locator('#draft-indicator')).toContainText('JSON-правки сохранены в этой вкладке');
+  await expect(page.locator('#draft-indicator')).toContainText(/\d{2}:\d{2}:\d{2}/);
+  const savedAt = await page.evaluate(() => JSON.parse(sessionStorage.getItem('codexAdminDrafts')).savedAt);
+  const savedTime = new Date(savedAt).toLocaleTimeString('ru-RU');
+  await expect(page.locator('#draft-indicator')).toContainText(savedTime);
+  await page.reload();
+  await expect(page.locator('#draft-indicator')).toContainText(savedTime);
+  await expect(page.locator('#review-draft-btn')).toBeVisible();
+  await expect(page.locator('#discard-draft-btn')).toBeVisible();
+  await page.evaluate(() => {
+    window.location.hash = '#/not-a-real-admin-section';
+  });
+  await expect(page.locator('.case-row').first()).toBeVisible();
+  await expect(page.locator('[data-nav][aria-current="page"]')).toHaveCount(1);
+  await expect(page.locator('[data-nav="cases"]')).toHaveAttribute('aria-current', 'page');
+});
+
+test('draft indicator never calls an unsaved draft persisted when session storage rejects it', async ({ page }) => {
+  await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/case/orbital-mk-ii"]');
+  await page.evaluate(() => {
+    const nativeSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'codexAdminDrafts') throw new DOMException('quota', 'QuotaExceededError');
+      return nativeSetItem.call(this, key, value);
+    };
+  });
+  await page.fill(RU_TITLE_FIELD, 'Только в памяти');
+  await expect(page.locator('#draft-indicator')).toContainText('пока только в памяти этой вкладки');
+  await expect(page.locator('#draft-indicator')).not.toContainText('JSON-правки сохранены');
+});
+
+test('a legacy V2 draft without savedAt is truthfully persisted until the next edit timestamps it', async ({ page }) => {
+  const baseDraft = JSON.parse(fs.readFileSync(path.join(ROOT, CASE_PATH), 'utf8'));
+  const legacyDraft = structuredClone(baseDraft);
+  legacyDraft.card.title.ru = 'Сохранено до времени';
+  await page.addInitScript(
+    ({ casePath, base, draft }) => {
+      sessionStorage.setItem(
+        'codexAdminDrafts',
+        JSON.stringify({
+          version: 2,
+          files: { [casePath]: draft },
+          baseShas: { [casePath]: 'c'.repeat(40) },
+          baseSnapshots: { [casePath]: base }
+        })
+      );
+    },
+    { casePath: CASE_PATH, base: baseDraft, draft: legacyDraft }
+  );
+  await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/case/orbital-mk-ii"]');
+  await expect(page.locator(RU_TITLE_FIELD)).toHaveValue('Сохранено до времени');
+  await expect(page.locator('#draft-indicator')).toContainText('сохранены ранее');
+  await expect(page.locator('#draft-indicator')).toContainText('время неизвестно');
+  await expect(page.locator('#draft-indicator')).not.toContainText('сохраняются');
+  await page.fill(RU_TITLE_FIELD, 'Сохранено с новым временем');
+  await expect(page.locator('#draft-indicator')).toContainText('сохраняются');
+  await page.waitForFunction(() => {
+    const draft = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    return draft && typeof draft.savedAt === 'string';
+  });
+  const savedAt = await page.evaluate(() => JSON.parse(sessionStorage.getItem('codexAdminDrafts')).savedAt);
+  await expect(page.locator('#draft-indicator')).toContainText(new Date(savedAt).toLocaleTimeString('ru-RU'));
+});
+
+async function expectVisibleControlLabels(page, selectors) {
+  for (const selector of selectors) {
+    const controls = page.locator(selector);
+    expect(await controls.count(), selector + ' is rendered').toBeGreaterThan(0);
+    const withoutVisibleAssociation = await controls.evaluateAll((nodes) =>
+      nodes
+        .filter((node) => {
+          const labels = Array.from(node.labels || []).filter((label) => label.textContent.trim());
+          const ids = String(node.getAttribute('aria-labelledby') || '')
+            .split(/\s+/)
+            .filter(Boolean);
+          const labelledBy = ids.length > 0 && ids.every((id) => {
+            const label = document.getElementById(id);
+            return label && label.textContent.trim();
+          });
+          return labels.length === 0 && !labelledBy;
+        })
+        .map((node) => ({ field: node.getAttribute('data-field'), id: node.id, type: node.type }))
+    );
+    expect(withoutVisibleAssociation, selector + ' has a visible associated label').toEqual([]);
+  }
+}
+
+test('case editor: representative controls have visible labels and hidden rows keep axe contrast', async ({ page }) => {
+  await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/case/orbital-mk-ii"]');
+
+  // Enabling the optional CTA proves that labels survive a rerender as well.
+  await page.click('#case-cta-toggle');
+  await expect(page.locator('#case-cta-section [data-field$="case.cta.url"]')).toBeVisible();
+
+  await expectVisibleControlLabels(page, [
+    RU_TITLE_FIELD,
+    `[data-field="${CASE_PATH}::case.tools"]`,
+    '#case-public-slug',
+    '#case-legacy-slugs',
+    '#case-cta-toggle',
+    `[data-field="${CASE_PATH}::case.cta.url"]`,
+    `[data-field="${CASE_PATH}::case.media.0.type"]`,
+    `[data-field="${CASE_PATH}::case.media.0.format"]`,
+    `[data-media="${CASE_PATH}::case.media.0.src"]`,
+    `[data-media="${CASE_PATH}::case.modelSrc"]`,
+    `[data-field="${CASE_PATH}::case.modelStats.triangles"]`,
+    `[data-field="${CASE_PATH}::case.motionBlocks.0.layout"]`,
+    `[data-field="${CASE_PATH}::case.motionBlocks.1.source"]`,
+    `[data-field="${CASE_PATH}::case.motionBlocks.1.vimeoId"]`
+  ]);
+
+  // The off-row treatment must dim decoration, not make its functional text
+  // fail WCAG contrast. Run axe against the actual deterministic off state.
+  await page.click('a[href="#/cases"]');
+  await page.click('[data-case-toggle="orbital-mk-ii"]');
+  const offRow = page.locator('.case-row--off[data-case-id="orbital-mk-ii"]');
+  await expect(offRow).toBeVisible();
+  const axe = await new AxeBuilder({ page }).include('.case-row--off[data-case-id="orbital-mk-ii"]').analyze();
+  expect(axe.violations.filter((violation) => violation.id === 'color-contrast')).toEqual([]);
+
+  await page.click('a[href="#/categories"]');
+  await page.locator('[data-category-row] .switch input:checked').first().click();
+  const offCategory = page.locator('.category-row--off').first();
+  await expect(offCategory).toBeVisible();
+  const offCategorySelector = await offCategory.evaluate((node) => '[data-category-row="' + node.dataset.categoryRow + '"]');
+  const categoryAxe = await new AxeBuilder({ page }).include(offCategorySelector).analyze();
+  expect(categoryAxe.violations.filter((violation) => violation.id === 'color-contrast')).toEqual([]);
+
+  await page.click('a[href="#/free-assets"]');
+  const firstAssetLink = page.locator('a[href^="#/free-assets/"]').first();
+  await firstAssetLink.click();
+  await expect(page.locator('[data-field^="content/free-assets.json::"]').first()).toBeVisible();
+  await expectVisibleControlLabels(page, [
+    '[data-field^="content/free-assets.json::"][data-field$=".title"]',
+    '[data-field^="content/free-assets.json::"][data-field$=".bg"]'
+  ]);
+});
+
+test('draft actions: Review is non-publishing and Discard clears tab draft/media but preserves publication recovery', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/case/orbital-mk-ii"]');
+  await page.fill(RU_TITLE_FIELD, 'Изменение для review');
+  await page.waitForFunction(() => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    return raw && raw.savedAt;
+  });
+  await page.click('#review-draft-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  expect(calls.tree).toHaveLength(0);
+  await page.click('#publish-cancel');
+
+  await page.setInputFiles(`[data-media="${CASE_PATH}::card.thumb"]`, {
+    name: 'memory-only.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('89504e470d0a1a0a-memory-only')
+  });
+  await expect(page.locator('#draft-indicator')).toContainText('файлов в памяти: 1');
+  await page.evaluate(() => sessionStorage.setItem('codexAdminPublication', '{"keep":"recovery"}'));
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.click('#discard-draft-btn');
+  await expect(page.locator('#draft-indicator')).toBeHidden();
+  await expect(page.locator('#media-warning')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => ({
+    drafts: sessionStorage.getItem('codexAdminDrafts'),
+    publication: sessionStorage.getItem('codexAdminPublication'),
+    pending: window.AdminState.mediaPendingCount()
+  }))).toEqual({ drafts: null, publication: '{"keep":"recovery"}', pending: 0 });
 });

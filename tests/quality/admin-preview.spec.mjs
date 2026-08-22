@@ -754,3 +754,106 @@ test('preview keeps hostile draft JSON-LD data inert and parseable inside srcdoc
   });
   expect(pageIdentity).toEqual([hostile, hostile]);
 });
+
+test('preview uses a native modal dialog and Escape runs the same cleanup as Close', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click('#preview-btn');
+  const dialog = page.locator('#preview-overlay');
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect(page.locator('body')).toHaveClass(/preview-open/);
+  await page.click('#preview-close');
+  await expect(dialog).toHaveJSProperty('open', false);
+  await expect(page.locator('#preview-frame')).toHaveAttribute('src', 'about:blank');
+  await expect(page.locator('#preview-btn')).toBeFocused();
+  await page.click('#preview-btn');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveJSProperty('open', false);
+  await expect(page.locator('#preview-frame')).toHaveAttribute('src', 'about:blank');
+  await expect(page.locator('#preview-btn')).toBeFocused();
+});
+
+test('preview modal contains focus and close cancels a stale asynchronous rebuild without leaking blobs', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.evaluate(() => {
+    const invoker = document.createElement('button');
+    invoker.id = 'custom-preview-invoker';
+    invoker.type = 'button';
+    invoker.textContent = 'Открыть тестовый preview';
+    document.querySelector('#topbar').appendChild(invoker);
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    window.__previewLifecycle = { created: [], revoked: [] };
+    URL.createObjectURL = (blob) => {
+      const url = create(blob);
+      window.__previewLifecycle.created.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      window.__previewLifecycle.revoked.push(url);
+      revoke(url);
+    };
+  });
+
+  const dialog = page.locator('#preview-overlay');
+  await page.locator('#custom-preview-invoker').evaluate((invoker) => window.AdminPreview.open(invoker));
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect.poll(() => dialog.evaluate((node) => node.matches(':modal'))).toBe(true);
+  await expect(page.locator('#preview-close')).toBeFocused();
+  await expect(page.locator('#preview-frame')).toHaveAttribute('srcdoc', /data-preview-generation/);
+  await expect.poll(() => page.evaluate(() => window.__previewLifecycle.created.length)).toBeGreaterThan(0);
+  await page.evaluate(() => window.AdminPreview.close());
+  await expect(dialog).toHaveJSProperty('open', false);
+  await expect(page.locator('body')).not.toHaveClass(/preview-open/);
+  await expect(page.locator('#preview-frame')).toHaveAttribute('src', 'about:blank');
+  await expect(page.locator('#preview-frame')).not.toHaveAttribute('srcdoc', /.*/);
+  await expect(page.locator('#custom-preview-invoker')).toBeFocused();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const { created, revoked } = window.__previewLifecycle;
+        return created.length > 0 && created.every((url) => revoked.includes(url));
+      })
+    )
+    .toBe(true);
+
+  let releaseStale;
+  const staleGate = new Promise((resolve) => {
+    releaseStale = resolve;
+  });
+  let intercepted = false;
+  await page.route(`${base}/index.html`, async (route) => {
+    if (!intercepted) {
+      intercepted = true;
+      await staleGate;
+    }
+    await route.continue();
+  });
+  const staleBaseline = await page.evaluate(() => window.__previewLifecycle.created.length);
+  await page.locator('#custom-preview-invoker').evaluate((invoker) => {
+    void window.AdminPreview.open(invoker);
+  });
+  await expect.poll(() => intercepted).toBe(true);
+  await page.evaluate(() => window.AdminPreview.close());
+  releaseStale();
+  await expect.poll(() => page.evaluate(() => window.__previewLifecycle.created.length)).toBeGreaterThan(staleBaseline);
+  await expect.poll(() => page.locator('#preview-overlay').evaluate((node) => node.open)).toBe(false);
+  await expect(page.locator('#preview-frame')).toHaveAttribute('src', 'about:blank');
+  await expect(page.locator('#preview-frame')).not.toHaveAttribute('srcdoc', /.*/);
+  await expect
+    .poll(() =>
+      page.evaluate((baseline) => {
+        const { created, revoked } = window.__previewLifecycle;
+        const staleUrls = created.slice(baseline);
+        return staleUrls.length > 0 && staleUrls.every((url) => revoked.includes(url));
+      }, staleBaseline)
+    )
+    .toBe(true);
+});
