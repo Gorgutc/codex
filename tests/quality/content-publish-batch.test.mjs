@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { sanitizedGitEnv } from '../../scripts/git-local-env.mjs';
 import {
   classifyPushFailure,
   classifyRemoteHead,
@@ -13,7 +14,13 @@ import {
 } from '../../scripts/content-publish-batch.mjs';
 
 function git(cwd, args, options = {}) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', ...options }).trim();
+  const { env: requestedEnv, ...gitOptions } = options;
+  return execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    ...gitOptions,
+    env: sanitizedGitEnv(requestedEnv)
+  }).trim();
 }
 
 function write(cwd, rel, value) {
@@ -83,6 +90,33 @@ function fixture() {
   return { root, origin, repo, sources: [first, second, third] };
 }
 
+function callerFixture(root) {
+  const origin = path.join(root, 'hook-caller-origin.git');
+  const repo = path.join(root, 'hook-caller');
+  git(root, ['init', '--bare', origin]);
+  git(root, ['clone', origin, repo]);
+  git(repo, ['symbolic-ref', 'HEAD', 'refs/heads/main']);
+  commit(repo, 'caller: initial', { 'docs/caller.md': 'caller\n' });
+  git(repo, ['push', '-u', 'origin', 'main']);
+  return { origin, repo };
+}
+
+async function withEnvironment(environment, callback) {
+  const previous = new Map(Object.keys(environment).map((key) => [key, process.env[key]]));
+  for (const [key, value] of Object.entries(environment)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return await callback();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 const generatedAllowlist = [(rel) => rel === 'generated/site.txt'];
 
 function subjects(cwd) {
@@ -145,6 +179,34 @@ test('golden capture changes are included in the final generated commit and push
   assert.equal(result.status, 'published', String(result.error));
   assert.equal(git(repo, ['show', 'origin/main:tests/quality/fixtures/captured.txt']), 'golden');
   assert.equal(git(repo, ['status', '--porcelain']), '');
+});
+
+test('a hook Git context cannot redirect fixture setup or its batch', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-content-publish-hook-fixture-'));
+  const caller = callerFixture(root);
+  const callerHead = git(caller.repo, ['rev-parse', 'HEAD']);
+  const callerRemote = git(caller.repo, ['rev-parse', 'origin/main']);
+
+  const callerGitDir = path.join(caller.repo, '.git');
+  const { isolated, result } = await withEnvironment({ GIT_DIR: callerGitDir, GIT_WORK_TREE: undefined }, async () => {
+    const isolated = fixture();
+    const result = await runContentPublishBatch({
+      cwd: isolated.repo,
+      maxAttempts: 1,
+      generate: () => write(isolated.repo, 'generated/site.txt', 'generated under hook context\n'),
+      verify: () => {},
+      captureGolden: () => {},
+      generatedAllowlist
+    });
+    return { isolated, result };
+  });
+
+  assert.equal(result.status, 'published', String(result.error));
+  assert.equal(git(isolated.repo, ['show', 'origin/main:generated/site.txt']), 'generated under hook context');
+  assert.equal(git(caller.repo, ['rev-parse', 'HEAD']), callerHead);
+  assert.equal(git(caller.repo, ['rev-parse', 'origin/main']), callerRemote);
+  assert.equal(git(isolated.repo, ['rev-parse', '--git-dir'], { env: { GIT_DIR: callerGitDir } }), '.git');
+  assert.equal(git(caller.repo, ['status', '--porcelain']), '');
 });
 
 test('failure reverts every unresolved source, preserves interleaved docs, and emits ordered revert markers', async () => {

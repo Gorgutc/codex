@@ -8,14 +8,21 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sanitizedGitEnv } from './git-local-env.mjs';
 
 const BOT_NAME = 'github-actions[bot]';
 const BOT_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com';
 const SUCCESS_PREFIX = 'chore(content): regenerate site from content/ [content-publish]';
 const REVERT_PREFIX = 'revert(content): roll back content push after failed publish [content-publish-revert]';
-
 function git(cwd, args, options = {}) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim();
+  const { env: requestedEnv, ...gitOptions } = options;
+  return execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...gitOptions,
+    env: sanitizedGitEnv(requestedEnv)
+  }).trim();
 }
 
 function gitOk(cwd, args) {
