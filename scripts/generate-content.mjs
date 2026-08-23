@@ -2278,29 +2278,59 @@ function detectEol(text) {
 }
 
 export function generatedPayloadVersion(source) {
-  return createHash('sha256').update(source, 'utf8').digest('hex');
+  return createHash('sha256').update(source).digest('hex');
 }
 
 export function versionedDataScriptSrc(fileName, source) {
   return `./js/${fileName}?v=${generatedPayloadVersion(source)}`;
 }
 
-export function replaceDataScriptSrc(html, filePath, fileName, source) {
-  const escapedFileName = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function versionedAssetRef(baseRef, source) {
+  return `${baseRef}?v=${generatedPayloadVersion(source)}`;
+}
+
+// One generated shell reference is the cache manifest for one emitted file.
+// The matcher accepts an old query so generation can repair it, but rejects a
+// missing or duplicated base reference rather than silently leaving an
+// unversioned/stale copy behind. It works for both <script src> and <link
+// href> without broad HTML rewrites.
+export function replaceVersionedAssetRef(html, filePath, { tag, attr, baseRef, source, label = baseRef }) {
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedAttr = attr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedBaseRef = baseRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(
-    `(<script\\b[^>]*\\bsrc=(["']))((?:\\.\\/|\\.\\.\\/)js\\/)${escapedFileName}(?:\\?[^"']*)?(\\2)`,
+    `(<${escapedTag}\\b[^>]*\\s${escapedAttr}\\s*=\\s*(["']))${escapedBaseRef}(?:\\?[^"']*)?(\\2)`,
     'gi'
   );
   let matches = 0;
-  const next = html.replace(pattern, (_match, open, _quote, prefix, close) => {
+  const next = html.replace(pattern, (_match, open, _quote, close) => {
     matches += 1;
-    return `${open}${versionedDataScriptSrc(fileName, source).replace('./js/', prefix)}${close}`;
+    return `${open}${versionedAssetRef(baseRef, source)}${close}`;
   });
   if (matches !== 1) {
-    throw new Error(`${filePath}: expected exactly one ${fileName} data-script URL (found ${matches})`);
+    throw new Error(`${filePath}: expected exactly one ${label} URL (found ${matches})`);
   }
   return next;
 }
+
+export function replaceDataScriptSrc(html, filePath, fileName, source) {
+  const prefix = filePath === 'admin/index.html' ? '../' : './';
+  return replaceVersionedAssetRef(html, filePath, {
+    tag: 'script',
+    attr: 'src',
+    baseRef: `${prefix}js/${fileName}`,
+    source,
+    label: `${fileName} data-script`
+  });
+}
+
+const ADMIN_STATIC_APP_ASSETS = [
+  { rel: 'admin/css/admin.css', tag: 'link', attr: 'href', baseRef: './css/admin.css' },
+  { rel: 'admin/js/api.js', tag: 'script', attr: 'src', baseRef: './js/api.js' },
+  { rel: 'admin/js/state.js', tag: 'script', attr: 'src', baseRef: './js/state.js' },
+  { rel: 'admin/js/preview.js', tag: 'script', attr: 'src', baseRef: './js/preview.js' },
+  { rel: 'admin/js/ui.js', tag: 'script', attr: 'src', baseRef: './js/ui.js' }
+];
 
 // Inner content of every <a class="logo"> wrapper. Unset src → the historical
 // "CODEX" wordmark, emitted byte-identically (with the caller's exact indent) so the
@@ -2411,6 +2441,13 @@ function buildTargets(content) {
   adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'cards-data.js', cardsJs);
   adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'fa-data.js', faJs);
   adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'i18n-data.js', i18nJs);
+  for (const asset of ADMIN_STATIC_APP_ASSETS) {
+    adminNext = replaceVersionedAssetRef(adminNext, 'admin/index.html', {
+      ...asset,
+      source: fs.readFileSync(path.join(ROOT, asset.rel)),
+      label: asset.rel
+    });
+  }
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');
   const sitemapEol = fs.existsSync(sitemapPath) ? detectEol(fs.readFileSync(sitemapPath, 'utf8')) : '\n';

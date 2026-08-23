@@ -103,6 +103,47 @@ function checkGeneratedDataScriptRevisions(page, expectedFiles) {
   );
 }
 
+const ADMIN_STATIC_APP_ASSETS = [
+  { file: 'admin/css/admin.css', tag: 'link', attr: 'href', base: './css/admin.css' },
+  { file: 'admin/js/api.js', tag: 'script', attr: 'src', base: './js/api.js' },
+  { file: 'admin/js/state.js', tag: 'script', attr: 'src', base: './js/state.js' },
+  { file: 'admin/js/preview.js', tag: 'script', attr: 'src', base: './js/preview.js' },
+  { file: 'admin/js/ui.js', tag: 'script', attr: 'src', base: './js/ui.js' }
+];
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function tagAttributeSources(html, tag, attr) {
+  const pattern = new RegExp(
+    `<${escapeRegex(tag)}\\b[^>]*\\s${escapeRegex(attr)}\\s*=\\s*["']([^"']+)["']`,
+    'gi'
+  );
+  return Array.from(html.matchAll(pattern), (match) => match[1]);
+}
+
+function checkAdminStaticAppRevisions(page) {
+  const html = read(page);
+  const problems = [];
+  for (const asset of ADMIN_STATIC_APP_ASSETS) {
+    const refs = tagAttributeSources(html, asset.tag, asset.attr).filter(
+      (ref) => ref === asset.base || ref.startsWith(asset.base + '?')
+    );
+    const expected = `${asset.base}?v=${createHash('sha256').update(fs.readFileSync(relPath(asset.file))).digest('hex')}`;
+    if (refs.length !== 1 || refs[0] !== expected) {
+      problems.push(`${asset.base}=${refs.length === 1 ? refs[0] : `${refs.length} refs`}`);
+    }
+  }
+  const sortable = scriptSources(page).filter((script) => script.src.includes('sortable.min.js'));
+  const sortableOk = sortable.length === 1 && sortable[0].src === './js/vendor/sortable.min.js';
+  check(
+    `${page}: static admin assets use exact raw-byte SHA-256 revisions`,
+    problems.length === 0 && sortableOk,
+    [...problems, sortableOk ? '' : 'SortableJS must stay one unversioned pinned vendor URL'].filter(Boolean).join(', ')
+  );
+}
+
 const packageJson = JSON.parse(read('package.json'));
 check(
   'package: check:governance script exists',
@@ -213,10 +254,12 @@ check(
       deployBeget.includes('! git diff-tree --root --quiet --no-commit-id -r "$sha" -- content/ assets/')
   );
   check(
-    'deploy: Beget parity delegates normal-shell and immutable-payload verification to its executable fixture',
+    'deploy: Beget parity verifies normal shells, generated payloads and versioned admin assets',
     !deployBeget.includes('cache_bust=') &&
       !deployBeget.includes('Cache-Control: no-cache') &&
       deployBeget.includes('node scripts/verify-beget-parity.mjs --public-url "$PUBLIC_URL"') &&
+      deployBeget.includes('admin/index.html') &&
+      deployBeget.includes('five versioned admin app assets') &&
       deployBeget.includes('actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020') &&
       deployBeget.includes('node-version: 22') &&
       begetParity.includes("redirect: 'manual'") &&
@@ -224,6 +267,9 @@ check(
       begetParity.includes('FETCH_TIMEOUT_MS = 60_000') &&
       begetParity.includes('return Buffer.from(await response.arrayBuffer())') &&
       begetParity.includes('conflicting immutable revisions') &&
+      begetParity.includes("remote: 'admin/index.html'") &&
+      begetParity.includes('ADMIN_APP_ASSETS') &&
+      begetParity.includes('new URL(ref.href, adminShell.remoteUrl)') &&
       begetParity.includes('process.exitCode = await runBegetParityCli({ publicUrl });') &&
       /node --test tests\/quality\/beget-parity\.test\.mjs/.test(packageJson.scripts['test:beget-parity'] || '') &&
       /\btest:beget-parity\b/.test(packageJson.scripts['codex:ship'] || '')
@@ -328,6 +374,18 @@ checkScriptOrder('free-assets.html', [
   /animations\.js$/,
   /free-assets\.js$/
 ]);
+checkScriptOrder('admin/index.html', [
+  /^\.\/js\/vendor\/sortable\.min\.js$/,
+  /^\.\.\/js\/cards-data\.js\?v=[0-9a-f]{64}$/,
+  /^\.\.\/js\/fa-data\.js\?v=[0-9a-f]{64}$/,
+  /^\.\.\/js\/i18n-data\.js\?v=[0-9a-f]{64}$/,
+  /^\.\/js\/api\.js\?v=[0-9a-f]{64}$/,
+  /^\.\/js\/state\.js\?v=[0-9a-f]{64}$/,
+  /^\.\/js\/preview\.js\?v=[0-9a-f]{64}$/,
+  /^\.\/js\/ui\.js\?v=[0-9a-f]{64}$/
+]);
+checkNoFirstPartyModuleOrDefer('admin/index.html');
+checkAdminStaticAppRevisions('admin/index.html');
 
 for (const page of ['index.html', 'free-assets.html']) {
   checkNoFirstPartyModuleOrDefer(page);
