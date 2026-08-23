@@ -50,6 +50,8 @@ function fixture() {
   const repo = path.join(root, 'repo');
   git(root, ['init', '--bare', origin]);
   git(root, ['clone', origin, repo]);
+  git(repo, ['config', 'user.name', 'Content publish fixture']);
+  git(repo, ['config', 'user.email', 'content-publish-fixture@example.test']);
   // An empty clone inherits its unborn HEAD from the caller's Git defaults.
   // Pin it directly instead of creating a branch that may already be named
   // main under init.defaultBranch=main.
