@@ -1402,6 +1402,10 @@ function faTagCardsSection(html) {
           (html.match(/href="https:\/\/example\.test\/contact"/g) || []).length !== 2) {
         fail('both generated contact anchors must follow content.meta.contactUrl', html);
       }
+      const contactAnchors = Array.from(html.matchAll(/<a\b[^>]*id="contact-(?:btn|pill)"[^>]*>/g)).map((match) => match[0]);
+      if (contactAnchors.length !== 2 || contactAnchors.some((anchor) => /telegram|contactTelegram/i.test(anchor))) {
+        fail('non-Telegram contact fixtures must emit provider-neutral anchor copy and i18n keys', contactAnchors.join('\n'));
+      }
       const organization = readJsonLd(html).find((node) => node['@type'] === 'Organization');
       if (!organization || organization.name !== 'Fixture Studio' || organization.alternateName !== 'Fixture' ||
           organization.url !== 'https://example.test/' || organization.description !== 'Fixture English description' ||
@@ -1410,7 +1414,7 @@ function faTagCardsSection(html) {
       }
     }
     const featuredList = readJsonLd(index).find((node) => node['@type'] === 'ItemList');
-    if (!featuredList || featuredList.itemListElement.length !== 1 ||
+    if (!featuredList || featuredList.name !== 'Fixture Studio — Featured Works' || featuredList.itemListElement.length !== 1 ||
         featuredList.itemListElement[0].item.about !== 'Fixture featured about') {
       fail('featured works order and about must follow content.meta.structuredData');
     }
@@ -1420,11 +1424,13 @@ function faTagCardsSection(html) {
       .filter((item) => item && item.enabled !== false)
       .map((item) => item.id);
     const assetList = readJsonLd(freeAssetsHtml).find((node) => node['@type'] === 'ItemList');
+    const freeAssetsPage = readJsonLd(freeAssetsHtml).find((node) => node['@type'] === 'WebPage');
     const visible = assetList && assetList.itemListElement.find((entry) => entry.url.endsWith('#metadata-probe'));
     const hidden = assetList && assetList.itemListElement.find((entry) => entry.url.endsWith('#hidden-metadata-probe'));
     const actualFreeAssetIds = assetList && assetList.itemListElement.map((entry) => entry.url.split('#')[1]);
     const actualPositions = assetList && assetList.itemListElement.map((entry) => entry.position);
-    if (!assetList || assetList.numberOfItems !== expectedFreeAssetIds.length ||
+    if (!freeAssetsPage || freeAssetsPage.name !== 'Free 3D Assets — Fixture Studio' ||
+        !assetList || assetList.name !== 'Fixture Studio — Free 3D asset catalog' || assetList.numberOfItems !== expectedFreeAssetIds.length ||
         JSON.stringify(actualFreeAssetIds) !== JSON.stringify(expectedFreeAssetIds) ||
         JSON.stringify(actualPositions) !== JSON.stringify(expectedFreeAssetIds.map((_id, index) => index + 1)) ||
         !visible || visible.item.name !== 'Fixture visible asset' || visible.item.description !== 'Fixture visible description' || hidden) {

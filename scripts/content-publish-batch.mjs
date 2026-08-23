@@ -190,8 +190,11 @@ async function oneAttempt(options) {
   try {
     await options.generate({ cwd, base, sources, attempt: options.attempt });
     generatedPaths = generatedChanges(cwd, options.generatedAllowlist);
+    // A source batch can consist solely of replacement assets and leave every
+    // generated target byte-identical. It still changes what production serves,
+    // so the verifier is mandatory before any source receives a success marker.
+    await options.verify();
     if (generatedPaths.length) {
-      await options.verify();
       await options.captureGolden();
       generatedPaths = generatedChanges(cwd, options.generatedAllowlist);
     }

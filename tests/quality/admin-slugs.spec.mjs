@@ -89,3 +89,48 @@ test('invalid public route grammar blocks publish with an anchored Russian error
   await page.click('#publish-btn');
   await expect(page.locator('#case-public-url-section')).toContainText(/строчные латинские буквы/);
 });
+
+test('authoritative main catalog rejects an untouched remotely conflicting case before any Git write', async ({ page }) => {
+  const remoteId = allCaseIds(process.cwd()).find((id) => id !== CASE_ID);
+  test.skip(!remoteId, 'requires a second case');
+  const remotePath = 'content/cases/' + remoteId + '.json';
+  const remoteSlug = 'remote-only-conflict';
+  const calls = await mockGitHub(page, {
+    contentForPath(path, original, ref) {
+      if (path !== remotePath || ref === 'main') return null;
+      const remote = JSON.parse(original.toString('utf8'));
+      remote.slug = remoteSlug;
+      return JSON.stringify(remote, null, 2) + '\n';
+    }
+  });
+  await page.goto(server.base + '/admin/');
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.locator('.case-row[data-case-id="' + CASE_ID + '"]').click();
+  await page.locator('#case-public-slug').fill(remoteSlug);
+  await page.locator('#case-public-slug').blur();
+  await page.click('#publish-btn');
+  await expect(page.locator('#case-public-url-section')).toContainText(/уже используется кейсом/);
+  expect(calls.blobs).toHaveLength(0);
+  expect(calls.tree).toHaveLength(0);
+});
+
+test('a moved main head after authoritative validation is rejected before blob writes', async ({ page }) => {
+  const expectedHead = 'b'.repeat(40);
+  const movedHead = 'f'.repeat(40);
+  const calls = await mockGitHub(page, { headSequence: [expectedHead, expectedHead, movedHead] });
+  await page.goto(server.base + '/admin/');
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.locator('.case-row[data-case-id="' + CASE_ID + '"]').click();
+  await page.locator('#case-public-slug').fill('bound-head-' + CASE_ID);
+  await page.locator('#case-public-slug').blur();
+  await page.click('#publish-btn');
+  await expect(page.locator('#publish-dialog')).toBeVisible();
+  await page.click('#publish-confirm');
+  await expect(page.locator('#toast-errors')).toContainText(/main изменился/);
+  expect(calls.blobs).toHaveLength(0);
+  expect(calls.tree).toHaveLength(0);
+});

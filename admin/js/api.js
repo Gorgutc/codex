@@ -207,6 +207,15 @@
     return { path, sha: data.sha, text: decodeContent(data.content), ref: resolvedRef };
   }
 
+  async function getMainHead() {
+    const ref = await api(REPO_BASE + '/git/ref/heads/' + BRANCH);
+    const sha = ref && ref.object && ref.object.sha;
+    if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/.test(sha)) {
+      throw new Error('GitHub не вернул корректный SHA текущей ветки main. Повторите проверку перед публикацией.');
+    }
+    return sha;
+  }
+
   /* ── публикация: один atomic-коммит в main ───────────────────────── */
 
   // payload (итерация E):
@@ -308,8 +317,10 @@
     const binaries = plan.binaries || [];
     const deletions = plan.deletions || [];
 
-    const ref = await api(REPO_BASE + '/git/ref/heads/' + BRANCH);
-    const headSha = ref.object.sha;
+    const headSha = await getMainHead();
+    if (options && options.expectedHead && options.expectedHead !== headSha) {
+      throw new Error('main изменился после проверки адресов. Обновите страницу и повторите публикацию.');
+    }
     await assertPlanFresh(files, binaries, headSha);
     const headCommit = await api(REPO_BASE + '/git/commits/' + headSha);
 
@@ -461,6 +472,7 @@
     probeOAuthAvailable,
     loginWithGitHub,
     fetchFile,
+    getMainHead,
     publish,
     candidateReachability,
     waitForPipeline

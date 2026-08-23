@@ -494,7 +494,7 @@ test('TOCTOU: расхождение blob sha на head отменяет пуб�
   await expect(page.locator('#publish-dialog')).toBeVisible();
   await page.click('#publish-confirm');
 
-  await expect(page.locator('.toast--error')).toContainText('изменился на сервере');
+  await expect(page.locator('.toast--error')).toContainText('изменился на GitHub');
   // Ни одного блоба, ни дерева, ни обновления ref — коммита не было.
   expect(calls.blobs).toHaveLength(0);
   expect(calls.tree).toHaveLength(0);
@@ -535,9 +535,14 @@ test('TOCTOU: сетевая ошибка проверки НЕ выдаётся
   // Проверка свежести идёт на запиненном head; обрываем именно её. Раньше
   // любая ошибка приравнивалась к «файл изменился» — владелец шёл чинить
   // несуществующую гонку вместо того, чтобы повторить попытку.
-  await page.route(`**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json?ref=${'b'.repeat(40)}`, (route) =>
-    route.abort('failed')
-  );
+  let exactHeadReads = 0;
+  await page.route(`**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json?ref=${'b'.repeat(40)}`, (route) => {
+    exactHeadReads += 1;
+    // validateAll reads the full authoritative catalog once before opening the
+    // dialog and again at confirmation; fail the subsequent per-file precheck.
+    if (exactHeadReads >= 3) return route.abort('failed');
+    return route.fallback();
+  });
   await openCaseEditor(page);
 
   await page.locator(`[data-field="${CASE_PATH}::card.title.ru"]`).fill('Правка при обрыве сети');

@@ -51,6 +51,7 @@
   let draftPersistedAtUnknown = false;
   let draftPersistenceError = false;
   let catalogPromise = null;
+  let validatedPublishHead = null;
   // Бинарные байты намеренно живут только в этой вкладке. В sessionStorage
   // сохраняются лишь безопасные дескрипторы путей, чтобы восстановление после
   // reload честно запросило повторную загрузку медиа.
@@ -610,7 +611,7 @@
   }
 
   function publicationPhase(value) {
-    return ['submitting', 'awaiting_pipeline', 'published', 'reverted', 'timed_out', 'failed'].indexOf(value) !== -1;
+    return ['submitting', 'awaiting_pipeline', 'reconciling', 'published', 'reverted', 'timed_out', 'failed'].indexOf(value) !== -1;
   }
 
   function publicationDescriptor(record, filePath, dotPath) {
@@ -688,7 +689,7 @@
     if (!value.snapshot || !Array.isArray(value.snapshot.files) || !Array.isArray(value.snapshot.media)) return false;
     const validTime = (time) =>
       typeof time === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(time) && !Number.isNaN(Date.parse(time));
-    const sourceRequired = ['awaiting_pipeline', 'timed_out', 'published', 'reverted'].indexOf(value.phase) !== -1;
+    const sourceRequired = ['awaiting_pipeline', 'reconciling', 'timed_out', 'published', 'reverted'].indexOf(value.phase) !== -1;
     const validSha = (sha) => typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha);
     const validUrl = (url) => {
       if (url === null || url === undefined) return true;
@@ -751,6 +752,11 @@
       ['published', 'reverted', 'timed_out'].indexOf(value.phase) !== -1 &&
       value.outcome &&
       value.outcome.status !== value.phase
+    )
+      return false;
+    if (
+      value.phase === 'reconciling' &&
+      (!value.outcome || ['published', 'reverted'].indexOf(value.outcome.status) === -1)
     )
       return false;
     if (value.phase === 'failed' && value.outcome && value.outcome.status !== 'failed') return false;
@@ -1010,7 +1016,7 @@
   function isPublicationLocked() {
     return Boolean(
       publication &&
-      (['submitting', 'awaiting_pipeline', 'timed_out'].indexOf(publication.phase) !== -1 ||
+      (['submitting', 'awaiting_pipeline', 'reconciling', 'timed_out'].indexOf(publication.phase) !== -1 ||
         (['published', 'reverted'].indexOf(publication.phase) !== -1 && Boolean(publication.error)))
     );
   }
@@ -1395,27 +1401,54 @@
   async function settlePublication(outcome) {
     if (!publication) throw new Error('Нет ожидающей публикации.');
     const status = outcome && outcome.status;
-    if (status === 'published' || status === 'reverted' || status === 'timed_out') publication.error = null;
+    if (status === 'published' || status === 'reverted') {
+      // A remote verdict is known, but the local draft has not yet been
+      // promoted/restored. Keep the durable record explicitly non-terminal so
+      // observers and reload recovery cannot mistake this await boundary for a
+      // completed publication.
+      publication.phase = 'reconciling';
+      publication.error = null;
+      publication.outcome = {
+        status,
+        sha: (outcome && outcome.sha) || null,
+        url: (outcome && outcome.url) || null,
+        message: (outcome && outcome.message) || null,
+        settledAt: publicationNow()
+      };
+      publication.updatedAt = publicationNow();
+      try {
+        savePublication();
+      } catch (error) {
+        throw new Error('Не удалось сохранить локальную сверку публикации в этой вкладке.', { cause: error });
+      }
+      let reconciliationError = null;
+      try {
+        if (status === 'published') await promotePublicationSnapshot();
+        else await restorePublicationSnapshot();
+      } catch (error) {
+        reconciliationError =
+          error && error.message
+            ? error.message
+            : status === 'published'
+              ? 'Опубликованный source не удалось локально reconciliate.'
+              : 'Черновик не удалось восстановить.';
+      }
+      publication.phase = status;
+      publication.error = reconciliationError;
+      publication.outcome.message = (outcome && outcome.message) || reconciliationError || null;
+      publication.updatedAt = publicationNow();
+      try {
+        savePublication();
+      } catch (error) {
+        publication.error = publication.error || 'Не удалось сохранить terminal-статус публикации в этой вкладке.';
+      }
+      notify();
+      return getPublication();
+    }
+    if (status === 'timed_out') publication.error = null;
     if (['published', 'reverted', 'timed_out'].indexOf(status) === -1) {
       publication.phase = 'failed';
       publication.error = (outcome && outcome.message) || 'Не удалось проверить статус конвейера.';
-    } else if (status === 'published') {
-      publication.phase = 'published';
-      try {
-        await promotePublicationSnapshot();
-      } catch (error) {
-        publication.error =
-          error && error.message ? error.message : 'Опубликованный source не удалось локально reconciliate.';
-      }
-    } else if (status === 'reverted') {
-      publication.phase = 'reverted';
-      try {
-        await restorePublicationSnapshot();
-      } catch (error) {
-        // The pipeline verdict is still terminal and trustworthy. Keep its
-        // recovery record/action instead of mislabeling it a generic failure.
-        publication.error = error && error.message ? error.message : 'Черновик не удалось восстановить.';
-      }
     } else {
       publication.phase = 'timed_out';
     }
@@ -1460,6 +1493,20 @@
     return getPublication();
   }
 
+  async function resumePublicationReconciliation() {
+    if (!publication || publication.phase !== 'reconciling' || !publication.outcome) {
+      throw new Error('Нет сохранённой локальной сверки для продолжения.');
+    }
+    const outcome = publication.outcome;
+    if (['published', 'reverted'].indexOf(outcome.status) === -1) {
+      throw new Error('Сохранённый verdict конвейера не подходит для локальной сверки.');
+    }
+    // The terminal source verdict is already durable. Resume only local state
+    // reconciliation after a reload; polling again could turn a known result
+    // into an indefinitely locked record.
+    return settlePublication(outcome);
+  }
+
   function dismissPublication() {
     if (!publication || ['published', 'reverted', 'failed'].indexOf(publication.phase) === -1) return false;
     // A terminal remote verdict with an unfinished local reconcile remains
@@ -1502,6 +1549,32 @@
       });
     }
     return catalogPromise;
+  }
+
+  async function loadAuthoritativeCatalog() {
+    const head = await window.AdminAPI.getMainHead();
+    const settingsFile = await window.AdminAPI.fetchFile('content/settings.json', head);
+    let settings;
+    try {
+      settings = JSON.parse(settingsFile.text);
+    } catch (error) {
+      throw new Error('GitHub вернул повреждённый каталог кейсов. Повторите публикацию.', { cause: error });
+    }
+    if (!settings || !Array.isArray(settings.cardOrder)) {
+      throw new Error('GitHub вернул каталог кейсов без cardOrder. Публикация остановлена.');
+    }
+    const cases = await Promise.all(
+      settings.cardOrder.map(async (id) => {
+        const path = 'content/cases/' + id + '.json';
+        const file = await window.AdminAPI.fetchFile(path, head);
+        try {
+          return { id, data: JSON.parse(file.text) };
+        } catch (error) {
+          throw new Error('GitHub вернул повреждённый кейс ' + id + '. Публикация остановлена.', { cause: error });
+        }
+      })
+    );
+    return { head, settings, cases };
   }
 
   /* ── файлы и черновики ───────────────────────────────────────────── */
@@ -3410,11 +3483,14 @@
       const draft = effectiveDraft(path);
       if (draft) errors.push.apply(errors, validateDraft(path, draft));
     }
-    const catalog = await loadCatalog();
+    const catalog = await loadAuthoritativeCatalog();
+    validatedPublishHead = catalog.head;
     const routeEntries = new Map();
     for (const item of catalog.cases) {
       const path = 'content/cases/' + item.id + '.json';
-      const draft = files.has(path) ? effectiveDraft(path) : orphanDrafts[path] || item.data;
+      const draft = changedPaths().indexOf(path) !== -1
+        ? (files.has(path) ? effectiveDraft(path) : orphanDrafts[path] || item.data)
+        : item.data;
       if (!draft || typeof draft.id !== 'string') continue;
       const tokens = [
         { token: draft.id, field: 'id' },
@@ -3489,16 +3565,28 @@
   // уже отличается от того, от которого редактировали, — останавливаемся.
   async function publishPrecheck() {
     assertPendingMediaBytes();
+    const validationErrors = await validateAll();
+    if (validationErrors.length) throw new Error(validationErrors[0].message);
+    const expectedHead = validatedPublishHead;
+    if (!expectedHead) throw new Error('Не удалось зафиксировать актуальный main перед публикацией. Повторите проверку.');
     for (const path of changedPaths()) {
       const entry = files.get(path);
       if (!entry) continue;
-      const fresh = await window.AdminAPI.fetchFile(path);
+      let fresh;
+      try {
+        fresh = await window.AdminAPI.fetchFile(path, expectedHead);
+      } catch (error) {
+        throw new Error('Не удалось проверить состояние файла ' + path + ' на GitHub. Проверьте сеть и повторите попытку.', {
+          cause: error
+        });
+      }
       const freshBase = JSON.parse(fresh.text);
-      if (!deepEqual(freshBase, entry.base)) {
+      if (!deepEqual(freshBase, entry.base) || (entry.sha && fresh.sha !== entry.sha)) {
         throw new Error('Файл ' + path + ' изменился на GitHub. Обновите страницу и повторите правки.');
       }
       entry.sha = fresh.sha;
     }
+    return expectedHead;
   }
 
   // Полный план коммита: текстовые JSON (эффективные черновики) плюс
@@ -3699,6 +3787,7 @@
     getPublication,
     settlePublication,
     retryPublicationReconciliation,
+    resumePublicationReconciliation,
     restorePublicationSnapshot,
     dismissPublication,
     isPublicationLocked,

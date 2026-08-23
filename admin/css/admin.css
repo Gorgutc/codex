@@ -1243,6 +1243,12 @@ dialog.publish-dialog[open] {
   max-width: 24rem;
 }
 
+.toasts__region {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .toast {
   background: var(--a-surface-2);
   border: 1px solid var(--a-border);

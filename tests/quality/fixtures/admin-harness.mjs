@@ -116,6 +116,7 @@ export async function mockGitHub(page, options = {}) {
   let sourceSha = options.sourceSha || 'a'.repeat(40);
   let sourceCommitCount = 0;
   let liveHead = options.initialHead || 'b'.repeat(40);
+  const headSequence = Array.isArray(options.headSequence) ? options.headSequence.slice() : null;
   const refContents = new Map();
   const calls = {
     blobs: [],
@@ -160,6 +161,9 @@ export async function mockGitHub(page, options = {}) {
     if (p === '/repos/Gorgutc/codex/git/ref/heads/main' && method === 'GET') {
       calls.refReads += 1;
       if (options.refDelayMs) await new Promise((resolve) => setTimeout(resolve, options.refDelayMs));
+      if (headSequence && headSequence.length) {
+        liveHead = headSequence[Math.min(calls.refReads - 1, headSequence.length - 1)];
+      }
       return json(200, { object: { sha: liveHead } });
     }
     if (/^\/repos\/Gorgutc\/codex\/git\/commits\/[0-9a-f]{40}$/.test(p))

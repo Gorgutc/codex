@@ -497,3 +497,22 @@ test('draft actions: Review is non-publishing and Discard clears tab draft/media
     pending: window.AdminState.mediaPendingCount()
   }))).toEqual({ drafts: null, publication: '{"keep":"recovery"}', pending: 0 });
 });
+
+test('errors announce through an assertive alert while preview controls expose state and publish dialog is named', async ({ page }) => {
+  await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/case/orbital-mk-ii"]');
+  await page.fill('[data-field="content/cases/orbital-mk-ii.json::card.title.en"]', '');
+  await page.click('#publish-btn');
+  await expect(page.locator('#toast-errors[role="alert"]')).toContainText('Публикация остановлена');
+  await expect(page.locator('#toast-status')).toBeEmpty();
+
+  await page.click('#preview-btn');
+  await expect(page.locator('#preview-overlay')).toBeVisible();
+  await expect(page.locator('#preview-vp-desktop')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#preview-vp-mobile')).toHaveAttribute('aria-pressed', 'false');
+  await page.click('#preview-vp-mobile');
+  await expect(page.locator('#preview-vp-desktop')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#preview-vp-mobile')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#publish-dialog')).toHaveAttribute('aria-labelledby', 'publish-dialog-title');
+});

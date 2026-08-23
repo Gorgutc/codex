@@ -341,7 +341,27 @@ test('a real moved origin discards first generated output and rebuilds a widened
 
 test('asset-only no-diff batch emits exact markers without a generic generated commit', async () => {
   const { repo, sources } = fixture();
+  let verifyCalls = 0;
   const result = await runContentPublishBatch({
+    cwd: repo,
+    maxAttempts: 1,
+    generate: () => {},
+    verify: () => {
+      verifyCalls += 1;
+    },
+    captureGolden: () => {},
+    generatedAllowlist
+  });
+  assert.equal(result.status, 'published');
+  assert.equal(verifyCalls, 1, 'a source batch without generated output still runs verification');
+  const log = subjects(repo);
+  assert.equal(log[0], `chore(content): regenerate site from content/ [content-publish] [source:${sources[2]}]`);
+  assert.equal(log.includes('chore(content): regenerate site from content/ [content-publish]'), false);
+});
+
+test('an asset-only no-diff batch with a failing verifier is reverted instead of published', async () => {
+  const { repo } = fixture();
+  await runContentPublishBatch({
     cwd: repo,
     maxAttempts: 1,
     generate: () => {},
@@ -349,8 +369,26 @@ test('asset-only no-diff batch emits exact markers without a generic generated c
     captureGolden: () => {},
     generatedAllowlist
   });
-  assert.equal(result.status, 'published');
-  const log = subjects(repo);
-  assert.equal(log[0], `chore(content): regenerate site from content/ [content-publish] [source:${sources[2]}]`);
-  assert.equal(log.includes('chore(content): regenerate site from content/ [content-publish]'), false);
+  const assetSource = commit(repo, 'assets: replacement [admin]', {
+    'assets/cards/only-asset.svg': '<svg><path/></svg>\n'
+  });
+  git(repo, ['push', 'origin', 'HEAD:main']);
+
+  const result = await runContentPublishBatch({
+    cwd: repo,
+    maxAttempts: 1,
+    generate: () => {},
+    verify: () => {
+      throw new Error('asset verifier rejected the replacement');
+    },
+    captureGolden: () => {},
+    generatedAllowlist
+  });
+
+  assert.equal(result.status, 'reverted');
+  assert.equal(fs.existsSync(path.join(repo, 'assets/cards/only-asset.svg')), false);
+  assert.equal(
+    subjects(repo)[0],
+    `revert(content): roll back content push after failed publish [content-publish-revert] [source:${assetSource}]`
+  );
 });

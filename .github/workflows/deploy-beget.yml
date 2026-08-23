@@ -266,9 +266,10 @@ jobs:
 
           unset LFTP_PASSWORD
 
-      # A fresh root request proves the public docroot is reachable. The
-      # generated cards payload is then compared byte-for-byte with the local
-      # source via SHA-256, using a cache-busting query on both requests.
+      # Normal shell requests are the production contract. Each shell must be
+      # byte-identical and its own immutable generated-payload revisions must
+      # resolve to the exact emitted bytes; no test-only query or no-cache
+      # directive may bypass a stale carrier response here.
       - name: Verify Beget parity after deployment
         id: parity
         if: steps.mirror.outputs.deployed == 'true'
@@ -277,41 +278,55 @@ jobs:
           PUBLIC_URL: https://codex.promo/
         run: |
           set -euo pipefail
-          cache_bust="deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
           parity_root="$RUNNER_TEMP/beget-parity"
           mkdir -p "$parity_root"
-          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
-            --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 60 \
-            --header 'Cache-Control: no-cache' \
-            --header 'Accept-Encoding: identity' \
-            --output "$parity_root/root.html" \
-            "${PUBLIC_URL}?${cache_bust}"
+          fetch() {
+            curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+              --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 60 \
+              --header 'Accept-Encoding: identity' --output "$2" "$1"
+          }
+          fetch "${PUBLIC_URL}" "$parity_root/index.html"
+          fetch "${PUBLIC_URL}free-assets.html" "$parity_root/free-assets.html"
 
-          root_local_hash="$(sha256sum index.html | awk '{print $1}')"
-          root_public_hash="$(sha256sum "$parity_root/root.html" | awk '{print $1}')"
-          if [ "$root_local_hash" != "$root_public_hash" ]; then
-            echo "::error::Public cache-busted parity mismatch for index.html (local $root_local_hash, public $root_public_hash)."
+          for shell in index.html free-assets.html; do
+            local_hash="$(sha256sum "$shell" | awk '{print $1}')"
+            public_hash="$(sha256sum "$parity_root/$shell" | awk '{print $1}')"
+            if [ "$local_hash" != "$public_hash" ]; then
+              echo "::error::Public normal-shell parity mismatch for $shell (local $local_hash, public $public_hash)."
+              exit 1
+            fi
+          done
+
+          mapfile -t payloads < <(
+            grep -h -oE 'src="(\./)?js/(cards-data|fa-data|i18n-data)\.js\?v=[0-9a-f]{64}"' \
+              "$parity_root/index.html" "$parity_root/free-assets.html" |
+              sed -E 's/^src="(\.\/)?//; s/"$//' | sort -u
+          )
+          if [ "${#payloads[@]}" -ne 3 ]; then
+            echo "::error::Normal public shells must emit exactly cards-data, fa-data, and i18n-data versioned payload references."
             exit 1
           fi
-
-          local_hash="$(sha256sum js/cards-data.js | awk '{print $1}')"
-          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
-            --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 60 \
-            --header 'Cache-Control: no-cache' \
-            --header 'Accept-Encoding: identity' \
-            --output "$parity_root/cards-data.js" \
-            "${PUBLIC_URL}js/cards-data.js?${cache_bust}"
-          public_hash="$(sha256sum "$parity_root/cards-data.js" | awk '{print $1}')"
-          if [ "$local_hash" != "$public_hash" ]; then
-            echo "::error::Public cache-busted parity mismatch for js/cards-data.js (local $local_hash, public $public_hash)."
-            exit 1
-          fi
+          for payload in "${payloads[@]}"; do
+            revision="${payload##*?v=}"
+            local_file="${payload%%\?*}"
+            local_hash="$(sha256sum "$local_file" | awk '{print $1}')"
+            if [ "$local_hash" != "$revision" ]; then
+              echo "::error::Local $payload does not match its emitted SHA-256 revision $revision."
+              exit 1
+            fi
+            fetch "${PUBLIC_URL}${payload}" "$parity_root/${local_file//\//_}"
+            public_hash="$(sha256sum "$parity_root/${local_file//\//_}" | awk '{print $1}')"
+            if [ "$public_hash" != "$local_hash" ]; then
+              echo "::error::Public versioned payload mismatch for $payload (local $local_hash, public $public_hash)."
+              exit 1
+            fi
+          done
 
           {
             echo
             echo '### Post-deploy parity'
-            echo "- \`index.html\` SHA-256: \`$root_local_hash\` (local = public)."
-            echo "- \`js/cards-data.js\` SHA-256: \`$local_hash\` (local = public)."
+            echo '- Normal index.html and free-assets.html shells match local bytes.'
+            echo '- Their emitted cards-data.js, fa-data.js, and i18n-data.js immutable revisions match local bytes.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write deployment summary
@@ -335,7 +350,7 @@ jobs:
             elif [ "$MIRROR_DEPLOYED" != 'true' ]; then
               echo '- Skipped safely: main advanced before transfer; the newer event owns deployment.'
             elif [ "$MIRROR_OUTCOME" = 'success' ] && [ "$PARITY_OUTCOME" = 'success' ]; then
-              echo '- Deployed and verified: FTPS hashes and cache-busted HTTPS bodies match local files.'
+              echo '- Deployed and verified: FTPS hashes, normal HTTPS shells, and emitted immutable payloads match local files.'
             else
               echo "- Deployment failed (mirror: ${MIRROR_OUTCOME:-not-run}; parity: ${PARITY_OUTCOME:-not-run})."
             fi

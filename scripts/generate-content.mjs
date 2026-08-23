@@ -2094,7 +2094,7 @@ function buildIndexJsonLdRegion(content) {
       '  {',
       '    "@context": "https://schema.org",',
       '    "@type": "ItemList",',
-      '    "name": "Codex Studio — Featured Works",',
+      `    "name": ${j(`${organization.name} — Featured Works`)},`,
       '    "itemListOrder": "https://schema.org/ItemListOrderAscending",',
       '    "itemListElement": [',
       items.join(',\n'),
@@ -2168,7 +2168,7 @@ function buildFaJsonLdRegion(content) {
       '  {',
       '    "@context": "https://schema.org",',
       '    "@type": "WebPage",',
-      '    "name": "Free 3D Assets — Codex Studio",',
+      `    "name": ${j(`Free 3D Assets — ${organization.name}`)},`,
       '    "url": "https://codex.promo/free-assets.html",',
       '    "inLanguage": "en",',
       '    "description": "Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders.",',
@@ -2181,7 +2181,7 @@ function buildFaJsonLdRegion(content) {
       '  {',
       '    "@context": "https://schema.org",',
       '    "@type": "ItemList",',
-      '    "name": "Free 3D asset catalog — Codex Studio",',
+      `    "name": ${j(`${organization.name} — Free 3D asset catalog`)},`,
       '    "url": "https://codex.promo/free-assets.html",',
       `    "numberOfItems": ${visibleItems.length},`,
       '    "itemListOrder": "https://schema.org/ItemListOrderAscending",',
@@ -2335,17 +2335,15 @@ function replaceContactAnchorRegion(html, filePath, begin, end, content, kind) {
   const beginLine = html.split('\n').find((line) => line.trim() === begin);
   const indent = beginLine ? (beginLine.match(/^[ \t]*/) || [''])[0] : '';
   const href = escapeHtmlAttr(content.metaStrings.contactUrl);
-  // Preserve the established fallback tooltips exactly. i18n replaces these
-  // after startup, but they remain user-visible while scripts are unavailable.
-  const title = filePath === 'index.html'
-    ? (kind === 'button' ? 'Contact · Telegram' : 'Contact · Telegram')
-    : 'Contact Telegram';
+  // A contact URL is provider-neutral. These fallbacks remain correct before
+  // i18n starts and must not infer a service from the current destination.
+  const title = 'Contact';
   const lines = kind === 'button'
     ? [
         `${indent}<a href="${href}" class="contact-btn" id="contact-btn"`,
         `${indent}   target="_blank" rel="noopener noreferrer"`,
-        `${indent}   data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"`,
-        `${indent}   aria-label="Contact via Telegram" title="${title}">`,
+        `${indent}   data-i18n-attr="aria-label:aria.contact; title:title.contact"`,
+        `${indent}   aria-label="Contact" title="${title}">`,
         `${indent}  <svg class="contact-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"`,
         `${indent}       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`,
         `${indent}    <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>`,
@@ -2357,8 +2355,8 @@ function replaceContactAnchorRegion(html, filePath, begin, end, content, kind) {
         `${indent}<a href="${href}"`,
         `${indent}   class="top-pill top-pill--contact site-footer__contact" id="contact-pill"`,
         `${indent}   target="_blank" rel="noopener noreferrer"`,
-        `${indent}   data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"`,
-        `${indent}   aria-label="Contact via Telegram" title="${title}">`,
+        `${indent}   data-i18n-attr="aria-label:aria.contact; title:title.contact"`,
+        `${indent}   aria-label="Contact" title="${title}">`,
         `${indent}  <svg class="top-pill__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`,
         `${indent}    <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>`,
         `${indent}  </svg>`,

@@ -515,7 +515,8 @@
     for (const script of Array.from(doc.querySelectorAll('script[type="application/ld+json"]'))) {
       let json;
       try { json = JSON.parse(script.textContent || ''); } catch (_error) { continue; }
-      if (!json || json['@type'] !== 'ItemList' || json.name !== 'Codex Studio — Featured Works') continue;
+      if (!json || json['@type'] !== 'ItemList' || !/ — Featured Works$/.test(String(json.name || ''))) continue;
+      json.name = (organization && organization.name ? organization.name : '') + ' — Featured Works';
       json.itemListElement = items;
       script.textContent = serializeScriptData(json);
       return;
@@ -545,8 +546,13 @@
         json.url = organization.url;
         json.publisher = { '@type': 'Organization', name: organization.name, url: organization.url };
       } else if (json['@type'] === 'WebPage') {
+        json.name = 'Free 3D Assets — ' + organization.name;
         if (json.isPartOf) json.isPartOf = { '@type': 'WebSite', name: organization.name, url: organization.url };
         json.publisher = { '@type': 'Organization', name: organization.name, url: organization.url };
+      } else if (json['@type'] === 'ItemList' && / — Featured Works$/.test(String(json.name || ''))) {
+        json.name = organization.name + ' — Featured Works';
+      } else if (json['@type'] === 'ItemList' && / — Free 3D asset catalog$/.test(String(json.name || ''))) {
+        json.name = organization.name + ' — Free 3D asset catalog';
       }
       script.textContent = serializeScriptData(json);
     }
@@ -963,6 +969,8 @@
     els.frameWrap.classList.toggle('preview-overlay__frame-wrap--mobile', mode === 'mobile');
     els.vpDesktop.classList.toggle('is-active', mode !== 'mobile');
     els.vpMobile.classList.toggle('is-active', mode === 'mobile');
+    els.vpDesktop.setAttribute('aria-pressed', mode === 'mobile' ? 'false' : 'true');
+    els.vpMobile.setAttribute('aria-pressed', mode === 'mobile' ? 'true' : 'false');
   }
 
   function updateDesignButtons() {

@@ -110,6 +110,9 @@ async function mockNetwork(page) {
         content: normalizeVisibility(filePath, fs.readFileSync(abs)).toString('base64')
       });
     }
+    if (p === '/repos/Gorgutc/codex/git/ref/heads/main' && request.method() === 'GET') {
+      return json(200, { object: { sha: 'a'.repeat(40) } });
+    }
     return json(404, { message: 'unmatched ' + request.method() + ' ' + p });
   });
 }
@@ -500,7 +503,7 @@ test('featured works keep paired id/about order, persist internal IDs, block dup
   const featuredPreview = await frame.locator('html').evaluate(() => {
     const itemList = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
       .map((script) => JSON.parse(script.textContent))
-      .find((node) => node['@type'] === 'ItemList' && node.name === 'Codex Studio — Featured Works');
+      .find((node) => node['@type'] === 'ItemList' && / — Featured Works$/.test(node.name));
     return itemList.itemListElement.map((entry) => ({ position: entry.position, about: entry.item.about, url: entry.item.url }));
   });
   expect(featuredPreview).toEqual(expectedPreview.map((entry, index) => ({ position: index + 1, ...entry })));
@@ -675,8 +678,13 @@ test('preview applies draft contact, Organization and featured-work identity', a
     const nodes = Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map((script) => JSON.parse(script.textContent));
     const organization = nodes.find((node) => node['@type'] === 'Organization');
     const website = nodes.find((node) => node['@type'] === 'WebSite');
-    const featured = nodes.find((node) => node['@type'] === 'ItemList' && node.name === 'Codex Studio — Featured Works');
-    return { organization, publisher: website && website.publisher, featuredAbout: featured && featured.itemListElement[0].item.about };
+    const featured = nodes.find((node) => node['@type'] === 'ItemList' && / — Featured Works$/.test(node.name));
+    return {
+      organization,
+      publisher: website && website.publisher,
+      featuredName: featured && featured.name,
+      featuredAbout: featured && featured.itemListElement[0].item.about
+    };
   });
   expect(identity.organization).toMatchObject({
     name: 'Preview Studio',
@@ -686,6 +694,7 @@ test('preview applies draft contact, Organization and featured-work identity', a
     sameAs: ['https://example.test/community']
   });
   expect(identity.publisher).toEqual({ '@type': 'Organization', name: 'Preview Studio', url: 'https://example.test/' });
+  expect(identity.featuredName).toBe('Preview Studio — Featured Works');
   expect(identity.featuredAbout).toBe('Preview featured about');
 });
 
@@ -721,7 +730,7 @@ test('preview keeps hostile draft JSON-LD data inert and parseable inside srcdoc
     const jsonLd = Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map((script) => JSON.parse(script.textContent));
     const organization = jsonLd.find((node) => node['@type'] === 'Organization');
     const website = jsonLd.find((node) => node['@type'] === 'WebSite');
-    const featured = jsonLd.find((node) => node['@type'] === 'ItemList' && node.name === 'Codex Studio — Featured Works');
+    const featured = jsonLd.find((node) => node['@type'] === 'ItemList' && / — Featured Works$/.test(node.name));
     return {
       xssGlobal: window.__previewXss,
       xssScriptGlobal: window.__previewXssScript,

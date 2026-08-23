@@ -471,12 +471,13 @@ function runStaticChecks(assetAudit = null) {
     node.url === expectedOrganization.url &&
     node.description === (expectedOrganization.description || {}).en &&
     Array.isArray(node.sameAs) && node.sameAs.join('|') === ((expectedOrganization.sameAs || []).join('|')));
-  const publisherMatches = (nodes) => nodes
-    .filter(node => node && (node['@type'] === 'WebSite' || node['@type'] === 'WebPage'))
-    .every(node => node.publisher && node.publisher.name === expectedOrganization.name && node.publisher.url === expectedOrganization.url);
+  const publisherMatches = (nodes, expectedType) => nodes.some(node =>
+    node && node['@type'] === expectedType && node.publisher &&
+    node.publisher.name === expectedOrganization.name && node.publisher.url === expectedOrganization.url
+  );
   add('static', 'F1-global-identity-jsonld',
       organizationMatches(idxJsonLdStatic) && organizationMatches(faJsonLdStatic) &&
-      publisherMatches(idxJsonLdStatic) && publisherMatches(faJsonLdStatic),
+      publisherMatches(idxJsonLdStatic, 'WebSite') && publisherMatches(faJsonLdStatic, 'WebPage'),
       'Organization and publisher identity derive from content/meta.json');
   const expectedContact = String(CONTENT_META.contactUrl || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const contactAnchorsMatch = (html) => {

@@ -83,7 +83,8 @@
     discardDraft: document.getElementById('discard-draft-btn'),
     publishBtn: document.getElementById('publish-btn'),
     topbarUser: document.getElementById('topbar-user'),
-    toasts: document.getElementById('toasts'),
+    toastStatus: document.getElementById('toast-status'),
+    toastErrors: document.getElementById('toast-errors'),
     dialog: document.getElementById('publish-dialog'),
     publishFiles: document.getElementById('publish-files'),
     publishDesc: document.getElementById('publish-desc'),
@@ -165,7 +166,7 @@
     if (link) {
       node.appendChild(el('a', { href: link.href, target: '_blank', rel: 'noopener', text: link.label }));
     }
-    els.toasts.appendChild(node);
+    (type === 'error' ? els.toastErrors : els.toastStatus).appendChild(node);
     const ttl = type === 'error' || type === 'warn' ? 12000 : 6000;
     setTimeout(() => {
       node.remove();
@@ -687,6 +688,27 @@
   async function recheckPublication() {
     if (pipelineCheck) return pipelineCheck;
     let record = State.getPublication();
+    if (record && record.phase === 'reconciling') {
+      pipelineCheck = (async () => {
+        try {
+          await State.resumePublicationReconciliation();
+        } catch (error) {
+          // Route() starts this recovery with `void`: surface a durable-recovery
+          // failure instead of leaving an unhandled rejection. State keeps the
+          // reconciling ledger locked, so the owner can retry from Publication.
+          toast(
+            'Не удалось продолжить локальную сверку: ' +
+              (error && error.message ? error.message : 'повторите попытку из раздела «Публикация».'),
+            'error'
+          );
+        } finally {
+          pipelineCheck = null;
+          updateChrome();
+          if (window.location.hash === '#/publication') renderPublication();
+        }
+      })();
+      return pipelineCheck;
+    }
     if (record && record.phase === 'submitting' && record.candidate) {
       if (pipelineCheck) return pipelineCheck;
       pipelineCheck = (async () => {
@@ -790,7 +812,7 @@
     });
     const actions = el('div', { className: 'publication-record__actions' });
     if (
-      ['awaiting_pipeline', 'timed_out'].indexOf(record.phase) !== -1 ||
+      ['awaiting_pipeline', 'timed_out', 'reconciling'].indexOf(record.phase) !== -1 ||
       (record.phase === 'submitting' && record.candidate)
     ) {
       actions.appendChild(
@@ -3643,7 +3665,7 @@
     publishing = true;
     updateChrome();
     try {
-      await State.publishPrecheck();
+      const expectedHead = await State.publishPrecheck();
       // План ПЕРЕСОБИРАЕТСЯ после precheck, а не берётся из кэша диалога:
       // precheck обновляет sha базы каждого изменённого файла, и именно они
       // едут в TOCTOU-проверку publish. Кэш диалога был снят ДО precheck, и на
@@ -3654,7 +3676,10 @@
       // Снимок обязан пережить source-коммит: failure записи здесь отменяет
       // отправку до любого GitHub write, а не оставляет best-effort recovery.
       State.createPublicationSnapshot(plan);
-      const result = await API.publish(plan, message, { onCandidate: State.recordPublicationCandidate });
+      const result = await API.publish(plan, message, {
+        onCandidate: State.recordPublicationCandidate,
+        expectedHead
+      });
       State.attachPublicationSource(result);
       toast('Коммит создан. Конвейер проверяет именно этот source SHA…', 'info');
       await recheckPublication();

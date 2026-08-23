@@ -211,6 +211,20 @@ check(
       deployBeget.includes('! git diff --quiet "$sha^1" "$sha" -- content/ assets/') &&
       deployBeget.includes('! git diff-tree --root --quiet --no-commit-id -r "$sha" -- content/ assets/')
   );
+  check(
+    'deploy: Beget parity reads normal shells and their emitted immutable payload revisions',
+    !deployBeget.includes('cache_bust=') &&
+      !deployBeget.includes('Cache-Control: no-cache') &&
+      deployBeget.includes('"${PUBLIC_URL}"') &&
+      deployBeget.includes('"${PUBLIC_URL}free-assets.html"') &&
+      deployBeget.includes('cards-data.js') &&
+      deployBeget.includes('fa-data.js') &&
+      deployBeget.includes('i18n-data.js') &&
+      deployBeget.includes('v=[0-9a-f]{64}') &&
+      deployBeget.includes('local_file="${payload%%\\?*}"') &&
+      deployBeget.includes('sha256sum "$local_file"') &&
+      !deployBeget.includes('sha256sum "$payload"')
+  );
 }
 check(
   'package: codex:ship includes the content-publish batch fixture gate',
