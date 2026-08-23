@@ -22,7 +22,20 @@ Run after changes to:
 
 ## What The Suite Covers
 
-The current suite covers static file checks, script order, metadata, free-assets JSON-LD depth, sitemap/robots pointers, i18n, card IDs, tag filters, case UI, 3D boundaries, theme toggle, axe budgets, image attributes, font-display, console errors, and mobile language controls.
+The current suite covers static file checks, classic-script order and generated
+SHA query revisions, metadata, free-assets JSON-LD depth, sitemap/robots
+pointers, i18n, stable internal case ids plus canonical slugs/legacy aliases,
+tag filters, case UI, 3D boundaries, theme toggle, axe budgets, image
+attributes, font-display, console errors, and mobile language controls. The
+content-golden browser regression first caches older generated payloads, then
+performs a normal returning-browser reload of regenerated HTML and requires the
+new payloads without clearing cache or adding a test-only query.
+
+Admin coverage includes tab-reload JSON drafts, intentionally memory-only
+upload bytes, Review/Discard and publication locks, source-SHA-bound pipeline
+settlement/re-check/recovery, current media-card ordering and captions, and the
+native preview dialog's Escape/focus-return behavior. Do not substitute a
+forced reload for the returning-browser cache test.
 
 ## Asset Byte And 3D Runtime Gates
 
@@ -83,7 +96,9 @@ npm run check:assets
 npm run content:check
 npm run test:golden
 npm run test:content-validate
+npm run test:content-publish-batch
 npm run test:admin
+npm run test:design-lab
 npm run test:visual
 ```
 
@@ -93,13 +108,32 @@ npm run test:visual
 warnings, rejects hard-limit violations, and verifies admin hard-limit plus
 focused model-warning parity.
 
-`content:check` validates the editable content layer (`content/**`) and proves the generated targets (`js/cards-data.js`, `js/fa-data.js`, `js/i18n-data.js`, the `index.html` GEN region) match it byte-for-byte after EOL normalization. It runs inside `quality:fast` and `codex:ship`.
+`content:check` validates the editable content layer (`content/**`) and proves
+the generated data files plus the generated regions and versioned data-script
+references in `index.html`, `free-assets.html`, and `admin/index.html` match it
+byte-for-byte after EOL normalization. It runs inside `quality:fast` and
+`codex:ship`.
 
 `test:golden` pins the current runtime data and grid markup against golden fixtures. After an intentional content edit it legitimately fails until fixtures are recaptured, which is why the `content-publish` workflow does not run it.
 
 `test:content-validate` is the negative self-test for the content validator: it breaks a temp copy of `content/` and asserts every violation is reported. It runs inside `quality:deep`.
 
-`test:admin` is the admin panel smoke (`admin/` served statically, the whole GitHub API mocked via `page.route`): login screen, PAT login, case list from the real `content/`, draft autosave across reload, Russian client-side validation, and the fully mocked Git Data API publish path. It runs inside `quality:deep`.
+`test:content-publish-batch` verifies the source-bound content-publish batch:
+it generates from one source snapshot, rejects stale/moved heads, and emits
+terminal source markers only for the exact source SHA. It runs inside
+`codex:ship`.
+
+`test:admin` is the admin panel smoke (`admin/` served statically, the whole
+GitHub API mocked via `page.route`): login screen, PAT login, case list from
+the real `content/`, draft autosave across reload, slug/alias validation,
+source-SHA publication recovery, media and native-dialog semantics, Russian
+client-side validation, and the fully mocked Git Data API publish path. It
+runs inside `quality:deep`.
+
+`test:design-lab` covers the enabled Specimen, Chamber and Hybrid design modes
+plus the admin-preview selector, then invokes the dedicated motion worker. It
+runs inside `codex:ship`; run it when changes can affect preview or design-mode
+behavior.
 
 `test:visual` protects reviewed Playwright visual baselines for stable desktop and mobile surfaces. Update snapshots only after manual screenshot review.
 
