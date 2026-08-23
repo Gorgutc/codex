@@ -14,6 +14,7 @@
 ═══════════════════════════════════════════════════════════════════════ */
 window.CARDS_DATA = {
   'corten-series': {
+    slug: 'corten-series',
     role: 'Client: Happfe',
     tools: [
       'Blender',
@@ -130,6 +131,7 @@ window.CARDS_DATA = {
     }
   },
   'lumen-one': {
+    slug: 'lumen-one',
     role: 'Client',
     tools: [
       'Blender',
@@ -214,6 +216,7 @@ window.CARDS_DATA = {
     }
   },
   'flux-capsule': {
+    slug: 'flux-capsule',
     role: 'R&D',
     tools: [
       'Blender',

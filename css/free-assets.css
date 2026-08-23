@@ -454,7 +454,7 @@
 }
 .fa-card__license {
   font-size: var(--text-xs);
-  color: var(--color-text-faint); letter-spacing: 0.04em;
+  color: var(--color-text-muted); letter-spacing: 0.04em;
 }
 .fa-card__meta-tail {
   display: inline-flex;
@@ -502,7 +502,7 @@
 .fa-card__contents-label {
   font-size: 0.6rem; font-weight: 500;
   letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--color-text-faint); margin-bottom: var(--space-1);
+  color: var(--color-text-muted); margin-bottom: var(--space-1);
 }
 .fa-card__contents-list {
   display: flex; flex-wrap: wrap; gap: 4px; list-style: none;

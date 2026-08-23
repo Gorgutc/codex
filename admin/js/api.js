@@ -195,12 +195,25 @@
 
   /* ── Contents API: свежий файл + sha (источник истины) ──────────── */
 
-  async function fetchFile(path) {
-    const data = await api(REPO_BASE + '/contents/' + path + '?ref=' + BRANCH);
+  async function fetchFile(path, ref) {
+    const resolvedRef = ref === undefined || ref === null ? BRANCH : ref;
+    if (resolvedRef !== BRANCH && !/^[0-9a-f]{40}$/.test(resolvedRef)) {
+      throw new Error('Для чтения publication recovery нужен main или полный SHA коммита.');
+    }
+    const data = await api(REPO_BASE + '/contents/' + path + '?ref=' + encodeURIComponent(resolvedRef));
     if (!data || data.type !== 'file' || data.encoding !== 'base64') {
       throw new Error('Неожиданный ответ GitHub Contents API для ' + path);
     }
-    return { path, sha: data.sha, text: decodeContent(data.content) };
+    return { path, sha: data.sha, text: decodeContent(data.content), ref: resolvedRef };
+  }
+
+  async function getMainHead() {
+    const ref = await api(REPO_BASE + '/git/ref/heads/' + BRANCH);
+    const sha = ref && ref.object && ref.object.sha;
+    if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/.test(sha)) {
+      throw new Error('GitHub не вернул корректный SHA текущей ветки main. Повторите проверку перед публикацией.');
+    }
+    return sha;
   }
 
   /* ── публикация: один atomic-коммит в main ───────────────────────── */
@@ -278,14 +291,36 @@
     }
   }
 
-  async function publish(payload, message) {
+  async function candidateReachability(candidate, options) {
+    const ref = await api(REPO_BASE + '/git/ref/heads/' + BRANCH);
+    const head = ref && ref.object && ref.object.sha;
+    if (head === candidate.sha)
+      return { status: 'confirmed_source', sha: candidate.sha, date: candidate.date, url: candidate.url || null };
+    // A ref can have advanced after our successful PATCH. Walk authoritative
+    // first-parent history rather than treating only exact head equality as
+    // proof; a candidate ancestor is a committed source too.
+    for (let page = 1; page <= 100; page += 1) {
+      const commits = await api(REPO_BASE + '/commits?sha=' + BRANCH + '&per_page=100&page=' + page);
+      if (!Array.isArray(commits)) throw new Error('GitHub вернул некорректную историю main.');
+      if (commits.some((item) => item && item.sha === candidate.sha)) {
+        return { status: 'confirmed_source', sha: candidate.sha, date: candidate.date, url: candidate.url || null };
+      }
+      if (commits.length < 100) break;
+    }
+    if (options && options.authoritativeRejection) return { status: 'definite_not_submitted' };
+    return { status: 'unknown' };
+  }
+
+  async function publish(payload, message, options) {
     const plan = Array.isArray(payload) ? { files: payload } : payload || {};
     const files = plan.files || [];
     const binaries = plan.binaries || [];
     const deletions = plan.deletions || [];
 
-    const ref = await api(REPO_BASE + '/git/ref/heads/' + BRANCH);
-    const headSha = ref.object.sha;
+    const headSha = await getMainHead();
+    if (options && options.expectedHead && options.expectedHead !== headSha) {
+      throw new Error('main изменился после проверки адресов. Обновите страницу и повторите публикацию.');
+    }
     await assertPlanFresh(files, binaries, headSha);
     const headCommit = await api(REPO_BASE + '/git/commits/' + headSha);
 
@@ -318,31 +353,40 @@
       body: { message, tree: newTree.sha, parents: [headSha] }
     });
 
+    const candidate = { sha: commit.sha, baseSha: headSha, date: new Date().toISOString(), url: null };
+    if (options && typeof options.onCandidate === 'function') await options.onCandidate(candidate);
+
     try {
       await api(REPO_BASE + '/git/refs/heads/' + BRANCH, {
         method: 'PATCH',
         body: { sha: commit.sha, force: false }
       });
     } catch (error) {
-      if (error.status === 409 || error.status === 422) {
-        // Non-fast-forward: перечитываем head, чтобы подтвердить гонку.
-        let moved = true;
-        try {
-          const fresh = await api(REPO_BASE + '/git/ref/heads/' + BRANCH);
-          moved = fresh.object.sha !== headSha;
-        } catch (_e) {
-          /* считаем гонкой */
-        }
-        if (moved) {
-          const conflict = new Error('main изменился, обновите страницу');
-          conflict.code = 'non-fast-forward';
-          throw conflict;
-        }
+      let reachability;
+      try {
+        reachability = await candidateReachability(candidate, {
+          authoritativeRejection: error.status === 409 || error.status === 422
+        });
+      } catch (_e) {
+        reachability = { status: 'unknown' };
       }
-      throw error;
+      if (reachability.status === 'confirmed_source') return reachability;
+      if (reachability.status === 'definite_not_submitted' && (error.status === 409 || error.status === 422)) {
+        const conflict = new Error(
+          'main изменился, source-коммит не был отправлен. Обновите страницу и повторите попытку.'
+        );
+        conflict.code = 'definite-not-submitted';
+        throw conflict;
+      }
+      const unknown = new Error(
+        'Не удалось подтвердить отправку source-коммита. Публикация заблокирована: проверьте статус ещё раз.'
+      );
+      unknown.code = 'publish-unknown';
+      unknown.candidate = candidate;
+      throw unknown;
     }
 
-    return { sha: commit.sha, date: new Date().toISOString() };
+    return candidate;
   }
 
   /* ── ожидание вердикта конвейера content-publish ─────────────────── */
@@ -355,29 +399,64 @@
     return typeof window.ADMIN_POLL_TIMEOUT_MS === 'number' ? window.ADMIN_POLL_TIMEOUT_MS : 6 * 60 * 1000;
   }
 
-  async function waitForPipeline(sinceIso) {
+  async function waitForPipeline(sourceSha, sinceIso) {
+    if (typeof sourceSha !== 'string' || !/^[0-9a-f]{40}$/.test(sourceSha)) {
+      throw new Error('Для проверки конвейера нужен полный source SHA из 40 строчных hex-символов.');
+    }
     const deadline = Date.now() + pollTimeout();
-    const query = '?sha=' + BRANCH + '&since=' + encodeURIComponent(sinceIso);
+    // Exact source attribution is stronger than a client-clock cutoff: a
+    // slow/local clock must not hide the bot settlement we are waiting for.
+    // `sinceIso` remains accepted for API compatibility but is intentionally
+    // not sent to GitHub.
+    void sinceIso;
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, pollInterval()));
-      let commits;
-      try {
-        commits = await api(REPO_BASE + '/commits' + query);
-      } catch (_e) {
-        continue; // временная ошибка сети/API — пробуем дальше
-      }
-      if (!Array.isArray(commits)) continue;
-      for (const item of commits) {
-        const message = (item && item.commit && item.commit.message) || '';
-        if (message.indexOf('[content-publish-revert]') !== -1) {
-          return { status: 'reverted', url: (item && item.html_url) || ACTIONS_URL };
+      let terminal = null;
+      for (let page = 1; page <= 100 && !terminal; page += 1) {
+        let commits;
+        try {
+          commits = await api(REPO_BASE + '/commits?sha=' + BRANCH + '&per_page=100&page=' + page);
+        } catch (_e) {
+          break; // временная ошибка сети/API — пробуем позже
         }
-        if (message.indexOf('[content-publish]') !== -1) {
-          return { status: 'published' };
+        if (!Array.isArray(commits)) break;
+        for (const item of commits) {
+          const message = (item && item.commit && item.commit.message) || '';
+          const author = item && item.author && item.author.login;
+          if (author !== 'github-actions[bot]') continue;
+          const successSubject =
+            'chore(content): regenerate site from content/ [content-publish] [source:' + sourceSha + ']';
+          const revertSubject =
+            'revert(content): roll back content push after failed publish [content-publish-revert] [source:' +
+            sourceSha +
+            ']';
+          if (message === revertSubject) {
+            terminal = {
+              status: 'reverted',
+              sha: (item && item.sha) || null,
+              url: (item && item.html_url) || ACTIONS_URL,
+              message
+            };
+          }
+          if (message === successSubject) {
+            terminal = {
+              status: 'published',
+              sha: (item && item.sha) || null,
+              url: (item && item.html_url) || ACTIONS_URL,
+              message
+            };
+          }
         }
+        if (commits.length < 100) break;
       }
+      if (terminal) return terminal;
     }
-    return { status: 'timeout', url: ACTIONS_URL };
+    return {
+      status: 'timed_out',
+      sha: null,
+      url: ACTIONS_URL,
+      message: 'Конвейер ещё не прислал source-bound verdict.'
+    };
   }
 
   window.AdminAPI = {
@@ -393,7 +472,9 @@
     probeOAuthAvailable,
     loginWithGitHub,
     fetchFile,
+    getMainHead,
     publish,
+    candidateReachability,
     waitForPipeline
   };
 })();

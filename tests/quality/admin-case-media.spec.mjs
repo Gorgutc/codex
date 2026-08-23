@@ -69,9 +69,9 @@ function readDrafts(page) {
 }
 
 // Засев черновика кейса с корректным provenance: мок Contents API отдаёт
-// sha вида `sha-<path>`, и ensureFile принимает черновик только с ним.
+// канонический 40-hex blob SHA, и ensureFile принимает черновик только с ним.
 async function seedCaseDraft(page, draft, options) {
-  const sha = (options && options.baseSha) || `sha-${CASE_PATH}`;
+  const sha = (options && options.baseSha) || 'c'.repeat(40);
   await page.addInitScript(
     (payload) => {
       sessionStorage.setItem(
@@ -149,14 +149,11 @@ test('layoutMode-гейт: «+ Фото» в seeded требует подтве�
   await expect(page.locator('#media-strip .media-slot')).toHaveCount(MEDIA.length + 1);
   await expect(page.locator('#draft-indicator')).toBeVisible();
 
-  await page.waitForFunction(
-    (expected) => {
-      const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
-      const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
-      return !!draft && draft.layoutMode === 'manual' && draft.case.media.length === expected;
-    },
-    MEDIA.length + 1
-  );
+  await page.waitForFunction((expected) => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.layoutMode === 'manual' && draft.case.media.length === expected;
+  }, MEDIA.length + 1);
   const drafts = await readDrafts(page);
   const added = drafts[CASE_PATH].case.media[MEDIA.length];
   expect(added.type).toBe('image');
@@ -184,17 +181,21 @@ test('«+ Видео»: drop-зона .webm и отдельная зона по�
   // Загруженный .webm получает cache-bust-имя от 0N-позиции (padStart: 06, не 010).
   await page.setInputFiles(srcInput(i), { name: 'loop.webm', mimeType: 'video/webm', buffer: WEBM_BUFFER });
   await expect(srcZone(page, i).locator('.drop-zone__badge')).toBeVisible();
-  await page.waitForFunction(
-    (expected) => {
-      const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
-      const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
-      return !!draft && draft.case.media.length === expected;
-    },
-    i + 1
-  );
-  await expect(srcZone(page, i).locator('.drop-zone-path code').first()).toHaveText(
+  await page.waitForFunction((expected) => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case.media.length === expected;
+  }, i + 1);
+  await expect(slot(page, i).locator('.media-slot__technical-body .drop-zone-path code').first()).toHaveText(
     `./assets/cases/${CASE_ID}/0${i + 1}-${hash8(WEBM_BUFFER)}.webm`
   );
+  const technical = slot(page, i).locator('.media-slot__technical-body');
+  await expect(technical.locator(typeField(i))).toHaveCount(1);
+  await expect(technical.locator(formatField(i))).toHaveCount(1);
+  await expect(technical.locator(`[data-field="${CASE_PATH}::case.media.${i}.seamless"]`)).toHaveCount(1);
+  await expect(technical.locator('.drop-zone-path')).toHaveCount(2);
+  await expect(technical).toContainText('Путь постера');
+  await expect(technical).toContainText('жёсткий предел 40 МБ');
 });
 
 test('удаление блока: confirm, сдвиг списка и запрет удаления последнего', async ({ page }) => {
@@ -211,14 +212,11 @@ test('удаление блока: confirm, сдвиг списка и запр�
   dialogs.mode = 'accept';
   await page.click('[data-media-remove="0"]');
   await expect(page.locator('#media-strip .media-slot')).toHaveCount(MEDIA.length - 1);
-  await page.waitForFunction(
-    (expectedSrc) => {
-      const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
-      const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
-      return !!draft && draft.case.media[0].src === expectedSrc;
-    },
-    MEDIA[1].src
-  );
+  await page.waitForFunction((expectedSrc) => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case.media[0].src === expectedSrc;
+  }, MEDIA[1].src);
   const drafts = await readDrafts(page);
   expect(drafts[CASE_PATH].case.media).toHaveLength(MEDIA.length - 1);
   expect(drafts[CASE_PATH].case.media[0].caption.label.en).toBe(MEDIA[1].caption.label.en);
@@ -262,7 +260,7 @@ test('предел 12 блоков: кнопки «добавить» скрыт
       mimeType: 'image/png',
       buffer
     });
-    await expect(srcZone(page, item.index).locator('.drop-zone-path code').first()).toHaveText(
+    await expect(slot(page, item.index).locator('.media-slot__technical-body .drop-zone-path code').first()).toHaveText(
       `./assets/cases/${CASE_ID}/${item.expected}-${hash8(buffer)}.png`
     );
   }
@@ -289,16 +287,14 @@ test('переключатель формата пишет case.media.N.format',
 
   const before = MEDIA[0].format;
   const next = before === 'wide' ? 'tall' : 'wide';
+  await slot(page, 0).locator('details').first().locator('summary').click();
   await expect(page.locator(formatField(0))).toHaveValue(before);
   await page.selectOption(formatField(0), next);
-  await page.waitForFunction(
-    (expected) => {
-      const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
-      const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
-      return !!draft && draft.case.media[0].format === expected;
-    },
-    next
-  );
+  await page.waitForFunction((expected) => {
+    const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
+    const draft = raw && raw.files && raw.files['content/cases/orbital-mk-ii.json'];
+    return !!draft && draft.case.media[0].format === expected;
+  }, next);
   const drafts = await readDrafts(page);
   expect(drafts[CASE_PATH].case.media[0].format).toBe(next);
   // Формат меняется БЕЗ переключения в ручной режим (это не структурная правка).
@@ -313,6 +309,7 @@ test('смена типа фото→видео чистит src и отменя
   await expect(srcZone(page, 0).locator('.drop-zone__badge')).toBeVisible();
   await expect(page.locator('#media-warning')).toBeVisible();
 
+  await slot(page, 0).locator('details').first().locator('summary').click();
   await page.selectOption(typeField(0), 'video');
   await expect(page.locator(srcInput(0))).toHaveAttribute('accept', '.webm');
   // Байты фото отменены: предупреждение о pending-медиа погасло.
@@ -463,13 +460,11 @@ test('черновик V2 со ЧУЖИМ baseSha сбрасывается пр�
   const draft = JSON.parse(JSON.stringify(CASE_JSON));
   draft.case.text.title.ru = 'СНЯТ С ДРУГОЙ ВЕРСИИ';
   // Конверт корректный, но снят с версии файла, которой на сервере уже нет.
-  await seedCaseDraft(page, draft, { baseSha: 'sha-предыдущая-версия' });
+  await seedCaseDraft(page, draft, { baseSha: 'd'.repeat(40) });
   await openCaseEditor(page);
 
   await expect(page.locator('.toast--warn')).toContainText('снят с другой версии файла');
-  await expect(page.locator(`[data-field="${CASE_PATH}::case.text.title.ru"]`)).not.toHaveValue(
-    'СНЯТ С ДРУГОЙ ВЕРСИИ'
-  );
+  await expect(page.locator(`[data-field="${CASE_PATH}::case.text.title.ru"]`)).not.toHaveValue('СНЯТ С ДРУГОЙ ВЕРСИИ');
   await expect(page.locator('#draft-indicator')).toBeHidden();
 });
 
@@ -485,22 +480,11 @@ test('черновик V2 со СВОИМ baseSha восстанавливает
 });
 
 test('TOCTOU: расхождение blob sha на head отменяет публикацию без коммита', async ({ page }) => {
-  const calls = await mockGitHub(page);
-  // Файл увели из-под нас между publishPrecheck и деревом: на head у него
-  // другой blob sha. Маршрут регистрируется ПОСЛЕ mockGitHub → приоритетнее.
-  await page.route('**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json**', (route) => {
-    const stale = new URL(route.request().url()).searchParams.get('ref') === 'headsha000';
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        type: 'file',
-        encoding: 'base64',
-        sha: stale ? 'sha-somebody-else' : `sha-${CASE_PATH}`,
-        content: Buffer.from(JSON.stringify(CASE_JSON, null, 2) + '\n').toString('base64')
-      })
-    });
+  const calls = await mockGitHub(page, {
+    shaForPath: (path, ref) => (path === CASE_PATH && ref === 'b'.repeat(40) ? 'd'.repeat(40) : 'c'.repeat(40))
   });
+  // Файл увели из-под нас между publishPrecheck и деревом: на head у него
+  // другой blob sha. Shared mock различает исходную загрузку и head ref.
   await openCaseEditor(page);
 
   await page.locator(`[data-field="${CASE_PATH}::card.title.ru"]`).fill('Правка перед гонкой');
@@ -510,7 +494,7 @@ test('TOCTOU: расхождение blob sha на head отменяет пуб�
   await expect(page.locator('#publish-dialog')).toBeVisible();
   await page.click('#publish-confirm');
 
-  await expect(page.locator('.toast--error')).toContainText('изменился на сервере');
+  await expect(page.locator('.toast--error')).toContainText('изменился на GitHub');
   // Ни одного блоба, ни дерева, ни обновления ref — коммита не было.
   expect(calls.blobs).toHaveLength(0);
   expect(calls.tree).toHaveLength(0);
@@ -551,9 +535,14 @@ test('TOCTOU: сетевая ошибка проверки НЕ выдаётся
   // Проверка свежести идёт на запиненном head; обрываем именно её. Раньше
   // любая ошибка приравнивалась к «файл изменился» — владелец шёл чинить
   // несуществующую гонку вместо того, чтобы повторить попытку.
-  await page.route('**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json?ref=headsha000', (route) =>
-    route.abort('failed')
-  );
+  let exactHeadReads = 0;
+  await page.route(`**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json?ref=${'b'.repeat(40)}`, (route) => {
+    exactHeadReads += 1;
+    // validateAll reads the full authoritative catalog once before opening the
+    // dialog and again at confirmation; fail the subsequent per-file precheck.
+    if (exactHeadReads >= 3) return route.abort('failed');
+    return route.fallback();
+  });
   await openCaseEditor(page);
 
   await page.locator(`[data-field="${CASE_PATH}::card.title.ru"]`).fill('Правка при обрыве сети');
@@ -570,7 +559,9 @@ test('TOCTOU: сетевая ошибка проверки НЕ выдаётся
 });
 
 test('две публикации подряд в одной вкладке проходят', async ({ page }) => {
-  const calls = await mockGitHub(page);
+  const calls = await mockGitHub(page, {
+    sourceShaForCommit: (count) => (count === 1 ? 'a'.repeat(40) : 'd'.repeat(40))
+  });
   /* Регрессия: план собирался в диалоге ДО publishPrecheck и нёс sha базы,
      который первый же коммит делал устаревшим — вторая публикация в той же
      вкладке падала «файл изменился» на пустом месте.
@@ -578,27 +569,6 @@ test('две публикации подряд в одной вкладке пр
      поэтому гонку он не воспроизводит вовсе. Здесь Contents API отражает
      коммиты: после каждой публикации подменяем и содержимое, и sha — ровно
      то, что делает git (sha блоба выводится из содержимого). */
-  const server = { content: JSON.stringify(CASE_JSON, null, 2) + '\n', sha: `sha-${CASE_PATH}` };
-  await page.route('**/repos/Gorgutc/codex/contents/content/cases/orbital-mk-ii.json**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        type: 'file',
-        encoding: 'base64',
-        sha: server.sha,
-        content: Buffer.from(server.content, 'utf8').toString('base64')
-      })
-    })
-  );
-  function applyLastCommit() {
-    const blobBySha = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
-    const treeEntry = calls.tree.find((entry) => entry.path === CASE_PATH);
-    expect(treeEntry).toBeTruthy();
-    server.content = Buffer.from(blobBySha.get(treeEntry.sha).content, 'base64').toString('utf8');
-    server.sha = 'sha-' + hash8(Buffer.from(server.content, 'utf8'));
-  }
-
   await openCaseEditor(page);
 
   for (const value of ['Первая правка', 'Вторая правка']) {
@@ -608,12 +578,17 @@ test('две публикации подряд в одной вкладке пр
     await expect(page.locator('#publish-dialog')).toBeVisible();
     await page.click('#publish-confirm');
     await expect(page.locator('.toast--success').last()).toContainText('Опубликовано');
+    await expect(page.locator('#publish-btn')).toHaveText('Опубликовать');
+    expect(await page.evaluate(() => window.AdminState.changedPaths())).toEqual([]);
     await expect(page.locator('#draft-indicator')).toBeHidden();
-    applyLastCommit();
   }
 
   expect(calls.refUpdated).toBe(true);
-  expect(JSON.parse(server.content).card.title.ru).toBe('Вторая правка');
+  const blobBySha = new Map(calls.blobs.map((blob) => [blob.sha, blob]));
+  const treeEntry = calls.tree.find((entry) => entry.path === CASE_PATH);
+  expect(JSON.parse(Buffer.from(blobBySha.get(treeEntry.sha).content, 'base64').toString('utf8')).card.title.ru).toBe(
+    'Вторая правка'
+  );
 });
 
 test('гонка: блок удалён, пока файл читался — байты не уезжают в чужой слот', async ({ page }) => {
@@ -674,6 +649,11 @@ test('зеркало валидатора: CSS-эскейп в фоне и ду�
   draft.case.media[2].id = 'hero'; // дубль служебного id
   await seedCaseDraft(page, draft);
   await openCaseEditor(page);
+
+  // Некорректный/дублирующий id остаётся задачей валидатора, но не может
+  // создавать дубли id в DOM и связывать disclosure/focus с чужим слотом.
+  const disclosureIds = await page.locator('#media-strip [id^="media-"]').evaluateAll((nodes) => nodes.map((node) => node.id));
+  expect(new Set(disclosureIds).size).toBe(disclosureIds.length);
 
   await page.click('#publish-btn');
   await expect(page.locator('#publish-dialog')).toBeHidden();
@@ -736,6 +716,7 @@ test('подпись на одном языке блокирует публик�
   // Ошибка встаёт у ПУСТОГО поля — именно его надо решить.
   const ruField = page.locator(`[data-field="${CASE_PATH}::case.media.0.caption.label.ru"]`);
   await expect(ruField).toHaveClass(/field-invalid/);
+  await expect(ruField.locator('xpath=ancestor::details[contains(@class, "media-slot__caption")]')).toHaveAttribute('open', '');
   await expect(ruField.locator('xpath=following-sibling::p[1]')).toContainText('Слот 1 — заголовок');
   expect(calls.tree).toHaveLength(0);
 
@@ -777,6 +758,7 @@ test('seamless: чекбокс публикуется флагом блока', 
   await seedCaseDraft(page, draft);
   await openCaseEditor(page);
 
+  await slot(page, 1).locator('details').first().locator('summary').click();
   await page.check(seamlessField(1));
   await page.waitForFunction(() => {
     const raw = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || 'null');
@@ -1020,4 +1002,74 @@ test('вход: доступная Netlify-функция оставляет к�
 
   await expect(page.locator('#login-github')).toBeVisible();
   await expect(page.locator('#login-oauth-note')).toBeHidden();
+});
+
+test('media workflow: шесть слотов — карточки с собственными disclosures и сеткой редактора', async ({ page }, testInfo) => {
+  await mockGitHub(page);
+  const draft = caseWithBlocks(6);
+  draft.case.media.forEach((block, index) => {
+    block.caption = { label: { en: 'Label ' + index, ru: 'Подпись ' + index }, desc: { en: '', ru: '' } };
+  });
+  await seedCaseDraft(page, draft);
+  await openCaseEditor(page);
+  const grid = page.locator('#media-strip.case-media-grid');
+  await expect(grid).toBeVisible();
+  await expect(grid.locator('.media-slot')).toHaveCount(6);
+  await expect(grid.locator('.media-slot__caption details, details.media-slot__caption')).toHaveCount(6);
+  await expect(grid.locator('summary[aria-controls]')).toHaveCount(12);
+  await expect(page.locator('#caption-optional-hint')).toHaveCount(1);
+  await expect(page.locator('#seamless-rules-hint')).toHaveCount(1);
+  for (const [width, expectedRows] of [
+    [1440, [3, 3]],
+    [800, [2, 2, 2]],
+    [500, [1, 1, 1, 1, 1, 1]]
+  ]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const rows = await grid.locator('.media-slot').evaluateAll((slots) => {
+      const groups = [];
+      slots.forEach((slot) => {
+        const top = Math.round(slot.getBoundingClientRect().top);
+        const row = groups.find((item) => Math.abs(item.top - top) < 2);
+        if (row) row.count += 1;
+        else groups.push({ top, count: 1 });
+      });
+      return groups.sort((a, b) => a.top - b.top).map((row) => row.count);
+    });
+    expect(rows).toEqual(expectedRows);
+  }
+  for (let index = 0; index < 6; index += 1) {
+    const card = grid.locator('.media-slot').nth(index);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.caption.label.en"]`)).toHaveCount(1);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.caption.desc.ru"]`)).toHaveCount(1);
+    await expect(card.locator('.media-slot__technical-body .drop-zone-path')).toHaveCount(1);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.type"]`)).toHaveCount(1);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.format"]`)).toHaveCount(1);
+    await expect(card.locator(`[data-field="${CASE_PATH}::case.media.${index}.seamless"]`)).toHaveCount(1);
+    await expect(card.locator('.media-slot__technical-body')).toContainText('SVG, PNG, JPG или WebP');
+  }
+  await expect(grid.locator('details.media-slot__caption').first()).toHaveAttribute('open', '');
+  const disclosureRelationships = await grid.locator('summary[aria-controls]').evaluateAll((nodes) => {
+    const ids = nodes.map((node) => node.getAttribute('aria-controls'));
+    return {
+      unique: new Set(ids).size === ids.length,
+      targetsExist: nodes.every((node) => document.getElementById(node.getAttribute('aria-controls'))),
+      ownedByCard: nodes.every((node) => {
+        const card = node.closest('.media-slot');
+        const target = document.getElementById(node.getAttribute('aria-controls'));
+        return card && target && card.contains(target);
+      })
+    };
+  });
+  expect(disclosureRelationships).toEqual({ unique: true, targetsExist: true, ownedByCard: true });
+  await expect(page.locator('#seamless-rules-hint')).toHaveText(
+    'Правила склейки полотна: одинаковый формат у полос и подпись только у последней, чтобы текст не разрезал иллюстрацию.'
+  );
+  await expect(page.getByText('Правила склейки полотна:', { exact: false })).toHaveCount(1);
+  const visualDir = process.env.CODEX_TASK5_VISUAL_DIR;
+  if (visualDir) fs.mkdirSync(visualDir, { recursive: true });
+  const capturePath = (name) => (visualDir ? path.join(visualDir, name) : testInfo.outputPath(name));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: capturePath('case-media-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 500, height: 1000 });
+  await page.screenshot({ path: capturePath('case-media-narrow.png'), fullPage: true });
 });

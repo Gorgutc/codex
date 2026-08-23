@@ -1643,3 +1643,25 @@ Clay/Xray/PBR 76,878/26,006/99,387 ms, `contextLosses=0`. До watchdog оста
 
 Byte policy и shipped runtime не меняются: GLB warning-free `<=25 MiB`,
 advisory `(25,50] MiB`, block `>50 MiB`; остальные hard caps также сохранены.
+
+## 2026-08-23 — superseding addendum: Admin Evolution Release A
+
+Активный Release A сохраняет статическую no-build архитектуру и добавляет
+детерминированные SHA-ревизии generated data scripts. Приёмка cache coherence —
+normal reload returning browser с уже сохранённым в кэше старым payload; `Ctrl+F5`
+не является доказательством. Внутренний case `id` остаётся ключом файлов,
+данных и маршрутов админки; публичный hash использует `slug`, а прежние
+канонические адреса хранятся в `legacySlugs` и нормализуются к новому адресу.
+
+Публикация теперь ведёт source-SHA-bound запись с этапами, повторной проверкой
+и восстановлением. Снимок JSON переживает reload вкладки, но байты staged
+uploads намеренно не сохраняются: после reload/recovery владелец заново
+загружает перечисленные файлы. Пока исход ожидает вердикта, действия с тем же
+черновиком заблокированы. Media editor остаётся на `case.media[]`: 1–12
+карточек, 3/2/1 responsive grid, подписи в карточке, `<details>` для техники,
+ручной reorder/add/remove и native preview dialog с Escape/focus return.
+
+Release B по-прежнему откладывает catalog CRUD и оставшиеся структурные
+редакторы. Release C по-прежнему откладывает отдельный внешний transport для
+крупных binary downloads и их production-proof. Merge/deploy и наблюдение
+normal returning-browser сценария остаются отдельной production-приёмкой.

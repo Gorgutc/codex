@@ -94,9 +94,7 @@ test('замена миниатюры и GLB: hash-пути, бинарные bl
   expect(modelRule.warnText).toContain('25 МБ');
   expect(modelRule.blockText).toContain('50 МБ');
   const modelZone = page.locator('.drop-zone-field', { has: page.locator(MODEL_INPUT) });
-  await expect(modelZone.locator('.hint')).toHaveText(
-    'Только GLB · до 25 МБ (жёсткий предел 50 МБ)'
-  );
+  await expect(modelZone.locator('.hint')).toHaveText('Только GLB · до 25 МБ (жёсткий предел 50 МБ)');
 
   const cardSection = page.locator('.editor-section', { hasText: 'Карточка в списке работ' });
   await expect(cardSection.locator('.drop-zone__badge')).toBeHidden();
@@ -302,24 +300,16 @@ test('логотип в шапке: «убрать» возвращает тек
 
 test('логотип в шапке: «убрать» закоммиченный логотип публикует headerLogo.src=null', async ({ page }) => {
   const COMMITTED_LOGO = './assets/favicon/apple-touch-icon.png';
-  const calls = await mockGitHub(page);
-  // Подменяем ответ Contents API для meta.json так, будто логотип уже ОПУБЛИКОВАН
-  // (src задан). Иначе база на диске несёт src:null, и «убрать» был бы net-zero —
-  // ничего бы не публиковалось. Маршрут регистрируется ПОСЛЕ mockGitHub → имеет
-  // приоритет для этого URL (Playwright матчит маршруты в обратном порядке).
-  await page.route('**/repos/Gorgutc/codex/contents/content/meta.json**', (route) => {
-    const meta = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/meta.json'), 'utf8'));
-    meta.headerLogo = { src: COMMITTED_LOGO };
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        type: 'file',
-        encoding: 'base64',
-        sha: 'sha-content/meta.json',
-        content: Buffer.from(JSON.stringify(meta, null, 2)).toString('base64')
-      })
-    });
+  const sourceSha = 'a'.repeat(40);
+  const calls = await mockGitHub(page, {
+    // До source-коммита GitHub отдаёт опубликованный логотип; на source/main
+    // после PATCH возвращаем реальные bytes последнего Git Data commit.
+    contentForPath: (filePath, original, ref, liveHead) => {
+      if (filePath !== META_PATH || ref === sourceSha || (ref === 'main' && liveHead === sourceSha)) return null;
+      const meta = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/meta.json'), 'utf8'));
+      meta.headerLogo = { src: COMMITTED_LOGO };
+      return JSON.stringify(meta, null, 2);
+    }
   });
   await openMetaEditor(page);
 

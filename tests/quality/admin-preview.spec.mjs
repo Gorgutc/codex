@@ -35,6 +35,9 @@ const RU_DRAFT_TITLE = 'Орбитальная станция Мк.II';
 const CASE_TITLE_EN = JSON.parse(
   fs.readFileSync(path.join(ROOT, CASE_PATH), 'utf8')
 ).card.title.en;
+const FEATURED_CASE_ID = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'meta.json'), 'utf8'))
+  .structuredData.featuredWorks.find((entry) => visibleCaseIds(ROOT).includes(entry.id)).id;
+const FEATURED_CASE_PATH = 'content/cases/' + FEATURED_CASE_ID + '.json';
 
 const PNG_BUFFER = Buffer.concat([
   Buffer.from('89504e470d0a1a0a', 'hex'), // PNG-сигнатура
@@ -107,8 +110,29 @@ async function mockNetwork(page) {
         content: normalizeVisibility(filePath, fs.readFileSync(abs)).toString('base64')
       });
     }
+    if (p === '/repos/Gorgutc/codex/git/ref/heads/main' && request.method() === 'GET') {
+      return json(200, { object: { sha: 'a'.repeat(40) } });
+    }
     return json(404, { message: 'unmatched ' + request.method() + ' ' + p });
   });
+}
+
+function isTransientPreviewNavigation(error) {
+  return /Execution context was destroyed|Frame was detached/.test(String(error && error.message));
+}
+
+// The iframe receives a blob-backed srcdoc after the overlay is opened. Its
+// document may navigate between locating <html> and evaluating the runtime
+// marker; retry that transition only, while keeping the real readiness check.
+async function expectPreviewRuntime(frame, globals) {
+  await expect.poll(async () => {
+    try {
+      return await frame.locator('html').evaluate((_html, names) => names.every((name) => Boolean(window[name])), globals);
+    } catch (error) {
+      if (isTransientPreviewNavigation(error)) return false;
+      throw error;
+    }
+  }).toBe(true);
 }
 
 test('Design Lab: public URL is opt-in, canonical stays Original, links retain mode', async ({ page }) => {
@@ -209,6 +233,9 @@ test('превью: черновик в iframe — RU-заголовок, скр
 
   const frame = page.frameLocator('#preview-frame');
   await expect(frame.locator('a.work-card[data-id="orbital-mk-ii"]')).toBeAttached();
+  await expect(frame.locator('script[src*="cards-data.js"], script[src*="i18n-data.js"]')).toHaveCount(0);
+  await expect(frame.locator('script[src^="blob:"]')).toHaveCount(2);
+  await expectPreviewRuntime(frame, ['CARDS_DATA', 'I18N_DATA']);
   const designToggleOrder = await page
     .locator('.preview-overlay__group--design .preview-toggle')
     .evaluateAll((buttons) => buttons.map((button) => button.id));
@@ -392,6 +419,103 @@ test('превью: черновик в iframe — RU-заголовок, скр
   await expect(page.locator('#draft-indicator')).toBeVisible();
 });
 
+test('preview rewrites runtime, grid and featured JSON-LD routes from the full draft', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click(`a[href="#/case/${FEATURED_CASE_ID}"]`);
+
+  const slug = 'preview-' + FEATURED_CASE_ID;
+  const legacy = 'previous-' + FEATURED_CASE_ID;
+  const canonical = page.locator('#case-public-slug');
+  await canonical.fill(slug);
+  await canonical.blur();
+  await page.locator('#case-legacy-slugs').fill(legacy);
+  await page.click('#preview-btn');
+  const frame = page.frameLocator('#preview-frame');
+  await expect(frame.locator(`a.work-card[data-id="${FEATURED_CASE_ID}"]`)).toHaveAttribute('href', '#' + slug);
+  await expectPreviewRuntime(frame, ['CARDS_DATA', 'CodexCase']);
+
+  const routeState = await frame.locator('html').evaluate((_element, route) => ({
+    runtime: window.CARDS_DATA[route.id],
+    runtimeKeys: Object.keys(window.CARDS_DATA),
+    stable: window.CodexCase.resolveCaseToken(route.id),
+    legacy: window.CodexCase.resolveCaseToken(route.legacyToken),
+    featuredUrls: Array.from(document.querySelectorAll('script[type="application/ld+json"]')).flatMap((script) => {
+      const value = JSON.parse(script.textContent);
+      return value['@type'] === 'ItemList' ? value.itemListElement.map((entry) => entry.item.url) : [];
+    })
+  }), { id: FEATURED_CASE_ID, legacyToken: legacy });
+  expect(routeState.runtime).toBeTruthy();
+  expect(routeState.runtime.slug).toBe(slug);
+  expect(routeState.runtime.legacySlugs).toEqual([legacy]);
+  expect(routeState.stable).toBe(FEATURED_CASE_ID);
+  expect(routeState.legacy).toBe(FEATURED_CASE_ID);
+  expect(routeState.featuredUrls).toContain('https://codex.promo/#' + slug);
+});
+
+test('featured works keep paired id/about order, persist internal IDs, block duplicates, and preview canonical routes', async ({ page }) => {
+  await mockNetwork(page);
+  const metaPath = 'content/meta.json';
+  const initial = JSON.parse(fs.readFileSync(path.join(ROOT, metaPath), 'utf8')).structuredData.featuredWorks;
+  expect(initial.length).toBeGreaterThan(1);
+  const catalogIds = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/settings.json'), 'utf8')).cardOrder;
+  const replacement = catalogIds.find((id) => !initial.some((feature) => feature.id === id));
+  expect(replacement).toBeTruthy();
+
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click('a[href="#/meta"]');
+
+  // Move the second row up, then the first back down: the whole object must
+  // move, so its about stays paired with its internal case id in persisted draft.
+  await page.click('#meta-featured-works [data-reorder="featured-1::up"]');
+  const swapped = [initial[1], initial[0], ...initial.slice(2)];
+  await page.waitForFunction((expected) => {
+    const stored = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    return JSON.stringify(stored.files && stored.files['content/meta.json'] && stored.files['content/meta.json'].structuredData.featuredWorks) === JSON.stringify(expected);
+  }, swapped);
+  await page.click('#meta-featured-works [data-reorder="featured-0::down"]');
+  await expect.poll(() => page.evaluate(() => window.AdminState.getValue('content/meta.json', 'structuredData.featuredWorks'))).toEqual(initial);
+
+  // Change a select to an internal catalog ID, then reorder again for the
+  // preview assertions. The editor never writes a public slug into metadata.
+  const firstSelect = page.locator('[data-field="content/meta.json::structuredData.featuredWorks.0.id"]');
+  await firstSelect.selectOption(replacement);
+  const reordered = [{ ...initial[1] }, { ...initial[0], id: replacement }, ...initial.slice(2).map((feature) => ({ ...feature }))];
+  await page.click('#meta-featured-works [data-reorder="featured-1::up"]');
+  await page.waitForFunction((expected) => {
+    const stored = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{}');
+    return JSON.stringify(stored.files && stored.files['content/meta.json'] && stored.files['content/meta.json'].structuredData.featuredWorks) === JSON.stringify(expected);
+  }, reordered);
+
+  await page.click('#preview-btn');
+  const frame = page.frameLocator('#preview-frame');
+  await expectPreviewRuntime(frame, ['CARDS_DATA']);
+  const expectedPreview = reordered.map((feature) => {
+    const data = JSON.parse(normalizeVisibility('content/cases/' + feature.id + '.json', fs.readFileSync(path.join(ROOT, 'content', 'cases', feature.id + '.json'))).toString('utf8'));
+    return { about: feature.about, url: 'https://codex.promo/#' + (data.slug || data.id) };
+  });
+  const featuredPreview = await frame.locator('html').evaluate(() => {
+    const itemList = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+      .map((script) => JSON.parse(script.textContent))
+      .find((node) => node['@type'] === 'ItemList' && / — Featured Works$/.test(node.name));
+    return itemList.itemListElement.map((entry) => ({ position: entry.position, about: entry.item.about, url: entry.item.url }));
+  });
+  expect(featuredPreview).toEqual(expectedPreview.map((entry, index) => ({ position: index + 1, ...entry })));
+  await page.click('#preview-close');
+
+  // Duplicate IDs are rejected at publish time and the offending select is anchored.
+  await page.locator('[data-field="content/meta.json::structuredData.featuredWorks.1.id"]').selectOption(reordered[0].id);
+  await page.click('#publish-btn');
+  await expect(page.locator('[data-field="content/meta.json::structuredData.featuredWorks.1.id"]')).toHaveClass(/field-invalid/);
+  await expect(page.locator('.field-error-msg')).toContainText('встречается дважды');
+});
+
 test('превью Free Assets (F5): скрытая категория выпадает, грид рендерит черновик', async ({ page }) => {
   await mockNetwork(page);
   await page.goto(`${base}/admin/`);
@@ -414,6 +538,9 @@ test('превью Free Assets (F5): скрытая категория выпа�
   await expect(page.locator('#preview-banner')).toContainText('Free Assets');
 
   const frame = page.frameLocator('#preview-frame');
+  await expect(frame.locator('script[src*="fa-data.js"], script[src*="i18n-data.js"]')).toHaveCount(0);
+  await expect(frame.locator('script[src^="blob:"]')).toHaveCount(2);
+  await expectPreviewRuntime(frame, ['FA_DATA', 'I18N_DATA']);
   // Обзор категорий: видимая категория есть, скрытая выпала
   await expect(frame.locator('a.tag-card[data-tag="hard-surface"]')).toBeAttached();
   await expect(frame.locator(`a.tag-card[data-tag="${HIDDEN_CAT}"]`)).toHaveCount(0);
@@ -523,4 +650,219 @@ test('превью Free Assets: растровая обложка категор
 
   await page.click('#preview-close');
   await expect(page.locator('#preview-overlay')).toBeHidden();
+});
+
+test('preview applies draft contact, Organization and featured-work identity', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click('a[href="#/meta"]');
+
+  const contact = 'https://example.test/contact';
+  await page.fill('#meta-contact-url', contact);
+  await page.fill('#meta-organization-name', 'Preview Studio');
+  await page.fill('#meta-organization-alternate-name', 'Preview');
+  await page.fill('#meta-organization-url', 'https://example.test/');
+  await page.fill('#meta-organization-same-as', 'https://example.test/community');
+  await page.fill('[data-field="content/meta.json::structuredData.organization.description.en"]', 'Preview English description');
+  await page.fill('[data-field="content/meta.json::structuredData.organization.description.ru"]', 'Описание предпросмотра');
+  await page.locator('[data-field^="content/meta.json::structuredData.featuredWorks."][data-field$=".about"]').first().fill('Preview featured about');
+
+  await page.click('#preview-btn');
+  const frame = page.frameLocator('#preview-frame');
+  await expect(frame.locator('#contact-btn')).toHaveAttribute('href', contact);
+  await expect(frame.locator('#contact-pill')).toHaveAttribute('href', contact);
+  const identity = await frame.locator('html').evaluate(() => {
+    const nodes = Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map((script) => JSON.parse(script.textContent));
+    const organization = nodes.find((node) => node['@type'] === 'Organization');
+    const website = nodes.find((node) => node['@type'] === 'WebSite');
+    const featured = nodes.find((node) => node['@type'] === 'ItemList' && / — Featured Works$/.test(node.name));
+    return {
+      organization,
+      publisher: website && website.publisher,
+      featuredName: featured && featured.name,
+      featuredAbout: featured && featured.itemListElement[0].item.about
+    };
+  });
+  expect(identity.organization).toMatchObject({
+    name: 'Preview Studio',
+    alternateName: 'Preview',
+    url: 'https://example.test/',
+    description: 'Preview English description',
+    sameAs: ['https://example.test/community']
+  });
+  expect(identity.publisher).toEqual({ '@type': 'Organization', name: 'Preview Studio', url: 'https://example.test/' });
+  expect(identity.featuredName).toBe('Preview Studio — Featured Works');
+  expect(identity.featuredAbout).toBe('Preview featured about');
+});
+
+test('preview keeps hostile draft JSON-LD data inert and parseable inside srcdoc', async ({ page }) => {
+  await mockNetwork(page);
+  const metaPath = 'content/meta.json';
+  const draft = JSON.parse(normalizeVisibility(metaPath, fs.readFileSync(path.join(ROOT, metaPath))).toString('utf8'));
+  const hostile = '</script><script id="preview-xss-script">window.__previewXssScript=1</script><img id="preview-xss-probe" src=x onerror="window.__previewXss=1">\u2028\u2029';
+  draft.structuredData.organization.name = hostile;
+  draft.structuredData.organization.alternateName = hostile;
+  draft.structuredData.organization.description.en = hostile;
+  draft.structuredData.featuredWorks[0].about = hostile;
+  await page.addInitScript(
+    ({ path, value }) => sessionStorage.setItem('codexAdminDrafts', JSON.stringify({
+      version: 2,
+      files: { [path]: value },
+      baseShas: { [path]: 'sha-' + path }
+    })),
+    { path: metaPath, value: draft }
+  );
+
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click('a[href="#/meta"]');
+  await page.click('#preview-btn');
+
+  const frame = page.frameLocator('#preview-frame');
+  await expect(frame.locator('#preview-xss-probe')).toHaveCount(0);
+  await expect(frame.locator('#preview-xss-script')).toHaveCount(0);
+  const safety = await frame.locator('html').evaluate((expected) => {
+    const jsonLd = Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map((script) => JSON.parse(script.textContent));
+    const organization = jsonLd.find((node) => node['@type'] === 'Organization');
+    const website = jsonLd.find((node) => node['@type'] === 'WebSite');
+    const featured = jsonLd.find((node) => node['@type'] === 'ItemList' && / — Featured Works$/.test(node.name));
+    return {
+      xssGlobal: window.__previewXss,
+      xssScriptGlobal: window.__previewXssScript,
+      appAlive: Boolean(window.CARDS_DATA && document.getElementById('cards-list')),
+      organization: organization && [organization.name, organization.alternateName, organization.description],
+      website: website && [website.name, website.publisher && website.publisher.name],
+      featured: featured && featured.itemListElement[0].item.about,
+      expected
+    };
+  }, hostile);
+  expect(safety.xssGlobal).toBeUndefined();
+  expect(safety.xssScriptGlobal).toBeUndefined();
+  expect(safety.appAlive).toBe(true);
+  expect(safety.organization).toEqual([hostile, hostile, hostile]);
+  expect(safety.website).toEqual([hostile, hostile]);
+  expect(safety.featured).toBe(hostile);
+
+  // Free Assets carries the WebPage node, so verify the same serialized draft
+  // survives that rewrite too rather than only testing the home-page schema.
+  await page.click('#preview-close');
+  await page.click('a[href="#/free-assets"]');
+  await page.click('#preview-btn');
+  const freeFrame = page.frameLocator('#preview-frame');
+  await expectPreviewRuntime(freeFrame, ['FA_DATA']);
+  const pageIdentity = await freeFrame.locator('html').evaluate(() => {
+    const node = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+      .map((script) => JSON.parse(script.textContent))
+      .find((item) => item['@type'] === 'WebPage');
+    return [node.publisher && node.publisher.name, node.isPartOf && node.isPartOf.name];
+  });
+  expect(pageIdentity).toEqual([hostile, hostile]);
+});
+
+test('preview uses a native modal dialog and Escape runs the same cleanup as Close', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.click('#preview-btn');
+  const dialog = page.locator('#preview-overlay');
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect(page.locator('body')).toHaveClass(/preview-open/);
+  await page.click('#preview-close');
+  await expect(dialog).toHaveJSProperty('open', false);
+  await expect(page.locator('#preview-frame')).toHaveAttribute('src', 'about:blank');
+  await expect(page.locator('#preview-btn')).toBeFocused();
+  await page.click('#preview-btn');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveJSProperty('open', false);
+  await expect(page.locator('#preview-frame')).toHaveAttribute('src', 'about:blank');
+  await expect(page.locator('#preview-btn')).toBeFocused();
+});
+
+test('preview modal contains focus and close cancels a stale asynchronous rebuild without leaking blobs', async ({ page }) => {
+  await mockNetwork(page);
+  await page.goto(`${base}/admin/`);
+  await page.click('#login-pat-toggle');
+  await page.fill('#pat-input', 'test-pat-token');
+  await page.click('#pat-submit');
+  await page.evaluate(() => {
+    const invoker = document.createElement('button');
+    invoker.id = 'custom-preview-invoker';
+    invoker.type = 'button';
+    invoker.textContent = 'Открыть тестовый preview';
+    document.querySelector('#topbar').appendChild(invoker);
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    window.__previewLifecycle = { created: [], revoked: [] };
+    URL.createObjectURL = (blob) => {
+      const url = create(blob);
+      window.__previewLifecycle.created.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      window.__previewLifecycle.revoked.push(url);
+      revoke(url);
+    };
+  });
+
+  const dialog = page.locator('#preview-overlay');
+  await page.locator('#custom-preview-invoker').evaluate((invoker) => window.AdminPreview.open(invoker));
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect.poll(() => dialog.evaluate((node) => node.matches(':modal'))).toBe(true);
+  await expect(page.locator('#preview-close')).toBeFocused();
+  await expect(page.locator('#preview-frame')).toHaveAttribute('srcdoc', /data-preview-generation/);
+  await expect.poll(() => page.evaluate(() => window.__previewLifecycle.created.length)).toBeGreaterThan(0);
+  await page.evaluate(() => window.AdminPreview.close());
+  await expect(dialog).toHaveJSProperty('open', false);
+  await expect(page.locator('body')).not.toHaveClass(/preview-open/);
+  await expect(page.locator('#preview-frame')).toHaveAttribute('src', 'about:blank');
+  await expect(page.locator('#preview-frame')).not.toHaveAttribute('srcdoc', /.*/);
+  await expect(page.locator('#custom-preview-invoker')).toBeFocused();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const { created, revoked } = window.__previewLifecycle;
+        return created.length > 0 && created.every((url) => revoked.includes(url));
+      })
+    )
+    .toBe(true);
+
+  let releaseStale;
+  const staleGate = new Promise((resolve) => {
+    releaseStale = resolve;
+  });
+  let intercepted = false;
+  await page.route(`${base}/index.html`, async (route) => {
+    if (!intercepted) {
+      intercepted = true;
+      await staleGate;
+    }
+    await route.continue();
+  });
+  const staleBaseline = await page.evaluate(() => window.__previewLifecycle.created.length);
+  await page.locator('#custom-preview-invoker').evaluate((invoker) => {
+    void window.AdminPreview.open(invoker);
+  });
+  await expect.poll(() => intercepted).toBe(true);
+  await page.evaluate(() => window.AdminPreview.close());
+  releaseStale();
+  await expect.poll(() => page.evaluate(() => window.__previewLifecycle.created.length)).toBeGreaterThan(staleBaseline);
+  await expect.poll(() => page.locator('#preview-overlay').evaluate((node) => node.open)).toBe(false);
+  await expect(page.locator('#preview-frame')).toHaveAttribute('src', 'about:blank');
+  await expect(page.locator('#preview-frame')).not.toHaveAttribute('srcdoc', /.*/);
+  await expect
+    .poll(() =>
+      page.evaluate((baseline) => {
+        const { created, revoked } = window.__previewLifecycle;
+        const staleUrls = created.slice(baseline);
+        return staleUrls.length > 0 && staleUrls.every((url) => revoked.includes(url));
+      }, staleBaseline)
+    )
+    .toBe(true);
 });
