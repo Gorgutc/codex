@@ -3458,6 +3458,7 @@
       entries.forEach((feature, index) => {
         const row = el('div', { className: 'media-slot', 'data-featured-index': String(index) });
         const select = el('select', {
+          className: 'input featured-work__control',
           'data-field': path + '::structuredData.featuredWorks.' + index + '.id',
           'aria-label': 'Избранная работа ' + (index + 1)
         });
@@ -3472,6 +3473,7 @@
           clearFieldError(select);
         });
         const about = el('textarea', {
+          className: 'input featured-work__control',
           rows: '2',
           'data-field': path + '::structuredData.featuredWorks.' + index + '.about',
           'aria-label': 'Описание избранной работы ' + (index + 1)
