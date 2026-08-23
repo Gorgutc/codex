@@ -43,7 +43,10 @@ function fixture() {
   const repo = path.join(root, 'repo');
   git(root, ['init', '--bare', origin]);
   git(root, ['clone', origin, repo]);
-  git(repo, ['checkout', '-b', 'main']);
+  // An empty clone inherits its unborn HEAD from the caller's Git defaults.
+  // Pin it directly instead of creating a branch that may already be named
+  // main under init.defaultBranch=main.
+  git(repo, ['symbolic-ref', 'HEAD', 'refs/heads/main']);
   commit(repo, 'initial', { 'content/value.json': '{"value":"base"}\n', 'docs/note.md': 'base\n' });
   git(repo, ['push', '-u', 'origin', 'main']);
   git(repo, [
