@@ -77,7 +77,7 @@
     "name": "Codex Studio",
     "url": "https://codex.promo/",
     "inLanguage": "en",
-    "publisher": { "@type": "Organization", "name": "Codex Studio" }
+    "publisher": { "@type": "Organization", "name": "Codex Studio", "url": "https://codex.promo/" }
   }
   </script>
   <script type="application/ld+json">
@@ -93,7 +93,7 @@
         "item": {
           "@type": "CreativeWork",
           "name": "The dehydrator Happfe",
-          "creator": { "@type": "Organization", "name": "Codex Studio" },
+          "creator": { "@type": "Organization", "name": "Codex Studio", "url": "https://codex.promo/" },
           "about": "Product visualization · industrial design",
           "url": "https://codex.promo/#corten-series"
         }
@@ -198,22 +198,21 @@
         </a>
 
         <div class="header-top__controls">
-          <!-- CONTACT BUTTON — Telegram (v0.13.8).
+          <!-- CONTACT BUTTON — generated provider-neutral contact link.
                Размещена в .header-top__controls → авто-центр по логотипу (flex align-items: center).
                В desktop collapsed-моде — fixed top-right (слева от theme/cards). -->
-          <a href="https://t.me/WhiteCatWeb"
-             class="contact-btn"
-             id="contact-btn"
-             target="_blank"
-             rel="noopener noreferrer"
-             data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"
-             aria-label="Contact via Telegram"
-             title="Contact · Telegram">
-            <svg class="contact-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <!-- CODEX:GEN contact-button BEGIN -->
+          <a href="https://t.me/WhiteCatWeb" class="contact-btn" id="contact-btn"
+             target="_blank" rel="noopener noreferrer"
+             data-i18n-attr="aria-label:aria.contact; title:title.contact"
+             aria-label="Contact" title="Contact">
+            <svg class="contact-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>
             </svg>
             <span class="contact-btn__label" data-i18n="btn.contact">Contact</span>
           </a>
+          <!-- CODEX:GEN contact-button END -->
 
           <!-- LANG TOGGLE — RU ↔ EN (v0.8.x)
                Лейбл показывает язык, на который переключит клик.
@@ -417,19 +416,18 @@
            v0.15.3 [П1] — Contact прижат к левому краю, Free Assets к правому (padding:0),
            gap 8px, обе flex:1 (динамически). .top-pill__soon удалён из DOM. -->
       <div class="site-footer__row site-footer__row--pill">
+        <!-- CODEX:GEN contact-pill BEGIN -->
         <a href="https://t.me/WhiteCatWeb"
-           class="top-pill top-pill--contact site-footer__contact"
-           id="contact-pill"
-           target="_blank"
-           rel="noopener noreferrer"
-           data-i18n-attr="aria-label:aria.contactTelegram; title:title.contactTelegram"
-           aria-label="Contact via Telegram"
-           title="Contact · Telegram">
+           class="top-pill top-pill--contact site-footer__contact" id="contact-pill"
+           target="_blank" rel="noopener noreferrer"
+           data-i18n-attr="aria-label:aria.contact; title:title.contact"
+           aria-label="Contact" title="Contact">
           <svg class="top-pill__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>
           </svg>
           <span class="top-pill__label" data-i18n="pill.contact">Contact</span>
         </a>
+        <!-- CODEX:GEN contact-pill END -->
         <a href="./free-assets.html"
             class="top-pill top-pill--free site-footer__free"
             id="free-assets-footer" data-i18n-attr="title:pill.freeAssets" title="Free Assets">
@@ -668,12 +666,12 @@
 <!-- v0.8.x — i18n: словари (data) + логика (init/applyLang/walker/URL proxy/geo).
      Подключены ПЕРЕД main.js, потому что main.js может читать window.I18N
      синхронно при инициализации. Без defer/async/type=module. -->
-<script src="./js/i18n-data.js"></script>
+<script src="./js/i18n-data.js?v=5a1e24537af03fa34a7454afe6807f8b5ac6d38a293fc6178addc3b57cbb471f"></script>
 <script src="./js/i18n.js"></script>
 <script src="./js/shared-runtime.js"></script>
 <!-- Iteration B — generated case data (content/cases/*.json → scripts/generate-content.mjs).
      Обязан стоять ПЕРЕД main.js: main.js читает window.CARDS_DATA синхронно при инициализации. -->
-<script src="./js/cards-data.js"></script>
+<script src="./js/cards-data.js?v=5b6b3f2e73c34105c47ccec15bdbef571a8c9fd0e49e12c04b71f4234eef8a47"></script>
 <!-- v0.11.4 / v0.5 — model-data.js (1.1 MB inline GLB) теперь lazy-loaded.
      Загружается только при первом клике на 3D-вкладку (см. loadModelData() в main.js).
      Это снижает LCP с ~10s до ~2-3s — issue #1 Golden 0.5. -->

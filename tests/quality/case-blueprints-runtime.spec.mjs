@@ -173,7 +173,7 @@ function blueprintPatch(sheets) {
 
 async function openSyntheticBlueprints(page, sheets) {
   const original = fs.readFileSync(path.join(ROOT, 'js', 'cards-data.js'), 'utf8');
-  await page.route('**/js/cards-data.js', (route) =>
+  await page.route(/\/js\/cards-data\.js(?:\?.*)?$/, (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: original + blueprintPatch(sheets) })
   );
   await openCase(page, SYNTH_ID);

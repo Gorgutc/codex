@@ -1,5 +1,6 @@
 {
   "corten-series": {
+    "slug": "corten-series",
     "role": "Client: Happfe",
     "tools": [
       "Blender",
@@ -116,6 +117,7 @@
     }
   },
   "lumen-one": {
+    "slug": "lumen-one",
     "role": "Client",
     "tools": [
       "Blender",
@@ -200,6 +202,7 @@
     }
   },
   "flux-capsule": {
+    "slug": "flux-capsule",
     "role": "R&D",
     "tools": [
       "Blender",

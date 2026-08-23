@@ -19,7 +19,23 @@
   function decodeHash(hash) {
     var value = String(hash || '').replace(/^#/, '');
     if (!value) return '';
-    try { return decodeURIComponent(value); } catch (_) { return value; }
+    try { value = decodeURIComponent(value); } catch (_) { return ''; }
+    return window.CodexCase && typeof window.CodexCase.resolveCaseToken === 'function'
+      ? (window.CodexCase.resolveCaseToken(value) || value)
+      : value;
+  }
+
+  function rawHashToken(hash) {
+    var value = String(hash || '').replace(/^#/, '');
+    if (!value) return '';
+    try { return decodeURIComponent(value); } catch (_) { return ''; }
+  }
+
+  function publicHash(id) {
+    var slug = window.CodexCase && typeof window.CodexCase.publicSlugForId === 'function'
+      ? window.CodexCase.publicSlugForId(id)
+      : id;
+    return '#' + encodeURIComponent(slug || id);
   }
 
   function onReady(callback) {
@@ -175,8 +191,8 @@
     }
 
     function ensureCaseHash(id) {
-      if (!id || decodeHash(window.location.hash) === id) return;
-      try { history.replaceState(null, '', baseUrl() + '#' + encodeURIComponent(id)); }
+      if (!id || rawHashToken(window.location.hash) === (window.CodexCase && window.CodexCase.publicSlugForId ? window.CodexCase.publicSlugForId(id) : id)) return;
+      try { history.replaceState(null, '', baseUrl() + publicHash(id)); }
       catch (_) { /* file and strict preview sandboxes may reject history writes */ }
     }
 
@@ -514,7 +530,7 @@
       projectList.forEach(function (project, index) {
         var item = make('li', 'chamber-home__index-item');
         var button = make('a', 'chamber-home__index-button');
-        button.href = '#' + encodeURIComponent(project.id);
+        button.href = publicHash(project.id);
         button.dataset.designProject = project.id;
         button.setAttribute('aria-label', String(index + 1).padStart(2, '0') + ' — ' + project.title);
         var number = make('span', 'chamber-home__index-number', String(index + 1).padStart(2, '0'));
@@ -583,7 +599,7 @@
       var project = projectList[index];
       counter.textContent = String(index + 1).padStart(2, '0') + ' / ' +
         String(projectList.length).padStart(2, '0');
-      view.href = '#' + encodeURIComponent(project.id);
+      view.href = publicHash(project.id);
       view.dataset.designOpenProject = project.id;
     }
 

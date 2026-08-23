@@ -19,7 +19,7 @@
 
   const CIS_COUNTRIES = ['RU', 'BY', 'KZ', 'KG', 'UZ', 'TJ', 'AM', 'AZ', 'MD'];
 
-  // ── UI_STRINGS — dot-notation ключи, парсятся window.I18N.t('aria.contactTelegram') ──
+  // ── UI_STRINGS — dot-notation ключи, парсятся window.I18N.t('aria.contact') ──
   const UI_STRINGS = {
     en: {
       skipToContent: 'Skip to content',
@@ -31,7 +31,7 @@
         codexBackFirst: 'Codex — back to first project',
         codexBackPortfolio: 'Codex — back to portfolio',
         codexHome: 'Codex — home',
-        contactTelegram: 'Contact via Telegram',
+        contact: 'Contact',
         langToggleEn: 'Switch language to English',
         langToggleRu: 'Switch language to Russian',
         switchToLight: 'Switch to light theme',
@@ -62,7 +62,7 @@
         downloadTerms: 'Download terms'
       },
       title: {
-        contactTelegram: 'Contact · Telegram',
+        contact: 'Contact',
         toggleTheme: 'Toggle theme',
         switchLanguage: 'Switch language',
         copyLink: 'Copy link to this project',
@@ -273,7 +273,7 @@
         codexBackFirst: 'Codex — к первому проекту',
         codexBackPortfolio: 'Codex — назад в портфолио',
         codexHome: 'Codex — на главную',
-        contactTelegram: 'Связаться через Telegram',
+        contact: 'Контакт',
         langToggleEn: 'Переключить язык на английский',
         langToggleRu: 'Переключить язык на русский',
         switchToLight: 'Переключить на светлую тему',
@@ -304,7 +304,7 @@
         downloadTerms: 'Условия скачивания'
       },
       title: {
-        contactTelegram: 'Контакт · Telegram',
+        contact: 'Контакт',
         toggleTheme: 'Переключить тему',
         switchLanguage: 'Переключить язык',
         copyLink: 'Скопировать ссылку на проект',

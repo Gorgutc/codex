@@ -217,7 +217,8 @@
   var freeAssetsLink = el('a', '', localCopy().freeAssets);
   freeAssetsLink.href = modeUrl('./free-assets.html');
   var contactLink = el('a', '', localCopy().contact);
-  contactLink.href = 'https://t.me/WhiteCatWeb';
+  var generatedContact = document.getElementById('contact-btn') || document.getElementById('contact-pill');
+  contactLink.href = generatedContact ? generatedContact.href : '#';
   contactLink.target = '_blank';
   contactLink.rel = 'noopener noreferrer';
   append(dossierLinks, freeAssetsLink, contactLink);
@@ -262,14 +263,14 @@
     dossierYear.textContent = cardText(card, '.work-card__year');
     dossierRole.textContent = data && data.role ? String(data.role) : '—';
     dossierTools.textContent = data && Array.isArray(data.tools) ? data.tools.join(' · ') : '—';
-    openCase.href = '#' + id;
+    openCase.href = publicHash(id);
     openCase.setAttribute('aria-label', localCopy().openCaseAria + dossierTitle.textContent);
   }
 
   sourceCards.forEach(function (card, index) {
     var id = card.getAttribute('data-id');
     var link = el('a', 'specimen-project');
-    link.href = '#' + id;
+    link.href = publicHash(id);
     link.setAttribute('data-id', id);
     link.setAttribute('data-design-project', id);
     link.setAttribute('data-category', card.getAttribute('data-category') || '');
@@ -420,9 +421,31 @@
     if (currentSelection) selectProject(currentSelection);
   }
 
+  function hashIdFor(hash) {
+    var raw = (hash || '').replace(/^#/, '');
+    try { raw = decodeURIComponent(raw); } catch (_) { return ''; }
+    return window.CodexCase && typeof window.CodexCase.resolveCaseToken === 'function'
+      ? (window.CodexCase.resolveCaseToken(raw) || raw)
+      : raw;
+  }
+
   function hashId() {
-    var raw = (window.location.hash || '').replace(/^#/, '');
-    try { return decodeURIComponent(raw); } catch (_) { return raw; }
+    return hashIdFor(window.location.hash);
+  }
+
+  function publicHash(id) {
+    var slug = window.CodexCase && typeof window.CodexCase.publicSlugForId === 'function'
+      ? window.CodexCase.publicSlugForId(id)
+      : id;
+    return '#' + encodeURIComponent(slug || id);
+  }
+
+  function canonicalizeCaseHash(id) {
+    if (!id || !window.location.hash) return;
+    if (window.location.hash === publicHash(id)) return;
+    try {
+      history.replaceState(null, '', window.location.pathname + window.location.search + publicHash(id));
+    } catch (_) { /* file previews may not expose History API */ }
   }
 
   function stopCaseMedia() {
@@ -460,6 +483,7 @@
   function renderRoute() {
     var id = hashId();
     var isCase = !!cardsById[id];
+    if (isCase) canonicalizeCaseHash(id);
     var wasCase = body.classList.contains('specimen-case-active');
     var shouldResetCasePosition = isCase && (!wasCase || lastRouteCaseId !== id);
     var shouldResumeCase = isCase && !wasCase;
@@ -534,10 +558,40 @@
     }, true);
   }
 
-  window.addEventListener('hashchange', renderRoute);
+  var hashGeneration = 0;
+
+  window.addEventListener('hashchange', function (event) {
+    var generation = ++hashGeneration;
+    // main.js handles this event first and may synchronously replace an
+    // unresolved token with its default Case. Use the event URL itself so a
+    // decoded unknown hash keeps its Design Lab meaning of Home.
+    var incomingId = '';
+    try { incomingId = hashIdFor(new URL(event.newURL).hash); } catch (_) { /* no-op */ }
+    if (incomingId && !cardsById[incomingId]) {
+      window.setTimeout(function () {
+        // A later hashchange may have selected a valid Case before this
+        // cleanup runs. Only the still-current unknown route owns Home.
+        if (generation === hashGeneration) goHome();
+      }, 0);
+      return;
+    }
+    renderRoute();
+  });
   window.addEventListener('popstate', renderRoute);
   document.addEventListener('codex:case-open', function (event) {
-    var id = event.detail && event.detail.id;
+    var detail = event.detail || {};
+    if (rejectedInitialRoute && detail.initial === true) {
+      // main.js falls back to its first Case for an unresolved hash. In
+      // Specimen a decoded-but-unknown initial token deliberately means Home.
+      // Consume that base-runtime fallback before it can replace the route.
+      rejectedInitialRoute = false;
+      goHome();
+      return;
+    }
+    // A later user navigation must never inherit the initial invalid-route
+    // guard; only the base runtime's initial fallback is consumed above.
+    rejectedInitialRoute = false;
+    var id = detail.id;
     var keepCaseRoute = body.classList.contains('specimen-case-active');
     if (id) {
       updateCaseDossier(id);
@@ -546,7 +600,7 @@
       // when navigation started from an already active Case (or a deep link).
       if (keepCaseRoute && !hashId()) {
         try {
-          history.replaceState(null, '', window.location.pathname + window.location.search + '#' + id);
+          history.replaceState(null, '', window.location.pathname + window.location.search + publicHash(id));
         } catch (_) { /* hashchange will still route correctly when available */ }
       }
     }
@@ -568,16 +622,15 @@
     });
   });
 
-  var initialId = String(design.initialHash || '').replace(/^#/, '');
-  try { initialId = decodeURIComponent(initialId); } catch (_) { /* keep raw safe id */ }
-  if (cardsById[initialId] && !hashId()) {
-    try {
-      history.replaceState(null, '', window.location.pathname + window.location.search + '#' + initialId);
-    } catch (_) { /* file previews may not expose History API */ }
-  }
+  // design-mode.js captures this before main.js can replace an unresolved
+  // fragment with its default Case route.
+  var initialId = hashIdFor(design.initialHash || window.location.hash);
+  var rejectedInitialRoute = !!initialId && !cardsById[initialId];
   updateLocalCopy();
   renderRoute();
-  if (cardsById[initialId] && window.CodexCase && typeof window.CodexCase.openCase === 'function') {
+  if (rejectedInitialRoute) {
+    goHome();
+  } else if (cardsById[initialId] && window.CodexCase && typeof window.CodexCase.openCase === 'function') {
     window.CodexCase.openCase(initialId);
   }
 }());
