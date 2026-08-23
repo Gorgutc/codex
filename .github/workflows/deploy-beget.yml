@@ -254,6 +254,9 @@ jobs:
             --exclude-glob 'playwright-report/**' \
             --exclude-glob 'runs/**' \
             --exclude-glob 'downloads/**' \
+            --exclude-glob 'index.html' \
+            --exclude-glob 'free-assets.html' \
+            --exclude-glob 'admin/index.html' \
             ./ .
 
           # Download archives may be real owner-managed files on Beget while
@@ -261,15 +264,24 @@ jobs:
           # repository copy only when that remote path is missing; it never
           # deletes OR replaces an existing archive.
           mirror --reverse --only-missing --verbose --no-perms --max-errors=1 downloads/ downloads
+
+          # HTML is the cache manifest for the immutable payload/app URLs it
+          # references. Publish the exact three shells only after all regular
+          # and additive mirror transfers succeed; keep these as the final
+          # transfer commands so a new revision never names stale bytes.
+          put index.html -o index.html
+          put free-assets.html -o free-assets.html
+          put admin/index.html -o admin/index.html
           bye
           LFTP
 
           unset LFTP_PASSWORD
 
-      # Normal shell requests are the production contract. Each shell must be
-      # byte-identical and its own immutable generated-payload revisions must
-      # resolve to the exact emitted bytes; no test-only query or no-cache
-      # directive may bypass a stale carrier response here.
+      # Three normal shell requests are the production contract. Each shell
+      # must be byte-identical; the three generated payloads and five admin
+      # app assets must resolve through their immutable revisions to exact
+      # emitted bytes. No test-only query or no-cache directive may bypass a
+      # stale carrier response here.
       - name: Set up Node for parity verification
         if: steps.mirror.outputs.deployed == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -288,8 +300,8 @@ jobs:
           {
             echo
             echo '### Post-deploy parity'
-            echo '- Normal index.html and free-assets.html shells match local bytes.'
-            echo '- Their emitted cards-data.js, fa-data.js, and i18n-data.js immutable revisions match local bytes.'
+            echo '- Normal index.html, free-assets.html, and admin/index.html shells match local bytes.'
+            echo '- Their three generated payload revisions and five versioned admin app assets match local bytes.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write deployment summary
@@ -313,7 +325,7 @@ jobs:
             elif [ "$MIRROR_DEPLOYED" != 'true' ]; then
               echo '- Skipped safely: main advanced before transfer; the newer event owns deployment.'
             elif [ "$MIRROR_OUTCOME" = 'success' ] && [ "$PARITY_OUTCOME" = 'success' ]; then
-              echo '- Deployed and verified: FTPS hashes, normal HTTPS shells, and emitted immutable payloads match local files.'
+              echo '- Deployed and verified: FTPS hashes, three normal HTTPS shells, three generated payloads, and five versioned admin app assets match local files.'
             else
               echo "- Deployment failed (mirror: ${MIRROR_OUTCOME:-not-run}; parity: ${PARITY_OUTCOME:-not-run})."
             fi

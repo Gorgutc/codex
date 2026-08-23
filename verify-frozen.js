@@ -254,6 +254,7 @@ function runStaticChecks(assetAudit = null) {
   const blockedCDN = /(cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)[^\s"]*\/(gsap|lenis|ScrollTrigger|SplitText)/i;
   const indexHTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const faHTML = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
+  const adminHTML = fs.readFileSync(path.join(ROOT, 'admin', 'index.html'), 'utf8');
   const checkGeneratedDataRevisions = (page, html, files) => {
     const sources = Array.from(html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/gi)).map((match) => match[1]);
     const expected = files.map((fileName) => {
@@ -274,6 +275,50 @@ function runStaticChecks(assetAudit = null) {
   };
   checkGeneratedDataRevisions('index', indexHTML, ['i18n-data.js', 'cards-data.js']);
   checkGeneratedDataRevisions('free-assets', faHTML, ['fa-data.js', 'i18n-data.js']);
+  const adminStaticAppAssets = [
+    { file: 'admin/css/admin.css', tag: 'link', attr: 'href', base: './css/admin.css' },
+    { file: 'admin/js/api.js', tag: 'script', attr: 'src', base: './js/api.js' },
+    { file: 'admin/js/state.js', tag: 'script', attr: 'src', base: './js/state.js' },
+    { file: 'admin/js/preview.js', tag: 'script', attr: 'src', base: './js/preview.js' },
+    { file: 'admin/js/ui.js', tag: 'script', attr: 'src', base: './js/ui.js' }
+  ];
+  const escapeRe = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const adminAttributeRefs = (tag, attr) => Array.from(
+    adminHTML.matchAll(new RegExp(`<${escapeRe(tag)}\\b[^>]*\\s${escapeRe(attr)}\\s*=\\s*["']([^"']+)["']`, 'gi')),
+    match => match[1]
+  );
+  const adminAssetProblems = [];
+  for (const asset of adminStaticAppAssets) {
+    const refs = adminAttributeRefs(asset.tag, asset.attr).filter(ref => ref === asset.base || ref.startsWith(asset.base + '?'));
+    const digest = createHash('sha256').update(fs.readFileSync(path.join(ROOT, asset.file))).digest('hex');
+    const expected = `${asset.base}?v=${digest}`;
+    if (refs.length !== 1 || refs[0] !== expected) {
+      adminAssetProblems.push(`${asset.base}=${refs.length === 1 ? refs[0] : `${refs.length} refs`}`);
+    }
+  }
+  add('static', 'ADMIN-static-app-revisions',
+      adminAssetProblems.length === 0,
+      adminAssetProblems.join(', '));
+  const adminScriptSources = Array.from(adminHTML.matchAll(/<script\b([^>]*)>/gi)).map(match => {
+    const src = match[1].match(/\bsrc=["']([^"']+)["']/i);
+    return { attrs: match[1], src: src ? src[1] : '' };
+  });
+  const adminOrder = [
+    /^\.\/js\/vendor\/sortable\.min\.js$/,
+    /^\.\.\/js\/cards-data\.js\?v=[0-9a-f]{64}$/,
+    /^\.\.\/js\/fa-data\.js\?v=[0-9a-f]{64}$/,
+    /^\.\.\/js\/i18n-data\.js\?v=[0-9a-f]{64}$/,
+    /^\.\/js\/api\.js\?v=[0-9a-f]{64}$/,
+    /^\.\/js\/state\.js\?v=[0-9a-f]{64}$/,
+    /^\.\/js\/preview\.js\?v=[0-9a-f]{64}$/,
+    /^\.\/js\/ui\.js\?v=[0-9a-f]{64}$/
+  ].map(pattern => adminScriptSources.findIndex(script => pattern.test(script.src)));
+  const adminSortable = adminScriptSources.filter(script => script.src.includes('sortable.min.js'));
+  add('static', 'ADMIN-classic-order-and-vendor-pin',
+      adminOrder.every(position => position >= 0) && adminOrder.every((position, index) => index === 0 || position > adminOrder[index - 1]) &&
+        adminSortable.length === 1 && adminSortable[0].src === './js/vendor/sortable.min.js' &&
+        !adminScriptSources.some(script => /\bdefer\b|\basync\b|\btype=["']module["']/i.test(script.attrs)),
+      `order=${JSON.stringify(adminOrder)}`);
   const staticScriptTags = (indexHTML + '\n' + faHTML).match(/<script\b[^>]*>/gi) || [];
   add('static', 'A7-vendor-only-index', !blockedCDN.test(indexHTML), 'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');
   add('static', 'A7-vendor-only-fa',    !blockedCDN.test(faHTML),    'no jsdelivr/unpkg/cdnjs GSAP/Lenis URLs');

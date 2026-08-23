@@ -50,6 +50,13 @@ import { buildReferenceSet, findOrphans, findPosterProblems } from '../../script
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const generatorPath = path.join(root, 'scripts', 'generate-content.mjs');
+const ADMIN_APP_ASSETS = [
+  { file: 'admin/css/admin.css', tag: 'link', attr: 'href', base: './css/admin.css' },
+  { file: 'admin/js/api.js', tag: 'script', attr: 'src', base: './js/api.js' },
+  { file: 'admin/js/state.js', tag: 'script', attr: 'src', base: './js/state.js' },
+  { file: 'admin/js/preview.js', tag: 'script', attr: 'src', base: './js/preview.js' },
+  { file: 'admin/js/ui.js', tag: 'script', attr: 'src', base: './js/ui.js' }
+];
 
 function fail(message, output) {
   if (output) console.error(output);
@@ -103,6 +110,11 @@ function makeSandbox(name) {
     },
     readOut(rel) {
       return readFileSync(path.join(outDir, rel), 'utf8');
+    },
+    writeOut(rel, value) {
+      const target = path.join(outDir, rel);
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, value, 'utf8');
     },
     run(mode) {
       const result = spawnSync(process.execPath, [generatorPath, mode], {
@@ -175,6 +187,48 @@ function dataScriptRevisions(sandbox) {
   }
   if (references.index.i18n !== references.freeAssets.i18n || references.index.i18n !== references.admin.i18n) {
     fail('index, Free Assets and admin must use the same i18n-data revision');
+  }
+  return revisions;
+}
+
+function escapedRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function adminAppAssetRevision(html, asset) {
+  const tag = escapedRegex(asset.tag);
+  const attr = escapedRegex(asset.attr);
+  const base = escapedRegex(asset.base);
+  const refs = Array.from(
+    html.matchAll(new RegExp(`<${tag}\\b[^>]*\\s${attr}\\s*=\\s*["']${base}(?:\\?[^"']*)?["']`, 'gi'))
+  );
+  if (refs.length !== 1) {
+    fail(`${asset.base} must appear exactly once in generated admin/index.html (got ${refs.length})`, html);
+  }
+  const exact = new RegExp(`<${tag}\\b[^>]*\\s${attr}\\s*=\\s*["']${base}\\?v=([0-9a-f]{64})["']`).exec(refs[0][0]);
+  if (!exact) fail(`${asset.base} must carry one exact lowercase SHA-256 revision`, refs[0][0]);
+  return exact[1];
+}
+
+function adminAppAssetRevisions(sandbox) {
+  const admin = sandbox.readOut('admin/index.html');
+  const revisions = Object.fromEntries(
+    ADMIN_APP_ASSETS.map((asset) => [
+      asset.file,
+      createHash('sha256').update(readFileSync(path.join(root, asset.file))).digest('hex')
+    ])
+  );
+  for (const asset of ADMIN_APP_ASSETS) {
+    const revision = adminAppAssetRevision(admin, asset);
+    if (revision !== revisions[asset.file]) {
+      fail(`${asset.base} revision must equal the SHA-256 of its raw emitted bytes`);
+    }
+  }
+  const sortable = Array.from(
+    admin.matchAll(/<script\b[^>]*\bsrc=["']([^"']*sortable\.min\.js[^"']*)["']/gi)
+  );
+  if (sortable.length !== 1 || sortable[0][1] !== './js/vendor/sortable.min.js') {
+    fail('admin SortableJS must remain a single pinned, unversioned vendor reference', admin);
   }
   return revisions;
 }
@@ -1278,6 +1332,7 @@ function faTagCardsSection(html) {
     let result = sandbox.run('--write');
     if (result.status !== 0) fail('baseline --write must succeed for payload revisions', result.output);
     const baseline = dataScriptRevisions(sandbox);
+    const adminAssets = adminAppAssetRevisions(sandbox);
 
     const caseData = sandbox.readJson('cases/orbital-mk-ii.json');
     caseData.case.text.title.en += ' revision probe';
@@ -1302,7 +1357,34 @@ function faTagCardsSection(html) {
     if (afterFaDescription.cards !== afterCaseTitle.cards) {
       fail('a Free Assets description mutation must not revise cards-data');
     }
-    console.log('payload revisions: exact JS SHA-256 references, per-payload invalidation and shared i18n revision verified');
+    if (JSON.stringify(adminAppAssetRevisions(sandbox)) !== JSON.stringify(adminAssets)) {
+      fail('content-only changes must not rewrite the raw-byte revisions of static admin app assets');
+    }
+    console.log('payload revisions: exact JS SHA-256 references, per-payload invalidation, shared i18n revision and static admin asset revisions verified');
+  } finally {
+    sandbox.cleanup();
+  }
+}
+
+/* The generated admin shell is the cache manifest for its own CSS/app scripts:
+ * an arbitrary stale revision must make content:check fail until regeneration
+ * restores the raw-byte digest. */
+{
+  const sandbox = makeSandbox('admin-static-asset-revisions');
+  try {
+    let result = sandbox.run('--write');
+    if (result.status !== 0) fail('baseline --write must succeed for admin app asset revisions', result.output);
+    const revisions = adminAppAssetRevisions(sandbox);
+    const css = ADMIN_APP_ASSETS[0];
+    const stale = sandbox
+      .readOut('admin/index.html')
+      .replace(`${css.base}?v=${revisions[css.file]}`, `${css.base}?v=${'0'.repeat(64)}`);
+    sandbox.writeOut('admin/index.html', stale);
+    result = sandbox.run('--check');
+    if (result.status === 0 || !result.output.includes('[DIFF] admin/index.html')) {
+      fail('content:check must reject a stale generated admin static-asset revision', result.output);
+    }
+    console.log('admin static asset revisions: raw-byte refs are emitted and stale generated shells fail content:check');
   } finally {
     sandbox.cleanup();
   }
