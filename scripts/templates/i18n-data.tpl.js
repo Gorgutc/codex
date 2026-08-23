@@ -19,7 +19,7 @@
 
   const CIS_COUNTRIES = ['RU', 'BY', 'KZ', 'KG', 'UZ', 'TJ', 'AM', 'AZ', 'MD'];
 
-  // ── UI_STRINGS — dot-notation ключи, парсятся window.I18N.t('aria.contact') ──
+  // ── UI_STRINGS — dot-notation ключи, парсятся window.I18N.t('aria.contactTelegram') ──
   const UI_STRINGS = __UI_STRINGS__;
 
   // ── META_STRINGS — per-page meta (index / fa), data-i18n-meta="index.title" и т.п. ──

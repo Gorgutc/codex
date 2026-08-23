@@ -113,7 +113,7 @@ function patchScript(caseId) {
 
 async function routeSyntheticCase(page, caseId) {
   const original = fs.readFileSync(path.join(ROOT, 'js', 'cards-data.js'), 'utf8');
-  await page.route(/\/js\/cards-data\.js(?:\?.*)?$/, (route) =>
+  await page.route('**/js/cards-data.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: original + patchScript(caseId) })
   );
 }
@@ -201,7 +201,7 @@ test('кейс без высоких блоков: инлайн-текст ид�
   const allWide =
     `\n;(function(){var e=window.CARDS_DATA&&window.CARDS_DATA[${JSON.stringify(CASE_ID)}];if(!e)return;` +
     `e.items.media.forEach(function(m){m.format='wide';});})();\n`;
-  await page.route(/\/js\/cards-data\.js(?:\?.*)?$/, (route) =>
+  await page.route('**/js/cards-data.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: original + allWide })
   );
   await page.goto(`${base}/index.html?lang=en`);
@@ -231,7 +231,7 @@ test('LCP: eager получает первая РЕАЛЬНАЯ картинка
     `var img=e.items.media[0];img.format='wide';` +
     `e.items.media=[{type:'video',format:'wide',src:${JSON.stringify(VIDEO_SRC)},` +
     `poster:${JSON.stringify(POSTER_SRC)},bg:'var(--color-surface)',label:'v',desc:'d',enabled:true},img];})();\n`;
-  await page.route(/\/js\/cards-data\.js(?:\?.*)?$/, (route) =>
+  await page.route('**/js/cards-data.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: original + videoFirst })
   );
   await page.goto(`${base}/index.html?lang=en`);
@@ -296,7 +296,7 @@ test('блок без подписи не рендерит .case-item__caption, 
     `{type:'image',format:'wide',src:base.src,bg:base.bg,label:'',desc:'',enabled:true},` +
     `{type:'image',format:'wide',src:base.src,bg:base.bg,label:'Only a label',desc:'',enabled:true}` +
     `];e.items.inline=null;})();\n`;
-  await page.route(/\/js\/cards-data\.js(?:\?.*)?$/, (route) =>
+  await page.route('**/js/cards-data.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: original + patch })
   );
   await page.goto(`${base}/index.html?lang=en`);
@@ -383,7 +383,7 @@ async function openSeamlessCase(page, options) {
   const config = options || {};
   const format = config.format || 'wide';
   const original = fs.readFileSync(path.join(ROOT, 'js', 'cards-data.js'), 'utf8');
-  await page.route(/\/js\/cards-data\.js(?:\?.*)?$/, (route) =>
+  await page.route('**/js/cards-data.js', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'text/javascript',
@@ -533,7 +533,7 @@ test('seamless: полотно проявляется одним движени�
     `e.items.media=[${strip('')},${strip('')},${strip('')},${strip('')},${strip(',seamless:true')}];` +
     `e.items.inline=null;})();\n`;
   const original = fs.readFileSync(path.join(ROOT, 'js', 'cards-data.js'), 'utf8');
-  await page.route(/\/js\/cards-data\.js(?:\?.*)?$/, (route) =>
+  await page.route('**/js/cards-data.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: original + patch })
   );
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -670,7 +670,7 @@ async function openCaseWithCta(page, url) {
   const patch =
     `\n;(function(){var e=window.CARDS_DATA&&window.CARDS_DATA[${JSON.stringify(CASE_ID)}];if(!e)return;` +
     `e.items.cta={url:${JSON.stringify(url)}};})();\n`;
-  await page.route(/\/js\/cards-data\.js(?:\?.*)?$/, (route) =>
+  await page.route('**/js/cards-data.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: original + patch })
   );
   await page.goto(`${base}/index.html?lang=en`);

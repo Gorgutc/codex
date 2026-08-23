@@ -1672,11 +1672,16 @@
       if (!hasBlueprints && currentViz === 'blueprints') setViz('2d');
     }
 
-    // Every explicit case route, including a stable id/legacy alias for the
-    // first visible case, is normalized to its canonical public slug. The one
-    // exception is the root bootstrap with no supplied hash.
+    // v0.2.3 [П2] — синхронизируем location.hash с текущим кейсом.
+    //   Для самого первого кейса (главная) — hash сбрасывается до корня:
+    //   codex.promo/ вместо codex.promo/#orbital-mk-ii. Остальные кейсы имеют
+    //   свой якорь. replaceState вместо pushState — чтобы не засорять history
+    //   при case-nav (пользователь может быстро кликать на next/prev).
+    //   Игнорируем во время вызовов из hashchange listener (чтобы не было лупы).
     if (!opts.skipHashSync) {
-      var desiredHash = opts.rootBootstrap ? '' : ('#' + window.CodexCase.publicSlugForId(id));
+      var firstVisibleForHash = document.querySelector('.work-card[data-id]:not([hidden])');
+      var firstId = firstVisibleForHash ? firstVisibleForHash.dataset.id : null;
+      var desiredHash = (id === firstId) ? '' : ('#' + id);
       var currentHash = window.location.hash;
       if (desiredHash !== currentHash) {
         try {
@@ -3211,24 +3216,7 @@
     openCase: openCase,
     leaveCase: leaveCaseRuntime,
     resumeCase: resumeCaseRuntime,
-    setSidebarCollapsed: setCollapsed,
-    publicSlugForId: function (id) {
-      var data = window.CARDS_DATA && window.CARDS_DATA[id];
-      return data ? (typeof data.slug === 'string' && data.slug ? data.slug : id) : null;
-    },
-    resolveCaseToken: function (token) {
-      if (typeof token !== 'string' || !token) return null;
-      var data = window.CARDS_DATA || {};
-      for (var candidateId in data) {
-        if (!Object.prototype.hasOwnProperty.call(data, candidateId)) continue;
-        var candidate = data[candidateId] || {};
-        var slug = typeof candidate.slug === 'string' && candidate.slug ? candidate.slug : candidateId;
-        if (token === candidateId || token === slug || (Array.isArray(candidate.legacySlugs) && candidate.legacySlugs.indexOf(token) !== -1)) {
-          return candidateId;
-        }
-      }
-      return null;
-    }
+    setSidebarCollapsed: setCollapsed
   };
 
   /* v0.14.0 [16] — клик по логотипу CODEX открывает первый видимый кейс
@@ -3484,17 +3472,12 @@
     }
     return null;
   }
-  function decodeCaseToken(rawHash) {
-    var raw = (rawHash || '').replace(/^#/, '');
-    try { raw = decodeURIComponent(raw); } catch (_) { return null; }
-    return window.CodexCase.resolveCaseToken(raw);
-  }
   setTimeout(function () {
     var initialId = null;
     var fromHash = false;
-    var hashId = decodeCaseToken(window.location.hash);
-    if (hashId) {
-      var hashCard = findCardById(hashId);
+    var rawHash = (window.location.hash || '').replace(/^#/, '');
+    if (rawHash) {
+      var hashCard = findCardById(rawHash);
       if (hashCard && hashCard.dataset.id && !hashCard.hasAttribute('hidden')) {
         initialId = hashCard.dataset.id;
         fromHash = true;
@@ -3505,7 +3488,7 @@
       if (first && first.dataset.id) initialId = first.dataset.id;
     }
     if (initialId) {
-      openCase(initialId, { initial: true, rootBootstrap: !fromHash });
+      openCase(initialId, { initial: true });
       // v0.8.7 [M3]: на mobile при любом валидном deep-link сразу
       // показываем case-view вместо sidebar. Раньше сравнивалось с первой
       // видимой картой через optional-chaining — пользователь приходил по
@@ -3523,8 +3506,8 @@
      в адресную строку или изменил hash вручную — переключаем кейс.
      skipHashSync: true — чтобы openCase() не вызывал replaceState обратно. */
   window.addEventListener('hashchange', function () {
-    var rawHash = (window.location.hash || '').replace(/^#/, '');
-    if (!rawHash) {
+    var newHash = (window.location.hash || '').replace(/^#/, '');
+    if (!newHash) {
       // hash убран — возвращаемся к первому видимому кейсу
       var firstHC = document.querySelector('.work-card[data-id]:not([hidden])');
       if (firstHC && firstHC.dataset.id && firstHC.dataset.id !== currentCaseId) {
@@ -3532,25 +3515,17 @@
       }
       return;
     }
-    var newHash = decodeCaseToken(window.location.hash);
-    if (newHash === currentCaseId) {
-      var sameCaseHash = '#' + window.CodexCase.publicSlugForId(newHash);
-      if (window.location.hash !== sameCaseHash) {
-        try { history.replaceState(null, '', window.location.pathname + window.location.search + sameCaseHash); }
-        catch (_) { /* file:// or strict preview sandbox */ }
-      }
-      return;
-    }
+    if (newHash === currentCaseId) return;
     var card = findCardById(newHash);
     if (card && !card.hasAttribute('hidden')) {
-      openCase(newHash);
+      openCase(newHash, { skipHashSync: true });
     } else if (currentCaseId) {
       // A1-14 — невалидный/скрытый таргет: не оставляем URL врущим про
       // открытый кейс — восстанавливаем канонический hash текущего кейса
       // (или корень, если это первый видимый кейс). A1-06 — findCardById
       // не роняет querySelector на битом hash.
-      var canonicalSlug = window.CodexCase.publicSlugForId(currentCaseId);
-      var canonicalHash = '#' + canonicalSlug;
+      var firstVisForHash = document.querySelector('.work-card[data-id]:not([hidden])');
+      var canonicalHash = (firstVisForHash && currentCaseId === firstVisForHash.dataset.id) ? '' : ('#' + currentCaseId);
       try {
         history.replaceState(null, '', window.location.pathname + window.location.search + canonicalHash);
       } catch (_) { /* file:// или строгий sandbox — игнорируем */ }
@@ -3621,10 +3596,10 @@
       shareUrl.username = '';
       shareUrl.password = '';
       shareUrl.search = safeQuery.toString();
-      shareUrl.hash = window.CodexCase.publicSlugForId(currentCaseId);
+      shareUrl.hash = currentCaseId;
       url = shareUrl.toString();
     } catch (_error) {
-      url = window.location.href.split(/[?#]/)[0] + '#' + encodeURIComponent(window.CodexCase.publicSlugForId(currentCaseId));
+      url = window.location.href.split(/[?#]/)[0] + '#' + encodeURIComponent(currentCaseId);
     }
 
     function showCopied() {
@@ -4911,7 +4886,7 @@
       .work-card — 0.052 (было 0.35, -85.1%) — карточки большие и сильно ездили
        остальные — 0.18 (было 0.35, -≈50%) — кнопки/теги достаточно
        отзывчивые по-прежнему, но мягче. */
-  // v0.14.1 [3] — добавлен .top-pill--contact (кнопка Contact).
+  // v0.14.1 [3] — добавлен .top-pill--contact (кнопка Contact Telegram).
   // Free Assets pill — disabled, магнит ему не нужен.
   // v0.8.2: .tag убран — класс мёртв с переезда на .tags-dropdown__* (v0.15.5).
   var MAGNETIC_SELECTOR =

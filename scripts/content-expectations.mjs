@@ -14,7 +14,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { faPosterPath, faTagCoverValue } from './fa-poster-path.mjs';
-import { caseRouteTokens, effectiveCaseSlug } from './case-slug.mjs';
 
 function readJson(root, ...segments) {
   return JSON.parse(fs.readFileSync(path.join(root, 'content', ...segments), 'utf8'));
@@ -36,15 +35,6 @@ export function visibleCaseIds(root) {
 // case list renders.
 export function allCaseIds(root) {
   return readJson(root, 'settings.json').cardOrder.slice();
-}
-
-export function visibleCaseRouteMap(root) {
-  const routes = new Map();
-  for (const id of visibleCaseIds(root)) {
-    const data = readJson(root, 'cases', id + '.json');
-    routes.set(id, { slug: effectiveCaseSlug(data), tokens: caseRouteTokens(data) });
-  }
-  return routes;
 }
 
 // Visible FA categories with their visible items, in authored order. `poster`

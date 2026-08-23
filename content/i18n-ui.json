@@ -9,7 +9,7 @@
       "codexBackFirst": "Codex — back to first project",
       "codexBackPortfolio": "Codex — back to portfolio",
       "codexHome": "Codex — home",
-      "contact": "Contact",
+      "contactTelegram": "Contact via Telegram",
       "langToggleEn": "Switch language to English",
       "langToggleRu": "Switch language to Russian",
       "switchToLight": "Switch to light theme",
@@ -40,7 +40,7 @@
       "downloadTerms": "Download terms"
     },
     "title": {
-      "contact": "Contact",
+      "contactTelegram": "Contact · Telegram",
       "toggleTheme": "Toggle theme",
       "switchLanguage": "Switch language",
       "copyLink": "Copy link to this project",
@@ -236,7 +236,7 @@
       "codexBackFirst": "Codex — к первому проекту",
       "codexBackPortfolio": "Codex — назад в портфолио",
       "codexHome": "Codex — на главную",
-      "contact": "Контакт",
+      "contactTelegram": "Связаться через Telegram",
       "langToggleEn": "Переключить язык на английский",
       "langToggleRu": "Переключить язык на русский",
       "switchToLight": "Переключить на светлую тему",
@@ -267,7 +267,7 @@
       "downloadTerms": "Условия скачивания"
     },
     "title": {
-      "contact": "Контакт",
+      "contactTelegram": "Контакт · Telegram",
       "toggleTheme": "Переключить тему",
       "switchLanguage": "Переключить язык",
       "copyLink": "Скопировать ссылку на проект",

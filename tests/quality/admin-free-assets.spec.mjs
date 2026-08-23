@@ -42,9 +42,9 @@ const SECOND_ID = FIRST_CATEGORY.items[1].id;
 // FA-POSTER-01: first asset whose poster slot is ON by convention (key absent
 // → the <id> default, or an explicit non-null value) — the drop zone only
 // renders for an enabled slot. Derived from content, never a hardcoded id.
-const POSTER_ON =
-  faJson.categories.flatMap((category) => category.items).find((item) => !('thumb' in item) || item.thumb !== null) ||
-  null;
+const POSTER_ON = faJson.categories
+  .flatMap((category) => category.items)
+  .find((item) => !('thumb' in item) || item.thumb !== null) || null;
 
 const GLB_BUFFER = Buffer.concat([Buffer.from('676c5446', 'hex'), crypto.randomBytes(8192)]);
 const PNG_BUFFER = Buffer.concat([
@@ -79,7 +79,7 @@ test('правка RU-описания ассета: индикатор черн
 
   await expect(page.locator('#draft-indicator')).toBeVisible();
   await page.waitForFunction(() => {
-    const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {};
+    const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     const draft = drafts['content/free-assets.json'];
     return !!draft && draft.categories[0].items[0].desc.ru === 'Новое русское описание ассета.';
   });
@@ -103,7 +103,7 @@ test('выключение ассета: затемнение, бейдж «ск
   // обновляет его, а не только список).
   await expect(headerBadge).toBeVisible();
   await page.waitForFunction((id) => {
-    const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {};
+    const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     const draft = drafts['content/free-assets.json'];
     if (!draft) return false;
     const item = draft.categories[0].items.find((entry) => entry.id === id);
@@ -134,7 +134,7 @@ test('перестановка ассета кнопками ↑/↓ меняе�
 
   await page.waitForFunction(
     ([a, b]) => {
-      const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {};
+      const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
       const draft = drafts['content/free-assets.json'];
       return !!draft && draft.categories[0].items[0].id === b && draft.categories[0].items[1].id === a;
     },
@@ -339,7 +339,7 @@ test('FA-POSTER-01: испорченный путь постера блокир�
   await page.addInitScript(
     (store) => {
       const baseShas = {};
-      for (const key of Object.keys(store)) baseShas[key] = 'c'.repeat(40);
+      for (const key of Object.keys(store)) baseShas[key] = 'sha-' + key;
       sessionStorage.setItem('codexAdminDrafts', JSON.stringify({ version: 2, files: store, baseShas }));
     },
     { [FA_PATH]: draft }
@@ -369,9 +369,9 @@ test('guard: последний видимый ассет выключить н�
     (store) => {
       // baseShas: провенанс черновика. ensureFile принимает восстановленный
       // черновик, только если он снят с ТОЙ ЖЕ версии файла; мок Contents
-      // API отдаёт канонический 40-hex blob SHA.
+      // API отдаёт sha вида `sha-<path>`.
       const baseShas = {};
-      for (const key of Object.keys(store)) baseShas[key] = 'c'.repeat(40);
+      for (const key of Object.keys(store)) baseShas[key] = 'sha-' + key;
       sessionStorage.setItem('codexAdminDrafts', JSON.stringify({ version: 2, files: store, baseShas }));
     },
     { [FA_PATH]: draft }
@@ -402,9 +402,9 @@ test('Fix #5: восстановленный из sessionStorage чернови�
     (store) => {
       // baseShas: провенанс черновика. ensureFile принимает восстановленный
       // черновик, только если он снят с ТОЙ ЖЕ версии файла; мок Contents
-      // API отдаёт канонический 40-hex blob SHA.
+      // API отдаёт sha вида `sha-<path>`.
       const baseShas = {};
-      for (const key of Object.keys(store)) baseShas[key] = 'c'.repeat(40);
+      for (const key of Object.keys(store)) baseShas[key] = 'sha-' + key;
       sessionStorage.setItem('codexAdminDrafts', JSON.stringify({ version: 2, files: store, baseShas }));
     },
     { [FA_PATH]: draft }
@@ -439,7 +439,7 @@ test('выключение категории: ассеты с бейджем «
   await expect(dimmedRows.first().locator('.switch input')).toBeChecked();
 
   await page.waitForFunction((key) => {
-    const drafts = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {};
+    const drafts = (JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {});
     const draft = drafts['content/free-assets.json'];
     if (!draft) return false;
     const category = draft.categories.find((entry) => entry.key === key);

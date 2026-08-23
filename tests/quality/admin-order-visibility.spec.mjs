@@ -153,18 +153,6 @@ test('ручной layoutMode: переключатель открывает п�
   // sanity-guard фикстуры: ассерт «формат едет с блоком» не должен молча
   // превратиться в тавтологию, если владелец уравняет форматы слотов 1 и 2
   expect(firstFormat).not.toBe(secondFormat);
-  await page.setInputFiles(`[data-media="${CASE_PATH}::case.media.0.src"]`, {
-    name: 'reorder-pending.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('89504e470d0a1a0a-reorder-pending', 'hex')
-  });
-  await page.waitForFunction(() => {
-    const edit = window.AdminState.getMediaEdit('content/cases/orbital-mk-ii.json', 'case.media.0.src');
-    return edit && edit.value;
-  });
-  const pendingPath = await page.evaluate(
-    () => window.AdminState.getMediaEdit('content/cases/orbital-mk-ii.json', 'case.media.0.src').value
-  );
   await page.click('[data-reorder="slot::0::down"]');
   await expect(page.locator('.toast').last()).toContainText('Порядок сохранён в черновик');
   const drafts = await waitDrafts(
@@ -174,38 +162,16 @@ test('ручной layoutMode: переключатель открывает п�
       const draft = store['content/cases/orbital-mk-ii.json'];
       return !!draft && Array.isArray(draft.case.media) && draft.case.media[1].src === expectedSrc;
     },
-    pendingPath
+    mediaJson[0].src
   );
   const draft = drafts[CASE_PATH];
   expect(draft.case.media).toHaveLength(mediaJson.length);
   expect(draft.case.media[0].src).toBe(mediaJson[1].src);
-  expect(draft.case.media[1].src).toBe(pendingPath);
+  expect(draft.case.media[1].src).toBe(mediaJson[0].src);
   expect(draft.case.media[1].caption.label.en).toBe(mediaJson[0].caption.label.en);
   expect(draft.case.media[0].caption.label.en).toBe(mediaJson[1].caption.label.en);
   expect(draft.case.media[0].format).toBe(secondFormat);
   expect(draft.case.media[1].format).toBe(firstFormat);
-  const firstMoved = {
-    caption: mediaJson[0].caption,
-    format: mediaJson[0].format,
-    type: mediaJson[0].type,
-    bg: mediaJson[0].bg
-  };
-  if ('seamless' in mediaJson[0]) firstMoved.seamless = mediaJson[0].seamless;
-  expect(draft.case.media[1]).toMatchObject(firstMoved);
-  const secondMoved = {
-    src: mediaJson[1].src,
-    caption: mediaJson[1].caption,
-    format: mediaJson[1].format,
-    type: mediaJson[1].type,
-    bg: mediaJson[1].bg
-  };
-  if ('seamless' in mediaJson[1]) secondMoved.seamless = mediaJson[1].seamless;
-  expect(draft.case.media[0]).toMatchObject(secondMoved);
-  await expect.poll(() => page.evaluate(() => {
-    const moved = window.AdminState.getMediaEdit('content/cases/orbital-mk-ii.json', 'case.media.1.src');
-    const old = window.AdminState.getMediaEdit('content/cases/orbital-mk-ii.json', 'case.media.0.src');
-    return { moved: moved && moved.value, old: Boolean(old) };
-  })).toEqual({ moved: pendingPath, old: false });
 
   // motion-блок 1 ↓: массив motionBlocks переставлен (ожидания — из контента)
   expect(motionJson[0].playback).not.toBe(motionJson[1].playback);
@@ -284,85 +250,4 @@ test('категории: выключение скрывает кейсы с б
   });
   const cadFilter = drafts[SETTINGS_PATH].filters.find((f) => f.key === 'cad');
   expect(cadFilter.enabled).toBe(false);
-});
-
-test('media reorder: фокус следует за перенесённым блоком, а не индексом', async ({ page }) => {
-  await mockGitHub(page);
-  await loginWithPat(page);
-  await page.click('a[href="#/case/orbital-mk-ii"]');
-  await page.click('#layout-manual-btn');
-  const firstKey = await page.locator('.media-slot').first().getAttribute('data-media-key');
-  await page.click('[data-reorder="slot::0::down"]');
-  await expect(page.locator('.media-slot').nth(1)).toHaveAttribute('data-media-key', firstKey);
-  await expect(page.locator('.media-slot').nth(1).locator(':focus')).toHaveCount(1);
-});
-
-test('media reorder: legacy slots без id сохраняют ключ и фокус на границе', async ({ page }) => {
-  await mockGitHub(page);
-  const legacy = JSON.parse(JSON.stringify(caseJson));
-  legacy.layoutMode = 'manual';
-  legacy.case.media = legacy.case.media.slice(0, 2);
-  legacy.case.media.forEach((block) => delete block.id);
-  await page.addInitScript(({ path, draft }) => {
-    sessionStorage.setItem('codexAdminDrafts', JSON.stringify({
-      version: 2,
-      files: { [path]: draft },
-      baseShas: { [path]: 'c'.repeat(40) }
-    }));
-  }, { path: CASE_PATH, draft: legacy });
-  await loginWithPat(page);
-  await page.click('a[href="#/case/orbital-mk-ii"]');
-  const first = page.locator('.media-slot').first();
-  const stableKey = await first.getAttribute('data-media-key');
-  expect(stableKey).toMatch(/^legacy-/);
-  await first.locator('[data-reorder$="::down"]').click();
-  const moved = page.locator('.media-slot').nth(1);
-  await expect(moved).toHaveAttribute('data-media-key', stableKey);
-  await expect(moved.locator('[data-reorder$="::up"]')).toBeFocused();
-});
-
-test('media reorder: duplicate id keeps the legacy key and video/seamless fields move as one block', async ({ page }) => {
-  await mockGitHub(page);
-  const draft = JSON.parse(JSON.stringify(caseJson));
-  draft.layoutMode = 'manual';
-  draft.case.media = draft.case.media.slice(0, 2);
-  draft.case.media[0].id = 'hero';
-  Object.assign(draft.case.media[1], {
-    id: 'hero',
-    type: 'video',
-    src: './assets/cases/orbital-mk-ii/reorder-proof.webm',
-    poster: './assets/cases/orbital-mk-ii/reorder-proof.png',
-    seamless: true,
-    bg: 'linear-gradient(135deg,#101820 0%,#203040 100%)',
-    caption: { label: { en: 'Video travels', ru: 'Видео переезжает' }, desc: { en: 'Proof', ru: 'Проверка' } }
-  });
-  await page.addInitScript(({ path, value }) => {
-    sessionStorage.setItem('codexAdminDrafts', JSON.stringify({
-      version: 2,
-      files: { [path]: value },
-      baseShas: { [path]: 'c'.repeat(40) }
-    }));
-  }, { path: CASE_PATH, value: draft });
-  await loginWithPat(page);
-  await page.click('a[href="#/case/orbital-mk-ii"]');
-  const duplicate = page.locator('.media-slot').nth(1);
-  const legacyKey = await duplicate.getAttribute('data-media-key');
-  expect(legacyKey).toMatch(/^legacy-/);
-  await duplicate.locator('[data-reorder$="::up"]').click();
-  const moved = page.locator('.media-slot').first();
-  await expect(moved).toHaveAttribute('data-media-key', legacyKey);
-  await expect(moved.locator('[data-reorder$="::down"]')).toBeFocused();
-  const reordered = await waitDrafts(page, () => {
-    const files = JSON.parse(sessionStorage.getItem('codexAdminDrafts') || '{"files":{}}').files || {};
-    return files['content/cases/orbital-mk-ii.json'] && files['content/cases/orbital-mk-ii.json'].case.media[0].type === 'video';
-  });
-  expect(reordered[CASE_PATH].case.media[0]).toMatchObject({
-    id: 'hero',
-    type: 'video',
-    src: './assets/cases/orbital-mk-ii/reorder-proof.webm',
-    poster: './assets/cases/orbital-mk-ii/reorder-proof.png',
-    seamless: true,
-    bg: 'linear-gradient(135deg,#101820 0%,#203040 100%)',
-    caption: { label: { en: 'Video travels', ru: 'Видео переезжает' }, desc: { en: 'Proof', ru: 'Проверка' } }
-  });
 });

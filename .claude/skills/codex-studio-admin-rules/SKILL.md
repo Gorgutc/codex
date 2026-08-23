@@ -5,8 +5,8 @@ description: Use when working on the Codex Studio content layer or admin panel -
 
 # Codex Studio Admin Rules
 
-Rules for the active content layer and admin panel. Full specification and
-decision journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`).
+Rules for the content layer (iterations B-H of the admin-panel project).
+Full spec and session journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`).
 
 ## Content contract
 
@@ -16,11 +16,6 @@ decision journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`).
   `js/cards-data.js`, `js/fa-data.js`, `js/i18n-data.js`, the
   `<!-- CODEX:GEN ... -->` regions of `index.html` / `free-assets.html`
   (cards-grid, filters, head-meta, jsonld, fa-filters) and `sitemap.xml`.
-- Each generated data script is referenced with an exact-byte SHA-256 query
-  revision (`?v=<digest>`) in the public shells and `admin/index.html`. Keep
-  classic-script order unchanged. Cache acceptance is a normal reload in a
-  returning browser which has cached earlier payloads: `Ctrl+F5`, a cleared
-  cache, or a test-only query is not proof.
 - Visibility: cases, filter categories, free-assets items AND free-assets
   categories accept an optional strict-boolean `enabled:false`; every
   consumer (data files, locales, GEN regions, JSON-LD) reads the visible
@@ -43,14 +38,6 @@ decision journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`).
   legitimate content change CI recaptures fixtures;
   run `scripts/capture-content-golden.mjs` locally only when intentionally
   updating the golden baseline.
-- A Release A source commit has a full source SHA. The publication ledger
-  accepts only matching terminal `[source:<sha>]` pipeline records, persists
-  its serializable JSON snapshot in tab-scoped admin storage, and keeps the
-  draft locked while the outcome is unsettled. Success promotes it only after
-  matching settlement; revert/timeout keeps it available for re-check or
-  recovery. JSON survives a tab reload, but staged binary bytes never do:
-  recovery must list those paths for real re-upload rather than claim they were
-  restored. No public page gains storage.
 
 ## Admin panel architecture
 
@@ -63,18 +50,6 @@ decision journal: `docs/agent/admin-panel/` (`tz.md`, `handoff.md`).
 - Client-side validation in `state.js` mirrors `validateContent()` from the
   generator - keep both sides in sync when adding rules.
 - Tests: `npm run test:admin` (Playwright, GitHub API fully mocked).
-- Case `id` is an immutable internal key for source files, data keys, asset
-  paths, and admin routes. Public hash URLs use optional lowercase-kebab
-  `slug` (defaulting to `id`); non-empty `legacySlugs` resolve to the same case
-  and canonicalize with `history.replaceState`. Every id, canonical slug and
-  alias is globally collision-free. A changed published slug retains its prior
-  canonical value as an alias; the external case CTA is a separate field.
-- The case media editor retains `case.media[]` and manual order semantics:
-  1–12 cards, no more than 3/2/1 cards per row across wide/narrow layouts,
-  caption fields on their own card, technical fields in `<details>`, and
-  reorder focus restoration. Add/remove/reorder requires manual layout; keep
-  existing seamless and validation rules. Preview is native `<dialog>` with
-  Escape cleanup and focus return to its invoker.
 
 ## Media rules
 
@@ -155,17 +130,6 @@ rules.
   `content/` - extend by derivation, never by re-pinning literals that the
   owner can change through the admin panel.
 - Gate commands: `npm run content:check`, `npm run test:golden`,
-  `npm run check:assets`, `npm run test:content-validate`,
-  `npm run test:content-publish-batch`, `npm run test:admin`, and
-  `npm run test:design-lab` where preview/design modes are affected;
+  `npm run check:assets`, `npm run test:content-validate`, `npm run test:admin`,
   `npm run verify` after model or shipped asset-reference changes, and
-  `npm run codex:ship` before any commit. Success is a clean exit and `0 FAIL`,
-  never a historical pass count.
-
-## Release boundaries
-
-Release A covers revisions, stable ids/public slugs, source-SHA publication
-recovery, the current media workflow, accessibility fixes, and content-derived
-global identity. Release B defers create/archive/delete catalog flows and
-remaining structural editing. Release C defers a separately approved external
-binary-download transport and production availability/checksum/rollback proof.
+  `npm run codex:ship` before any commit.

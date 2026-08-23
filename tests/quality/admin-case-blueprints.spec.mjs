@@ -86,8 +86,8 @@ function readDrafts(page) {
   });
 }
 
-// Засев черновика с корректным provenance: mock Contents API отдаёт
-// канонический 40-hex blob SHA, и ensureFile принимает черновик только с ним.
+// Засев черновика с корректным provenance: мок Contents API отдаёт sha вида
+// `sha-<path>`, и ensureFile принимает черновик только с ним.
 async function seedCaseDraft(page, draft) {
   await page.addInitScript(
     (payload) => {
@@ -100,7 +100,7 @@ async function seedCaseDraft(page, draft) {
         })
       );
     },
-    { draft, path: CASE_PATH, sha: 'c'.repeat(40) }
+    { draft, path: CASE_PATH, sha: `sha-${CASE_PATH}` }
   );
 }
 
@@ -171,10 +171,9 @@ test('листы из content/ показываются в форме', async ({
   await expect(page.locator('#blueprint-strip .blueprint-slot')).toHaveCount(sheets.length);
   for (let i = 0; i < sheets.length; i += 1) {
     await expect(
-      page
-        .locator('.drop-zone-field', {
-          has: page.locator(`[data-media="content/cases/${id}.json::case.blueprints.${i}.src"]`)
-        })
+      page.locator('.drop-zone-field', {
+        has: page.locator(`[data-media="content/cases/${id}.json::case.blueprints.${i}.src"]`)
+      })
         .locator('.drop-zone-path code')
         .first()
     ).toHaveText(sheets[i].src);
@@ -254,7 +253,9 @@ test('растровый файл отвергается на загрузке, 
 
   // Тот же слот принимает вектор — отказ не «сломал» зону.
   await page.setInputFiles(srcInput(0), { name: 'sheet.svg', mimeType: 'image/svg+xml', buffer: SVG_BUFFER });
-  await expect(sheetPathLine(page, 0)).toHaveText(`./assets/cases/${CASE_ID}/blueprints/01-${hash8(SVG_BUFFER)}.svg`);
+  await expect(sheetPathLine(page, 0)).toHaveText(
+    `./assets/cases/${CASE_ID}/blueprints/01-${hash8(SVG_BUFFER)}.svg`
+  );
 });
 
 test('чертёж на байт тяжелее 2 МБ отвергается до staging и publish tree', async ({ page }) => {
@@ -295,7 +296,9 @@ test('предел листов: кнопка «добавить» уступа�
   await expect(page.locator('#blueprint-cap-note')).toContainText('Достигнут предел: 8 листов');
   // Восьмой лист остаётся «08», а не «008»: имя файла берёт padStart.
   await page.setInputFiles(srcInput(7), { name: 'last.svg', mimeType: 'image/svg+xml', buffer: SVG_BUFFER });
-  await expect(sheetPathLine(page, 7)).toHaveText(`./assets/cases/${CASE_ID}/blueprints/08-${hash8(SVG_BUFFER)}.svg`);
+  await expect(sheetPathLine(page, 7)).toHaveText(
+    `./assets/cases/${CASE_ID}/blueprints/08-${hash8(SVG_BUFFER)}.svg`
+  );
 });
 
 test('удаление последнего листа уносит ключ case.blueprints целиком', async ({ page }) => {

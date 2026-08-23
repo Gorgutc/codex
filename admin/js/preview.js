@@ -96,7 +96,6 @@
   let desiredDesign = 'original';
   let rebuildGeneration = 0;
   let activeBlobUrls = [];
-  let previewInvoker = null;
   const defaultBanner = els.banner ? els.banner.textContent : '';
 
   function deepClone(value) {
@@ -198,8 +197,7 @@
         return out;
       });
     }
-    const entry = { slug: typeof c.slug === 'string' && c.slug ? c.slug : c.id, role: cs.role.en, tools: cs.tools, modelSrc: cs.modelSrc };
-    if (Array.isArray(c.legacySlugs) && c.legacySlugs.length > 0) entry.legacySlugs = c.legacySlugs.slice();
+    const entry = { role: cs.role.en, tools: cs.tools, modelSrc: cs.modelSrc };
     if (c.layoutMode === 'manual') entry.layoutMode = 'manual';
     if ('modelEnvironment' in cs) entry.modelEnvironment = cs.modelEnvironment;
     if ('modelExposure' in cs) entry.modelExposure = cs.modelExposure;
@@ -280,12 +278,6 @@
     const catalog = await State.loadCatalog();
     const published = new Map(catalog.cases.map((item) => [item.id, item.data]));
     const settings = State.previewDraft(SETTINGS_PATH) || catalog.settings;
-    let meta = State.previewDraft('content/meta.json');
-    if (!meta) {
-      const response = await fetch('../content/meta.json', { cache: 'no-cache' });
-      if (!response.ok) throw new Error('Не удалось загрузить content/meta.json (' + response.status + ')');
-      meta = await response.json();
-    }
     const filters = Array.isArray(settings.filters) ? settings.filters : [];
     const enabledKeys = new Set(filters.filter((f) => f && f.enabled !== false).map((f) => f.key));
     const labels = {};
@@ -299,7 +291,7 @@
       const visible = data.enabled !== false && enabledKeys.has(data.category);
       cases.push({ id, data, drafted, visible });
     }
-    return { filters, labels, cases, meta };
+    return { filters, labels, cases };
   }
 
   // window.CARDS_DATA для превью: кейсы без черновика — опубликованная
@@ -387,7 +379,7 @@
     a.setAttribute('data-category', data.category);
     if (data.gameAsset) a.setAttribute('data-game-asset', 'true');
     if (data.cadPlaceholder) a.setAttribute('data-cad-placeholder', 'true');
-    a.setAttribute('href', '#' + (typeof data.slug === 'string' && data.slug ? data.slug : id));
+    a.setAttribute('href', '#' + id);
     const thumb = doc.createElement('div');
     thumb.className = 'work-card__thumb';
     thumb.setAttribute('data-label', data.card.thumbLabel);
@@ -446,7 +438,6 @@
   // Точечные правки существующей карточки под черновик (EN-тексты — как в
   // генерируемом гриде; RU придёт из словарей при переключении языка).
   function updateCardElement(card, id, data) {
-    card.setAttribute('href', '#' + (typeof data.slug === 'string' && data.slug ? data.slug : id));
     const title = card.querySelector('[data-i18n="card.' + id + '.title"]');
     if (title) title.textContent = data.card.title.en;
     const desc = card.querySelector('[data-i18n="card.' + id + '.desc"]');
@@ -476,85 +467,6 @@
       if (!card) card = buildCardElement(doc, c.id, c.data, model.labels[c.data.category] || c.data.category);
       else if (c.drafted) updateCardElement(card, c.id, c.data);
       list.appendChild(card);
-    }
-  }
-
-  // JSON-LD lives in an HTML script-data context inside srcdoc. Escape the
-  // characters that can terminate the element or break JavaScript parsing so
-  // preview remains safe even before publish validation rejects a draft.
-  function serializeScriptData(value) {
-    return JSON.stringify(value, null, 2)
-      .replace(/</g, '\\u003c')
-      .replace(/\u2028/g, '\\u2028')
-      .replace(/\u2029/g, '\\u2029');
-  }
-
-  // The preview is a complete draft document, not just a card grid. Keep the
-  // featured-work ItemList in the same content-derived order/visibility and
-  // route namespace as the generated page.
-  function applyFeaturedWorksJsonLd(doc, model) {
-    const organization = model.meta && model.meta.structuredData && model.meta.structuredData.organization;
-    const visible = new Map(model.cases.filter((entry) => entry.visible).map((entry) => [entry.id, entry.data]));
-    const featured = model.meta && model.meta.structuredData && Array.isArray(model.meta.structuredData.featuredWorks)
-      ? model.meta.structuredData.featuredWorks
-      : [];
-    const items = featured
-      .map((feature) => ({ feature, data: visible.get(feature && feature.id) }))
-      .filter((entry) => entry.data)
-      .map(({ feature, data }, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        item: {
-          '@type': 'CreativeWork',
-          name: data.card.title.en,
-          creator: { '@type': 'Organization', name: organization && organization.name, url: organization && organization.url },
-          about: feature.about,
-          url: 'https://codex.promo/#' + (typeof data.slug === 'string' && data.slug ? data.slug : data.id)
-        }
-      }));
-    for (const script of Array.from(doc.querySelectorAll('script[type="application/ld+json"]'))) {
-      let json;
-      try { json = JSON.parse(script.textContent || ''); } catch (_error) { continue; }
-      if (!json || json['@type'] !== 'ItemList' || !/ — Featured Works$/.test(String(json.name || ''))) continue;
-      json.name = (organization && organization.name ? organization.name : '') + ' — Featured Works';
-      json.itemListElement = items;
-      script.textContent = serializeScriptData(json);
-      return;
-    }
-  }
-
-  function applyGlobalIdentity(doc, meta) {
-    if (!meta) return;
-    for (const id of ['contact-btn', 'contact-pill']) {
-      const anchor = doc.getElementById(id);
-      if (anchor && meta.contactUrl) anchor.setAttribute('href', meta.contactUrl);
-    }
-    const organization = meta.structuredData && meta.structuredData.organization;
-    if (!organization) return;
-    for (const script of Array.from(doc.querySelectorAll('script[type="application/ld+json"]'))) {
-      let json;
-      try { json = JSON.parse(script.textContent || ''); } catch (_error) { continue; }
-      if (!json || typeof json !== 'object') continue;
-      if (json['@type'] === 'Organization') {
-        json.name = organization.name;
-        json.alternateName = organization.alternateName;
-        json.url = organization.url;
-        json.description = organization.description && organization.description.en;
-        json.sameAs = Array.isArray(organization.sameAs) ? organization.sameAs.slice() : [];
-      } else if (json['@type'] === 'WebSite') {
-        json.name = organization.name;
-        json.url = organization.url;
-        json.publisher = { '@type': 'Organization', name: organization.name, url: organization.url };
-      } else if (json['@type'] === 'WebPage') {
-        json.name = 'Free 3D Assets — ' + organization.name;
-        if (json.isPartOf) json.isPartOf = { '@type': 'WebSite', name: organization.name, url: organization.url };
-        json.publisher = { '@type': 'Organization', name: organization.name, url: organization.url };
-      } else if (json['@type'] === 'ItemList' && / — Featured Works$/.test(String(json.name || ''))) {
-        json.name = organization.name + ' — Featured Works';
-      } else if (json['@type'] === 'ItemList' && / — Free 3D asset catalog$/.test(String(json.name || ''))) {
-        json.name = organization.name + ' — Free 3D asset catalog';
-      }
-      script.textContent = serializeScriptData(json);
     }
   }
 
@@ -591,7 +503,7 @@
     // 'unsafe-inline') блокировал inline-данные внутри srcdoc-превью
     // (кросс-ревью F2); blob: разрешён в admin/.htaccess. Эскейп '<'
     // сохранён — данные не должны рвать сериализацию srcdoc.
-    const code = 'window.' + globalName + ' = ' + serializeScriptData(value) + ';';
+    const code = 'window.' + globalName + ' = ' + JSON.stringify(value).replace(/</g, '\\u003c') + ';';
     const script = doc.createElement('script');
     script.src = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
     blobUrls.push(script.src);
@@ -600,8 +512,8 @@
 
   function replaceDataScript(doc, srcSuffix, inline) {
     for (const script of Array.from(doc.querySelectorAll('script[src]'))) {
-      const rawSrc = script.getAttribute('src') || '';
-      if (new URL(rawSrc, doc.baseURI).pathname.endsWith(srcSuffix)) {
+      const src = script.getAttribute('src') || '';
+      if (src.endsWith(srcSuffix)) {
         script.replaceWith(inline);
         return;
       }
@@ -629,8 +541,6 @@
 
     rebuildFilters(doc, model);
     applyGrid(doc, model);
-    applyGlobalIdentity(doc, model.meta);
-    applyFeaturedWorksJsonLd(doc, model);
     applyHeaderLogo(doc, State.previewDraft('content/meta.json'));
     replaceDataScript(doc, '/cards-data.js', inlineDataScript(doc, 'CARDS_DATA', buildCardsData(model), blobUrls));
     replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', buildI18nData(model), blobUrls));
@@ -914,12 +824,6 @@
 
   async function buildFreeAssetsPreviewHtml(design, blobUrls, generation) {
     const visible = await collectFaModel();
-    let meta = State.previewDraft('content/meta.json');
-    if (!meta) {
-      const metaResponse = await fetch('../content/meta.json', { cache: 'no-cache' });
-      if (!metaResponse.ok) throw new Error('Не удалось загрузить content/meta.json (' + metaResponse.status + ')');
-      meta = await metaResponse.json();
-    }
     const i18nData = buildFaI18nData(visible);
     const enUi = (i18nData.UI_STRINGS && i18nData.UI_STRINGS.en) || {};
     const enFilter = (enUi.filter && typeof enUi.filter === 'object' && enUi.filter) || {};
@@ -934,7 +838,6 @@
 
     rebuildFaFilters(doc, visible, enFilter);
     rebuildFaTagCards(doc, visible, enFilter);
-    applyGlobalIdentity(doc, meta);
     applyHeaderLogo(doc, State.previewDraft('content/meta.json'));
     replaceDataScript(doc, '/fa-data.js', inlineDataScript(doc, 'FA_DATA', buildFaDataForPreview(visible), blobUrls));
     replaceDataScript(doc, '/i18n-data.js', inlineDataScript(doc, 'I18N_DATA', i18nData, blobUrls));
@@ -969,8 +872,6 @@
     els.frameWrap.classList.toggle('preview-overlay__frame-wrap--mobile', mode === 'mobile');
     els.vpDesktop.classList.toggle('is-active', mode !== 'mobile');
     els.vpMobile.classList.toggle('is-active', mode === 'mobile');
-    els.vpDesktop.setAttribute('aria-pressed', mode === 'mobile' ? 'false' : 'true');
-    els.vpMobile.setAttribute('aria-pressed', mode === 'mobile' ? 'true' : 'false');
   }
 
   function updateDesignButtons() {
@@ -1017,7 +918,7 @@
       const html = fa
         ? await buildFreeAssetsPreviewHtml(desiredDesign, blobUrls, generation)
         : await buildPreviewHtml(desiredDesign, blobUrls, generation);
-      if (generation !== rebuildGeneration || !els.overlay.open) {
+      if (generation !== rebuildGeneration || els.overlay.hidden) {
         revokeBlobUrls(blobUrls);
         return;
       }
@@ -1029,7 +930,7 @@
       revokeBlobUrls(previousBlobUrls);
     } catch (error) {
       revokeBlobUrls(blobUrls);
-      if (generation !== rebuildGeneration || !els.overlay.open) return;
+      if (generation !== rebuildGeneration || els.overlay.hidden) return;
       els.loading.textContent = 'Не удалось собрать предпросмотр: ' + (error && error.message ? error.message : error);
     }
   }
@@ -1038,12 +939,11 @@
     if (!['original', 'specimen', 'chamber', 'hybrid'].includes(design) || design === desiredDesign) return;
     desiredDesign = design;
     updateDesignButtons();
-    if (els.overlay.open) rebuildPreview();
+    if (!els.overlay.hidden) rebuildPreview();
   }
 
-  async function open(invoker) {
-    previewInvoker = invoker && invoker.isConnected ? invoker : document.activeElement;
-    if (!els.overlay.open) els.overlay.showModal();
+  async function open() {
+    els.overlay.hidden = false;
     document.body.classList.add('preview-open');
     updateDesignButtons();
     els.close.focus();
@@ -1052,17 +952,15 @@
 
   function close() {
     rebuildGeneration += 1;
+    els.overlay.hidden = true;
     document.body.classList.remove('preview-open');
     // Остановить GSAP/Lenis/видео внутри iframe — пустой документ.
     clearFrame();
-    if (els.overlay.open) els.overlay.close();
-    const invoker = previewInvoker;
-    previewInvoker = null;
-    if (invoker && invoker.isConnected && typeof invoker.focus === 'function') invoker.focus();
+    if (els.openBtn) els.openBtn.focus();
   }
 
   els.frame.addEventListener('load', () => {
-    if (els.overlay.open && els.frame.srcdoc) {
+    if (!els.overlay.hidden && els.frame.srcdoc) {
       const frameGeneration = els.frame.contentDocument
         && els.frame.contentDocument.documentElement.getAttribute('data-preview-generation');
       if (frameGeneration !== String(rebuildGeneration)) return;
@@ -1071,7 +969,7 @@
     }
   });
 
-  els.openBtn.addEventListener('click', (event) => open(event.currentTarget));
+  els.openBtn.addEventListener('click', open);
   els.close.addEventListener('click', close);
   els.designOriginal.addEventListener('click', () => setDesign('original'));
   els.designSpecimen.addEventListener('click', () => setDesign('specimen'));
@@ -1081,9 +979,8 @@
   els.langRu.addEventListener('click', () => setLang('ru'));
   els.vpDesktop.addEventListener('click', () => setViewport('desktop'));
   els.vpMobile.addEventListener('click', () => setViewport('mobile'));
-  els.overlay.addEventListener('cancel', (event) => {
-    event.preventDefault();
-    close();
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !els.overlay.hidden) close();
   });
 
   window.AdminPreview = { open, close, setDesign };

@@ -7,20 +7,7 @@
   "headerLogo": {
     "src": null
   },
-  "contactUrl": "https://t.me/WhiteCatWeb",
   "structuredData": {
-    "organization": {
-      "name": "Codex Studio",
-      "alternateName": "Codex",
-      "url": "https://codex.promo/",
-      "description": {
-        "en": "Remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender.",
-        "ru": "Удалённая студия 3D-дизайна: hard surface моделирование, продуктовая визуализация и game-ready ассеты."
-      },
-      "sameAs": [
-        "https://t.me/WhiteCatWeb"
-      ]
-    },
     "featuredWorks": [
       {
         "id": "orbital-mk-ii",

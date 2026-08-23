@@ -65,29 +65,13 @@ jobs:
           set -euo pipefail
           subject="$(git log -1 --format=%s)"
           author="$(git log -1 --format=%an)"
-          email="$(git log -1 --format=%ae)"
-          regen_subject_regex='^chore\(content\): regenerate site from content/ \[content-publish\]( \[source:[0-9a-f]{40}\])?$'
-          revert_subject_regex='^revert\(content\): roll back content push after failed publish \[content-publish-revert\]( \[source:[0-9a-f]{40}\])?$'
-
-          trusted_terminal() {
-            local candidate_author="$1" candidate_email="$2" candidate_subject="$3"
-            [ "$candidate_author" = 'github-actions[bot]' ] &&
-              [ "$candidate_email" = '41898282+github-actions[bot]@users.noreply.github.com' ] &&
-              { [[ "$candidate_subject" =~ $regen_subject_regex ]] || [[ "$candidate_subject" =~ $revert_subject_regex ]]; }
-          }
-
-          touches_source() {
-            local sha="$1"
-            if git rev-parse -q --verify "$sha^1" >/dev/null; then
-              ! git diff --quiet "$sha^1" "$sha" -- content/ assets/
-            else
-              ! git diff-tree --root --quiet --no-commit-id -r "$sha" -- content/ assets/
-            fi
-          }
+          admin_subject_regex='^content: .+ \[admin\]$'
+          regen_subject='chore(content): regenerate site from content/ [content-publish]'
+          revert_subject='revert(content): roll back content push after failed publish [content-publish-revert]'
 
           skip=false
           allowed_publish_bot=false
-          if trusted_terminal "$author" "$email" "$subject"; then
+          if [ "$author" = 'github-actions[bot]' ] && { [ "$subject" = "$regen_subject" ] || [ "$subject" = "$revert_subject" ]; }; then
             allowed_publish_bot=true
           fi
 
@@ -98,23 +82,29 @@ jobs:
               skip=true
               reason='workflow_run head is not an allowlisted content-publish bot revision; skipped fail closed'
             fi
+          elif [[ "$subject" =~ $admin_subject_regex ]]; then
+            skip=true
+            reason='source-only admin content commit; waiting for content-publish'
+          elif [ "$author" = 'github-actions[bot]' ] && [ "$EVENT_NAME" != 'workflow_dispatch' ]; then
+            skip=true
+            reason='bot revision waits for the workflow_run delivery bridge'
           else
-            pending_source=false
+            pending_admin=false
             settlement_sha=''
-            while IFS=$'\x1f' read -r sha history_author history_email history_subject; do
-              if trusted_terminal "$history_author" "$history_email" "$history_subject"; then
+            while IFS=$'\x1f' read -r sha history_author history_subject; do
+              if [ "$history_author" = 'github-actions[bot]' ] && { [ "$history_subject" = "$regen_subject" ] || [ "$history_subject" = "$revert_subject" ]; }; then
                 settlement_sha="$sha"
                 break
               fi
-              if touches_source "$sha"; then
-                pending_source=true
+              if [[ "$history_subject" =~ $admin_subject_regex ]]; then
+                pending_admin=true
                 break
               fi
-            done < <(git log --first-parent --format='%H%x1f%an%x1f%ae%x1f%s' HEAD)
+            done < <(git log --first-parent --format='%H%x1f%an%x1f%s' HEAD)
 
-            if [ "$pending_source" = 'true' ]; then
+            if [ "$pending_admin" = 'true' ]; then
               skip=true
-              reason='a content/assets source is newer than its latest trusted terminal settlement; waiting for content-publish'
+              reason='an admin content publish is newer than its latest bot settlement; waiting for content-publish'
             elif [ "$EVENT_NAME" = 'workflow_dispatch' ]; then
               reason="manual owner-selected deployment after settlement ${settlement_sha:-none}"
             else
@@ -266,16 +256,9 @@ jobs:
 
           unset LFTP_PASSWORD
 
-      # Normal shell requests are the production contract. Each shell must be
-      # byte-identical and its own immutable generated-payload revisions must
-      # resolve to the exact emitted bytes; no test-only query or no-cache
-      # directive may bypass a stale carrier response here.
-      - name: Set up Node for parity verification
-        if: steps.mirror.outputs.deployed == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-
+      # A fresh root request proves the public docroot is reachable. The
+      # generated cards payload is then compared byte-for-byte with the local
+      # source via SHA-256, using a cache-busting query on both requests.
       - name: Verify Beget parity after deployment
         id: parity
         if: steps.mirror.outputs.deployed == 'true'
@@ -283,13 +266,42 @@ jobs:
         env:
           PUBLIC_URL: https://codex.promo/
         run: |
-          node scripts/verify-beget-parity.mjs --public-url "$PUBLIC_URL"
+          set -euo pipefail
+          cache_bust="deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
+          parity_root="$RUNNER_TEMP/beget-parity"
+          mkdir -p "$parity_root"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 60 \
+            --header 'Cache-Control: no-cache' \
+            --header 'Accept-Encoding: identity' \
+            --output "$parity_root/root.html" \
+            "${PUBLIC_URL}?${cache_bust}"
+
+          root_local_hash="$(sha256sum index.html | awk '{print $1}')"
+          root_public_hash="$(sha256sum "$parity_root/root.html" | awk '{print $1}')"
+          if [ "$root_local_hash" != "$root_public_hash" ]; then
+            echo "::error::Public cache-busted parity mismatch for index.html (local $root_local_hash, public $root_public_hash)."
+            exit 1
+          fi
+
+          local_hash="$(sha256sum js/cards-data.js | awk '{print $1}')"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 60 \
+            --header 'Cache-Control: no-cache' \
+            --header 'Accept-Encoding: identity' \
+            --output "$parity_root/cards-data.js" \
+            "${PUBLIC_URL}js/cards-data.js?${cache_bust}"
+          public_hash="$(sha256sum "$parity_root/cards-data.js" | awk '{print $1}')"
+          if [ "$local_hash" != "$public_hash" ]; then
+            echo "::error::Public cache-busted parity mismatch for js/cards-data.js (local $local_hash, public $public_hash)."
+            exit 1
+          fi
 
           {
             echo
             echo '### Post-deploy parity'
-            echo '- Normal index.html and free-assets.html shells match local bytes.'
-            echo '- Their emitted cards-data.js, fa-data.js, and i18n-data.js immutable revisions match local bytes.'
+            echo "- \`index.html\` SHA-256: \`$root_local_hash\` (local = public)."
+            echo "- \`js/cards-data.js\` SHA-256: \`$local_hash\` (local = public)."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write deployment summary
@@ -313,7 +325,7 @@ jobs:
             elif [ "$MIRROR_DEPLOYED" != 'true' ]; then
               echo '- Skipped safely: main advanced before transfer; the newer event owns deployment.'
             elif [ "$MIRROR_OUTCOME" = 'success' ] && [ "$PARITY_OUTCOME" = 'success' ]; then
-              echo '- Deployed and verified: FTPS hashes, normal HTTPS shells, and emitted immutable payloads match local files.'
+              echo '- Deployed and verified: FTPS hashes and cache-busted HTTPS bodies match local files.'
             else
               echo "- Deployment failed (mirror: ${MIRROR_OUTCOME:-not-run}; parity: ${PARITY_OUTCOME:-not-run})."
             fi

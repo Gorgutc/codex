@@ -61,12 +61,10 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { faPosterKind, faPosterPath, faPosterProblem, faTagCoverValue } from './fa-poster-path.mjs';
 import { assetBudgetViolation, formatBytes } from './asset-budget.mjs';
-import { caseRouteTokens, caseSlugViolations, effectiveCaseSlug } from './case-slug.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // CONTENT_DIR may be overridden (tests/quality/content-validate.test.mjs points
@@ -98,10 +96,6 @@ const HEADER_LOGO_BEGIN = '<!-- CODEX:GEN header-logo BEGIN -->';
 const HEADER_LOGO_END = '<!-- CODEX:GEN header-logo END -->';
 const HEADER_LOGO_MOBILE_BEGIN = '<!-- CODEX:GEN header-logo-mobile BEGIN -->';
 const HEADER_LOGO_MOBILE_END = '<!-- CODEX:GEN header-logo-mobile END -->';
-const CONTACT_BUTTON_BEGIN = '<!-- CODEX:GEN contact-button BEGIN -->';
-const CONTACT_BUTTON_END = '<!-- CODEX:GEN contact-button END -->';
-const CONTACT_PILL_BEGIN = '<!-- CODEX:GEN contact-pill BEGIN -->';
-const CONTACT_PILL_END = '<!-- CODEX:GEN contact-pill END -->';
 
 /* ── content loading ─────────────────────────────────────────────────────── */
 
@@ -192,9 +186,9 @@ function hasLocalePair(value) {
 // D-06; the runtime escaping fix itself is tracked as A1-01). U+2028/U+2029
 // additionally break inline <script> JS contexts when unescaped.
 // eslint-disable-next-line no-control-regex -- intentional: the guard exists to REJECT control characters in content
-const CONTROL_CHARS_RE = /[\u0000-\u001F\u007F\u2028\u2029]/;
+const CONTROL_CHARS_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u2028\u2029]/;
 // eslint-disable-next-line no-control-regex -- intentional: the guard exists to REJECT control characters in content
-const MARKUP_OR_CONTROL_RE = /[<>\u0000-\u001F\u007F\u2028\u2029]/;
+const MARKUP_OR_CONTROL_RE = /[<>\u0000-\u0008\u000B\u000C\u000E-\u001F\u2028\u2029]/;
 
 function checkPlainText(violations, where, label, value) {
   if (typeof value === 'string' && MARKUP_OR_CONTROL_RE.test(value)) {
@@ -206,16 +200,6 @@ function checkPlainTextPair(violations, where, label, pair) {
   if (pair !== null && typeof pair === 'object') {
     checkPlainText(violations, where, `${label}.en`, pair.en);
     checkPlainText(violations, where, `${label}.ru`, pair.ru);
-  }
-}
-
-function isCredentialFreeHttpsUrl(value) {
-  if (!isNonEmptyString(value) || value !== value.trim() || CONTROL_CHARS_RE.test(value) || value.includes('\\')) return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password && !url.port;
-  } catch (_error) {
-    return false;
   }
 }
 
@@ -782,7 +766,6 @@ function validateCase(violations, entry, filterKeys) {
     violations.push(`${where}: "id" must be a non-empty string`);
     return;
   }
-  violations.push(...caseSlugViolations(c, where));
   if (entry.file !== `${c.id}.json`) violations.push(`${where}: file name does not match id "${c.id}"`);
   if (!filterKeys.has(c.category) || c.category === 'all') {
     violations.push(`${where}: category "${c.category}" must be a settings.json filter key other than "all"`);
@@ -1162,47 +1145,10 @@ function validateMetaImages(violations, metaStrings) {
 // case stops being advertised to crawlers. Every id must be a real case.
 function validateStructuredData(violations, metaStrings, caseIds) {
   const where = 'content/meta.json';
-  if (!isCredentialFreeHttpsUrl(metaStrings && metaStrings.contactUrl)) {
-    violations.push(`${where}: contactUrl must be a credential-free HTTPS URL without control characters`);
-  }
   const sd = metaStrings && metaStrings.structuredData;
   if (sd === null || typeof sd !== 'object' || Array.isArray(sd) || !Array.isArray(sd.featuredWorks)) {
     violations.push(`${where}: "structuredData.featuredWorks" must be an array of { id, about } objects`);
     return;
-  }
-  const organization = sd.organization;
-  if (organization === null || typeof organization !== 'object' || Array.isArray(organization)) {
-    violations.push(`${where}: structuredData.organization must be an object`);
-  } else {
-    for (const field of ['name', 'alternateName']) {
-      if (!isNonEmptyString(organization[field]) || MARKUP_OR_CONTROL_RE.test(organization[field])) {
-        violations.push(`${where}: structuredData.organization.${field} must be non-empty plain text`);
-      }
-    }
-    if (!isCredentialFreeHttpsUrl(organization.url)) {
-      violations.push(`${where}: structuredData.organization.url must be a credential-free HTTPS URL without control characters`);
-    }
-    const description = organization.description;
-    for (const lang of ['en', 'ru']) {
-      const value = description && description[lang];
-      if (!isNonEmptyString(value) || MARKUP_OR_CONTROL_RE.test(value)) {
-        violations.push(`${where}: structuredData.organization.description.${lang} must be non-empty plain text without control characters`);
-      }
-    }
-    if (!Array.isArray(organization.sameAs)) {
-      violations.push(`${where}: structuredData.organization.sameAs must be an array of credential-free HTTPS URLs`);
-    } else {
-      const seenSameAs = new Set();
-      organization.sameAs.forEach((entry, i) => {
-        const label = `${where}: structuredData.organization.sameAs[${i}]`;
-        if (!isCredentialFreeHttpsUrl(entry)) {
-          violations.push(`${label} must be a credential-free HTTPS URL without control characters`);
-        } else if (seenSameAs.has(entry)) {
-          violations.push(`${label} duplicates ${JSON.stringify(entry)}`);
-        }
-        seenSameAs.add(entry);
-      });
-    }
   }
   const seen = new Set();
   sd.featuredWorks.forEach((entry, i) => {
@@ -1218,8 +1164,6 @@ function validateStructuredData(violations, metaStrings, caseIds) {
     seen.add(entry.id);
     if (!isNonEmptyString(entry.about)) {
       violations.push(`${w}: "about" must be a non-empty string (emitted into the JSON-LD ItemList)`);
-    } else if (MARKUP_OR_CONTROL_RE.test(entry.about)) {
-      violations.push(`${w}: "about" must be plain text without control characters`);
     }
   });
 }
@@ -1283,16 +1227,6 @@ function validateContent(content) {
   }
 
   for (const entry of caseEntries) validateCase(violations, entry, filterKeys);
-  const routeOwners = new Map();
-  for (const entry of caseEntries) {
-    if (!isNonEmptyString(entry.data.id)) continue;
-    for (const token of caseRouteTokens(entry.data)) {
-      if (!routeOwners.has(token)) routeOwners.set(token, entry.data.id);
-      else if (routeOwners.get(token) !== entry.data.id) {
-        violations.push(`content/cases/${entry.file}: case route token "${token}" is used by both "${routeOwners.get(token)}" and "${entry.data.id}"`);
-      }
-    }
-  }
 
   // Iteration F guard: an empty grid would break the shipped pages (and
   // verify-frozen) — at least one enabled case in an enabled category.
@@ -1466,12 +1400,10 @@ function buildCaseEntry(c) {
   }
 
   const entry = {
-    slug: effectiveCaseSlug(c),
     role: cs.role.en,
     tools: cs.tools,
     modelSrc: cs.modelSrc
   };
-  if (Array.isArray(c.legacySlugs) && c.legacySlugs.length > 0) entry.legacySlugs = c.legacySlugs.slice();
   // layoutMode travels into the runtime payload only when 'manual':
   // js/main.js buildItems() treats an absent flag as 'seeded', so the
   // generated file stays byte-identical while every case is seeded.
@@ -1726,7 +1658,7 @@ function buildCardHtml(c, catLabel) {
   let anchor = `        <a class="work-card" data-id="${id}" data-category="${escapeHtmlAttr(c.category)}"`;
   if (c.gameAsset) anchor += ' data-game-asset="true"';
   if (c.cadPlaceholder) anchor += ' data-cad-placeholder="true"';
-  anchor += ` href="#${escapeHtmlAttr(effectiveCaseSlug(c))}">`;
+  anchor += ` href="#${id}">`;
   lines.push(anchor);
   lines.push(`          <div class="work-card__thumb" data-label="${escapeHtmlAttr(c.card.thumbLabel)}">`);
   let img = `            <img src="${escapeHtmlAttr(c.card.thumb)}" data-i18n-attr="alt:card.${id}.alt"`;
@@ -2032,22 +1964,21 @@ function j(value) {
     .replace(/\u2029/g, '\\u2029');
 }
 
-// Shared Organization block (both pages): identity is owner content while the
-// logo remains the validated technical asset source from ogImages.orgLogo.
+// Shared Organization block (both pages): the logo follows the index OG image
+// owners replace through the admin panel (cache-bust name included).
 function organizationJsonLd(content) {
-  const organization = content.metaStrings.structuredData.organization;
   return [
     '  <script type="application/ld+json">',
     '  {',
     '    "@context": "https://schema.org",',
     '    "@type": "Organization",',
-    `    "name": ${j(organization.name)},`,
-    `    "alternateName": ${j(organization.alternateName)},`,
-    `    "url": ${j(organization.url)},`,
+    '    "name": "Codex Studio",',
+    '    "alternateName": "Codex",',
+    '    "url": "https://codex.promo/",',
     `    "logo": ${j(absoluteAssetUrl(content.metaStrings.ogImages.orgLogo))},`,
-    `    "description": ${j(organization.description.en)},`,
+    '    "description": "Remote 3D design studio specializing in hard surface modeling, product visualization, and game-ready assets. Built in Blender.",',
     '    "sameAs": [',
-    organization.sameAs.map((url) => `      ${j(url)}`).join(',\n'),
+    '      "https://t.me/WhiteCatWeb"',
     '    ]',
     '  }',
     '  </script>'
@@ -2059,7 +1990,6 @@ function organizationJsonLd(content) {
 // renumbered, names follow the live card titles. List order stays the
 // owner-curated featuredWorks order (historically not equal to cardOrder).
 function buildIndexJsonLdRegion(content) {
-  const organization = content.metaStrings.structuredData.organization;
   const visible = new Map(visibleCases(content).map((c) => [c.id, c]));
   const featured = content.metaStrings.structuredData.featuredWorks.filter((f) => visible.has(f.id));
   const items = featured.map((f, i) => {
@@ -2071,9 +2001,9 @@ function buildIndexJsonLdRegion(content) {
       '        "item": {',
       '          "@type": "CreativeWork",',
       `          "name": ${j(c.card.title.en)},`,
-      `          "creator": { "@type": "Organization", "name": ${j(organization.name)}, "url": ${j(organization.url)} },`,
+      '          "creator": { "@type": "Organization", "name": "Codex Studio" },',
       `          "about": ${j(f.about)},`,
-      `          "url": ${j(`https://codex.promo/#${effectiveCaseSlug(c)}`)}`,
+      `          "url": ${j(`https://codex.promo/#${f.id}`)}`,
       '        }',
       '      }'
     ].join('\n');
@@ -2084,17 +2014,17 @@ function buildIndexJsonLdRegion(content) {
       '  {',
       '    "@context": "https://schema.org",',
       '    "@type": "WebSite",',
-      `    "name": ${j(organization.name)},`,
-      `    "url": ${j(organization.url)},`,
+      '    "name": "Codex Studio",',
+      '    "url": "https://codex.promo/",',
       '    "inLanguage": "en",',
-      `    "publisher": { "@type": "Organization", "name": ${j(organization.name)}, "url": ${j(organization.url)} }`,
+      '    "publisher": { "@type": "Organization", "name": "Codex Studio" }',
       '  }',
       '  </script>',
       '  <script type="application/ld+json">',
       '  {',
       '    "@context": "https://schema.org",',
       '    "@type": "ItemList",',
-      `    "name": ${j(`${organization.name} — Featured Works`)},`,
+      '    "name": "Codex Studio — Featured Works",',
       '    "itemListOrder": "https://schema.org/ItemListOrderAscending",',
       '    "itemListElement": [',
       items.join(',\n'),
@@ -2105,29 +2035,76 @@ function buildIndexJsonLdRegion(content) {
     .join('\n');
 }
 
-// Free Assets JSON-LD is a direct flattened projection of every visible
-// category/item in author order. There is deliberately no editorial id map.
+// free-assets.html catalog ItemList: name/description/encodingFormat are
+// SEO-specific copy that never came from content/free-assets.json (crafted
+// for crawlers), so they stay literal HERE, keyed by item id. Everything
+// else is derived from content (iteration H): the list = visible items of
+// the curated category in their content order (a hidden item leaves no SEO
+// ghost, positions renumber), contentSize = item.size, thumbnailUrl = the
+// item's effective thumb (null → the FA OG image owners replace via the
+// admin), contentUrl = emitted only when downloads/<file> exists in the repo.
+const FA_JSONLD_CATEGORY = 'hard-surface';
+const FA_JSONLD_COPY = {
+  'orbital-mk-ii': {
+    name: 'Orbital Mk.II free hard-surface 3D asset',
+    description: 'Sci-fi prop with clean topology, full PBR texture set, and Blender, FBX, OBJ delivery.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/obj', 'model/gltf-binary']
+  },
+  'vega-shell': {
+    name: 'Vega Shell free modular armor asset',
+    description: 'Modular exo-armor system with 47 snap-together parts, clean UVs, Blender and FBX files.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary']
+  },
+  'ironclad-frame': {
+    name: 'Ironclad Frame free industrial chassis asset',
+    description: 'Industrial chassis breakdown with modeled bolts, PBR textures, wire renders, Blender and FBX files.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary']
+  },
+  'bolt-cluster': {
+    name: 'Bolt Cluster free industrial fastener kit',
+    description: 'Industrial fastener kit with 12 variants, GeoNodes scatter setup, Blender file and 2K textures.',
+    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png']
+  },
+  'terra-base': {
+    name: 'Terra Base free modular environment kit',
+    description: 'Modular environment kit with 24 tileable pieces, GeoNodes scatter system, and 4K textures.',
+    encodingFormat: ['application/x-blender', 'model/gltf-binary', 'image/png']
+  },
+  'shard-cannon': {
+    name: 'Shard Cannon free sci-fi weapon asset',
+    description: 'Sci-fi heavy weapon with three skin variations, UE5-compatible export, Blender and FBX files.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png']
+  },
+  'wraith-blade': {
+    name: 'Wraith Blade free melee weapon asset',
+    description: 'Thin melee weapon with emissive edge variant, PBR textures, Blender and FBX files.',
+    encodingFormat: ['application/x-blender', 'model/vnd.fbx', 'model/gltf-binary', 'image/png']
+  },
+  'apex-frame': {
+    name: 'Apex Frame free mechanical component asset',
+    description: 'Mechanical component breakdown with STEP file, exploded rig, textures, README and Blender source.',
+    encodingFormat: ['application/x-blender', 'model/step', 'model/gltf-binary', 'text/plain']
+  }
+};
 
 function buildFaJsonLdRegion(content) {
-  const organization = content.metaStrings.structuredData.organization;
   const faOg = absoluteAssetUrl(content.metaStrings.ogImages.fa);
   const visibleCategories = visibleFaCategories(content);
-  const visibleItems = visibleCategories.flatMap((category) =>
-    category.items.map((item) => ({ item, category: category.key }))
-  );
-  const items = visibleItems.map(({ item, category }, i) => {
+  const itemCount = visibleCategories.reduce((sum, category) => sum + category.items.length, 0);
+  const curatedCategory = visibleCategories.find((category) => category.key === FA_JSONLD_CATEGORY);
+  const curated = (curatedCategory ? curatedCategory.items : []).filter((item) => FA_JSONLD_COPY[item.id]);
+  const items = curated.map((item, i) => {
+    const copy = FA_JSONLD_COPY[item.id];
     const thumbBase = faEffectiveBase(item, 'thumb');
-    const modelBase = faEffectiveBase(item, 'model');
     const hasDownload = fs.existsSync(path.join(ROOT, 'downloads', item.file));
     // Build the "item" object's properties as a list joined with commas, so the
     // optional members (thumbnailUrl, contentSize, contentUrl) compose without
     // trailing-comma juggling.
     const itemProps = [
       '          "@type": "3DModel"',
-      `          "identifier": ${j(item.id)}`,
-      `          "name": ${j(item.title)}`,
-      `          "description": ${j(item.desc.en)}`,
-      `          "category": ${j(item.cat || category)}`,
+      `          "name": ${j(copy.name)}`,
+      `          "description": ${j(copy.description)}`,
+      `          "encodingFormat": [${copy.encodingFormat.map(j).join(', ')}]`,
       '          "license": "https://creativecommons.org/publicdomain/zero/1.0/"',
       '          "isAccessibleForFree": true'
     ];
@@ -2137,10 +2114,6 @@ function buildFaJsonLdRegion(content) {
     // follows the poster convention, so a raster poster is advertised verbatim.
     if (thumbBase) {
       itemProps.push(`          "thumbnailUrl": ${j(absoluteAssetUrl(faPosterPath(thumbBase)))}`);
-    }
-    if (modelBase) {
-      itemProps.push('          "encodingFormat": "model/gltf-binary"');
-      itemProps.push(`          "associatedMedia": ${j(absoluteAssetUrl(`./assets/models/free/${modelBase}.glb`))}`);
     }
     // A2-01/E-02/F-03: contentSize + contentUrl only when the archive really
     // exists in downloads/ — honest structured data (no fabricated "48 MB" for a
@@ -2168,12 +2141,12 @@ function buildFaJsonLdRegion(content) {
       '  {',
       '    "@context": "https://schema.org",',
       '    "@type": "WebPage",',
-      `    "name": ${j(`Free 3D Assets — ${organization.name}`)},`,
+      '    "name": "Free 3D Assets — Codex Studio",',
       '    "url": "https://codex.promo/free-assets.html",',
       '    "inLanguage": "en",',
       '    "description": "Free 3D assets by Codex Studio. Hard surface models, game-ready props, and product renders.",',
-      `    "isPartOf": { "@type": "WebSite", "name": ${j(organization.name)}, "url": ${j(organization.url)} },`,
-      `    "publisher": { "@type": "Organization", "name": ${j(organization.name)}, "url": ${j(organization.url)} },`,
+      '    "isPartOf": { "@type": "WebSite", "name": "Codex Studio", "url": "https://codex.promo/" },',
+      '    "publisher": { "@type": "Organization", "name": "Codex Studio" },',
       `    "primaryImageOfPage": ${j(faOg)}`,
       '  }',
       '  </script>',
@@ -2181,9 +2154,9 @@ function buildFaJsonLdRegion(content) {
       '  {',
       '    "@context": "https://schema.org",',
       '    "@type": "ItemList",',
-      `    "name": ${j(`${organization.name} — Free 3D asset catalog`)},`,
+      '    "name": "Free 3D asset catalog — Codex Studio",',
       '    "url": "https://codex.promo/free-assets.html",',
-      `    "numberOfItems": ${visibleItems.length},`,
+      `    "numberOfItems": ${itemCount},`,
       '    "itemListOrder": "https://schema.org/ItemListOrderAscending",',
       '    "itemListElement": [',
       items.join(',\n'),
@@ -2277,31 +2250,6 @@ function detectEol(text) {
   return text.includes('\r\n') ? '\r\n' : '\n';
 }
 
-export function generatedPayloadVersion(source) {
-  return createHash('sha256').update(source, 'utf8').digest('hex');
-}
-
-export function versionedDataScriptSrc(fileName, source) {
-  return `./js/${fileName}?v=${generatedPayloadVersion(source)}`;
-}
-
-export function replaceDataScriptSrc(html, filePath, fileName, source) {
-  const escapedFileName = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(
-    `(<script\\b[^>]*\\bsrc=(["']))((?:\\.\\/|\\.\\.\\/)js\\/)${escapedFileName}(?:\\?[^"']*)?(\\2)`,
-    'gi'
-  );
-  let matches = 0;
-  const next = html.replace(pattern, (_match, open, _quote, prefix, close) => {
-    matches += 1;
-    return `${open}${versionedDataScriptSrc(fileName, source).replace('./js/', prefix)}${close}`;
-  });
-  if (matches !== 1) {
-    throw new Error(`${filePath}: expected exactly one ${fileName} data-script URL (found ${matches})`);
-  }
-  return next;
-}
-
 // Inner content of every <a class="logo"> wrapper. Unset src → the historical
 // "CODEX" wordmark, emitted byte-identically (with the caller's exact indent) so the
 // first generation is a no-op. Set src → an <img class="logo__img"> carrying all five
@@ -2331,46 +2279,7 @@ function replaceHeaderLogoRegion(html, filePath, begin, end, content) {
   return replaceRegion(html, filePath, begin, end, buildHeaderLogoRegion(content, indent));
 }
 
-function replaceContactAnchorRegion(html, filePath, begin, end, content, kind) {
-  const beginLine = html.split('\n').find((line) => line.trim() === begin);
-  const indent = beginLine ? (beginLine.match(/^[ \t]*/) || [''])[0] : '';
-  const href = escapeHtmlAttr(content.metaStrings.contactUrl);
-  // A contact URL is provider-neutral. These fallbacks remain correct before
-  // i18n starts and must not infer a service from the current destination.
-  const title = 'Contact';
-  const lines = kind === 'button'
-    ? [
-        `${indent}<a href="${href}" class="contact-btn" id="contact-btn"`,
-        `${indent}   target="_blank" rel="noopener noreferrer"`,
-        `${indent}   data-i18n-attr="aria-label:aria.contact; title:title.contact"`,
-        `${indent}   aria-label="Contact" title="${title}">`,
-        `${indent}  <svg class="contact-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"`,
-        `${indent}       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`,
-        `${indent}    <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>`,
-        `${indent}  </svg>`,
-        `${indent}  <span class="contact-btn__label" data-i18n="btn.contact">Contact</span>`,
-        `${indent}</a>`
-      ]
-    : [
-        `${indent}<a href="${href}"`,
-        `${indent}   class="top-pill top-pill--contact site-footer__contact" id="contact-pill"`,
-        `${indent}   target="_blank" rel="noopener noreferrer"`,
-        `${indent}   data-i18n-attr="aria-label:aria.contact; title:title.contact"`,
-        `${indent}   aria-label="Contact" title="${title}">`,
-        `${indent}  <svg class="top-pill__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`,
-        `${indent}    <path d="M2.5 10.5l15-7-2.7 14-5-4.3-2.7 3V12l7-6.3"/>`,
-        `${indent}  </svg>`,
-        `${indent}  <span class="top-pill__label" data-i18n="pill.contact">Contact</span>`,
-        `${indent}</a>`
-      ];
-  return replaceRegion(html, filePath, begin, end, lines);
-}
-
 function buildTargets(content) {
-  const cardsJs = buildCardsDataJs(content);
-  const faJs = buildFaDataJs(content);
-  const i18nJs = buildI18nDataJs(content);
-
   const indexRaw = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const indexEol = detectEol(indexRaw);
   let indexNext = indexRaw.replace(/\r\n/g, '\n');
@@ -2380,10 +2289,6 @@ function buildTargets(content) {
   indexNext = replaceRegion(indexNext, 'index.html', GRID_BEGIN, GRID_END, buildGridRegion(content));
   indexNext = replaceHeaderLogoRegion(indexNext, 'index.html', HEADER_LOGO_BEGIN, HEADER_LOGO_END, content);
   indexNext = replaceHeaderLogoRegion(indexNext, 'index.html', HEADER_LOGO_MOBILE_BEGIN, HEADER_LOGO_MOBILE_END, content);
-  indexNext = replaceContactAnchorRegion(indexNext, 'index.html', CONTACT_BUTTON_BEGIN, CONTACT_BUTTON_END, content, 'button');
-  indexNext = replaceContactAnchorRegion(indexNext, 'index.html', CONTACT_PILL_BEGIN, CONTACT_PILL_END, content, 'pill');
-  indexNext = replaceDataScriptSrc(indexNext, 'index.html', 'i18n-data.js', i18nJs);
-  indexNext = replaceDataScriptSrc(indexNext, 'index.html', 'cards-data.js', cardsJs);
 
   const faRaw = fs.readFileSync(path.join(ROOT, 'free-assets.html'), 'utf8');
   const faEol = detectEol(faRaw);
@@ -2400,28 +2305,16 @@ function buildTargets(content) {
   );
   faNext = replaceHeaderLogoRegion(faNext, 'free-assets.html', HEADER_LOGO_BEGIN, HEADER_LOGO_END, content);
   faNext = replaceHeaderLogoRegion(faNext, 'free-assets.html', HEADER_LOGO_MOBILE_BEGIN, HEADER_LOGO_MOBILE_END, content);
-  faNext = replaceContactAnchorRegion(faNext, 'free-assets.html', CONTACT_BUTTON_BEGIN, CONTACT_BUTTON_END, content, 'button');
-  faNext = replaceContactAnchorRegion(faNext, 'free-assets.html', CONTACT_PILL_BEGIN, CONTACT_PILL_END, content, 'pill');
-  faNext = replaceDataScriptSrc(faNext, 'free-assets.html', 'fa-data.js', faJs);
-  faNext = replaceDataScriptSrc(faNext, 'free-assets.html', 'i18n-data.js', i18nJs);
-
-  const adminRaw = fs.readFileSync(path.join(ROOT, 'admin', 'index.html'), 'utf8');
-  const adminEol = detectEol(adminRaw);
-  let adminNext = adminRaw.replace(/\r\n/g, '\n');
-  adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'cards-data.js', cardsJs);
-  adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'fa-data.js', faJs);
-  adminNext = replaceDataScriptSrc(adminNext, 'admin/index.html', 'i18n-data.js', i18nJs);
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');
   const sitemapEol = fs.existsSync(sitemapPath) ? detectEol(fs.readFileSync(sitemapPath, 'utf8')) : '\n';
 
   return [
-    { rel: 'js/cards-data.js', next: cardsJs, eol: '\n' },
-    { rel: 'js/fa-data.js', next: faJs, eol: '\n' },
-    { rel: 'js/i18n-data.js', next: i18nJs, eol: '\n' },
+    { rel: 'js/cards-data.js', next: buildCardsDataJs(content), eol: '\n' },
+    { rel: 'js/fa-data.js', next: buildFaDataJs(content), eol: '\n' },
+    { rel: 'js/i18n-data.js', next: buildI18nDataJs(content), eol: '\n' },
     { rel: 'index.html', next: indexNext, eol: indexEol },
     { rel: 'free-assets.html', next: faNext, eol: faEol },
-    { rel: 'admin/index.html', next: adminNext, eol: adminEol },
     { rel: 'sitemap.xml', next: buildSitemapXml(content), eol: sitemapEol }
   ];
 }

@@ -65,79 +65,7 @@ const MODEL_ARCHIVE_FA = VISIBLE_FA_CATEGORIES
 
 const server = startStaticServer();
 const MODES = ['specimen', 'chamber'];
-const ROUTE_MODES = ['original', 'specimen', 'chamber', 'hybrid'];
 const PROTOTYPE_KEYS = ['constructor', 'toString', '__proto__'];
-const ROUTE_FIXTURE_ID = PRIMARY_CASE && PRIMARY_CASE.id;
-
-async function installPublicRouteFixture(page, id) {
-  const canonical = 'canonical-' + id;
-  const legacy = 'legacy-' + id;
-  const cardsSource = fs.readFileSync(path.join(ROOT, 'js', 'cards-data.js'), 'utf8');
-  const cards = cardsSource.replace(
-    `'${id}': {\n    slug: '${id}',`,
-    `'${id}': {\n    slug: '${canonical}',\n    legacySlugs: ['${legacy}'],`
-  );
-  const htmlSource = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const html = htmlSource.replace(`href="#${id}"`, `href="#${canonical}"`);
-  await page.route('**/js/cards-data.js*', (route) => route.fulfill({ contentType: 'text/javascript', body: cards }));
-  await page.route('**/index.html*', (route) => route.fulfill({ contentType: 'text/html', body: html }));
-  return { canonical, legacy };
-}
-
-function expectedRouteTitle(id) {
-  const project = CASE_BY_ID.get(id);
-  if (!project) throw new Error('Route test selected a non-visible case: ' + id);
-  return project.card.title.ru;
-}
-
-async function expectRouteCaseRendered(page, mode, id) {
-  const title = expectedRouteTitle(id);
-  await expect.poll(() => page.evaluate(() => {
-    const active = document.querySelector('.work-card--active');
-    const caseView = document.getElementById('case-view');
-    return {
-      activeId: active && active.dataset.id,
-      caseVisible: Boolean(caseView && !caseView.hidden),
-      title: document.getElementById('case-title')?.textContent || '',
-      specimenCase: document.body.classList.contains('specimen-case-active'),
-      chamberCase: document.body.classList.contains('chamber-route-case'),
-      hybridReady: caseView && caseView.getAttribute('data-hybrid-case-ready')
-    };
-  })).toEqual(
-    expect.objectContaining({ activeId: id, caseVisible: true, title })
-  );
-  if (mode === 'specimen') {
-    await expect(page.locator('body')).toHaveClass(/specimen-case-active/);
-    await expect(page.locator('[data-design-home="specimen"]')).toBeHidden();
-  } else if (mode === 'chamber') {
-    await expect(page.locator('body')).toHaveClass(/chamber-route-case/);
-    await expect(page.locator('[data-design-home="chamber"]')).toBeHidden();
-  } else if (mode === 'hybrid') {
-    await expect(page.locator('body')).toHaveClass(/chamber-route-case/);
-    await expect(page.locator('#case-view')).toHaveAttribute('data-hybrid-case-ready', id);
-    await expect(page.locator('[data-design-home="hybrid"]')).toBeHidden();
-  }
-}
-
-async function expectRouteHomeBootstrap(page, mode, firstId) {
-  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('');
-  if (mode === 'original') {
-    // Original has no Home shell: root bootstrap opens the first visible case.
-    await expectRouteCaseRendered(page, mode, firstId);
-    return;
-  }
-  if (mode === 'specimen') {
-    await expect(page.locator('body')).toHaveClass(/specimen-home-active/);
-    await expect(page.locator('[data-design-home="specimen"]')).toBeVisible();
-  } else if (mode === 'chamber') {
-    await expect(page.locator('body')).toHaveClass(/chamber-route-home/);
-    await expect(page.locator('[data-design-home="chamber"]')).toBeVisible();
-  } else {
-    await waitForHybridHome(page);
-    await expect(page.locator('[data-design-home="hybrid"]')).toBeVisible();
-  }
-  await expect(page.locator('#case-view')).toBeHidden();
-}
 
 function requireFixture(fixture, reason) {
   test.skip(!fixture, reason);
@@ -384,64 +312,6 @@ test('Original stays the default and unknown design values fail closed', async (
   }
 });
 
-test('all modes canonicalize stable-id and legacy case routes without touching root bootstrap', async ({ page }) => {
-  if (!ROUTE_FIXTURE_ID || VISIBLE_CASES.length < 2) throw new Error('Route test needs at least two visible cases.');
-  const errors = collectConsoleErrors(page);
-  for (const mode of ROUTE_MODES) {
-    const { canonical, legacy } = await installPublicRouteFixture(page, ROUTE_FIXTURE_ID);
-    const query = mode === 'original' ? 'lang=ru' : `design=${mode}&lang=ru`;
-    for (const token of [ROUTE_FIXTURE_ID, legacy, canonical]) {
-      await page.goto(`${server.base}/index.html?${query}#${token}`, { waitUntil: 'networkidle' });
-      await expect.poll(() => page.evaluate(() => ({
-        hash: window.location.hash,
-        resolved: window.CodexCase.resolveCaseToken(window.location.hash.slice(1))
-      }))).toEqual(expect.objectContaining({ hash: '#' + canonical, resolved: ROUTE_FIXTURE_ID }));
-      await expectRouteCaseRendered(page, mode, ROUTE_FIXTURE_ID);
-      await expect(page.locator(`a.work-card[data-id="${ROUTE_FIXTURE_ID}"]`)).toHaveAttribute('href', '#' + canonical);
-      if (mode === 'specimen' || mode === 'chamber' || mode === 'hybrid') {
-        await expect(page.locator(`[data-design-project="${ROUTE_FIXTURE_ID}"]`).first()).toHaveAttribute('href', '#' + canonical);
-      }
-    }
-
-    await page.evaluate(() => {
-      document.execCommand = () => {
-        window.__copiedCaseUrl = document.activeElement && document.activeElement.value;
-        return true;
-      };
-    });
-    await page.locator('#case-share-desktop').click();
-    const copied = await expect.poll(() => page.evaluate(() => window.__copiedCaseUrl || '')).toContain('#' + canonical);
-    void copied;
-    const copiedUrl = new URL(await page.evaluate(() => window.__copiedCaseUrl));
-    expect(copiedUrl.hash).toBe('#' + canonical);
-    expect(copiedUrl.searchParams.get('lang')).toBe('ru');
-    expect(copiedUrl.searchParams.get('design')).toBe(mode === 'original' ? null : mode);
-    expect(Array.from(copiedUrl.searchParams.keys()).sort()).toEqual(mode === 'original' ? ['lang'] : ['design', 'lang']);
-
-    const nextId = await page.evaluate((id) => {
-      const visible = Array.from(document.querySelectorAll('.work-card[data-id]:not([hidden])')).map((card) => card.dataset.id);
-      return visible[(visible.indexOf(id) + 1) % visible.length];
-    }, ROUTE_FIXTURE_ID);
-    const nextSlug = await page.evaluate((id) => window.CodexCase.publicSlugForId(id), nextId);
-    await page.locator('#case-next').click();
-    await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#' + nextSlug);
-    await expectRouteCaseRendered(page, mode, nextId);
-    await page.locator('#case-prev').click();
-    await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#' + canonical);
-    await expectRouteCaseRendered(page, mode, ROUTE_FIXTURE_ID);
-
-    await page.goto(`${server.base}/index.html?${query}`, { waitUntil: 'networkidle' });
-    await expectRouteHomeBootstrap(page, mode, ROUTE_FIXTURE_ID);
-    await page.goto(`${server.base}/index.html?${query}#%E0%A4%A`, { waitUntil: 'networkidle' });
-    // A malformed percent sequence is rejected before route matching. Unlike
-    // a hashless bootstrap, it is an explicit invalid case request, so every
-    // mode falls back to the first visible Case and writes its canonical URL.
-    await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#' + canonical);
-    await expectRouteCaseRendered(page, mode, ROUTE_FIXTURE_ID);
-  }
-  expect(internalConsoleErrors(errors)).toEqual([]);
-});
-
 test('language stays provisional until geo detection settles', async ({ page }) => {
   let releaseTrace;
   const traceGate = new Promise((resolve) => {
@@ -478,31 +348,8 @@ test('Design Lab rejects prototype-key case hashes', async ({ page }) => {
         waitUntil: 'networkidle'
       });
       await waitForDesign(page, mode, 'index');
-      const home = page.locator(`[data-design-home="${mode}"]`);
-      await expect(home).toBeVisible();
+      await expect(page.locator(`[data-design-home="${mode}"]`)).toBeVisible();
       await expect(page.locator('#case-view')).toBeHidden();
-      if (mode === 'specimen' && value === PROTOTYPE_KEYS[PROTOTYPE_KEYS.length - 1]) {
-        // The initial fallback guard is consumed: a normal project click must
-        // open a Case, while a later live unknown fragment returns Home.
-        await home.locator('[data-design-project]').first().click();
-        await expect(home).toBeHidden();
-        await expect(page.locator('#case-view')).toBeVisible();
-        await page.evaluate(() => { window.location.hash = '#toString'; });
-        await expect(home).toBeVisible();
-        await expect(page.locator('#case-view')).toBeHidden();
-
-        // A queued cleanup for an unknown hash must not erase a valid route
-        // selected in the same turn. This exercises the live hashchange race
-        // rather than only the initial bootstrap path above.
-        const validHash = await home.locator('[data-design-project]').first().getAttribute('href');
-        await page.evaluate((hash) => {
-          window.location.hash = '#constructor';
-          window.location.hash = hash;
-        }, validHash);
-        await expect.poll(() => new URL(page.url()).hash).toBe(validHash);
-        await expect(home).toBeHidden();
-        await expect(page.locator('#case-view')).toBeVisible();
-      }
     }
   }
   expect(internalConsoleErrors(errors)).toEqual([]);
@@ -1439,7 +1286,7 @@ test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog
   const baseRuntimeGate = new Promise((resolve) => {
     releaseBaseRuntime = resolve;
   });
-  await page.route(/\/js\/i18n-data\.js(?:\?.*)?$/, async (route) => {
+  await page.route('**/js/i18n-data.js', async (route) => {
     await baseRuntimeGate;
     await route.continue();
   });
@@ -1493,7 +1340,7 @@ test('hybrid: slow base bootstrap does not consume the optional-runtime watchdog
 
   releaseBaseRuntime();
   await navigation;
-  await page.unroute(/\/js\/i18n-data\.js(?:\?.*)?$/);
+  await page.unroute('**/js/i18n-data.js');
   // Оба исхода законны, и снимок timeline выше не может их различить надёжно:
   // watchdog срабатывает ровно на границе измеряемого окна, поэтому fallback
   // может наступить уже ПОСЛЕ снятия снимка. Ждём, пока состояние осядет, и
@@ -3001,7 +2848,7 @@ async function installRasterPosterFixture(page, category, options = {}) {
   // fa-data.js is a classic script defining `var FA_DATA`; appending a patch
   // statement is the least invasive way to hand the runtime a raster item and
   // an independent vector control without touching content/.
-  await page.route(/\/js\/fa-data\.js(?:\?.*)?$/, async (route) => {
+  await page.route('**/js/fa-data.js', async (route) => {
     const response = await route.fetch();
     const body = await response.text();
     await route.fulfill({

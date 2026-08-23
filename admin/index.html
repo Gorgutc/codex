@@ -33,37 +33,32 @@
       <a href="#/free-assets" data-nav="free-assets">Free Assets</a>
       <a href="#/meta" data-nav="meta">Мета-теги</a>
       <a href="#/ui" data-nav="ui">Тексты интерфейса</a>
-      <a href="#/publication" data-nav="publication">Публикация</a>
     </nav>
     <div class="topbar__actions">
       <span class="media-warning" id="media-warning" hidden>
         загруженные файлы не переживут перезагрузку страницы — опубликуйте или загрузите заново
       </span>
       <span class="draft-indicator" id="draft-indicator" hidden>
-        <span class="draft-indicator__dot" aria-hidden="true"></span><span id="draft-indicator-text">черновик</span>
+        <span class="draft-indicator__dot" aria-hidden="true"></span>несохранённые изменения
       </span>
-      <button type="button" class="btn btn--ghost" id="review-draft-btn" hidden>Проверить изменения</button>
-      <button type="button" class="btn btn--ghost" id="discard-draft-btn" hidden>Отбросить черновик</button>
       <button type="button" class="btn" id="preview-btn">Предпросмотр</button>
       <button type="button" class="btn btn--primary" id="publish-btn" disabled>Опубликовать</button>
     </div>
     <div class="topbar__user" id="topbar-user"></div>
   </header>
 
-  <main class="app" id="app"></main>
+  <main class="app" id="app" aria-live="polite"></main>
 
-  <div class="toasts">
-    <div class="toasts__region" id="toast-status" role="status" aria-live="polite"></div>
-    <div class="toasts__region" id="toast-errors" role="alert" aria-live="assertive"></div>
-  </div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
   <!-- Итерация G: полноэкранный предпросмотр черновика. Настоящий index.html
        сайта мутируется под черновик и рендерится в same-origin iframe. -->
-  <dialog class="preview-overlay" id="preview-overlay" aria-labelledby="preview-title">
+  <div class="preview-overlay" id="preview-overlay" role="dialog" aria-modal="true"
+       aria-label="Предпросмотр сайта с черновиком" hidden>
     <div class="preview-overlay__bar">
-      <h2 class="preview-overlay__banner" id="preview-title">
-        <span id="preview-banner">Это предпросмотр черновика — на сайте изменения появятся после публикации.</span>
-      </h2>
+      <p class="preview-overlay__banner" id="preview-banner">
+        Это предпросмотр черновика — на сайте изменения появятся после публикации.
+      </p>
       <div class="preview-overlay__controls">
         <div class="preview-overlay__group preview-overlay__group--design" role="group" aria-label="Дизайн предпросмотра">
           <button type="button" class="btn preview-toggle is-active" id="preview-design-original" aria-pressed="true">Original</button>
@@ -76,8 +71,8 @@
           <button type="button" class="btn preview-toggle" id="preview-lang-ru" aria-pressed="false">RU</button>
         </div>
         <div class="preview-overlay__group" role="group" aria-label="Ширина экрана предпросмотра">
-          <button type="button" class="btn preview-toggle is-active" id="preview-vp-desktop" aria-pressed="true">Десктоп</button>
-          <button type="button" class="btn preview-toggle" id="preview-vp-mobile" aria-pressed="false">Мобильный</button>
+          <button type="button" class="btn preview-toggle is-active" id="preview-vp-desktop">Десктоп</button>
+          <button type="button" class="btn preview-toggle" id="preview-vp-mobile">Мобильный</button>
         </div>
         <button type="button" class="btn" id="preview-close">Закрыть</button>
       </div>
@@ -86,17 +81,17 @@
       <p class="preview-overlay__loading" id="preview-loading" hidden>Собираем предпросмотр…</p>
       <iframe class="preview-overlay__frame" id="preview-frame" title="Предпросмотр сайта с черновиком"></iframe>
     </div>
-  </dialog>
+  </div>
 
-  <dialog class="publish-dialog" id="publish-dialog" aria-labelledby="publish-dialog-title">
-    <h2 class="publish-dialog__title" id="publish-dialog-title">Опубликовать изменения</h2>
+  <dialog class="publish-dialog" id="publish-dialog">
+    <h2 class="publish-dialog__title">Опубликовать изменения</h2>
     <p class="publish-dialog__lead">Будет создан один коммит в <code>main</code> с файлами:</p>
     <ul class="publish-dialog__files" id="publish-files"></ul>
     <label class="publish-dialog__label" for="publish-desc">Короткое описание изменений</label>
     <input class="publish-dialog__input" id="publish-desc" type="text" autocomplete="off">
     <p class="publish-dialog__hint">
       После коммита конвейер проверит контент и пересоберёт сайт.
-      Статус и время завершения появятся в разделе «Публикация» после привязки source SHA.
+      Обновление займёт примерно 2–3 минуты.
     </p>
     <div class="publish-dialog__actions">
       <button type="button" class="btn" id="publish-cancel">Отмена</button>
@@ -111,9 +106,9 @@
        cards-data.js → window.CARDS_DATA, i18n-data.js → window.I18N_DATA;
        fa-data.js → window.FA_DATA (F5: превью каталога Free Assets);
        preview.js накладывает черновик поверх этих структур. -->
-  <script src="../js/cards-data.js?v=5b6b3f2e73c34105c47ccec15bdbef571a8c9fd0e49e12c04b71f4234eef8a47"></script>
-  <script src="../js/fa-data.js?v=1eafbba05f29a9931545a94c817df6594a6b9a131deb45d67a250ab111c5a68b"></script>
-  <script src="../js/i18n-data.js?v=5a1e24537af03fa34a7454afe6807f8b5ac6d38a293fc6178addc3b57cbb471f"></script>
+  <script src="../js/cards-data.js"></script>
+  <script src="../js/fa-data.js"></script>
+  <script src="../js/i18n-data.js"></script>
   <script src="./js/api.js"></script>
   <script src="./js/state.js"></script>
   <script src="./js/preview.js"></script>

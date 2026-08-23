@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 
 const ROOT = process.cwd();
 let failures = 0;
@@ -81,28 +80,6 @@ function checkNoFirstPartyModuleOrDefer(page) {
   );
 }
 
-function checkGeneratedDataScriptRevisions(page, expectedFiles) {
-  const scripts = scriptSources(page).filter((script) => script.firstParty);
-  const expectedSources = new Map(
-    expectedFiles.map((fileName) => [
-      `./js/${fileName}`,
-      `./js/${fileName}?v=${createHash('sha256')
-        .update(read(`js/${fileName}`), 'utf8')
-        .digest('hex')}`
-    ])
-  );
-  const queryScripts = scripts.filter((script) => script.src.includes('?'));
-  const unexpectedQueries = queryScripts.filter((script) => ![...expectedSources.values()].includes(script.src));
-  const missingOrDuplicated = [...expectedSources.entries()].filter(
-    ([, expectedSrc]) => scripts.filter((script) => script.src === expectedSrc).length !== 1
-  );
-  check(
-    `${page}: generated data scripts use exact SHA-256 revisions`,
-    unexpectedQueries.length === 0 && missingOrDuplicated.length === 0,
-    [...unexpectedQueries.map((script) => script.src), ...missingOrDuplicated.map(([file]) => file)].join(', ')
-  );
-}
-
 const packageJson = JSON.parse(read('package.json'));
 check(
   'package: check:governance script exists',
@@ -159,82 +136,6 @@ check(
 check(
   'package: admin gate lists the case-media editor spec',
   /tests\/quality\/admin-case-media\.spec\.mjs/.test(packageJson.scripts['test:admin'] || '')
-);
-check(
-  'package: admin gate lists the publication recovery spec',
-  /tests\/quality\/admin-publication\.spec\.mjs/.test(packageJson.scripts['test:admin'] || '')
-);
-{
-  const contentPublish = read('.github/workflows/content-publish.yml');
-  const batchRunner = read('scripts/content-publish-batch.mjs');
-  const deployBeget = read('.github/workflows/deploy-beget.yml');
-  const begetParity = read('scripts/verify-beget-parity.mjs');
-  check(
-    'content publish: workflow delegates complete source batches to the tested runner',
-    /fetch-depth: 0/.test(contentPublish) &&
-      /paths: \['content\/\*\*', 'assets\/\*\*'\]/.test(contentPublish) &&
-      /node scripts\/content-publish-batch\.mjs/.test(contentPublish) &&
-      /github-actions\[bot\]/.test(contentPublish) &&
-      /subject="\$\(git log -1 --pretty=%s\)"/.test(contentPublish) &&
-      /regen_subject_regex/.test(contentPublish) &&
-      /revert_subject_regex/.test(contentPublish) &&
-      !/git pull --rebase|git rebase/.test(contentPublish)
-  );
-  check(
-    'content publish: runner discovers strict trusted anchors and emits one marker per source',
-    /lastTrustedAnchor/.test(batchRunner) &&
-      /discoverUnresolvedSources/.test(batchRunner) &&
-      /--first-parent/.test(batchRunner) &&
-      /sha \+ '\^1'/.test(batchRunner) &&
-      /isTrustedTerminal\(item\)/.test(batchRunner) &&
-      /terminalSubject\('published', source\.sha\)/.test(batchRunner) &&
-      /terminalSubject\('reverted', source\.sha\)/.test(batchRunner)
-  );
-  check(
-    'content publish: runner rebuilds instead of rebasing and pushes the chain once',
-    /maxAttempts \|\| 3/.test(batchRunner) &&
-      /checkout', '--detach', base/.test(batchRunner) &&
-      /freshOriginMain/.test(batchRunner) &&
-      /push', 'origin', 'HEAD:main'/.test(batchRunner) &&
-      /GENERATED_ALLOWLIST/.test(batchRunner) &&
-      /'diff', '--cached', '--name-only'/.test(batchRunner) &&
-      !/\['add', '-A'\]/.test(batchRunner) &&
-      /GITHUB_ACTIONS/.test(batchRunner) &&
-      !/pull --rebase|\bgit rebase\b/.test(batchRunner)
-  );
-  check(
-    'deploy: both head and history settlement checks accept only old or full-source subjects',
-    (deployBeget.match(/regen_subject_regex/g) || []).length >= 2 &&
-      (deployBeget.match(/revert_subject_regex/g) || []).length >= 2 &&
-      deployBeget.includes('source:[0-9a-f]{40}') &&
-      deployBeget.includes('trusted_terminal') &&
-      deployBeget.includes('41898282+github-actions[bot]@users.noreply.github.com') &&
-      deployBeget.includes('! git diff --quiet "$sha^1" "$sha" -- content/ assets/') &&
-      deployBeget.includes('! git diff-tree --root --quiet --no-commit-id -r "$sha" -- content/ assets/')
-  );
-  check(
-    'deploy: Beget parity delegates normal-shell and immutable-payload verification to its executable fixture',
-    !deployBeget.includes('cache_bust=') &&
-      !deployBeget.includes('Cache-Control: no-cache') &&
-      deployBeget.includes('node scripts/verify-beget-parity.mjs --public-url "$PUBLIC_URL"') &&
-      deployBeget.includes('actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020') &&
-      deployBeget.includes('node-version: 22') &&
-      begetParity.includes("redirect: 'manual'") &&
-      begetParity.includes('FETCH_ATTEMPTS = 3') &&
-      begetParity.includes('FETCH_TIMEOUT_MS = 60_000') &&
-      begetParity.includes('return Buffer.from(await response.arrayBuffer())') &&
-      begetParity.includes('conflicting immutable revisions') &&
-      begetParity.includes('process.exitCode = await runBegetParityCli({ publicUrl });') &&
-      /node --test tests\/quality\/beget-parity\.test\.mjs/.test(packageJson.scripts['test:beget-parity'] || '') &&
-      /\btest:beget-parity\b/.test(packageJson.scripts['codex:ship'] || '')
-  );
-}
-check(
-  'package: codex:ship includes the content-publish batch fixture gate',
-  /\btest:content-publish-batch\b/.test(packageJson.scripts['codex:ship'] || '') &&
-    /node --test tests\/quality\/content-publish-batch\.test\.mjs/.test(
-      packageJson.scripts['test:content-publish-batch'] || ''
-    )
 );
 check(
   'package: codex:ship includes the case-media runtime gate',
@@ -308,7 +209,7 @@ checkScriptOrder('index.html', [
   /gsap\.min\.js$/,
   /ScrollTrigger/,
   /SplitText/,
-  /i18n-data\.js\?v=[0-9a-f]{64}$/,
+  /i18n-data\.js$/,
   /i18n\.js$/,
   /shared-runtime\.js$/,
   /main\.js$/,
@@ -317,11 +218,11 @@ checkScriptOrder('index.html', [
 checkScriptOrder('free-assets.html', [
   /design-mode\.js$/,
   /design-loader\.js$/,
-  /fa-data\.js\?v=[0-9a-f]{64}$/,
+  /fa-data\.js$/,
   /gsap\.min\.js$/,
   /ScrollTrigger/,
   /SplitText/,
-  /i18n-data\.js\?v=[0-9a-f]{64}$/,
+  /i18n-data\.js$/,
   /i18n\.js$/,
   /shared-runtime\.js$/,
   /main\.js$/,
@@ -331,10 +232,6 @@ checkScriptOrder('free-assets.html', [
 
 for (const page of ['index.html', 'free-assets.html']) {
   checkNoFirstPartyModuleOrDefer(page);
-  checkGeneratedDataScriptRevisions(
-    page,
-    page === 'index.html' ? ['i18n-data.js', 'cards-data.js'] : ['fa-data.js', 'i18n-data.js']
-  );
   const html = read(page);
   check(
     `${page}: Design Lab bootstrap is singular`,
@@ -378,7 +275,10 @@ check(
     read('js/design-loader.js')
   )
 );
-check('Design Lab: Hybrid mode is explicitly allowlisted', /valid\.hybrid\s*=\s*true/.test(read('js/design-mode.js')));
+check(
+  'Design Lab: Hybrid mode is explicitly allowlisted',
+  /valid\.hybrid\s*=\s*true/.test(read('js/design-mode.js'))
+);
 check(
   'Design Lab: Hybrid readiness is style-gated with bounded Original fallback',
   /data-design-runtime-state', 'pending'/.test(read('js/design-loader.js')) &&

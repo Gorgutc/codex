@@ -52,39 +52,15 @@
   // на пределе кнопка «добавить лист» уступает место объяснению, чтобы
   // владелец не упирался в ошибку публикации.
   const BLUEPRINTS_MAX_SHEETS = 8;
-  const mediaDomKeys = new WeakMap();
-  let mediaDomKeySequence = 0;
-
-  function mediaDomKey(block, idCounts, usedKeys) {
-    const validId = block && typeof block.id === 'string' && /^[a-z0-9-]+$/.test(block.id);
-    // Дубликат может быть показан до того, как валидатор остановит публикацию.
-    // Для него key по id зависит от позиции и ломает focus после reorder, поэтому
-    // только уникальный schema-safe id становится DOM-ключом.
-    let key = validId && idCounts.get(block.id) === 1 ? 'id-' + block.id : null;
-    if (!key) {
-      if (!block || typeof block !== 'object') key = 'invalid-' + ++mediaDomKeySequence;
-      else {
-        if (!mediaDomKeys.has(block)) mediaDomKeys.set(block, 'legacy-' + ++mediaDomKeySequence);
-        key = mediaDomKeys.get(block);
-      }
-    }
-    while (usedKeys.has(key)) key += '-' + ++mediaDomKeySequence;
-    usedKeys.add(key);
-    return key;
-  }
 
   const els = {
     topbar: document.getElementById('topbar'),
     app: document.getElementById('app'),
     mediaWarning: document.getElementById('media-warning'),
     draftIndicator: document.getElementById('draft-indicator'),
-    draftIndicatorText: document.getElementById('draft-indicator-text'),
-    reviewDraft: document.getElementById('review-draft-btn'),
-    discardDraft: document.getElementById('discard-draft-btn'),
     publishBtn: document.getElementById('publish-btn'),
     topbarUser: document.getElementById('topbar-user'),
-    toastStatus: document.getElementById('toast-status'),
-    toastErrors: document.getElementById('toast-errors'),
+    toasts: document.getElementById('toasts'),
     dialog: document.getElementById('publish-dialog'),
     publishFiles: document.getElementById('publish-files'),
     publishDesc: document.getElementById('publish-desc'),
@@ -95,7 +71,6 @@
   let publishing = false;
   let pendingErrors = [];
   let publishPlan = null; // план коммита, собранный перед открытием диалога
-  let pipelineCheck = null;
 
   const META_PAGE_LABELS = {
     index: 'Главная страница (index.html)',
@@ -166,7 +141,7 @@
     if (link) {
       node.appendChild(el('a', { href: link.href, target: '_blank', rel: 'noopener', text: link.label }));
     }
-    (type === 'error' ? els.toastErrors : els.toastStatus).appendChild(node);
+    els.toasts.appendChild(node);
     const ttl = type === 'error' || type === 'warn' ? 12000 : 6000;
     setTimeout(() => {
       node.remove();
@@ -252,7 +227,7 @@
       text: '↑'
     });
     if (opts.index === 0) up.disabled = true;
-    up.addEventListener('click', () => opts.onMove(opts.index, opts.index - 1, (opts.restoreKey || opts.focusKey) + '::up'));
+    up.addEventListener('click', () => opts.onMove(opts.index, opts.index - 1, opts.focusKey + '::up'));
     const down = el('button', {
       type: 'button',
       className: 'reorder-btn',
@@ -262,7 +237,7 @@
       text: '↓'
     });
     if (opts.index === opts.count - 1) down.disabled = true;
-    down.addEventListener('click', () => opts.onMove(opts.index, opts.index + 1, (opts.restoreKey || opts.focusKey) + '::down'));
+    down.addEventListener('click', () => opts.onMove(opts.index, opts.index + 1, opts.focusKey + '::down'));
     bar.appendChild(up);
     bar.appendChild(down);
     return bar;
@@ -279,8 +254,7 @@
       ghostClass: 'reorder-ghost',
       onEnd: (evt) => {
         if (evt.oldIndex === undefined || evt.newIndex === undefined || evt.oldIndex === evt.newIndex) return;
-        const mediaKey = evt.item && evt.item.getAttribute('data-media-key');
-        onMove(evt.oldIndex, evt.newIndex, mediaKey ? 'media::' + mediaKey : null);
+        onMove(evt.oldIndex, evt.newIndex, null);
       }
     });
   }
@@ -290,18 +264,6 @@
   // переезжает на парную (up↔down), а не падает на body.
   function focusReorder(focusKey) {
     if (!focusKey) return;
-    if (focusKey.indexOf('media::') === 0) {
-      const separator = focusKey.lastIndexOf('::');
-      const hasDirection = separator >= 'media::'.length && /^(up|down)$/.test(focusKey.slice(separator + 2));
-      const key = hasDirection ? focusKey.slice('media::'.length, separator) : focusKey.slice('media::'.length);
-      const direction = hasDirection ? focusKey.slice(separator + 2) : '';
-      const moved = document.querySelector('[data-media-key="' + key.replace(/"/g, '\\"') + '"]');
-      const target = moved && moved.querySelector(direction ? '[data-reorder$="::' + direction + '"]:not([disabled])' : '[data-reorder]:not([disabled])');
-      const fallback =
-        moved && direction ? moved.querySelector('[data-reorder$="::' + (direction === 'up' ? 'down' : 'up') + '"]:not([disabled])') : null;
-      if (target || fallback) (target || fallback).focus();
-      return;
-    }
     const find = (key) => document.querySelector('[data-reorder="' + key.replace(/"/g, '\\"') + '"]');
     const node = find(focusKey);
     if (node && !node.disabled) {
@@ -326,10 +288,7 @@
 
   function langInput(filePath, dotPath, opts) {
     const multiline = Boolean(opts && opts.multiline);
-    const input = el(multiline ? 'textarea' : 'input', {
-      id: controlId(filePath, dotPath),
-      'data-field': filePath + '::' + dotPath
-    });
+    const input = el(multiline ? 'textarea' : 'input', { 'data-field': filePath + '::' + dotPath });
     if (!multiline) input.setAttribute('type', 'text');
     const value = State.getValue(filePath, dotPath);
     input.value = value === undefined || value === null ? '' : String(value);
@@ -340,54 +299,20 @@
     return input;
   }
 
-  function controlId(filePath, dotPath) {
-    return ('admin-' + filePath + '-' + dotPath).replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
-  }
-
   function pairField(filePath, label, enPath, ruPath, opts) {
     const labelClass = opts && opts.mono ? 'pair__label key-label' : 'pair__label';
-    const enId = controlId(filePath, enPath);
-    const ruId = controlId(filePath, ruPath);
-    const groupId = controlId(filePath, enPath + '-label');
-    const enLangId = enId + '-language';
-    const ruLangId = ruId + '-language';
-    const enInput = langInput(filePath, enPath, opts);
-    const ruInput = langInput(filePath, ruPath, opts);
-    enInput.setAttribute('aria-labelledby', groupId + ' ' + enLangId);
-    ruInput.setAttribute('aria-labelledby', groupId + ' ' + ruLangId);
     return el('div', { className: 'pair' }, [
-      el('div', { className: labelClass, id: groupId, text: label }),
+      el('div', { className: labelClass, text: label }),
       el('div', { className: 'pair__cols' }, [
         el('div', { className: 'pair__col' }, [
-          el('label', { className: 'lang-tag', id: enLangId, for: enId, text: 'EN' }),
-          enInput
+          el('span', { className: 'lang-tag', text: 'EN' }),
+          langInput(filePath, enPath, opts)
         ]),
         el('div', { className: 'pair__col' }, [
-          el('label', { className: 'lang-tag', id: ruLangId, for: ruId, text: 'RU' }),
-          ruInput
+          el('span', { className: 'lang-tag', text: 'RU' }),
+          langInput(filePath, ruPath, opts)
         ])
       ])
-    ]);
-  }
-
-  function textField(filePath, label, dotPath, opts) {
-    const inputId = (opts && opts.id) || controlId(filePath, dotPath);
-    const input = el(opts && opts.multiline ? 'textarea' : 'input', {
-      type: opts && opts.multiline ? undefined : 'text',
-      id: inputId,
-      rows: opts && opts.multiline ? String(opts.rows || 3) : undefined,
-      'data-field': filePath + '::' + dotPath,
-      'aria-label': label
-    });
-    const value = State.getValue(filePath, dotPath);
-    input.value = value === undefined || value === null ? '' : String(value);
-    input.addEventListener('input', () => {
-      State.setValue(filePath, dotPath, input.value);
-      clearFieldError(input);
-    });
-    return el('div', { className: 'pair' }, [
-      el('label', { className: 'pair__label', for: inputId, text: label }),
-      el('div', { className: 'pair__col' }, [input])
     ]);
   }
 
@@ -439,7 +364,6 @@
     const pathLine = el('p', { className: 'drop-zone-path' });
     const input = el('input', {
       type: 'file',
-      id: controlId(opts.filePath, opts.dotPath + '-upload'),
       className: 'drop-zone__input',
       accept: rule.accept,
       'aria-label': 'Заменить файл: ' + (opts.hint || rule.formatLabel),
@@ -453,8 +377,7 @@
       // базовое имя → путь); opts.currentPath — уже готовый site-путь.
       let effective;
       if (record) effective = resolveValue(record.value);
-      else if (draftValue !== undefined && draftValue !== null && draftValue !== '')
-        effective = resolveValue(draftValue);
+      else if (draftValue !== undefined && draftValue !== null && draftValue !== '') effective = resolveValue(draftValue);
       else effective = opts.currentPath || null;
       const url = record ? record.objectURL : effective ? toAdminAssetPath(effective) : null;
 
@@ -543,7 +466,7 @@
 
     render();
     const wrap = el('div', { className: 'drop-zone-field' });
-    wrap.appendChild(el('label', { for: input.id, text: opts.label || 'Файл блока' }));
+    if (opts.label) wrap.appendChild(el('label', { text: opts.label }));
     wrap.appendChild(zone);
     if (opts.hint) wrap.appendChild(el('p', { className: 'hint', text: opts.hint }));
     wrap.appendChild(pathLine);
@@ -618,37 +541,10 @@
     const user = API.getUser();
     els.topbar.hidden = !token;
     const dirty = State.isDirty();
-    const publicationLocked = State.isPublicationLocked();
     els.draftIndicator.hidden = !dirty;
-    const draftStatus = State.getDraftStatus();
-    els.mediaWarning.hidden = draftStatus.memoryUploads === 0;
-    els.reviewDraft.hidden = !dirty;
-    els.discardDraft.hidden = !dirty || publicationLocked;
-    if (els.draftIndicatorText) {
-      els.draftIndicatorText.textContent = draftStatus.persistenceError
-        ? 'JSON-правки пока только в памяти этой вкладки — sessionStorage недоступен' +
-          (draftStatus.memoryUploads ? ' · файлов в памяти: ' + draftStatus.memoryUploads : '')
-        : draftStatus.savedAt
-          ? 'JSON-правки сохранены в этой вкладке · ' + new Date(draftStatus.savedAt).toLocaleTimeString('ru-RU') +
-            (draftStatus.memoryUploads ? ' · файлов в памяти: ' + draftStatus.memoryUploads : '')
-          : draftStatus.persistedAtUnknown
-            ? 'JSON-правки сохранены ранее в этой вкладке · время неизвестно' +
-              (draftStatus.memoryUploads ? ' · файлов в памяти: ' + draftStatus.memoryUploads : '')
-          : 'JSON-правки сохраняются в этой вкладке…' +
-          (draftStatus.memoryUploads ? ' · файлов в памяти: ' + draftStatus.memoryUploads : '');
-    }
-    const publication = State.getPublication();
-    const reconciliationPending = Boolean(
-      publication && publication.error && ['published', 'reverted'].indexOf(publication.phase) !== -1
-    );
-    els.publishBtn.disabled = !dirty || publishing || publicationLocked || !token;
-    els.publishBtn.textContent = publishing
-      ? 'Публикуем…'
-      : reconciliationPending
-        ? 'Требуется локальная сверка'
-        : publicationLocked
-          ? 'Публикация ожидает проверки'
-          : 'Опубликовать';
+    els.mediaWarning.hidden = State.mediaPendingCount() === 0;
+    els.publishBtn.disabled = !dirty || publishing || !token;
+    els.publishBtn.textContent = publishing ? 'Публикуем…' : 'Опубликовать';
     els.topbarUser.replaceChildren();
     if (token && user) {
       if (user.avatarUrl) {
@@ -656,305 +552,16 @@
       }
       els.topbarUser.appendChild(el('span', { className: 'topbar__login', text: user.login }));
       els.topbarUser.appendChild(
-        el('button', {
-          type: 'button',
-          className: 'btn btn--ghost',
-          id: 'logout-btn',
-          text: 'Выйти',
-          onclick: onLogout
-        })
+        el('button', { type: 'button', className: 'btn btn--ghost', id: 'logout-btn', text: 'Выйти', onclick: onLogout })
       );
     }
   }
 
   function setActiveNav(view) {
-    const requested = view === 'case' ? 'cases' : view;
-    const knownViews = Array.from(els.topbar.querySelectorAll('[data-nav]')).map((link) => link.getAttribute('data-nav'));
-    const active = knownViews.indexOf(requested) === -1 ? 'cases' : requested;
+    const active = view === 'case' ? 'cases' : view;
     for (const link of els.topbar.querySelectorAll('[data-nav]')) {
-      const isActive = link.getAttribute('data-nav') === active;
-      link.classList.toggle('is-active', isActive);
-      if (isActive) link.setAttribute('aria-current', 'page');
-      else link.removeAttribute('aria-current');
+      link.classList.toggle('is-active', link.getAttribute('data-nav') === active);
     }
-  }
-
-  function publicationTimestamp(value) {
-    if (!value) return '—';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('ru-RU');
-  }
-
-  function hasTrustedTerminalVerdict(record) {
-    return Boolean(record && record.outcome && ['published', 'reverted'].indexOf(record.outcome.status) !== -1);
-  }
-
-  async function recordPublicationPollFailure(error) {
-    if (hasTrustedTerminalVerdict(State.getPublication())) return State.getPublication();
-    return State.settlePublication({
-      status: 'failed',
-      message: error && error.message ? error.message : 'Не удалось проверить публикацию.'
-    });
-  }
-
-  function reportReconciliationFailure(error) {
-    toast(
-      'Не удалось завершить локальную сверку: ' +
-        (error && error.message ? error.message : 'повторите попытку из раздела «Публикация».'),
-      'error'
-    );
-  }
-
-  async function recheckPublication() {
-    if (pipelineCheck) return pipelineCheck;
-    let record = State.getPublication();
-    if (record && record.phase === 'reconciling') {
-      pipelineCheck = (async () => {
-        try {
-          await State.resumePublicationReconciliation();
-        } catch (error) {
-          // Route() starts this recovery with `void`: surface a durable-recovery
-          // failure instead of leaving an unhandled rejection. State keeps the
-          // reconciling ledger locked, so the owner can retry from Publication.
-          toast(
-            'Не удалось продолжить локальную сверку: ' +
-              (error && error.message ? error.message : 'повторите попытку из раздела «Публикация».'),
-            'error'
-          );
-        } finally {
-          pipelineCheck = null;
-          updateChrome();
-          if (window.location.hash === '#/publication') renderPublication();
-        }
-      })();
-      return pipelineCheck;
-    }
-    if (record && record.phase === 'submitting' && record.candidate) {
-      if (pipelineCheck) return pipelineCheck;
-      pipelineCheck = (async () => {
-        try {
-          try {
-            await State.resolvePublicationCandidate();
-          } catch (error) {
-            // Candidate resolution can confirm the source and then fail while
-            // persisting its source ledger. Keep submitting+candidate locked:
-            // converting that confirmed source to `failed` would permit a
-            // duplicate Git write.
-            toast('Не удалось привязать source-коммит: ' + (error && error.message ? error.message : error), 'error');
-            return;
-          }
-          record = State.getPublication();
-          if (record && record.source && record.phase === 'awaiting_pipeline') {
-            let outcome;
-            try {
-              outcome = await API.waitForPipeline(record.source.sha, record.source.date);
-            } catch (error) {
-              await recordPublicationPollFailure(error);
-              toast('Не удалось проверить публикацию: ' + (error && error.message ? error.message : error), 'error');
-              return;
-            }
-            try {
-              await State.settlePublication(outcome);
-            } catch (error) {
-              reportReconciliationFailure(error);
-            }
-          }
-        } finally {
-          pipelineCheck = null;
-          updateChrome();
-          if (window.location.hash === '#/publication') renderPublication();
-        }
-      })();
-      return pipelineCheck;
-    }
-    if (!record || !record.source || ['awaiting_pipeline', 'timed_out'].indexOf(record.phase) === -1) return null;
-    pipelineCheck = (async () => {
-      try {
-        let outcome;
-        try {
-          outcome = await API.waitForPipeline(record.source.sha, record.source.date);
-        } catch (error) {
-          await recordPublicationPollFailure(error);
-          toast('Не удалось проверить публикацию: ' + (error && error.message ? error.message : error), 'error');
-          return;
-        }
-        let settled;
-        try {
-          settled = await State.settlePublication(outcome);
-        } catch (error) {
-          reportReconciliationFailure(error);
-          return;
-        }
-        if (outcome.status === 'published') {
-          toast(
-            settled.error
-              ? 'Конвейер подтвердил публикацию, но локальная сверка требует внимания: ' + settled.error
-              : 'Опубликовано: конвейер подтвердил публикацию.',
-            settled.error ? 'warn' : 'success',
-            { href: '../', label: 'Открыть production' }
-          );
-        } else if (outcome.status === 'reverted') {
-          toast(
-            settled.error
-              ? 'Конвейер откатил публикацию, но восстановление черновика заблокировано: ' + settled.error
-              : 'Конвейер откатил публикацию. Черновик восстановлен.',
-            settled.error ? 'error' : 'warn',
-            { href: outcome.url, label: 'Открыть детали в GitHub' }
-          );
-        } else {
-          toast('Конвейер пока не прислал вердикт. Публикация заблокирована до повторной проверки.', 'warn', {
-            href: outcome.url,
-            label: 'Открыть GitHub Actions'
-          });
-        }
-      } finally {
-        pipelineCheck = null;
-        updateChrome();
-        if (window.location.hash === '#/publication') renderPublication();
-      }
-    })();
-    return pipelineCheck;
-  }
-
-  function renderPublication() {
-    const record = State.getPublication();
-    if (!record) {
-      els.app.replaceChildren(
-        el('section', {}, [
-          el('h1', { text: 'Публикация' }),
-          el('p', { className: 'empty-note', text: 'Нет сохранённых записей публикации.' })
-        ])
-      );
-      return;
-    }
-    const outcome = record.outcome || {};
-    const sourceUrl =
-      record.source && record.source.sha
-        ? 'https://github.com/' + API.OWNER + '/' + API.REPO + '/commit/' + record.source.sha
-        : null;
-    const reason =
-      record.error ||
-      (record.phase === 'reverted'
-        ? 'Конвейер откатил source после неуспешной проверки. Восстановите черновик и внесите исправления.'
-        : outcome.message || '—');
-    const rows = [
-      ['Статус', record.phase],
-      ['Источник', record.source && record.source.sha ? record.source.sha : 'source SHA не был привязан'],
-      ['Создана', publicationTimestamp(record.createdAt)],
-      ['Обновлена', publicationTimestamp(record.updatedAt)],
-      ['Коммит конвейера', outcome.sha || '—'],
-      ['Причина', reason]
-    ];
-    const list = el('dl', { className: 'publication-record__details' });
-    rows.forEach(([term, value]) => {
-      list.appendChild(el('dt', { text: term }));
-      const detail = el('dd', { text: value });
-      if (term === 'Источник' && sourceUrl) {
-        detail.replaceChildren(el('a', { href: sourceUrl, target: '_blank', rel: 'noopener', text: value }));
-      }
-      if (term === 'Коммит конвейера' && outcome.url) {
-        detail.replaceChildren(el('a', { href: outcome.url, target: '_blank', rel: 'noopener', text: value }));
-      }
-      list.appendChild(detail);
-    });
-    const actions = el('div', { className: 'publication-record__actions' });
-    if (
-      ['awaiting_pipeline', 'timed_out', 'reconciling'].indexOf(record.phase) !== -1 ||
-      (record.phase === 'submitting' && record.candidate)
-    ) {
-      actions.appendChild(
-        el('button', {
-          type: 'button',
-          className: 'btn btn--primary',
-          text: 'Проверить статус',
-          onclick: recheckPublication
-        })
-      );
-    }
-    if (record.phase === 'reverted') {
-      actions.appendChild(
-        el('button', {
-          type: 'button',
-          className: 'btn',
-          text: 'Восстановить черновик',
-          onclick: async () => {
-            try {
-              const restored = await State.restorePublicationSnapshot();
-              toast(
-                restored.reupload.length
-                  ? 'Черновик восстановлен. Загрузите заново: ' + restored.reupload.join(', ')
-                  : 'Черновик восстановлен; медиа этой вкладки сохранены.',
-                'warn'
-              );
-              renderPublication();
-            } catch (error) {
-              toast(error.message || String(error), 'error');
-            }
-          }
-        })
-      );
-    }
-    if (record.error && ['published', 'reverted'].indexOf(record.phase) !== -1) {
-      actions.appendChild(
-        el('button', {
-          type: 'button',
-          className: 'btn',
-          text: 'Повторить локальную сверку',
-          onclick: async () => {
-            try {
-              const reconciled = await State.retryPublicationReconciliation();
-              toast(reconciled.error || 'Локальная сверка завершена.', reconciled.error ? 'error' : 'success');
-              renderPublication();
-            } catch (error) {
-              toast(error.message || String(error), 'error');
-            }
-          }
-        })
-      );
-    }
-    if (
-      ['published', 'reverted', 'failed'].indexOf(record.phase) !== -1 &&
-      !(record.error && ['published', 'reverted'].indexOf(record.phase) !== -1)
-    ) {
-      actions.appendChild(
-        el('button', {
-          type: 'button',
-          className: 'btn btn--ghost',
-          text: 'Скрыть завершённую запись',
-          onclick: () => {
-            State.dismissPublication();
-            renderPublication();
-          }
-        })
-      );
-    }
-    actions.appendChild(
-      el('a', {
-        className: 'btn btn--ghost',
-        href: API.ACTIONS_URL,
-        target: '_blank',
-        rel: 'noopener',
-        text: 'Открыть GitHub Actions'
-      })
-    );
-    if (record.phase === 'published')
-      actions.appendChild(el('a', { className: 'btn', href: '../', text: 'Открыть production' }));
-    els.app.replaceChildren(
-      el('section', { className: 'publication-record' }, [
-        el('div', { className: 'view-head' }, [
-          el('h1', { text: 'Публикация' }),
-          el('span', { 'data-publication-phase': '', className: 'badge badge--' + record.phase, text: record.phase })
-        ]),
-        list,
-        record.snapshot.media.length
-          ? el('p', {
-              className: 'hint',
-              text: 'Медиа хранится только в этой вкладке; после перезагрузки его нужно загрузить заново.'
-            })
-          : null,
-        actions
-      ])
-    );
   }
 
   /* ── вход ────────────────────────────────────────────────────────── */
@@ -1151,9 +758,7 @@
       const toggleInput = el('input', {
         type: 'checkbox',
         'data-case-toggle': item.id,
-        'aria-label': enabledFlag
-          ? 'Кейс «' + data.card.title.en + '» включён'
-          : 'Кейс «' + data.card.title.en + '» скрыт'
+        'aria-label': enabledFlag ? 'Кейс «' + data.card.title.en + '» включён' : 'Кейс «' + data.card.title.en + '» скрыт'
       });
       toggleInput.checked = enabledFlag;
       toggleInput.addEventListener('change', () => toggleCase(item.id, toggleInput.checked, toggleInput));
@@ -1175,12 +780,7 @@
               })
             : null,
           el('a', { className: 'case-row__link', href: '#/case/' + encodeURIComponent(item.id) }, [
-            el('img', {
-              className: 'case-row__thumb',
-              src: toAdminAssetPath(data.card.thumb),
-              alt: '',
-              loading: 'lazy'
-            }),
+            el('img', { className: 'case-row__thumb', src: toAdminAssetPath(data.card.thumb), alt: '', loading: 'lazy' }),
             el('div', {}, [
               el('p', { className: 'case-row__title', text: data.card.title.en }),
               el('span', { className: 'case-row__id', text: item.id })
@@ -1192,11 +792,10 @@
             !catEnabled ? el('span', { className: 'badge badge--off', text: 'категория скрыта' }) : null,
             el('span', { text: labels[data.category] || data.category }),
             el('span', { text: data.year }),
-            el(
-              'label',
-              { className: 'switch', title: enabledFlag ? 'Скрыть кейс с сайта' : 'Показать кейс на сайте' },
-              [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]
-            )
+            el('label', { className: 'switch', title: enabledFlag ? 'Скрыть кейс с сайта' : 'Показать кейс на сайте' }, [
+              toggleInput,
+              el('span', { className: 'switch__track', 'aria-hidden': 'true' })
+            ])
           ])
         ]
       );
@@ -1293,10 +892,7 @@
     function toggleCategory(index, next, input) {
       const filter = draftFilters()[index];
       if (!next && visibleCountWithout(filter.key) === 0) {
-        toast(
-          'Нельзя выключить категорию «' + filter.label + '» — на сайте не останется ни одного видимого кейса.',
-          'error'
-        );
+        toast('Нельзя выключить категорию «' + filter.label + '» — на сайте не останется ни одного видимого кейса.', 'error');
         input.checked = true;
         return;
       }
@@ -1313,34 +909,24 @@
         const toggleInput = el('input', {
           type: 'checkbox',
           'data-category-toggle': filter.key,
-          'aria-label': enabled
-            ? 'Категория «' + filter.label + '» включена'
-            : 'Категория «' + filter.label + '» скрыта'
+          'aria-label': enabled ? 'Категория «' + filter.label + '» включена' : 'Категория «' + filter.label + '» скрыта'
         });
         toggleInput.checked = enabled;
         toggleInput.addEventListener('change', () => toggleCategory(index, toggleInput.checked, toggleInput));
         list.appendChild(
-          el(
-            'li',
-            { className: 'category-row' + (enabled ? '' : ' category-row--off'), 'data-category-row': filter.key },
-            [
-              el('div', { className: 'category-row__info' }, [
-                el('p', { className: 'category-row__label', text: filter.label }),
-                el('span', { className: 'category-row__id', text: filter.key + ' · кейсов: ' + ids.length })
-              ]),
-              el('div', { className: 'case-row__meta' }, [
-                !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
-                el(
-                  'label',
-                  {
-                    className: 'switch',
-                    title: enabled ? 'Скрыть категорию и все её кейсы с сайта' : 'Показать категорию на сайте'
-                  },
-                  [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]
-                )
-              ])
-            ]
-          )
+          el('li', { className: 'category-row' + (enabled ? '' : ' category-row--off'), 'data-category-row': filter.key }, [
+            el('div', { className: 'category-row__info' }, [
+              el('p', { className: 'category-row__label', text: filter.label }),
+              el('span', { className: 'category-row__id', text: filter.key + ' · кейсов: ' + ids.length })
+            ]),
+            el('div', { className: 'case-row__meta' }, [
+              !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
+              el('label', {
+                className: 'switch',
+                title: enabled ? 'Скрыть категорию и все её кейсы с сайта' : 'Показать категорию на сайте'
+              }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })])
+            ])
+          ])
         );
       });
     }
@@ -1448,10 +1034,7 @@
     function toggleCategory(categoryIndex, next, input) {
       const category = faCategories()[categoryIndex];
       if (!next && faVisibleTotal(categoryIndex) === 0) {
-        toast(
-          'Нельзя выключить категорию «' + category.key + '» — на сайте не останется ни одного видимого ассета.',
-          'error'
-        );
+        toast('Нельзя выключить категорию «' + category.key + '» — на сайте не останется ни одного видимого ассета.', 'error');
         input.checked = true;
         return;
       }
@@ -1470,15 +1053,10 @@
         'aria-label': enabledFlag ? 'Ассет «' + item.title + '» включён' : 'Ассет «' + item.title + '» скрыт'
       });
       toggleInput.checked = enabledFlag;
-      toggleInput.addEventListener('change', () =>
-        toggleItem(categoryIndex, itemIndex, toggleInput.checked, toggleInput)
-      );
+      toggleInput.addEventListener('change', () => toggleItem(categoryIndex, itemIndex, toggleInput.checked, toggleInput));
       return el(
         'li',
-        {
-          className: 'case-row fa-item-row' + (!enabledFlag || !catEnabled ? ' case-row--off' : ''),
-          'data-fa-item': item.id
-        },
+        { className: 'case-row fa-item-row' + (!enabledFlag || !catEnabled ? ' case-row--off' : ''), 'data-fa-item': item.id },
         [
           reorderControls({
             label: 'Ассет «' + item.title + '»',
@@ -1497,11 +1075,10 @@
             !enabledFlag ? el('span', { className: 'badge badge--off', text: 'скрыто' }) : null,
             !catEnabled ? el('span', { className: 'badge badge--off', text: 'категория скрыта' }) : null,
             el('span', { text: item.badge }),
-            el(
-              'label',
-              { className: 'switch', title: enabledFlag ? 'Скрыть ассет с сайта' : 'Показать ассет на сайте' },
-              [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]
-            )
+            el('label', { className: 'switch', title: enabledFlag ? 'Скрыть ассет с сайта' : 'Показать ассет на сайте' }, [
+              toggleInput,
+              el('span', { className: 'switch__track', 'aria-hidden': 'true' })
+            ])
           ])
         ]
       );
@@ -1522,9 +1099,7 @@
       toggleInput.addEventListener('change', () => toggleCategory(categoryIndex, toggleInput.checked, toggleInput));
 
       const itemsList = el('ul', { className: 'fa-cat__items', hidden: collapsed });
-      items.forEach((item, itemIndex) =>
-        itemsList.appendChild(itemRow(category, categoryIndex, item, itemIndex, items.length))
-      );
+      items.forEach((item, itemIndex) => itemsList.appendChild(itemRow(category, categoryIndex, item, itemIndex, items.length)));
       makeSortable(itemsList, '.fa-item-row', (from, to) => moveItem(categoryIndex, from, to, null));
 
       const collapseBtn = el(
@@ -1540,11 +1115,7 @@
           el('span', { className: 'fa-cat__label', text: (items[0] && items[0].cat) || category.key }),
           el('span', {
             className: 'fa-cat__count',
-            text:
-              category.key +
-              ' · ассетов: ' +
-              items.length +
-              (visibleItems !== items.length ? ' · видимых: ' + visibleItems : '')
+            text: category.key + ' · ассетов: ' + items.length + (visibleItems !== items.length ? ' · видимых: ' + visibleItems : '')
           })
         ]
       );
@@ -1554,34 +1125,26 @@
         renderRows();
       });
 
-      return el(
-        'section',
-        { className: 'fa-cat' + (enabled ? '' : ' fa-cat--off'), 'data-fa-category': category.key },
-        [
-          el('div', { className: 'fa-cat__head' }, [
-            reorderControls({
-              label: 'Категория «' + category.key + '»',
-              index: categoryIndex,
-              count,
-              focusKey: 'fa-cat::' + category.key,
-              onMove: moveCategory
-            }),
-            collapseBtn,
-            el('div', { className: 'case-row__meta' }, [
-              !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
-              el(
-                'label',
-                {
-                  className: 'switch',
-                  title: enabled ? 'Скрыть категорию и все её ассеты с сайта' : 'Показать категорию на сайте'
-                },
-                [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]
-              )
-            ])
-          ]),
-          itemsList
-        ]
-      );
+      return el('section', { className: 'fa-cat' + (enabled ? '' : ' fa-cat--off'), 'data-fa-category': category.key }, [
+        el('div', { className: 'fa-cat__head' }, [
+          reorderControls({
+            label: 'Категория «' + category.key + '»',
+            index: categoryIndex,
+            count,
+            focusKey: 'fa-cat::' + category.key,
+            onMove: moveCategory
+          }),
+          collapseBtn,
+          el('div', { className: 'case-row__meta' }, [
+            !enabled ? el('span', { className: 'badge badge--off', text: 'скрыта' }) : null,
+            el('label', {
+              className: 'switch',
+              title: enabled ? 'Скрыть категорию и все её ассеты с сайта' : 'Показать категорию на сайте'
+            }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })])
+          ])
+        ]),
+        itemsList
+      ]);
     }
 
     // Бейдж «черновик» в шапке должен отражать ЖИВОЕ состояние черновика:
@@ -1645,10 +1208,9 @@
   }
 
   function faTextField(label, dotPath, opts) {
-    const input = langInput(FA_PATH, dotPath, opts);
     const wrap = el('div', { className: 'pair' }, [
-      el('label', { className: 'pair__label', for: input.id, text: label }),
-      el('div', { className: 'pair__col' }, [input])
+      el('div', { className: 'pair__label', text: label }),
+      el('div', { className: 'pair__col' }, [langInput(FA_PATH, dotPath, opts)])
     ]);
     if (opts && opts.hint) wrap.appendChild(el('p', { className: 'hint', text: opts.hint }));
     return wrap;
@@ -1667,7 +1229,7 @@
     input.addEventListener('input', paint);
     paint();
     return el('div', { className: 'pair' }, [
-      el('label', { className: 'pair__label', for: input.id, text: 'Фон превью (CSS-градиент)' }),
+      el('div', { className: 'pair__label', text: 'Фон превью (CSS-градиент)' }),
       el('div', { className: 'pair__col fa-bg-row' }, [input, swatch]),
       el('p', {
         className: 'hint',
@@ -1718,13 +1280,7 @@
         });
         rows.appendChild(
           el('div', { className: 'fa-contents__row' }, [
-            reorderControls({
-              label: 'Строка ' + (i + 1),
-              index: i,
-              count: current.length,
-              focusKey: 'fa-contents::' + i,
-              onMove: moveRow
-            }),
+            reorderControls({ label: 'Строка ' + (i + 1), index: i, count: current.length, focusKey: 'fa-contents::' + i, onMove: moveRow }),
             input,
             removeBtn
           ])
@@ -1826,9 +1382,7 @@
               // печатающего владельца лишним перестроением редактора.
               if (!res.ok) {
                 const message =
-                  'Файла ' +
-                  checkPath +
-                  ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+                  'Файла ' + checkPath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
                 if (faMediaErrors.get(errorKey) !== message) {
                   faMediaErrors.set(errorKey, message);
                   rerender();
@@ -1849,10 +1403,7 @@
 
     const section = el('div', { className: 'fa-media-slot', 'data-field': FA_PATH + '::' + dot }, [
       el('label', { className: 'fa-media-toggle' }, [
-        el('span', { className: 'switch' }, [
-          toggleInput,
-          el('span', { className: 'switch__track', 'aria-hidden': 'true' })
-        ]),
+        el('span', { className: 'switch' }, [toggleInput, el('span', { className: 'switch__track', 'aria-hidden': 'true' })]),
         el('span', { text: opts.toggleLabel })
       ])
     ]);
@@ -1932,50 +1483,35 @@
       ])
     );
 
-    sections.push(
-      el('section', { className: 'editor-section' }, [el('h2', { text: 'Оформление' }), faBgField(dotBase)])
-    );
+    sections.push(el('section', { className: 'editor-section' }, [el('h2', { text: 'Оформление' }), faBgField(dotBase)]));
 
     sections.push(
       el('section', { className: 'editor-section' }, [
         el('h2', { text: 'Медиа карточки' }),
-        faMediaSection(
-          id,
-          dotBase,
-          'model',
-          {
-            kind: 'model',
-            preview: 'file',
-            // В JSON у модели по-прежнему уходит БАЗОВОЕ имя (конвенция
-            // resolveAssetMedia), поэтому valueMode остаётся 'baseName'.
-            valueMode: 'baseName',
-            toggleLabel: '3D-превью (вращающаяся модель)',
-            zoneLabel: 'GLB-файл 3D-превью',
-            hint: modelUploadHint(' · файл получит новое имя вида ' + id + '-xxxxxxxx.glb'),
-            offHint: '3D-превью выключено (model: null) — карточка покажет постер или фон.',
-            resolveValue: State.faSlotPath.bind(null, 'model')
-          },
-          rerender
-        ),
+        faMediaSection(id, dotBase, 'model', {
+          kind: 'model',
+          preview: 'file',
+          // В JSON у модели по-прежнему уходит БАЗОВОЕ имя (конвенция
+          // resolveAssetMedia), поэтому valueMode остаётся 'baseName'.
+          valueMode: 'baseName',
+          toggleLabel: '3D-превью (вращающаяся модель)',
+          zoneLabel: 'GLB-файл 3D-превью',
+          hint: modelUploadHint(' · файл получит новое имя вида ' + id + '-xxxxxxxx.glb'),
+          offHint: '3D-превью выключено (model: null) — карточка покажет постер или фон.',
+          resolveValue: State.faSlotPath.bind(null, 'model')
+        }, rerender),
         // FA-POSTER-01: постер принимает и растр (фото-рендер продукта вместо
         // вращающейся 3D-модели), поэтому valueMode здесь НЕ 'baseName': в JSON
         // уходит полный путь с фактическим расширением файла.
-        faMediaSection(
-          id,
-          dotBase,
-          'thumb',
-          {
-            kind: 'faThumb',
-            preview: 'image',
-            toggleLabel: 'Постер (картинка карточки)',
-            zoneLabel: 'Постер карточки',
-            hint:
-              'SVG, PNG, JPG или WebP · 800×600 (4:3) · до 200 КБ · файл получит новое имя вида ' + id + '-xxxxxxxx',
-            offHint: 'Постер выключен (thumb: null) — до загрузки 3D карточка покажет только фон.',
-            resolveValue: State.faSlotPath.bind(null, 'thumb')
-          },
-          rerender
-        )
+        faMediaSection(id, dotBase, 'thumb', {
+          kind: 'faThumb',
+          preview: 'image',
+          toggleLabel: 'Постер (картинка карточки)',
+          zoneLabel: 'Постер карточки',
+          hint: 'SVG, PNG, JPG или WebP · 800×600 (4:3) · до 200 КБ · файл получит новое имя вида ' + id + '-xxxxxxxx',
+          offHint: 'Постер выключен (thumb: null) — до загрузки 3D карточка покажет только фон.',
+          resolveValue: State.faSlotPath.bind(null, 'thumb')
+        }, rerender)
       ])
     );
 
@@ -1997,12 +1533,10 @@
 
   /* ── редактор кейса ──────────────────────────────────────────────── */
 
-  function readOnlyTech(path, dotPath, label, value, hint) {
-    const inputId = controlId(path, dotPath);
+  function readOnlyTech(label, value, hint) {
     return el('div', {}, [
-      el('label', { for: inputId, text: label }),
+      el('label', { text: label }),
       el('input', {
-        id: inputId,
         type: 'text',
         value,
         disabled: true,
@@ -2016,12 +1550,8 @@
   // labelText (слайс B): человекочитаемая подпись для слотов иллюстраций;
   // motion-поля по-прежнему подписаны именем поля.
   function enumSelect(path, dotBase, field, current, fallback, options, labelText) {
-    const selectId = controlId(path, dotBase + '.' + field);
-    const select = el(
-      'select',
-      { id: selectId, 'data-field': path + '::' + dotBase + '.' + field },
-      options.map((o) => el('option', { value: o.value, text: o.text }))
-    );
+    const select = el('select', { 'data-field': path + '::' + dotBase + '.' + field },
+      options.map((o) => el('option', { value: o.value, text: o.text })));
     // Легаси/ручной out-of-enum значение: добавляем его опцией, чтобы <select> не
     // показывал молча первый вариант (UI-vs-state ложь) — владелец видит реальное
     // значение, валидатор его пометит. На чистом контенте эта ветка спит.
@@ -2033,15 +1563,14 @@
       State.setValue(path, dotBase + '.' + field, select.value);
       clearFieldError(select);
     });
-    return el('div', {}, [el('label', { for: selectId, text: labelText || field }), select]);
+    return el('div', {}, [el('label', { text: labelText || field }), select]);
   }
 
   /* ── motion-блок: источник local/vimeo, файлы, Vimeo ID ──────────── */
 
   function vimeoIdField(path, dotBase) {
     const wrap = el('div', {});
-    const inputId = controlId(path, dotBase + '.vimeoId');
-    const input = el('input', { id: inputId, type: 'text', 'data-field': path + '::' + dotBase + '.vimeoId' });
+    const input = el('input', { type: 'text', 'data-field': path + '::' + dotBase + '.vimeoId' });
     const confirmLine = el('p', { className: 'vimeo-confirm', hidden: true });
     const current = State.getValue(path, dotBase + '.vimeoId');
     input.value = current === undefined || current === null ? '' : String(current);
@@ -2083,14 +1612,11 @@
     });
     showParsed(input.value);
 
-    wrap.appendChild(el('label', { for: inputId, text: 'Vimeo — ссылка на ролик или ID' }));
+    wrap.appendChild(el('label', { text: 'Vimeo — ссылка на ролик или ID' }));
     wrap.appendChild(input);
     wrap.appendChild(confirmLine);
     wrap.appendChild(
-      el('p', {
-        className: 'hint',
-        text: 'Подойдёт любая ссылка vimeo.com или цифровой ID. Для unlisted-ролика вставьте полную ссылку vimeo.com/<id>/<hash> — приватный hash распознается автоматически.'
-      })
+      el('p', { className: 'hint', text: 'Подойдёт любая ссылка vimeo.com или цифровой ID. Для unlisted-ролика вставьте полную ссылку vimeo.com/<id>/<hash> — приватный hash распознается автоматически.' })
     );
     return wrap;
   }
@@ -2103,8 +1629,7 @@
       const block = State.getValue(path, dotBase) || {};
       container.replaceChildren();
 
-      const sourceSelectId = controlId(path, dotBase + '.source');
-      const sourceSelect = el('select', { id: sourceSelectId, 'data-field': path + '::' + dotBase + '.source' }, [
+      const sourceSelect = el('select', { 'data-field': path + '::' + dotBase + '.source' }, [
         el('option', { value: 'local', text: 'local — .webm из репозитория' }),
         el('option', { value: 'vimeo', text: 'vimeo — ролик на Vimeo' })
       ]);
@@ -2117,8 +1642,7 @@
         // без чистки stale hash прошёл бы), а мёртвый src не висел на vimeo-блоке.
         if (sourceSelect.value === 'local') {
           if (State.getValue(path, dotBase + '.vimeoId') !== undefined) State.deleteValue(path, dotBase + '.vimeoId');
-          if (State.getValue(path, dotBase + '.vimeoHash') !== undefined)
-            State.deleteValue(path, dotBase + '.vimeoHash');
+          if (State.getValue(path, dotBase + '.vimeoHash') !== undefined) State.deleteValue(path, dotBase + '.vimeoHash');
         } else if (State.getValue(path, dotBase + '.src') !== undefined) {
           State.deleteValue(path, dotBase + '.src');
         }
@@ -2126,7 +1650,7 @@
       });
 
       const tech = el('div', { className: 'motion-block__tech' }, [
-        el('div', {}, [el('label', { for: sourceSelectId, text: 'source' }), sourceSelect]),
+        el('div', {}, [el('label', { text: 'source' }), sourceSelect]),
         enumSelect(path, dotBase, 'layout', block.layout, 'wide', [
           { value: 'wide', text: 'wide — широкий ряд' },
           { value: 'half', text: 'half — половина ряда' }
@@ -2137,7 +1661,7 @@
         ])
       ]);
       if (block.title) {
-        tech.appendChild(readOnlyTech(path, dotBase + '.title', 'title', block.title, 'Технический заголовок Vimeo-плеера'));
+        tech.appendChild(readOnlyTech('title', block.title, 'Технический заголовок Vimeo-плеера'));
       }
       container.appendChild(tech);
 
@@ -2471,9 +1995,7 @@
         (match, newIndex) => 'case.blueprints.' + newIndex + '.' + match[2]
       );
       toast(
-        'Лист ' +
-          (index + 1) +
-          ' добавлен в черновик. Загрузите SVG — без файла публикация не пройдёт. ' +
+        'Лист ' + (index + 1) + ' добавлен в черновик. Загрузите SVG — без файла публикация не пройдёт. ' +
           'Подпись необязательна.',
         'info'
       );
@@ -2557,8 +2079,7 @@
       ])
     );
 
-    const toolsInputId = controlId(path, 'case.tools');
-    const toolsInput = el('input', { id: toolsInputId, type: 'text', 'data-field': path + '::case.tools' });
+    const toolsInput = el('input', { type: 'text', 'data-field': path + '::case.tools' });
     toolsInput.value = (draft.case.tools || []).join(', ');
     toolsInput.addEventListener('input', () => {
       State.setValue(
@@ -2576,84 +2097,8 @@
         el('h2', { text: 'О проекте' }),
         pairField(path, 'Роль', 'case.role.en', 'case.role.ru'),
         el('div', { className: 'pair' }, [
-          el('label', { className: 'pair__label', for: toolsInputId, text: 'Инструменты (через запятую)' }),
+          el('div', { className: 'pair__label', text: 'Инструменты (через запятую)' }),
           el('div', { className: 'pair__col' }, [toolsInput])
-        ])
-      ])
-    );
-
-    /* ── Public route: ID remains immutable while the public hash can evolve. */
-    const currentSlug = typeof draft.slug === 'string' ? draft.slug : '';
-    const currentAliases = Array.isArray(draft.legacySlugs) ? draft.legacySlugs : [];
-    const slugInput = el('input', {
-      type: 'text',
-      id: 'case-public-slug',
-      'data-field': path + '::slug',
-      placeholder: draft.id
-    });
-    slugInput.value = currentSlug;
-    const aliasInput = el('textarea', { id: 'case-legacy-slugs', rows: '3', 'data-field': path + '::legacySlugs' });
-    aliasInput.value = currentAliases.join('\n');
-    const publicUrl = el('code', { id: 'case-public-url', text: 'https://codex.promo/#' + (currentSlug || draft.id) });
-    function aliasTokens() {
-      return aliasInput.value
-        .split(/\n|,/)
-        .map((value) => value.trim())
-        .filter(Boolean);
-    }
-    function refreshPublicUrl() {
-      const next = slugInput.value.trim();
-      publicUrl.textContent = 'https://codex.promo/#' + (next || draft.id);
-    }
-    function commitCanonicalRoute() {
-      // `input` is deliberately preview-only: a sequentially typed slug must
-      // not turn every prefix into a persisted legacy route. The prior route
-      // becomes an alias only at the browser's commit boundary (change/blur).
-      const previous = State.getValue(path, 'slug');
-      const next = slugInput.value.trim();
-      const aliases = aliasTokens();
-      if (
-        typeof previous === 'string' &&
-        previous &&
-        previous !== draft.id &&
-        previous !== next &&
-        aliases.indexOf(previous) === -1
-      ) {
-        aliases.push(previous);
-      }
-      if (next) State.setValue(path, 'slug', next);
-      else State.deleteValue(path, 'slug');
-      if (aliases.length) State.setValue(path, 'legacySlugs', aliases);
-      else State.deleteValue(path, 'legacySlugs');
-      aliasInput.value = aliases.join('\n');
-      clearFieldError(slugInput);
-      clearFieldError(aliasInput);
-    }
-    slugInput.addEventListener('input', refreshPublicUrl);
-    slugInput.addEventListener('change', commitCanonicalRoute);
-    aliasInput.addEventListener('input', () => {
-      const aliases = aliasTokens();
-      if (aliases.length) State.setValue(path, 'legacySlugs', aliases);
-      else State.deleteValue(path, 'legacySlugs');
-      clearFieldError(aliasInput);
-    });
-    sections.push(
-      el('section', { className: 'editor-section', id: 'case-public-url-section', 'data-field': path + '::slug' }, [
-        el('h2', { text: 'Публичный адрес' }),
-        el('div', { className: 'pair' }, [
-          el('label', { className: 'pair__label', for: controlId(path, 'id'), text: 'Внутренний ID' }),
-          el('div', { className: 'pair__col' }, [
-            el('input', { id: controlId(path, 'id'), type: 'text', value: draft.id, readOnly: true })
-          ])
-        ]),
-        el('div', { className: 'pair' }, [
-          el('label', { className: 'pair__label', for: slugInput.id, text: 'Канонический slug' }),
-          el('div', { className: 'pair__col' }, [slugInput])
-        ]),
-        el('p', { className: 'hint' }, ['Ссылка: ', publicUrl]),
-        el('div', { className: 'pair' }, [
-          el('label', { className: 'pair__label', for: aliasInput.id, text: 'Старые адреса (по одному на строку)' }),
-          el('div', { className: 'pair__col' }, [aliasInput])
         ])
       ])
     );
@@ -2704,7 +2149,7 @@
       [
         el('h2', { text: 'Внешняя ссылка (CTA)' }),
         el('div', { className: 'pair' }, [
-          el('label', { className: 'pair__label', for: 'case-cta-toggle', text: 'Показывать кнопку в шапке кейса' }),
+          el('div', { className: 'pair__label', text: 'Показывать кнопку в шапке кейса' }),
           el('div', { className: 'pair__col' }, [
             el('label', { className: 'switch', title: ctaEnabled ? 'Скрыть кнопку' : 'Показать кнопку' }, [
               ctaToggle,
@@ -2716,8 +2161,7 @@
     );
 
     if (ctaDraft) {
-      const ctaInputId = controlId(path, 'case.cta.url');
-      const ctaInput = el('input', { id: ctaInputId, type: 'url', 'data-field': path + '::case.cta.url' });
+      const ctaInput = el('input', { type: 'url', 'data-field': path + '::case.cta.url' });
       ctaInput.value = ctaUrl;
       ctaInput.addEventListener('input', () => {
         State.setValue(path, 'case.cta.url', ctaInput.value);
@@ -2725,7 +2169,7 @@
       });
       ctaSection.appendChild(
         el('div', { className: 'pair' }, [
-          el('label', { className: 'pair__label', for: ctaInputId, text: 'Ссылка на проект' }),
+          el('div', { className: 'pair__label', text: 'Ссылка на проект' }),
           el('div', { className: 'pair__col' }, [ctaInput])
         ])
       );
@@ -2804,14 +2248,7 @@
     sections.push(layoutSection);
 
     const mediaBlocks = Array.isArray(draft.case.media) ? draft.case.media : [];
-    const mediaIdCounts = new Map();
-    mediaBlocks.forEach((block) => {
-      if (block && typeof block.id === 'string' && /^[a-z0-9-]+$/.test(block.id)) {
-        mediaIdCounts.set(block.id, (mediaIdCounts.get(block.id) || 0) + 1);
-      }
-    });
-    const usedMediaDomKeys = new Set();
-    const mediaStrip = el('div', { className: 'case-media-grid', id: 'media-strip' });
+    const mediaStrip = el('div', { className: 'media-strip', id: 'media-strip' });
 
     function mediaSlotEditor(block, i, count) {
       const dotBase = 'case.media.' + i;
@@ -2821,13 +2258,7 @@
       // padStart, а не '0' + (i + 1): десятый блок иначе стал бы «010».
       const nn = String(i + 1).padStart(2, '0');
       const namingPath = './assets/cases/' + id + '/' + nn + (isVideo ? '.webm' : '.svg');
-      const stableKey = mediaDomKey(block, mediaIdCounts, usedMediaDomKeys);
-      const slot = el('figure', {
-        className: 'media-slot',
-        'data-media-slot': String(i),
-        'data-media-key': stableKey,
-        'data-field': path + '::' + dotBase + '.src'
-      });
+      const slot = el('figure', { className: 'media-slot', 'data-media-slot': String(i) });
       if (manualLayout) {
         slot.appendChild(
           reorderControls({
@@ -2835,12 +2266,12 @@
             index: i,
             count,
             focusKey: 'slot::' + i,
-            restoreKey: 'media::' + stableKey,
             onMove: moveMediaSlot
           })
         );
       }
-      const sourceUpload = dropZone({
+      slot.appendChild(
+        dropZone({
           filePath: path,
           dotPath: dotBase + '.src',
           kind: isVideo ? 'video' : 'image',
@@ -2850,14 +2281,12 @@
           // существует — новый блок выглядел «уже с картинкой».
           currentPath: block.src || null,
           preview: isVideo ? 'video' : 'image',
-          hint: isVideo
-            ? 'Только WebM · до 20 МБ (жёсткий предел 40 МБ)'
-            : 'SVG, PNG, JPG или WebP · до 200 КБ'
-        });
-      slot.appendChild(sourceUpload);
-      let posterUpload = null;
+          hint: isVideo ? 'Только WebM · до 20 МБ (жёсткий предел 40 МБ)' : null
+        })
+      );
       if (isVideo) {
-        posterUpload = dropZone({
+        slot.appendChild(
+          dropZone({
             filePath: path,
             dotPath: dotBase + '.poster',
             kind: 'image',
@@ -2866,12 +2295,11 @@
             preview: 'image',
             label: 'постер (обязателен)',
             hint: 'Единственный кадр до запуска ролика и при отключённой анимации · SVG, PNG, JPG или WebP · до 200 КБ'
-          });
-        slot.appendChild(posterUpload);
+          })
+        );
       }
 
-      const typeSelectId = controlId(path, dotBase + '.type');
-      const typeSelect = el('select', { id: typeSelectId, 'data-field': path + '::' + dotBase + '.type' }, [
+      const typeSelect = el('select', { 'data-field': path + '::' + dotBase + '.type' }, [
         el('option', { value: 'image', text: 'фото — изображение' }),
         el('option', { value: 'video', text: 'видео — ролик .webm' })
       ]);
@@ -2890,20 +2318,7 @@
       });
       removeBtn.addEventListener('click', () => removeMediaBlock(i));
 
-      const technicalId = 'media-tech-' + stableKey;
-      const technicalBody = el('div', { id: technicalId, className: 'media-slot__technical-body' });
-      function moveUploadMetadata(upload, label) {
-        const pathLine = upload.querySelector('.drop-zone-path');
-        const hint = upload.querySelector('.hint');
-        if (pathLine) {
-          technicalBody.appendChild(el('p', { className: 'media-slot__path-label', text: label }));
-          technicalBody.appendChild(pathLine);
-        }
-        if (hint) technicalBody.appendChild(hint);
-      }
-      moveUploadMetadata(sourceUpload, 'Путь файла');
-      if (posterUpload) moveUploadMetadata(posterUpload, 'Путь постера');
-      technicalBody.appendChild(
+      slot.appendChild(
         el('div', { className: 'media-slot__controls' }, [
           enumSelect(
             path,
@@ -2917,7 +2332,8 @@
             ],
             'формат'
           ),
-          el('div', {}, [el('label', { for: typeSelectId, text: 'тип' }), typeSelect])
+          el('div', {}, [el('label', { text: 'тип' }), typeSelect]),
+          removeBtn
         ])
       );
       /* «Биханс-приём»: склейка с предыдущим блоком. Недоступна на первом
@@ -2939,36 +2355,16 @@
         clearFieldError(seamlessInput);
       });
       const seamlessHint = seamlessAllowed
-        ? 'Продолжение предыдущей полосы без вертикального отступа.'
+        ? 'Для длинной иллюстрации, нарезанной на полосы: блок встаёт вплотную к предыдущему. ' +
+          'Правила полотна: формат у склеенных блоков одинаковый, подпись — только у последней полосы ' +
+          '(иначе текст встанет между полосами и разрежет картинку).'
         : i === 0
           ? 'Первый блок склеивать не с чем — над ним ничего нет.'
           : 'Доступно при ручном порядке блоков — включите его в разделе «Порядок блоков».';
-      technicalBody.appendChild(
+      slot.appendChild(
         el('div', { className: 'media-slot__seamless' }, [
           el('label', {}, [seamlessInput, ' Без отступа сверху — продолжение предыдущего блока']),
           el('p', { className: 'hint', text: seamlessHint })
-        ])
-      );
-      slot.appendChild(
-        el('details', { className: 'media-slot__details' }, [
-          el('summary', { 'aria-controls': technicalId, text: 'Технические настройки' }),
-          technicalBody
-        ])
-      );
-      slot.appendChild(removeBtn);
-      const caption = block.caption && typeof block.caption === 'object' ? block.caption : {};
-      const captionHasValue = ['label', 'desc'].some((part) =>
-        ['en', 'ru'].some((lang) => caption[part] && String(caption[part][lang] || '').trim())
-      );
-      const captionId = 'media-caption-' + stableKey;
-      const captionBody = el('div', { id: captionId, className: 'media-slot__caption-body' }, [
-        pairField(path, 'Заголовок', dotBase + '.caption.label.en', dotBase + '.caption.label.ru'),
-        pairField(path, 'Описание', dotBase + '.caption.desc.en', dotBase + '.caption.desc.ru', { multiline: true })
-      ]);
-      slot.appendChild(
-        el('details', { className: 'media-slot__details media-slot__caption', open: captionHasValue }, [
-          el('summary', { 'aria-controls': captionId, text: 'Подпись к иллюстрации' }),
-          captionBody
         ])
       );
       slot.appendChild(el('figcaption', { text: 'Слот ' + (i + 1) }));
@@ -2986,28 +2382,13 @@
       el('p', {
         className: 'hint',
         text:
-          'Подписи редактируются в карточке каждого блока.' +
+          'Фото: SVG, PNG, JPG или WebP до 200 КБ. Видео: WebM до 20 МБ, с необязательным постером. ' +
+          'Подписи к блокам редактируются ниже.' +
           (manualLayout
             ? ' При перестановке блок переезжает целиком: файл, фон, подпись, формат и тип.'
             : ' Добавление, удаление и перестановка блоков доступны при ручном порядке.')
       })
     ]);
-    mediaSection.appendChild(
-      el('p', {
-        className: 'hint',
-        id: 'caption-optional-hint',
-        text:
-          'Подписи необязательны: оставьте заголовок и описание пустыми — на сайте не будет пустого места. ' +
-          'EN и RU заполняются парой.'
-      })
-    );
-    mediaSection.appendChild(
-      el('p', {
-        className: 'hint',
-        id: 'seamless-rules-hint',
-        text: 'Правила склейки полотна: одинаковый формат у полос и подпись только у последней, чтобы текст не разрезал иллюстрацию.'
-      })
-    );
     if (mediaBlocks.length > MEDIA_WARN_BLOCKS) {
       mediaSection.appendChild(
         el('p', {
@@ -3035,6 +2416,30 @@
     }
     mediaSection.appendChild(addRow);
     sections.push(mediaSection);
+
+    if (mediaBlocks.length > 0) {
+      const captionSection = el('section', { className: 'editor-section' }, [
+        el('h2', { text: 'Подписи к медиа-слотам' }),
+        el('p', {
+          className: 'hint',
+          id: 'caption-optional-hint',
+          text:
+            'Подписи необязательны: оставьте заголовок и описание слота пустыми — на сайте под иллюстрацией ' +
+            'не будет ни текста, ни пустого места. Единственное правило — EN и RU идут парой: ' +
+            'заполнены оба поля или пусты оба.'
+        })
+      ]);
+      mediaBlocks.forEach((_block, i) => {
+        const base = 'case.media.' + i + '.caption';
+        captionSection.appendChild(
+          pairField(path, 'Слот ' + (i + 1) + ' — заголовок', base + '.label.en', base + '.label.ru')
+        );
+        captionSection.appendChild(
+          pairField(path, 'Слот ' + (i + 1) + ' — описание', base + '.desc.en', base + '.desc.ru', { multiline: true })
+        );
+      });
+      sections.push(captionSection);
+    }
 
     if (draft.case.text) {
       sections.push(
@@ -3072,24 +2477,12 @@
     const modelTech = el('div', { className: 'motion-block__tech' });
     if ('modelEnvironment' in draft.case) {
       modelTech.appendChild(
-        readOnlyTech(
-          path,
-          'case.modelEnvironment',
-          'modelEnvironment',
-          String(draft.case.modelEnvironment),
-          'Настройка 3D-viewer — не редактируется'
-        )
+        readOnlyTech('modelEnvironment', String(draft.case.modelEnvironment), 'Настройка 3D-viewer — не редактируется')
       );
     }
     if ('modelExposure' in draft.case) {
       modelTech.appendChild(
-        readOnlyTech(
-          path,
-          'case.modelExposure',
-          'modelExposure',
-          String(draft.case.modelExposure),
-          'Настройка 3D-viewer — не редактируется'
-        )
+        readOnlyTech('modelExposure', String(draft.case.modelExposure), 'Настройка 3D-viewer — не редактируется')
       );
     }
     if (modelTech.childNodes.length > 0) modelSection.appendChild(modelTech);
@@ -3098,8 +2491,7 @@
       for (const key of Object.keys(draft.case.modelStats)) {
         const dot = 'case.modelStats.' + key;
         const original = draft.case.modelStats[key];
-        const inputId = controlId(path, dot);
-        const input = el('input', { id: inputId, type: 'text', 'data-field': path + '::' + dot });
+        const input = el('input', { type: 'text', 'data-field': path + '::' + dot });
         input.value = original === undefined || original === null ? '' : String(original);
         input.addEventListener('input', () => {
           const raw = input.value;
@@ -3109,11 +2501,9 @@
           State.setValue(path, dot, next);
           clearFieldError(input);
         });
-        statsGrid.appendChild(el('div', {}, [el('label', { for: inputId, text: key }), input]));
+        statsGrid.appendChild(el('div', {}, [el('label', { text: key }), input]));
       }
-      modelSection.appendChild(
-        el('p', { className: 'hint', text: 'Статистика модели (показывается в панели кейса):' })
-      );
+      modelSection.appendChild(el('p', { className: 'hint', text: 'Статистика модели (показывается в панели кейса):' }));
       modelSection.appendChild(statsGrid);
     }
     sections.push(modelSection);
@@ -3289,7 +2679,6 @@
     els.app.replaceChildren(el('p', { className: 'empty-note', text: 'Загружаем content/meta.json с GitHub…' }));
     const path = 'content/meta.json';
     const entry = await State.ensureFile(path);
-    const catalog = await State.loadCatalog();
     const sections = [];
     for (const page of Object.keys(entry.draft.en)) {
       const section = el('section', { className: 'editor-section' }, [
@@ -3386,156 +2775,14 @@
       });
       headerLogoClearHost.replaceChildren(clearBtn);
     }
-    headerLogoSection.replaceChildren(el('h2', { text: 'Логотип в шапке сайта' }), headerLogoZone, headerLogoClearHost);
+    headerLogoSection.replaceChildren(
+      el('h2', { text: 'Логотип в шапке сайта' }),
+      headerLogoZone,
+      headerLogoClearHost
+    );
     buildHeaderLogoZone();
     syncHeaderLogoClear();
     sections.push(headerLogoSection);
-
-    const organization = entry.draft.structuredData && entry.draft.structuredData.organization;
-    const identitySection = el('section', { className: 'editor-section', id: 'meta-global-identity' }, [
-      el('h2', { text: 'Контакты и организация' }),
-      textField(path, 'Контактная ссылка', 'contactUrl', { id: 'meta-contact-url' }),
-      textField(path, 'Название организации', 'structuredData.organization.name', { id: 'meta-organization-name' }),
-      textField(path, 'Короткое название', 'structuredData.organization.alternateName', {
-        id: 'meta-organization-alternate-name'
-      }),
-      textField(path, 'Канонический URL организации', 'structuredData.organization.url', {
-        id: 'meta-organization-url'
-      }),
-      pairField(
-        path,
-        'Описание организации',
-        'structuredData.organization.description.en',
-        'structuredData.organization.description.ru',
-        { multiline: true }
-      )
-    ]);
-    const sameAsInput = el('textarea', {
-      id: 'meta-organization-same-as',
-      rows: '3',
-      'data-field': path + '::structuredData.organization.sameAs',
-      'aria-label': 'Ссылки организации'
-    });
-    sameAsInput.value = organization && Array.isArray(organization.sameAs) ? organization.sameAs.join('\n') : '';
-    sameAsInput.addEventListener('input', () => {
-      const urls = sameAsInput.value
-        .split(/\n|,/)
-        .map((value) => value.trim())
-        .filter(Boolean);
-      State.setValue(path, 'structuredData.organization.sameAs', urls);
-      clearFieldError(sameAsInput);
-    });
-    identitySection.appendChild(
-      el('div', { className: 'pair' }, [
-        el('div', { className: 'pair__label', text: 'Ссылки организации (по одной на строку)' }),
-        el('div', { className: 'pair__col' }, [sameAsInput])
-      ])
-    );
-    identitySection.appendChild(
-      el('p', {
-        className: 'hint',
-        text: 'Только HTTPS-ссылки без логина, пароля и порта. Эти данные попадут в Organization JSON-LD.'
-      })
-    );
-    sections.push(identitySection);
-
-    const catalogCases = new Map(catalog.cases.map((item) => [item.id, item.data]));
-    const featuredSection = el('section', { className: 'editor-section', id: 'meta-featured-works' }, [
-      el('h2', { text: 'Избранные работы' }),
-      el('p', {
-        className: 'hint',
-        text: 'Порядок используется в JSON-LD. Внутренние ID не становятся публичными URL.'
-      })
-    ]);
-    const featuredList = el('div', { className: 'media-strip' });
-    function featuredEntries() {
-      const value = State.getValue(path, 'structuredData.featuredWorks');
-      return Array.isArray(value) ? value : [];
-    }
-    function renderFeatured(focusKey) {
-      const entries = featuredEntries();
-      featuredList.replaceChildren();
-      entries.forEach((feature, index) => {
-        const row = el('div', { className: 'media-slot', 'data-featured-index': String(index) });
-        const select = el('select', {
-          'data-field': path + '::structuredData.featuredWorks.' + index + '.id',
-          'aria-label': 'Избранная работа ' + (index + 1)
-        });
-        for (const [id, data] of catalogCases) {
-          select.appendChild(el('option', { value: id, text: id + ' — ' + data.card.title.en }));
-        }
-        select.value = feature.id || '';
-        select.addEventListener('change', () => {
-          const next = featuredEntries().map((entry) => ({ ...entry }));
-          next[index].id = select.value;
-          State.setValue(path, 'structuredData.featuredWorks', next);
-          clearFieldError(select);
-        });
-        const about = el('textarea', {
-          rows: '2',
-          'data-field': path + '::structuredData.featuredWorks.' + index + '.about',
-          'aria-label': 'Описание избранной работы ' + (index + 1)
-        });
-        about.value = feature.about || '';
-        about.addEventListener('input', () => {
-          const next = featuredEntries().map((entry) => ({ ...entry }));
-          next[index].about = about.value;
-          State.setValue(path, 'structuredData.featuredWorks', next);
-          clearFieldError(about);
-        });
-        const remove = el('button', {
-          type: 'button',
-          className: 'btn btn--ghost',
-          text: 'Убрать',
-          'aria-label': 'Убрать избранную работу ' + (index + 1)
-        });
-        remove.addEventListener('click', () => {
-          State.setValue(
-            path,
-            'structuredData.featuredWorks',
-            featuredEntries().filter((_entry, i) => i !== index)
-          );
-          renderFeatured();
-        });
-        row.append(
-          reorderControls({
-            label: 'Избранная работа ' + (index + 1),
-            index,
-            count: entries.length,
-            focusKey: 'featured-' + index,
-            onMove(from, to, key) {
-              State.setValue(path, 'structuredData.featuredWorks', movedArray(featuredEntries(), from, to));
-              renderFeatured(key);
-              focusReorder(key);
-            }
-          }),
-          el('label', { text: 'Кейс' }),
-          select,
-          el('label', { text: 'About' }),
-          about,
-          remove
-        );
-        featuredList.appendChild(row);
-      });
-      if (focusKey) focusReorder(focusKey);
-    }
-    const addFeatured = el('button', {
-      type: 'button',
-      className: 'btn btn--ghost',
-      id: 'meta-featured-add',
-      text: 'Добавить работу'
-    });
-    addFeatured.addEventListener('click', () => {
-      const entries = featuredEntries();
-      const existing = new Set(entries.map((entry) => entry.id));
-      const candidate = catalog.settings.cardOrder.find((id) => !existing.has(id)) || catalog.settings.cardOrder[0];
-      if (!candidate) return;
-      State.setValue(path, 'structuredData.featuredWorks', entries.concat([{ id: candidate, about: '' }]));
-      renderFeatured();
-    });
-    featuredSection.append(featuredList, addFeatured);
-    renderFeatured();
-    sections.push(featuredSection);
     els.app.replaceChildren(
       el('section', {}, [
         el('div', { className: 'view-head' }, [
@@ -3580,10 +2827,7 @@
         body.appendChild(pairField(path, dot, 'en.' + dot, 'ru.' + dot, { mono: true }));
       }
       return el('details', { className: 'ui-group', open: index === 0 }, [
-        el('summary', {}, [
-          group.label + ' ',
-          el('span', { className: 'ui-group__count', text: 'строк: ' + group.leaves.length })
-        ]),
+        el('summary', {}, [group.label + ' ', el('span', { className: 'ui-group__count', text: 'строк: ' + group.leaves.length })]),
         body
       ]);
     });
@@ -3615,16 +2859,6 @@
 
   async function onPublishClick() {
     if (publishing) return;
-    if (State.isPublicationLocked()) {
-      const record = State.getPublication();
-      toast(
-        record && record.error && ['published', 'reverted'].indexOf(record.phase) !== -1
-          ? 'Предыдущая публикация требует локальной сверки. Откройте раздел «Публикация».'
-          : 'Предыдущая публикация ещё ожидает проверки. Откройте раздел «Публикация».',
-        'warn'
-      );
-      return;
-    }
     try {
       await State.ensureAllDrafts();
     } catch (error) {
@@ -3634,7 +2868,7 @@
     // ensureAllDrafts мог отбросить черновик, снятый с другой версии файла —
     // владелец должен узнать об этом ДО того, как увидит план публикации.
     flushDraftNotices();
-    const errors = await State.validateAll();
+    const errors = State.validateAll();
     // Итерация H (Fix #5): блокирующие ошибки медиа-слотов free-assets
     // («файла ещё нет в репозитории») останавливают публикацию наравне с
     // ошибками полей. Источник истины — НЕ in-memory faMediaErrors (он
@@ -3666,12 +2900,12 @@
     for (const slot of missingMedia) {
       const errorKey = slot.id + '::' + slot.key;
       const message =
-        'Файла ' +
-        slot.sitePath +
-        ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
+        'Файла ' + slot.sitePath + ' ещё нет в репозитории — загрузите файл или выключите тогл, публикация заблокирована.';
       faMediaErrors.set(errorKey, message);
       const found = faFindItem(slot.id);
-      const field = found ? 'categories.' + found.ci + '.items.' + found.ii + '.' + slot.key : 'categories';
+      const field = found
+        ? 'categories.' + found.ci + '.items.' + found.ii + '.' + slot.key
+        : 'categories';
       errors.push({ path: FA_PATH, field, message });
     }
     if (errors.length > 0) {
@@ -3680,10 +2914,7 @@
       // правки репозитория) нет полей-якорей в UI, applyPendingErrors их
       // не отрисует. Первые сообщения показываем прямо в тосте, чтобы
       // блокировка публикации никогда не была безликим счётчиком.
-      const preview = errors
-        .slice(0, 3)
-        .map((e) => e.message)
-        .join(' • ');
+      const preview = errors.slice(0, 3).map((e) => e.message).join(' • ');
       toast(
         'Публикация остановлена (ошибок: ' + errors.length + '): ' + preview + (errors.length > 3 ? ' …' : ''),
         'error'
@@ -3712,7 +2943,7 @@
     publishing = true;
     updateChrome();
     try {
-      const expectedHead = await State.publishPrecheck();
+      await State.publishPrecheck();
       // План ПЕРЕСОБИРАЕТСЯ после precheck, а не берётся из кэша диалога:
       // precheck обновляет sha базы каждого изменённого файла, и именно они
       // едут в TOCTOU-проверку publish. Кэш диалога был снят ДО precheck, и на
@@ -3720,28 +2951,24 @@
       // — публикация падала бы «файл изменился» на пустом месте.
       const plan = await State.buildPublishPlan();
       const message = 'content: ' + description + ' [admin]';
-      // Снимок обязан пережить source-коммит: failure записи здесь отменяет
-      // отправку до любого GitHub write, а не оставляет best-effort recovery.
-      State.createPublicationSnapshot(plan);
-      const result = await API.publish(plan, message, {
-        onCandidate: State.recordPublicationCandidate,
-        expectedHead
-      });
-      State.attachPublicationSource(result);
-      toast('Коммит создан. Конвейер проверяет именно этот source SHA…', 'info');
-      await recheckPublication();
-    } catch (error) {
-      const record = State.getPublication();
-      if (record && record.phase === 'submitting' && (!record.candidate || error.code === 'definite-not-submitted')) {
-        try {
-          await State.settlePublication({
-            status: 'failed',
-            message: error && error.message ? error.message : 'Не удалось отправить публикацию.'
-          });
-        } catch (_settleError) {
-          /* original publish error remains the actionable one */
-        }
+      const result = await API.publish(plan, message);
+      State.markPublished();
+      toast('Коммит создан. Конвейер проверяет контент и пересобирает сайт…', 'info');
+      const outcome = await API.waitForPipeline(result.date);
+      if (outcome.status === 'published') {
+        toast('Опубликовано! Сайт обновится через ~2 минуты.', 'success');
+      } else if (outcome.status === 'reverted') {
+        toast('Изменения отклонены проверкой и откатены.', 'error', {
+          href: outcome.url,
+          label: 'Открыть детали в GitHub'
+        });
+      } else {
+        toast('Проверка ещё не завершилась — статус смотрите в GitHub Actions.', 'warn', {
+          href: outcome.url,
+          label: 'Открыть GitHub Actions'
+        });
       }
+    } catch (error) {
       toast(error && error.message ? error.message : 'Не удалось опубликовать изменения.', 'error');
     } finally {
       publishPlan = null;
@@ -3777,8 +3004,7 @@
     const hash = window.location.hash || '#/cases';
     const parts = hash.replace(/^#\/?/, '').split('/');
     try {
-      if (parts[0] === 'publication') renderPublication();
-      else if (parts[0] === 'case' && parts[1]) await renderCaseEditor(decodeURIComponent(parts[1]));
+      if (parts[0] === 'case' && parts[1]) await renderCaseEditor(decodeURIComponent(parts[1]));
       else if (parts[0] === 'free-assets' && parts[1]) await renderFaItemEditor(decodeURIComponent(parts[1]));
       else if (parts[0] === 'free-assets') await renderFreeAssets();
       else if (parts[0] === 'categories') await renderCategories();
@@ -3791,28 +3017,11 @@
     setActiveNav(parts[0]);
     applyPendingErrors();
     flushDraftNotices();
-    void recheckPublication();
   }
 
   /* ── инициализация ───────────────────────────────────────────────── */
 
   els.publishBtn.addEventListener('click', onPublishClick);
-  els.reviewDraft.addEventListener('click', () => onPublishClick());
-  els.discardDraft.addEventListener('click', () => {
-    if (State.isPublicationLocked()) {
-      toast('Публикация ожидает проверки; черновик пока нельзя отбросить.', 'warn');
-      return;
-    }
-    if (!window.confirm('Отбросить все JSON-правки и загруженные в памяти файлы этого черновика? Запись восстановления публикации останется.')) return;
-    try {
-      State.discardDraft();
-    } catch (error) {
-      toast(error.message || String(error), 'warn');
-      return;
-    }
-    toast('Черновик отброшен. Запись восстановления публикации сохранена.', 'info');
-    route();
-  });
   els.publishCancel.addEventListener('click', () => els.dialog.close());
   els.publishConfirm.addEventListener('click', async () => {
     const description = els.publishDesc.value.trim();
