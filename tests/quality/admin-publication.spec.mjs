@@ -951,7 +951,13 @@ test('concurrent candidate rechecks share one reachability lookup and one termin
   await page.click('a[href="#/publication"]');
   const recheck = page.getByRole('button', { name: 'Проверить статус' });
   await expect(recheck).toBeVisible();
-  await Promise.all([recheck.click(), recheck.click()]);
+  await recheck.evaluate((button) => {
+    // Dispatch both real click events before the first async handler can
+    // settle and rerender this button. Two Locator.click() calls race the
+    // rerender itself instead of exercising the shared pipeline promise.
+    button.click();
+    button.click();
+  });
   await expect.poll(() => calls.commitPolls).toBe(1);
   await expect.poll(() => page.evaluate(() => window.AdminState.getPublication().phase)).toBe('published');
   expect(calls.refReads).toBe(1);
