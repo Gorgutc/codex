@@ -685,6 +685,26 @@
     return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('ru-RU');
   }
 
+  function hasTrustedTerminalVerdict(record) {
+    return Boolean(record && record.outcome && ['published', 'reverted'].indexOf(record.outcome.status) !== -1);
+  }
+
+  async function recordPublicationPollFailure(error) {
+    if (hasTrustedTerminalVerdict(State.getPublication())) return State.getPublication();
+    return State.settlePublication({
+      status: 'failed',
+      message: error && error.message ? error.message : 'Не удалось проверить публикацию.'
+    });
+  }
+
+  function reportReconciliationFailure(error) {
+    toast(
+      'Не удалось завершить локальную сверку: ' +
+        (error && error.message ? error.message : 'повторите попытку из раздела «Публикация».'),
+      'error'
+    );
+  }
+
   async function recheckPublication() {
     if (pipelineCheck) return pipelineCheck;
     let record = State.getPublication();
@@ -713,11 +733,31 @@
       if (pipelineCheck) return pipelineCheck;
       pipelineCheck = (async () => {
         try {
-          await State.resolvePublicationCandidate();
+          try {
+            await State.resolvePublicationCandidate();
+          } catch (error) {
+            // Candidate resolution can confirm the source and then fail while
+            // persisting its source ledger. Keep submitting+candidate locked:
+            // converting that confirmed source to `failed` would permit a
+            // duplicate Git write.
+            toast('Не удалось привязать source-коммит: ' + (error && error.message ? error.message : error), 'error');
+            return;
+          }
           record = State.getPublication();
           if (record && record.source && record.phase === 'awaiting_pipeline') {
-            const outcome = await API.waitForPipeline(record.source.sha, record.source.date);
-            await State.settlePublication(outcome);
+            let outcome;
+            try {
+              outcome = await API.waitForPipeline(record.source.sha, record.source.date);
+            } catch (error) {
+              await recordPublicationPollFailure(error);
+              toast('Не удалось проверить публикацию: ' + (error && error.message ? error.message : error), 'error');
+              return;
+            }
+            try {
+              await State.settlePublication(outcome);
+            } catch (error) {
+              reportReconciliationFailure(error);
+            }
           }
         } finally {
           pipelineCheck = null;
@@ -730,8 +770,21 @@
     if (!record || !record.source || ['awaiting_pipeline', 'timed_out'].indexOf(record.phase) === -1) return null;
     pipelineCheck = (async () => {
       try {
-        const outcome = await API.waitForPipeline(record.source.sha, record.source.date);
-        const settled = await State.settlePublication(outcome);
+        let outcome;
+        try {
+          outcome = await API.waitForPipeline(record.source.sha, record.source.date);
+        } catch (error) {
+          await recordPublicationPollFailure(error);
+          toast('Не удалось проверить публикацию: ' + (error && error.message ? error.message : error), 'error');
+          return;
+        }
+        let settled;
+        try {
+          settled = await State.settlePublication(outcome);
+        } catch (error) {
+          reportReconciliationFailure(error);
+          return;
+        }
         if (outcome.status === 'published') {
           toast(
             settled.error
@@ -754,12 +807,6 @@
             label: 'Открыть GitHub Actions'
           });
         }
-      } catch (error) {
-        await State.settlePublication({
-          status: 'failed',
-          message: error && error.message ? error.message : 'Не удалось проверить публикацию.'
-        });
-        toast('Не удалось завершить восстановление: ' + (error && error.message ? error.message : error), 'error');
       } finally {
         pipelineCheck = null;
         updateChrome();

@@ -174,6 +174,50 @@ test('published settlement is idempotent, clears only its snapshot, and leaves l
   expect(publication.phase).toBe('published');
 });
 
+test('a duplicate trusted terminal settlement leaves a completed publication completely untouched', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await login(page);
+  await page.click('a[href="#/case/orbital-mk-ii"]');
+  await page.locator(`[data-field="${CASE_PATH}::card.title.ru"]`).fill('Идемпотентный terminal verdict');
+  const settled = await page.evaluate(async () => {
+    const plan = window.AdminState.buildPublishPlan();
+    window.AdminState.createPublicationSnapshot(plan);
+    window.AdminState.attachPublicationSource({ sha: 'a'.repeat(40), date: new Date().toISOString() });
+    await window.AdminState.settlePublication({ status: 'published', sha: 'd'.repeat(40) });
+    const before = window.AdminState.getPublication();
+    let fetches = 0;
+    window.AdminAPI.fetchFile = async (...args) => {
+      fetches += 1;
+      throw new Error('duplicate verdict must not reconcile');
+    };
+    const originalSetItem = Storage.prototype.setItem;
+    let reconciliationWrites = 0;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'codexAdminPublication' && JSON.parse(value).phase === 'reconciling') {
+        reconciliationWrites += 1;
+        throw new Error('duplicate verdict must not save reconciling');
+      }
+      return originalSetItem.call(this, key, value);
+    };
+    await window.AdminState.settlePublication({ status: 'published', sha: 'e'.repeat(40) });
+    return {
+      before,
+      after: window.AdminState.getPublication(),
+      beforeLocked: window.AdminState.isPublicationLocked(),
+      afterLocked: window.AdminState.isPublicationLocked(),
+      fetches,
+      reconciliationWrites
+    };
+  });
+  expect(settled.after).toEqual(settled.before);
+  expect(settled.afterLocked).toBe(settled.beforeLocked);
+  expect(settled.fetches).toBe(0);
+  expect(settled.reconciliationWrites).toBe(0);
+  expect(calls.blobs).toHaveLength(0);
+  expect(calls.tree).toHaveLength(0);
+  expect(calls.refUpdates).toBe(0);
+});
+
 test('published terminal state is not observable until deferred local promotion completes', async ({ page }) => {
   await mockGitHub(page);
   await login(page);
@@ -247,9 +291,10 @@ test('reverted terminal state is not observable until deferred local restore com
 test('a reloaded reconciliation resumes its stored published verdict without polling again', async ({ page }) => {
   const calls = await mockGitHub(page);
   await login(page);
+  const settledAt = '2026-08-22T12:34:56.000Z';
   await page.click('a[href="#/case/orbital-mk-ii"]');
   await page.locator(`[data-field="${CASE_PATH}::card.title.ru"]`).fill('Сверка после reload');
-  await page.evaluate(() => {
+  await page.evaluate((savedSettledAt) => {
     const plan = window.AdminState.buildPublishPlan();
     window.AdminState.createPublicationSnapshot(plan);
     window.AdminState.attachPublicationSource({ sha: 'a'.repeat(40), date: new Date().toISOString() });
@@ -260,14 +305,45 @@ test('a reloaded reconciliation resumes its stored published verdict without pol
       sha: 'd'.repeat(40),
       url: 'https://example.test/terminal',
       message: null,
-      settledAt: new Date().toISOString()
+      settledAt: savedSettledAt
     };
     record.updatedAt = new Date().toISOString();
     sessionStorage.setItem('codexAdminPublication', JSON.stringify(record));
-  });
+  }, settledAt);
   await page.reload();
   await expect.poll(() => page.evaluate(() => window.AdminState.getPublication().phase)).toBe('published');
   expect(calls.commitPolls).toBe(0);
+  expect(await page.evaluate(() => window.AdminState.getPublication().outcome.settledAt)).toBe(settledAt);
+});
+
+test('a terminal pipeline verdict stays locked when its first reconciliation save fails', async ({ page }) => {
+  const calls = await mockGitHub(page);
+  await page.addInitScript(() => {
+    window.ADMIN_POLL_INTERVAL_MS = 5;
+    window.ADMIN_POLL_TIMEOUT_MS = 100;
+  });
+  await login(page);
+  await page.evaluate(() => {
+    window.AdminState.createPublicationSnapshot({ files: [], binaries: [] });
+    window.AdminState.attachPublicationSource({ sha: 'a'.repeat(40), date: new Date().toISOString() });
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'codexAdminPublication' && JSON.parse(value).phase === 'reconciling') {
+        throw new Error('Хранилище недоступно');
+      }
+      return original.call(this, key, value);
+    };
+  });
+  await page.click('a[href="#/publication"]');
+  await expect.poll(() => calls.commitPolls).toBeGreaterThan(0);
+  await expect(page.locator('#toast-errors[role="alert"]')).toContainText('Не удалось завершить локальную сверку');
+  const record = await page.evaluate(() => window.AdminState.getPublication());
+  expect(record.phase).toBe('reconciling');
+  expect(record.outcome).toMatchObject({ status: 'published', sha: 'd'.repeat(40) });
+  expect(await page.evaluate(() => window.AdminState.isPublicationLocked())).toBe(true);
+  expect(calls.blobs).toHaveLength(0);
+  expect(calls.tree).toHaveLength(0);
+  expect(calls.refUpdates).toBe(0);
 });
 
 test('a failed reload reconciliation reports through the alert and retains a retryable locked record', async ({ page }) => {

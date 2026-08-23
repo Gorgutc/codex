@@ -168,6 +168,7 @@ check(
   const contentPublish = read('.github/workflows/content-publish.yml');
   const batchRunner = read('scripts/content-publish-batch.mjs');
   const deployBeget = read('.github/workflows/deploy-beget.yml');
+  const begetParity = read('scripts/verify-beget-parity.mjs');
   check(
     'content publish: workflow delegates complete source batches to the tested runner',
     /fetch-depth: 0/.test(contentPublish) &&
@@ -212,18 +213,20 @@ check(
       deployBeget.includes('! git diff-tree --root --quiet --no-commit-id -r "$sha" -- content/ assets/')
   );
   check(
-    'deploy: Beget parity reads normal shells and their emitted immutable payload revisions',
+    'deploy: Beget parity delegates normal-shell and immutable-payload verification to its executable fixture',
     !deployBeget.includes('cache_bust=') &&
       !deployBeget.includes('Cache-Control: no-cache') &&
-      deployBeget.includes('"${PUBLIC_URL}"') &&
-      deployBeget.includes('"${PUBLIC_URL}free-assets.html"') &&
-      deployBeget.includes('cards-data.js') &&
-      deployBeget.includes('fa-data.js') &&
-      deployBeget.includes('i18n-data.js') &&
-      deployBeget.includes('v=[0-9a-f]{64}') &&
-      deployBeget.includes('local_file="${payload%%\\?*}"') &&
-      deployBeget.includes('sha256sum "$local_file"') &&
-      !deployBeget.includes('sha256sum "$payload"')
+      deployBeget.includes('node scripts/verify-beget-parity.mjs --public-url "$PUBLIC_URL"') &&
+      deployBeget.includes('actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020') &&
+      deployBeget.includes('node-version: 22') &&
+      begetParity.includes("redirect: 'manual'") &&
+      begetParity.includes('FETCH_ATTEMPTS = 3') &&
+      begetParity.includes('FETCH_TIMEOUT_MS = 60_000') &&
+      begetParity.includes('return Buffer.from(await response.arrayBuffer())') &&
+      begetParity.includes('conflicting immutable revisions') &&
+      begetParity.includes('process.exitCode = await runBegetParityCli({ publicUrl });') &&
+      /node --test tests\/quality\/beget-parity\.test\.mjs/.test(packageJson.scripts['test:beget-parity'] || '') &&
+      /\btest:beget-parity\b/.test(packageJson.scripts['codex:ship'] || '')
   );
 }
 check(

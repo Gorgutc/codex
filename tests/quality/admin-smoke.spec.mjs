@@ -514,5 +514,5 @@ test('errors announce through an assertive alert while preview controls expose s
   await page.click('#preview-vp-mobile');
   await expect(page.locator('#preview-vp-desktop')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('#preview-vp-mobile')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#publish-dialog')).toHaveAttribute('aria-labelledby', 'publish-dialog-title');
+  await expect(page.getByRole('dialog', { name: 'Опубликовать изменения', includeHidden: true })).toBeAttached();
 });

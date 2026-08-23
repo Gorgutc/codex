@@ -1401,19 +1401,31 @@
   async function settlePublication(outcome) {
     if (!publication) throw new Error('Нет ожидающей публикации.');
     const status = outcome && outcome.status;
+    const trustedOutcome =
+      publication.outcome && ['published', 'reverted'].indexOf(publication.outcome.status) !== -1
+        ? publication.outcome
+        : null;
+    // A fully settled trusted verdict (including one carrying an actionable
+    // reconciliation error) is immutable here. Only the explicit retry API
+    // may re-enter local reconciliation; duplicate pipeline observations must
+    // neither lock it again nor rewrite its evidence.
+    if (trustedOutcome && ['published', 'reverted'].indexOf(publication.phase) !== -1) return getPublication();
     if (status === 'published' || status === 'reverted') {
       // A remote verdict is known, but the local draft has not yet been
       // promoted/restored. Keep the durable record explicitly non-terminal so
       // observers and reload recovery cannot mistake this await boundary for a
       // completed publication.
+      const terminalStatus = trustedOutcome ? trustedOutcome.status : status;
       publication.phase = 'reconciling';
       publication.error = null;
       publication.outcome = {
-        status,
-        sha: (outcome && outcome.sha) || null,
-        url: (outcome && outcome.url) || null,
-        message: (outcome && outcome.message) || null,
-        settledAt: publicationNow()
+        status: terminalStatus,
+        sha: trustedOutcome ? trustedOutcome.sha : (outcome && outcome.sha) || null,
+        url: trustedOutcome ? trustedOutcome.url : (outcome && outcome.url) || null,
+        message: trustedOutcome ? trustedOutcome.message : (outcome && outcome.message) || null,
+        // Reload resumes a known terminal verdict. Its original settlement
+        // time is evidence, not the start time of the local retry.
+        settledAt: trustedOutcome ? trustedOutcome.settledAt : publicationNow()
       };
       publication.updatedAt = publicationNow();
       try {
@@ -1423,17 +1435,17 @@
       }
       let reconciliationError = null;
       try {
-        if (status === 'published') await promotePublicationSnapshot();
+        if (terminalStatus === 'published') await promotePublicationSnapshot();
         else await restorePublicationSnapshot();
       } catch (error) {
         reconciliationError =
           error && error.message
             ? error.message
-            : status === 'published'
+            : terminalStatus === 'published'
               ? 'Опубликованный source не удалось локально reconciliate.'
               : 'Черновик не удалось восстановить.';
       }
-      publication.phase = status;
+      publication.phase = terminalStatus;
       publication.error = reconciliationError;
       publication.outcome.message = (outcome && outcome.message) || reconciliationError || null;
       publication.updatedAt = publicationNow();
@@ -1441,6 +1453,20 @@
         savePublication();
       } catch (error) {
         publication.error = publication.error || 'Не удалось сохранить terminal-статус публикации в этой вкладке.';
+      }
+      notify();
+      return getPublication();
+    }
+    if (trustedOutcome) {
+      // A remote terminal verdict has already been accepted. Later polling or
+      // persistence error handling must never relabel it as `failed`, because
+      // that would unlock a source whose local reconciliation is incomplete.
+      if (publication.phase !== 'reconciling') return getPublication();
+      publication.updatedAt = publicationNow();
+      try {
+        savePublication();
+      } catch (_error) {
+        /* the prior durable ledger remains the retry anchor */
       }
       notify();
       return getPublication();
