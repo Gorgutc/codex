@@ -215,6 +215,56 @@ test('Meta: global identity and featured works are editable from the full catalo
   await expect(page.locator('#meta-featured-works [data-reorder$="::up"]')).toHaveCount(before + 1);
 });
 
+test('Meta: featured-work controls stay inside their cards at desktop and mobile (regression: unstyled controls overflow cards)', async ({ page }) => {
+  await mockGitHub(page);
+  await loginWithPat(page);
+  await page.click('a[href="#/meta"]');
+
+  const featuredCards = page.locator('#meta-featured-works .media-slot[data-featured-index]');
+  await expect(featuredCards.first()).toBeVisible();
+
+  for (const viewport of [
+    { name: 'desktop', width: 1440, height: 900 },
+    { name: 'mobile', width: 390, height: 844 }
+  ]) {
+    await page.setViewportSize(viewport);
+    const bounds = await featuredCards.evaluateAll((cards) =>
+      cards.flatMap((card) => {
+        const cardBounds = card.getBoundingClientRect();
+        return Array.from(card.querySelectorAll(':scope > select, :scope > textarea, :scope > .reorder-bar, :scope > button')).map(
+          (control) => {
+            const controlBounds = control.getBoundingClientRect();
+            return {
+              card: card.getAttribute('data-featured-index'),
+              control: control.matches('select')
+                ? 'case select'
+                : control.matches('textarea')
+                  ? 'about textarea'
+                  : control.matches('.reorder-bar')
+                    ? 'reorder bar'
+                    : 'remove button',
+              cardLeft: cardBounds.left,
+              cardRight: cardBounds.right,
+              controlLeft: controlBounds.left,
+              controlRight: controlBounds.right
+            };
+          }
+        );
+      })
+    );
+
+    expect(bounds.length).toBeGreaterThan(0);
+    for (const control of bounds) {
+      expect(control.controlLeft, `${viewport.name} card ${control.card}: ${control.control} starts outside its card`).toBeGreaterThanOrEqual(
+        control.cardLeft - 1
+      );
+      expect(control.controlRight, `${viewport.name} card ${control.card}: ${control.control} exceeds its card`).toBeLessThanOrEqual(
+        control.cardRight + 1
+      );
+    }
+  }
+});
+
 test('Meta: every C0 URL separator blocks publishing and anchors the contact field', async ({ page }) => {
   await mockGitHub(page);
   await loginWithPat(page);

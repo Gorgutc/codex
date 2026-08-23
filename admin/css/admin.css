@@ -794,6 +794,18 @@ textarea[disabled] {
   background: var(--a-surface-2);
 }
 
+/* Meta featured-work controls use the shared form treatment without letting
+   intrinsic select or textarea widths escape their padded card. */
+.featured-work__control {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+textarea.featured-work__control {
+  resize: vertical;
+}
+
 /* Слайс B: формат/тип/удаление блока под его drop-зоной. */
 .media-slot__controls {
   display: flex;
